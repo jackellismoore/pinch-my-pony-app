@@ -18,6 +18,7 @@ export default function Header() {
 
       <nav style={{ display: "flex", gap: 16 }}>
         <Link href="/">Home</Link>
+        <Link href="/browse">Browse Horses</Link>
         <Link href="/signup">Sign up</Link>
         <Link href="/horse">Horse Profile</Link>
         <Link href="/login">Log in</Link>
