@@ -21,6 +21,14 @@ export default function SignupPage() {
             I am a Borrower
           </button>
         </Link>
+        import Link from "next/link";
+
+      <Link href="/horse">
+        <button style={{ marginTop: 16 }}>
+        View a Horse
+        </button>
+      </Link>
+
       </div>
     </main>
   );

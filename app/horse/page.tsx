@@ -2,42 +2,33 @@ export default function HorseProfilePage() {
   return (
     <main style={{ padding: 40, fontFamily: "sans-serif", maxWidth: 600 }}>
       <h1>Horse Profile</h1>
-      <p>Tell borrowers about your horse.</p>
+      <p>Create or view a horse listing.</p>
 
       <form style={{ marginTop: 24 }}>
-  <div
-    style={{
-      marginBottom: 24,
-      padding: 16,
-      border: "2px dashed #ccc",
-      textAlign: "center",
-      borderRadius: 8,
-    }}
-  >
-    <strong>Horse Photos</strong>
-    <p style={{ fontSize: 14, color: "#555" }}>
-      Upload clear photos of your horse (side-on, head, ridden).
-    </p>
-
-    <button type="button" style={{ padding: "6px 12px" }}>
-      Upload photos (coming soon)
-    </button>
-  </div>
-
-
-        <div style={{ marginBottom: 16 }}>
-          <label>Breed (optional)</label>
-          <input
-            type="text"
-            placeholder="Welsh Cob"
-            style={{ width: "100%", padding: 8 }}
-          />
+        <div
+          style={{
+            marginBottom: 24,
+            padding: 16,
+            border: "2px dashed #ccc",
+            borderRadius: 8,
+            textAlign: "center",
+          }}
+        >
+          <strong>Horse Photos</strong>
+          <p style={{ fontSize: 14, color: "#555" }}>
+            Upload clear photos of your horse (coming soon)
+          </p>
+          <button type="button">Upload photos</button>
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label>Height / Size</label>
+          <label>Horse Name</label>
+          <input style={{ width: "100%", padding: 8 }} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label>Size</label>
           <select style={{ width: "100%", padding: 8 }}>
-            <option>Small pony</option>
             <option>Pony</option>
             <option>Cob</option>
             <option>Horse</option>
@@ -47,50 +38,18 @@ export default function HorseProfilePage() {
         <div style={{ marginBottom: 16 }}>
           <label>Temperament</label>
           <select style={{ width: "100%", padding: 8 }}>
-            <option>Very calm</option>
             <option>Calm</option>
             <option>Forward</option>
-            <option>Green / young</option>
             <option>Spirited</option>
           </select>
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <label>Suitable For</label>
-          <select style={{ width: "100%", padding: 8 }}>
-            <option>Beginner</option>
-            <option>Intermediate</option>
-            <option>Experienced riders only</option>
-          </select>
+          <label>Rules & Notes</label>
+          <textarea style={{ width: "100%", padding: 8 }} />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label>What can borrowers help with?</label>
-          <textarea
-            placeholder="e.g. hacking, schooling, grooming, stable help"
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          <label>Rules & Requirements</label>
-          <textarea
-            placeholder="e.g. must wear helmet, no jumping, max weight"
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 24 }}>
-          <label>Availability</label>
-          <textarea
-            placeholder="e.g. weekdays, weekends, evenings"
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
-
-        <button style={{ padding: "8px 16px" }}>
-          Save Horse Profile
-        </button>
+        <button>Save Horse</button>
       </form>
     </main>
   );

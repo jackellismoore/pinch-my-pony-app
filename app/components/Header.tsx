@@ -5,7 +5,7 @@ export default function Header() {
     <header
       style={{
         padding: "16px 32px",
-        borderBottom: "1px solid #eee",
+        borderBottom: "1px solid #ddd",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -13,15 +13,15 @@ export default function Header() {
       }}
     >
       <Link href="/" style={{ fontWeight: "bold", fontSize: 18 }}>
-        🐴 Pinch My Pony
+        🐎 Pinch My Pony
       </Link>
 
       <nav style={{ display: "flex", gap: 16 }}>
-  <Link href="/">Home</Link>
-  <Link href="/signup">Sign up</Link>
-  <Link href="/login">Log in</Link>
-</nav>
-
+        <Link href="/">Home</Link>
+        <Link href="/signup">Sign up</Link>
+        <Link href="/horse">Horse Profile</Link>
+        <Link href="/login">Log in</Link>
+      </nav>
     </header>
   );
 }
