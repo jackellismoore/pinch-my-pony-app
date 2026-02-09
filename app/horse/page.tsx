@@ -1,40 +1,58 @@
 import Link from "next/link";
 
-export default function HorseProfilePage() {
+export default function HorsePage() {
   return (
     <main style={{ padding: 40 }}>
-      <h1>Daisy</h1>
-      <p>Calm • Cob • Suitable for beginners</p>
+      <h1>Available Horses</h1>
+      <p>Browse horses shared by trusted owners.</p>
 
-      <section
-        style={{
-          marginTop: 24,
-          padding: 24,
-          border: "2px dashed #ccc",
-          borderRadius: 10,
-          textAlign: "center",
-        }}
-      >
-        <strong>Horse Photos</strong>
-        <p style={{ fontSize: 14 }}>
-          Upload clear photos (coming soon)
-        </p>
-        <button>Upload photos</button>
-      </section>
+      <div style={gridStyle}>
+        {["Bella", "Storm", "Willow"].map((name) => (
+          <div key={name} style={cardStyle}>
+            <img
+              src={`https://placehold.co/400x250?text=${name}`}
+              alt={`${name} the horse`}
+              style={imgStyle}
+            />
 
-      <section style={{ marginTop: 32 }}>
-        <h3>About Daisy</h3>
+            <h3>{name}</h3>
+            <p>Size: Medium</p>
+            <p>Temperament: Calm</p>
 
-        <p>
-          Daisy is a calm, friendly cob who enjoys hacking and light schooling.
-        </p>
-      </section>
-
-      <Link href="/request">
-        <button style={{ marginTop: 32 }}>
-          Request to Borrow
-        </button>
-      </Link>
+            <Link href="/horse">
+              <button disabled style={buttonStyle}>
+                Request to Borrow (login required)
+              </button>
+            </Link>
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
+
+const gridStyle = {
+  marginTop: 24,
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+  gap: 20,
+};
+
+const cardStyle = {
+  border: "1px solid #ddd",
+  borderRadius: 8,
+  padding: 16,
+};
+
+const imgStyle = {
+  width: "100%",
+  borderRadius: 6,
+  marginBottom: 12,
+};
+
+const buttonStyle = {
+  marginTop: 8,
+  padding: "6px 12px",
+  opacity: 0.6,
+  cursor: "not-allowed",
+};
