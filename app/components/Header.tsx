@@ -17,9 +17,11 @@ export default function Header() {
       </Link>
 
       <nav style={{ display: "flex", gap: 16 }}>
-        <Link href="/">Home</Link>
-        <Link href="/signup">Sign up</Link>
-      </nav>
+  <Link href="/">Home</Link>
+  <Link href="/signup">Sign up</Link>
+  <Link href="/login">Log in</Link>
+</nav>
+
     </header>
   );
 }
