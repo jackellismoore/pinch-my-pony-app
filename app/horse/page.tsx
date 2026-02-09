@@ -2,43 +2,36 @@ import Link from "next/link";
 
 export default function HorseProfilePage() {
   return (
-    <main style={{ padding: 40, fontFamily: "sans-serif", maxWidth: 600 }}>
-      <h1>Horse Profile</h1>
-      <p>This horse is available for borrowing.</p>
+    <main style={{ padding: 40 }}>
+      <h1>Daisy</h1>
+      <p>Calm • Cob • Suitable for beginners</p>
 
-      <div
+      <section
         style={{
-          marginBottom: 24,
-          padding: 16,
+          marginTop: 24,
+          padding: 24,
           border: "2px dashed #ccc",
-          borderRadius: 8,
+          borderRadius: 10,
           textAlign: "center",
         }}
       >
         <strong>Horse Photos</strong>
-        <p style={{ fontSize: 14, color: "#555" }}>
-          Upload clear photos of your horse (coming soon)
+        <p style={{ fontSize: 14 }}>
+          Upload clear photos (coming soon)
         </p>
-        <button type="button">Upload photos</button>
-      </div>
+        <button>Upload photos</button>
+      </section>
 
-      <div style={{ marginBottom: 16 }}>
-        <label>Horse Name</label>
-        <input style={{ width: "100%", padding: 8 }} value="Daisy" readOnly />
-      </div>
+      <section style={{ marginTop: 32 }}>
+        <h3>About Daisy</h3>
 
-      <div style={{ marginBottom: 16 }}>
-        <label>Size</label>
-        <input style={{ width: "100%", padding: 8 }} value="Cob" readOnly />
-      </div>
-
-      <div style={{ marginBottom: 16 }}>
-        <label>Temperament</label>
-        <input style={{ width: "100%", padding: 8 }} value="Calm" readOnly />
-      </div>
+        <p>
+          Daisy is a calm, friendly cob who enjoys hacking and light schooling.
+        </p>
+      </section>
 
       <Link href="/request">
-        <button style={{ marginTop: 24 }}>
+        <button style={{ marginTop: 32 }}>
           Request to Borrow
         </button>
       </Link>
