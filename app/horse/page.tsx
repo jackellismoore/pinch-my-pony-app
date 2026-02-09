@@ -5,14 +5,25 @@ export default function HorseProfilePage() {
       <p>Tell borrowers about your horse.</p>
 
       <form style={{ marginTop: 24 }}>
-        <div style={{ marginBottom: 16 }}>
-          <label>Horse Name</label>
-          <input
-            type="text"
-            placeholder="Daisy"
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
+  <div
+    style={{
+      marginBottom: 24,
+      padding: 16,
+      border: "2px dashed #ccc",
+      textAlign: "center",
+      borderRadius: 8,
+    }}
+  >
+    <strong>Horse Photos</strong>
+    <p style={{ fontSize: 14, color: "#555" }}>
+      Upload clear photos of your horse (side-on, head, ridden).
+    </p>
+
+    <button type="button" style={{ padding: "6px 12px" }}>
+      Upload photos (coming soon)
+    </button>
+  </div>
+
 
         <div style={{ marginBottom: 16 }}>
           <label>Breed (optional)</label>

@@ -60,9 +60,11 @@ export default function OwnerSignupPage() {
           />
         </div>
 
-        <button style={{ padding: "8px 16px" }}>
-          Continue
-        </button>
+        <a href="/horse">
+  <button style={{ padding: "8px 16px" }}>
+    Continue to Horse Profile
+  </button>
+</a>
       </form>
     </main>
   );
