@@ -1,22 +1,35 @@
 export default function RequestPage() {
   return (
-    <main style={{ padding: 40, fontFamily: "sans-serif", maxWidth: 500 }}>
-      <h1>Request to Borrow</h1>
-      <p>Send a request to the horse owner.</p>
+    <main style={{ padding: 32, maxWidth: 600, margin: "0 auto" }}>
+      <h1>Request a Horse</h1>
+      <p style={{ color: "#555" }}>
+        Send a request to the owner. Submissions coming soon.
+      </p>
 
-      <form style={{ marginTop: 24 }}>
-        <div style={{ marginBottom: 16 }}>
-          <label>Your Message</label>
-          <textarea
-            placeholder="Introduce yourself and explain why you'd be a good match"
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
+      <div style={{ marginTop: 24 }}>
+        <label>Start date</label>
+        <input type="date" style={{ width: "100%", padding: 8 }} />
+      </div>
 
-        <button>
-          Send Request
-        </button>
-      </form>
+      <div style={{ marginTop: 16 }}>
+        <label>End date</label>
+        <input type="date" style={{ width: "100%", padding: 8 }} />
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <label>Message</label>
+        <textarea
+          placeholder="Tell the owner about your experience..."
+          style={{ width: "100%", padding: 8, minHeight: 100 }}
+        />
+      </div>
+
+      <button
+        disabled
+        style={{ marginTop: 24, opacity: 0.6 }}
+      >
+        Submit request (coming soon)
+      </button>
     </main>
   );
 }

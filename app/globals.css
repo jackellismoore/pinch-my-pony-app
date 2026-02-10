@@ -23,16 +23,22 @@ p {
 }
 
 button {
-  padding: 8px 14px;
-  border-radius: 6px;
+  padding: 10px 16px;
+  border-radius: 8px;
   border: 1px solid #ccc;
   background: white;
   cursor: pointer;
+  font-size: 14px;
 }
 
 button:hover {
-  background: #f0f0f0;
+  background: #f5f5f5;
 }
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 
 input,
 select,

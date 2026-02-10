@@ -1,77 +1,47 @@
 import Link from "next/link";
 
-export default function SignupPage() {
+export default function HomePage() {
   return (
-    <main style={{ padding: 40, fontFamily: "sans-serif" }}>
-      <h1>Sign up to Pinch My Pony</h1>
-      <p>
-        Join our trusted community of horse owners and borrowers.
+    <main style={{ padding: 40 }}>
+      <h1 style={{ fontSize: 36, marginBottom: 12 }}>
+        Find the perfect horse 🐴
+      </h1>
+
+      <p style={{ fontSize: 18, maxWidth: 600, marginBottom: 32 }}>
+        Pinch My Pony connects trusted horse owners with responsible borrowers —
+        whether it’s for riding, care, or companionship.
       </p>
 
-      {/* Role buttons */}
-      <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
-        <Link href="/signup/owner">
-          <button>I am a Horse Owner</button>
+      <div style={{ display: "flex", gap: 16, marginBottom: 40 }}>
+        <Link href="/browse">
+          <button style={buttonStyle}>Browse Horses</button>
         </Link>
 
-        <Link href="/signup/borrower">
-          <button>I am a Borrower</button>
-        </Link>
-
-        <Link href="/horse">
-          <button>View a Horse</button>
+        <Link href="/signup">
+          <button style={secondaryButtonStyle}>Sign up</button>
         </Link>
       </div>
 
-      {/* Placeholder images */}
-      <div
-        style={{
-          marginTop: 40,
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: 16,
-        }}
-      >
-        <div style={cardStyle}>
-          <img
-            src="https://placehold.co/400x250?text=Horse+Profile"
-            alt="Horse profile placeholder"
-            style={imgStyle}
-          />
-          <p>Browse trusted horses</p>
-        </div>
-
-        <div style={cardStyle}>
-          <img
-            src="https://placehold.co/400x250?text=Owner+Dashboard"
-            alt="Owner dashboard placeholder"
-            style={imgStyle}
-          />
-          <p>Create and manage horse profiles</p>
-        </div>
-
-        <div style={cardStyle}>
-          <img
-            src="https://placehold.co/400x250?text=Borrow+Requests"
-            alt="Borrow requests placeholder"
-            style={imgStyle}
-          />
-          <p>Request or approve borrowing</p>
-        </div>
-      </div>
+      <section>
+        <h2>How it works</h2>
+        <ul>
+          <li>🐎 Owners list their horses</li>
+          <li>🤝 Borrowers send requests</li>
+          <li>📅 Agree schedules & care</li>
+        </ul>
+      </section>
     </main>
   );
 }
 
-const cardStyle = {
-  border: "1px solid #ddd",
-  borderRadius: 8,
-  padding: 12,
-  textAlign: "center" as const,
+const buttonStyle = {
+  padding: "12px 20px",
+  fontSize: 16,
+  cursor: "pointer",
 };
 
-const imgStyle = {
-  width: "100%",
-  borderRadius: 6,
-  marginBottom: 8,
+const secondaryButtonStyle = {
+  ...buttonStyle,
+  background: "#fff",
+  border: "1px solid #ccc",
 };

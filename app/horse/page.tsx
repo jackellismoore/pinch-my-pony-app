@@ -1,33 +1,48 @@
+import Link from "next/link";
+
 export default function HorsePage() {
   return (
-    <main style={{ padding: 40 }}>
-      <h1>🐎 Horses</h1>
-
-      <p style={{ maxWidth: 600 }}>
-        Browse horses shared by owners in the community. More listings will
-        appear as owners sign up.
-      </p>
+    <main style={{ padding: 32, maxWidth: 800, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 32 }}>🐎 Starfire</h1>
+      <p style={{ color: "#555" }}>Welsh Cob · Surrey, UK</p>
 
       <div
         style={{
-          marginTop: 48,
-          padding: 32,
-          border: "2px dashed #ddd",
+          marginTop: 24,
+          padding: 24,
+          border: "2px dashed #ccc",
           borderRadius: 12,
-          maxWidth: 600,
-          background: "#fafafa",
+          textAlign: "center",
         }}
       >
-        <h3>No live listings yet</h3>
-        <p>
-          This is a demo view. Once the backend is connected, available horses
-          will appear here automatically.
-        </p>
-
-        <p style={{ marginTop: 12, fontStyle: "italic", color: "#666" }}>
-          Interested in sharing your horse? Sign up as an owner to get started.
+        <strong>Horse Photo</strong>
+        <p style={{ fontSize: 14, color: "#666" }}>
+          Photo upload coming soon
         </p>
       </div>
+
+      <section style={{ marginTop: 32 }}>
+        <h2>About Starfire</h2>
+        <p>
+          Friendly, well-trained horse suitable for leisure riding. Calm
+          temperament and ideal for experienced borrowers.
+        </p>
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <h2>Temperament</h2>
+        <ul>
+          <li>Calm</li>
+          <li>Responsive</li>
+          <li>Good with other horses</li>
+        </ul>
+      </section>
+
+      <Link href="/request">
+        <button style={{ marginTop: 32 }}>
+          Request this horse
+        </button>
+      </Link>
     </main>
   );
 }
