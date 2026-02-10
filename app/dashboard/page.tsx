@@ -1,40 +1,85 @@
+"use client";
+
+import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { redirect } from "next/navigation";
 
-export default async function DashboardPage() {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default function DashboardPage() {
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
+  const [temperament, setTemperament] = useState("");
+  const [description, setDescription] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
 
-  if (!user) {
-    redirect("/login");
-  }
+  const addHorse = async () => {
+    setMessage(null);
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (profile?.role === "borrower") {
-    redirect("/browse");
-  }
+    if (!user) {
+      setMessage("You must be logged in.");
+      return;
+    }
+
+    const { error } = await supabase.from("horses").insert({
+      owner_id: user.id,
+      name,
+      location,
+      temperament,
+      description,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setName("");
+    setLocation("");
+    setTemperament("");
+    setDescription("");
+    setMessage("Horse added successfully 🐎");
+  };
 
   return (
-    <main style={{ padding: 32 }}>
+    <main style={{ padding: 32, maxWidth: 600 }}>
       <h1>Owner Dashboard</h1>
 
-      <p>Welcome! You are logged in as a horse owner.</p>
+      <h2 style={{ marginTop: 24 }}>Add a horse</h2>
 
-      <p style={{ marginTop: 16 }}>
-        From here you’ll be able to:
-      </p>
+      <input
+        placeholder="Horse name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <br />
 
-      <ul>
-        <li>Add and manage your horses</li>
-        <li>Review borrower requests</li>
-        <li>Pause or activate listings</li>
-      </ul>
+      <input
+        placeholder="Location"
+        value={location}
+        onChange={(e) => setLocation(e.target.value)}
+      />
+      <br />
+
+      <input
+        placeholder="Temperament"
+        value={temperament}
+        onChange={(e) => setTemperament(e.target.value)}
+      />
+      <br />
+
+      <textarea
+        placeholder="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+
+      <br /><br />
+
+      <button onClick={addHorse}>Add horse</button>
+
+      {message && <p style={{ marginTop: 12 }}>{message}</p>}
     </main>
   );
 }
