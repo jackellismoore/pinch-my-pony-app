@@ -6,11 +6,14 @@ import { supabase } from "../../lib/supabaseClient";
 type Request = {
   id: string;
   status: string;
-  horses: { name: string };
+  horses: {
+    name: string;
+  }[];
 };
 
 export default function BorrowerDashboard() {
   const [requests, setRequests] = useState<Request[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadMyRequests = async () => {
@@ -18,17 +21,24 @@ export default function BorrowerDashboard() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-      const { data: profile } = await supabase
+      // Get borrower profile
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("id")
         .eq("id", user.id)
         .single();
 
-      if (!profile) return;
+      if (profileError || !profile) {
+        setLoading(false);
+        return;
+      }
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("borrow_requests")
         .select(`
           id,
@@ -38,11 +48,19 @@ export default function BorrowerDashboard() {
         .eq("borrower_id", profile.id)
         .order("created_at", { ascending: false });
 
-      setRequests(data || []);
+      if (!error) {
+        setRequests((data as Request[]) || []);
+      }
+
+      setLoading(false);
     };
 
     loadMyRequests();
   }, []);
+
+  if (loading) {
+    return <p style={{ padding: 24 }}>Loading your requests…</p>;
+  }
 
   return (
     <main style={{ maxWidth: 800, margin: "40px auto" }}>
@@ -60,7 +78,9 @@ export default function BorrowerDashboard() {
             borderRadius: 6,
           }}
         >
-          <strong>{req.horses?.name}</strong>
+          <strong>Horse:</strong>{" "}
+          {req.horses?.[0]?.name || "Unknown"}
+
           <p>Status: {req.status}</p>
         </div>
       ))}
