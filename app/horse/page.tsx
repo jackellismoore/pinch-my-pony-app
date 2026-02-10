@@ -6,16 +6,14 @@ import { supabase } from "../lib/supabaseClient";
 
 export default function HorsePage() {
   const router = useRouter();
-
   const [name, setName] = useState("");
   const [breed, setBreed] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
-  const [ownerProfileId, setOwnerProfileId] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const guardOwner = async () => {
-      // 1) Get session
+    const loadOwner = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -25,40 +23,52 @@ export default function HorsePage() {
         return;
       }
 
-      // 2) Load profile
-      const { data: profile, error } = await supabase
+      const { data: profile } = await supabase
         .from("profiles")
         .select("id, role")
         .eq("id", user.id)
         .single();
 
-      if (error || !profile) {
-        router.replace("/");
-        return;
-      }
-
-      // 3) Enforce owner-only
-      if (profile.role !== "owner") {
+      if (!profile || profile.role !== "owner") {
         router.replace("/browse");
         return;
       }
 
-      setOwnerProfileId(profile.id);
-      setLoading(false);
+      setOwnerId(profile.id);
     };
 
-    guardOwner();
+    loadOwner();
   }, [router]);
 
   const handleCreateHorse = async () => {
-    if (!ownerProfileId) return;
+    if (!ownerId) return;
 
-    setMessage(null);
+    let photoUrl = null;
+
+    if (file) {
+      const filePath = `${ownerId}/${Date.now()}-${file.name}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("horse-photos")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        setMessage(uploadError.message);
+        return;
+      }
+
+      const { data } = supabase.storage
+        .from("horse-photos")
+        .getPublicUrl(filePath);
+
+      photoUrl = data.publicUrl;
+    }
 
     const { error } = await supabase.from("horses").insert({
       name,
       breed,
-      owner_id: ownerProfileId,
+      owner_id: ownerId,
+      photo_url: photoUrl,
     });
 
     if (error) {
@@ -67,31 +77,33 @@ export default function HorsePage() {
       setMessage("Horse added successfully 🐎");
       setName("");
       setBreed("");
+      setFile(null);
     }
   };
-
-  if (loading) {
-    return <p style={{ padding: 24 }}>Checking permissions…</p>;
-  }
 
   return (
     <main style={{ maxWidth: 500, margin: "40px auto" }}>
       <h1>Add a Horse</h1>
 
       <input
-        type="text"
         placeholder="Horse name"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        style={{ width: "100%", padding: 8, marginBottom: 12 }}
+        style={{ width: "100%", marginBottom: 12 }}
       />
 
       <input
-        type="text"
         placeholder="Breed"
         value={breed}
         onChange={(e) => setBreed(e.target.value)}
-        style={{ width: "100%", padding: 8, marginBottom: 12 }}
+        style={{ width: "100%", marginBottom: 12 }}
+      />
+
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        style={{ marginBottom: 12 }}
       />
 
       <button onClick={handleCreateHorse}>Add Horse</button>
