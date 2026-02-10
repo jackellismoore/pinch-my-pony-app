@@ -2,27 +2,28 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { logout } from "@/lib/auth";
+import { supabase } from "@/app/lib/supabaseClient";
 
 export default function Header() {
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setLoggedIn(!!data.session);
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setLoggedIn(!!session);
+      setUser(session?.user ?? null);
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+  }
 
   return (
     <header
@@ -34,24 +35,18 @@ export default function Header() {
         alignItems: "center",
       }}
     >
-      <Link
-        href="/"
-        style={{
-          fontWeight: 700,
-          fontSize: 20,
-          textDecoration: "none",
-        }}
-      >
+      <Link href="/" style={{ fontSize: 20, fontWeight: 700 }}>
         🐎 Pinch My Pony
       </Link>
 
       <nav style={{ display: "flex", gap: 16 }}>
         <Link href="/browse">Browse</Link>
+        <Link href="/horse">Horses</Link>
 
-        {loggedIn ? (
+        {user ? (
           <>
             <Link href="/dashboard">Dashboard</Link>
-            <button onClick={logout}>Logout</button>
+            <button onClick={handleLogout}>Logout</button>
           </>
         ) : (
           <>
