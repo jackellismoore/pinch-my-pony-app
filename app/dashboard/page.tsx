@@ -1,55 +1,25 @@
-import Link from "next/link";
+import { getCurrentUser } from "../lib/auth";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const user = await getCurrentUser();
+
   return (
-    <main style={{ padding: 40, fontFamily: "sans-serif" }}>
-      <h1>Owner Dashboard</h1>
-      <p>Manage your horses and requests.</p>
+    <main style={{ padding: 32 }}>
+      <h1>Dashboard</h1>
 
-      <section style={{ marginTop: 24 }}>
-        <h3>My Horses</h3>
-
-        <div
-          style={{
-            marginTop: 12,
-            padding: 16,
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            maxWidth: 500,
-          }}
-        >
-          <strong>Daisy</strong>
-          <p>Calm • Cob</p>
-
-          <Link href="/horse">
-            <button style={{ marginTop: 8 }}>
-              Edit Horse
-            </button>
-          </Link>
-        </div>
-      </section>
-
-      <section style={{ marginTop: 32 }}>
-        <h3>Borrow Requests</h3>
-
-        <div
-          style={{
-            marginTop: 12,
-            padding: 16,
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            maxWidth: 500,
-          }}
-        >
-          <strong>Alex Taylor</strong>
-          <p>Requested Daisy</p>
-
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button>Approve</button>
-            <button>Decline</button>
-          </div>
-        </div>
-      </section>
+      {user ? (
+        <>
+          <p>✅ You are logged in</p>
+          <p>
+            <strong>Email:</strong> {user.email}
+          </p>
+        </>
+      ) : (
+        <>
+          <p>❌ You are not logged in</p>
+          <p>Please log in to access your dashboard.</p>
+        </>
+      )}
     </main>
   );
 }
