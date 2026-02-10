@@ -1,41 +1,48 @@
 "use client";
 
-import { useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 export default function RequestClient() {
   const searchParams = useSearchParams();
-  const horseId = searchParams.get("horse");
+  const horseId = searchParams.get("horseId");
 
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const submitRequest = async () => {
-    setError("");
+    setError(null);
     setSuccess(false);
+    setLoading(true);
 
+    // 1️⃣ Get logged-in user
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setError("You must be logged in");
+      setError("You must be logged in.");
+      setLoading(false);
       return;
     }
 
+    // 2️⃣ Fetch borrower profile (THIS fixes the FK error)
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id")
       .eq("id", user.id)
       .single();
 
-    if (profileError || !profile) {
-      setError("Profile not found. Please log out and back in.");
+    if (!profile || profileError) {
+      setError("Borrower profile not found.");
+      setLoading(false);
       return;
     }
 
+    // 3️⃣ Insert borrow request using profile.id
     const { error: insertError } = await supabase
       .from("borrow_requests")
       .insert({
@@ -46,32 +53,33 @@ export default function RequestClient() {
 
     if (insertError) {
       setError(insertError.message);
-      return;
+    } else {
+      setSuccess(true);
+      setMessage("");
     }
 
-    setMessage("");
-    setSuccess(true);
+    setLoading(false);
   };
 
   return (
-    <main style={{ maxWidth: 600, margin: "0 auto", padding: 32 }}>
-      <h1>Request to borrow</h1>
+    <main style={{ maxWidth: 600, margin: "40px auto" }}>
+      <h1>Request to Borrow</h1>
 
       <textarea
         placeholder="Tell the owner why you'd like to borrow this horse"
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        style={{ width: "100%", padding: 12, minHeight: 120 }}
+        style={{ width: "100%", minHeight: 120, padding: 12 }}
       />
 
-      <button onClick={submitRequest} style={{ marginTop: 16 }}>
-        Send request
+      <button onClick={submitRequest} disabled={loading} style={{ marginTop: 16 }}>
+        {loading ? "Sending…" : "Send request"}
       </button>
 
-      {error && <p style={{ color: "red", marginTop: 16 }}>{error}</p>}
+      {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
       {success && (
-        <p style={{ color: "green", marginTop: 16 }}>
-          Request sent successfully!
+        <p style={{ color: "green", marginTop: 12 }}>
+          Request sent successfully 🐎
         </p>
       )}
     </main>
