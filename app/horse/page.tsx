@@ -1,69 +1,81 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
 
 export default function HorsePage() {
+  const router = useRouter();
+
   const [name, setName] = useState("");
   const [breed, setBreed] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
+  const [ownerProfileId, setOwnerProfileId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const guardOwner = async () => {
+      // 1) Get session
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace("/signup");
+        return;
+      }
+
+      // 2) Load profile
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("id, role")
+        .eq("id", user.id)
+        .single();
+
+      if (error || !profile) {
+        router.replace("/");
+        return;
+      }
+
+      // 3) Enforce owner-only
+      if (profile.role !== "owner") {
+        router.replace("/browse");
+        return;
+      }
+
+      setOwnerProfileId(profile.id);
+      setLoading(false);
+    };
+
+    guardOwner();
+  }, [router]);
 
   const handleCreateHorse = async () => {
-    setLoading(true);
-    setMessage("");
+    if (!ownerProfileId) return;
 
-    // 1. Get logged-in user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    setMessage(null);
 
-    if (!user || userError) {
-      setMessage("You must be logged in as an owner.");
-      setLoading(false);
-      return;
-    }
-
-    // 2. Fetch profile (THIS is the key fix)
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || profileError) {
-      setMessage("Profile not found.");
-      setLoading(false);
-      return;
-    }
-
-    if (profile.role !== "owner") {
-      setMessage("Only owners can list horses.");
-      setLoading(false);
-      return;
-    }
-
-    // 3. Insert horse linked to owner profile
-    const { error: insertError } = await supabase.from("horses").insert({
+    const { error } = await supabase.from("horses").insert({
       name,
       breed,
-      owner_id: profile.id,
+      owner_id: ownerProfileId,
     });
 
-    if (insertError) {
-      setMessage(insertError.message);
+    if (error) {
+      setMessage(error.message);
     } else {
-      setMessage("Horse listed successfully 🐎");
+      setMessage("Horse added successfully 🐎");
       setName("");
       setBreed("");
     }
-
-    setLoading(false);
   };
 
+  if (loading) {
+    return <p style={{ padding: 24 }}>Checking permissions…</p>;
+  }
+
   return (
-    <div style={{ maxWidth: 500, margin: "0 auto" }}>
+    <main style={{ maxWidth: 500, margin: "40px auto" }}>
       <h1>Add a Horse</h1>
 
       <input
@@ -82,15 +94,9 @@ export default function HorsePage() {
         style={{ width: "100%", padding: 8, marginBottom: 12 }}
       />
 
-      <button onClick={handleCreateHorse} disabled={loading}>
-        {loading ? "Saving..." : "Add Horse"}
-      </button>
+      <button onClick={handleCreateHorse}>Add Horse</button>
 
-      {message && (
-        <p style={{ marginTop: 16, color: message.includes("success") ? "green" : "red" }}>
-          {message}
-        </p>
-      )}
-    </div>
+      {message && <p style={{ marginTop: 16 }}>{message}</p>}
+    </main>
   );
 }
