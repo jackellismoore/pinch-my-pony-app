@@ -1,86 +1,71 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/app/lib/supabaseClient";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"owner" | "borrower">("borrower");
-  const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState("borrower");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-  const handleSignup = async () => {
-    setLoading(true);
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault();
     setError(null);
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          role, // 👈 goes into raw_user_meta_data for trigger
+        },
+      },
     });
 
-    if (signUpError || !data.user) {
-      setError(signUpError?.message || "Signup failed");
-      setLoading(false);
-      return;
+    if (error) {
+      setError(error.message);
+    } else {
+      setSuccess(true);
     }
-
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({
-        id: data.user.id,
-        role,
-      });
-
-    if (profileError) {
-      setError(profileError.message);
-      setLoading(false);
-      return;
-    }
-
-    alert(
-      "Signup successful! Please check your email to confirm your account, then log in."
-    );
-
-    setLoading(false);
-  };
+  }
 
   return (
-    <main style={{ padding: 40, maxWidth: 400, margin: "0 auto" }}>
+    <main style={{ maxWidth: 400, margin: "60px auto" }}>
       <h1>Sign up</h1>
 
-      <input
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
+      <form onSubmit={handleSignup}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
 
-      <br />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
 
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+        <select value={role} onChange={(e) => setRole(e.target.value)}>
+          <option value="borrower">Borrower</option>
+          <option value="owner">Horse Owner</option>
+        </select>
 
-      <br />
-
-      <select
-        value={role}
-        onChange={(e) => setRole(e.target.value as any)}
-      >
-        <option value="borrower">Borrower</option>
-        <option value="owner">Horse Owner</option>
-      </select>
-
-      <br /><br />
-
-      <button onClick={handleSignup} disabled={loading}>
-        {loading ? "Creating account..." : "Create account"}
-      </button>
+        <button type="submit">Create account</button>
+      </form>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
+      {success && (
+        <p style={{ color: "green" }}>
+          Account created! Check your email to confirm.
+        </p>
+      )}
     </main>
   );
 }
