@@ -7,11 +7,14 @@ type Request = {
   id: string;
   message: string;
   status: string;
-  horses: { name: string };
+  horses: {
+    name: string;
+  }[];
 };
 
 export default function OwnerDashboard() {
   const [requests, setRequests] = useState<Request[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadRequests = async () => {
@@ -19,9 +22,12 @@ export default function OwnerDashboard() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("borrow_requests")
         .select(`
           id,
@@ -31,11 +37,19 @@ export default function OwnerDashboard() {
         `)
         .order("created_at", { ascending: false });
 
-      setRequests(data || []);
+      if (!error) {
+        setRequests((data as Request[]) || []);
+      }
+
+      setLoading(false);
     };
 
     loadRequests();
   }, []);
+
+  if (loading) {
+    return <p style={{ padding: 24 }}>Loading owner dashboard…</p>;
+  }
 
   return (
     <main style={{ maxWidth: 800, margin: "40px auto" }}>
@@ -53,7 +67,9 @@ export default function OwnerDashboard() {
             borderRadius: 6,
           }}
         >
-          <strong>Horse:</strong> {req.horses?.name}
+          <strong>Horse:</strong>{" "}
+          {req.horses?.[0]?.name || "Unknown"}
+
           <p>{req.message}</p>
           <p>Status: {req.status}</p>
         </div>
