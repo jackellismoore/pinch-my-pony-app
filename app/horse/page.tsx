@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 export default async function HorsePage({
@@ -25,6 +26,12 @@ export default async function HorsePage({
       <p><strong>Location:</strong> {horse.location}</p>
       <p><strong>Temperament:</strong> {horse.temperament}</p>
       <p>{horse.description}</p>
+
+      <Link href={`/request?horseId=${horse.id}`}>
+        <button style={{ marginTop: 24 }}>
+          Request this horse
+        </button>
+      </Link>
     </main>
   );
 }
