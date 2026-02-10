@@ -1,71 +1,61 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/app/lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("borrower");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  async function handleSignup(e: React.FormEvent) {
-    e.preventDefault();
+  const handleSignup = async () => {
+    setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({
+    const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          role, // 👈 goes into raw_user_meta_data for trigger
-        },
+        data: { role },
       },
     });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess(true);
+    if (signUpError) {
+      setError(signUpError.message);
     }
-  }
+
+    setLoading(false);
+  };
 
   return (
     <main style={{ maxWidth: 400, margin: "60px auto" }}>
       <h1>Sign up</h1>
 
-      <form onSubmit={handleSignup}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+      <input
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
 
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="borrower">Borrower</option>
-          <option value="owner">Horse Owner</option>
-        </select>
+      <select value={role} onChange={(e) => setRole(e.target.value)}>
+        <option value="borrower">Borrower</option>
+        <option value="owner">Horse Owner</option>
+      </select>
 
-        <button type="submit">Create account</button>
-      </form>
+      <button onClick={handleSignup} disabled={loading}>
+        {loading ? "Creating account..." : "Create account"}
+      </button>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
-      {success && (
-        <p style={{ color: "green" }}>
-          Account created! Check your email to confirm.
-        </p>
-      )}
     </main>
   );
 }
