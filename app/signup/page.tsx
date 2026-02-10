@@ -34,13 +34,19 @@ export default function SignupPage() {
 
     if (profileError) {
       setError(profileError.message);
+      setLoading(false);
+      return;
     }
+
+    alert(
+      "Signup successful! Please check your email to confirm your account, then log in."
+    );
 
     setLoading(false);
   };
 
   return (
-    <main style={{ padding: 40 }}>
+    <main style={{ padding: 40, maxWidth: 400, margin: "0 auto" }}>
       <h1>Sign up</h1>
 
       <input
@@ -48,6 +54,7 @@ export default function SignupPage() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
+
       <br />
 
       <input
@@ -56,9 +63,13 @@ export default function SignupPage() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+
       <br />
 
-      <select value={role} onChange={(e) => setRole(e.target.value as any)}>
+      <select
+        value={role}
+        onChange={(e) => setRole(e.target.value as any)}
+      >
         <option value="borrower">Borrower</option>
         <option value="owner">Horse Owner</option>
       </select>

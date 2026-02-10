@@ -1,35 +1,61 @@
+"use client";
+
+import { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
+
 export default function LoginPage() {
+  const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLogin = async () => {
+    setLoading(true);
+    setError(null);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    router.push("/dashboard");
+  };
+
   return (
-    <main style={{ padding: 40, fontFamily: "sans-serif" }}>
-      <h1>Log in to Pinch My Pony</h1>
+    <main style={{ padding: 40, maxWidth: 400, margin: "0 auto" }}>
+      <h1>Login</h1>
 
-      <p>
-        Welcome back! Please log in to manage your ponies or rentals.
-      </p>
+      <input
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
 
-      <form style={{ marginTop: 24, maxWidth: 320 }}>
-        <div style={{ marginBottom: 12 }}>
-          <label>Email</label>
-          <input
-            type="email"
-            placeholder="you@example.com"
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
+      <br />
 
-        <div style={{ marginBottom: 12 }}>
-          <label>Password</label>
-          <input
-            type="password"
-            placeholder="••••••••"
-            style={{ width: "100%", padding: 8 }}
-          />
-        </div>
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
 
-        <button style={{ padding: "8px 16px" }}>
-          Log in
-        </button>
-      </form>
+      <br /><br />
+
+      <button onClick={handleLogin} disabled={loading}>
+        {loading ? "Logging in..." : "Login"}
+      </button>
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
     </main>
   );
 }
