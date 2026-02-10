@@ -35,7 +35,6 @@ export default function BrowsePage() {
       <h1>Browse Horses</h1>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
-
       {horses.length === 0 && <p>No horses available yet.</p>}
 
       <ul style={{ listStyle: "none", padding: 0 }}>
@@ -52,8 +51,9 @@ export default function BrowsePage() {
             <h3>{horse.name}</h3>
             <p>{horse.breed || "Breed not specified"}</p>
 
-            <Link href={`/horse?id=${horse.id}`}>
-              View horse →
+            {/* 👇 THIS IS THE FIX */}
+            <Link href={`/request?horseId=${horse.id}`}>
+              Request to borrow →
             </Link>
           </li>
         ))}
