@@ -1,85 +1,88 @@
 "use client";
 
-import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 export default function DashboardPage() {
-  const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
-  const [temperament, setTemperament] = useState("");
-  const [description, setDescription] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const addHorse = async () => {
-    setMessage(null);
+  useEffect(() => {
+    const loadRequests = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-    if (!user) {
-      setMessage("You must be logged in.");
-      return;
-    }
+      // Get horses owned by this user
+      const { data: horses } = await supabase
+        .from("horses")
+        .select("id, name")
+        .eq("owner_id", user.id);
 
-    const { error } = await supabase.from("horses").insert({
-      owner_id: user.id,
-      name,
-      location,
-      temperament,
-      description,
-    });
+      if (!horses || horses.length === 0) {
+        setLoading(false);
+        return;
+      }
 
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
+      const horseIds = horses.map((h) => h.id);
 
-    setName("");
-    setLocation("");
-    setTemperament("");
-    setDescription("");
-    setMessage("Horse added successfully 🐎");
-  };
+      // Get requests for those horses
+      const { data: borrowRequests } = await supabase
+        .from("borrow_requests")
+        .select(`
+          id,
+          message,
+          created_at,
+          horses ( name )
+        `)
+        .in("horse_id", horseIds)
+        .order("created_at", { ascending: false });
+
+      setRequests(borrowRequests || []);
+      setLoading(false);
+    };
+
+    loadRequests();
+  }, []);
+
+  if (loading) {
+    return <p style={{ padding: 24 }}>Loading dashboard…</p>;
+  }
 
   return (
-    <main style={{ padding: 32, maxWidth: 600 }}>
-      <h1>Owner Dashboard</h1>
+    <main style={{ maxWidth: 800, margin: "0 auto", padding: 24 }}>
+      <h1>Dashboard</h1>
 
-      <h2 style={{ marginTop: 24 }}>Add a horse</h2>
+      <h2 style={{ marginTop: 32 }}>Borrow requests</h2>
 
-      <input
-        placeholder="Horse name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-      <br />
+      {requests.length === 0 && <p>No requests yet.</p>}
 
-      <input
-        placeholder="Location"
-        value={location}
-        onChange={(e) => setLocation(e.target.value)}
-      />
-      <br />
-
-      <input
-        placeholder="Temperament"
-        value={temperament}
-        onChange={(e) => setTemperament(e.target.value)}
-      />
-      <br />
-
-      <textarea
-        placeholder="Description"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-      />
-
-      <br /><br />
-
-      <button onClick={addHorse}>Add horse</button>
-
-      {message && <p style={{ marginTop: 12 }}>{message}</p>}
+      <ul style={{ marginTop: 16 }}>
+        {requests.map((req) => (
+          <li
+            key={req.id}
+            style={{
+              border: "1px solid #eee",
+              padding: 16,
+              marginBottom: 16,
+              borderRadius: 6,
+            }}
+          >
+            <strong>Horse:</strong> {req.horses?.name}
+            <br />
+            <strong>Message:</strong>
+            <p>{req.message}</p>
+            <small>
+              {new Date(req.created_at).toLocaleString()}
+            </small>
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }
