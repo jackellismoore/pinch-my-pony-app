@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/app/lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
@@ -23,19 +23,20 @@ export default function Header() {
 
   async function handleLogout() {
     await supabase.auth.signOut();
+    window.location.href = "/";
   }
 
   return (
     <header
       style={{
-        padding: "16px 24px",
+        padding: "12px 24px",
         borderBottom: "1px solid #eee",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
       }}
     >
-      <Link href="/" style={{ fontSize: 20, fontWeight: 700 }}>
+      <Link href="/" style={{ fontWeight: "bold", fontSize: 18 }}>
         🐎 Pinch My Pony
       </Link>
 
@@ -43,16 +44,14 @@ export default function Header() {
         <Link href="/browse">Browse</Link>
         <Link href="/horse">Horses</Link>
 
-        {user ? (
-          <>
-            <Link href="/dashboard">Dashboard</Link>
-            <button onClick={handleLogout}>Logout</button>
-          </>
-        ) : (
-          <>
-            <Link href="/login">Login</Link>
-            <Link href="/signup">Sign up</Link>
-          </>
+        {!user && <Link href="/login">Login</Link>}
+        {!user && <Link href="/signup">Sign up</Link>}
+
+        {user && <Link href="/dashboard">Dashboard</Link>}
+        {user && (
+          <button onClick={handleLogout} style={{ cursor: "pointer" }}>
+            Logout
+          </button>
         )}
       </nav>
     </header>
