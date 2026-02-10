@@ -4,43 +4,30 @@ export default function Header() {
   return (
     <header
       style={{
-        background: "white",
-        padding: "16px 32px",
-        borderBottom: "1px solid #e5e5e5",
+        padding: "16px 24px",
+        borderBottom: "1px solid #eee",
         display: "flex",
-        justifyContent: "space-between",
         alignItems: "center",
-        fontFamily: "sans-serif",
+        justifyContent: "space-between",
       }}
     >
       <Link
         href="/"
         style={{
-          fontWeight: 700,
           fontSize: 20,
+          fontWeight: 700,
           textDecoration: "none",
-          color: "#222",
+          color: "#000",
         }}
       >
-        🐴 Pinch My Pony
+        🐎 Pinch My Pony
       </Link>
 
-      <nav style={{ display: "flex", gap: 20, alignItems: "center" }}>
-        <Link href="/">Home</Link>
-        <Link href="/horse">Horses</Link>
+      <nav style={{ display: "flex", gap: 16 }}>
+        <Link href="/browse">Browse</Link>
+        <Link href="/dashboard">Dashboard</Link>
+        <Link href="/login">Login</Link>
         <Link href="/signup">Sign up</Link>
-
-        {/* Disabled login for demo */}
-        <span
-          style={{
-            color: "#999",
-            cursor: "not-allowed",
-            fontSize: 14,
-          }}
-          title="Login coming soon"
-        >
-          Login (coming soon)
-        </span>
       </nav>
     </header>
   );
