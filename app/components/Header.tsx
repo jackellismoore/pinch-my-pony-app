@@ -1,60 +1,59 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-
-type Profile = {
-  role: "owner" | "borrower";
-};
+import { useEffect, useState } from "react";
 
 export default function Header() {
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
-    const loadProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    supabase.auth.getSession().then(({ data }) => {
+      setLoggedIn(!!data.session);
+    });
 
-      if (!user) return;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setLoggedIn(!!session);
+    });
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (data) setProfile(data);
-    };
-
-    loadProfile();
+    return () => subscription.unsubscribe();
   }, []);
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
 
   return (
     <header
       style={{
-        display: "flex",
-        gap: 16,
         padding: 16,
         borderBottom: "1px solid #eee",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
       }}
     >
-      <Link href="/">🏇 Pinch My Pony</Link>
-      <Link href="/browse">Browse</Link>
+      <Link href="/" style={{ fontWeight: "bold", fontSize: 20 }}>
+        🐎 Pinch My Pony
+      </Link>
 
-      {profile?.role === "owner" && (
-        <>
-          <Link href="/horse">Add Horse</Link>
-          <Link href="/dashboard/owner">Owner Dashboard</Link>
-        </>
-      )}
+      <nav style={{ display: "flex", gap: 12 }}>
+        <Link href="/browse">Browse</Link>
 
-      {profile?.role === "borrower" && (
-        <Link href="/dashboard/borrower">My Requests</Link>
-      )}
+        {loggedIn && <Link href="/horse">Add Horse</Link>}
 
-      <Link href="/login">Login</Link>
+        {!loggedIn && <Link href="/login">Login</Link>}
+        {!loggedIn && <Link href="/signup">Sign up</Link>}
+
+        {loggedIn && (
+          <button onClick={logout} style={{ cursor: "pointer" }}>
+            Logout
+          </button>
+        )}
+      </nav>
     </header>
   );
 }
