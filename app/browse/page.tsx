@@ -8,57 +8,64 @@ type Horse = {
   id: string;
   name: string;
   breed: string | null;
+  description: string | null;
 };
 
 export default function BrowsePage() {
   const [horses, setHorses] = useState<Horse[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadHorses = async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("horses")
-        .select("id, name, breed")
+        .select("id, name, breed, description")
         .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        setHorses(data);
-      }
-
-      setLoading(false);
+      setHorses(data || []);
     };
 
     loadHorses();
   }, []);
 
-  if (loading) return <p>Loading horses…</p>;
-
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto" }}>
+    <main style={{ padding: 40 }}>
       <h1>Browse Horses</h1>
 
-      {horses.length === 0 && <p>No horses listed yet.</p>}
-
-      <ul style={{ listStyle: "none", padding: 0 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+          gap: 24,
+          marginTop: 24,
+        }}
+      >
         {horses.map((horse) => (
-          <li
+          <div
             key={horse.id}
             style={{
               border: "1px solid #ddd",
-              padding: 16,
               borderRadius: 8,
-              marginBottom: 12,
+              overflow: "hidden",
+              background: "#fff",
             }}
           >
-            <h3>{horse.name}</h3>
-            <p>{horse.breed || "Unknown breed"}</p>
+            <img
+              src="https://placehold.co/400x250?text=Horse"
+              alt={horse.name}
+              style={{ width: "100%", height: 180, objectFit: "cover" }}
+            />
 
-            <Link href={`/request?horseId=${horse.id}`}>
-              Request to borrow →
-            </Link>
-          </li>
+            <div style={{ padding: 16 }}>
+              <h3>{horse.name}</h3>
+              {horse.breed && <p>{horse.breed}</p>}
+
+              <Link href={`/horse?id=${horse.id}`}>
+                View horse →
+              </Link>
+            </div>
+          </div>
         ))}
-      </ul>
-    </div>
+      </div>
+    </main>
   );
 }

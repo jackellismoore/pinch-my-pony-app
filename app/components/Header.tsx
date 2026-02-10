@@ -1,35 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+
+type Profile = {
+  role: "owner" | "borrower";
+};
 
 export default function Header() {
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setLoggedIn(!!data.session);
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+      if (data.user) loadProfile(data.user.id);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setLoggedIn(!!session);
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) loadProfile(session.user.id);
+        else setProfile(null);
+      }
+    );
 
-    return () => subscription.unsubscribe();
+    return () => listener.subscription.unsubscribe();
   }, []);
+
+  const loadProfile = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+
+    setProfile(data);
+  };
 
   const logout = async () => {
     await supabase.auth.signOut();
-    window.location.href = "/";
   };
 
   return (
     <header
       style={{
-        padding: 16,
+        padding: "16px 32px",
         borderBottom: "1px solid #eee",
         display: "flex",
         justifyContent: "space-between",
@@ -37,18 +54,26 @@ export default function Header() {
       }}
     >
       <Link href="/" style={{ fontWeight: "bold", fontSize: 20 }}>
-        🐎 Pinch My Pony
+        🐴 Pinch My Pony
       </Link>
 
-      <nav style={{ display: "flex", gap: 12 }}>
+      <nav style={{ display: "flex", gap: 16 }}>
         <Link href="/browse">Browse</Link>
 
-        {loggedIn && <Link href="/horse">Add Horse</Link>}
+        {user && <Link href="/dashboard">Dashboard</Link>}
 
-        {!loggedIn && <Link href="/login">Login</Link>}
-        {!loggedIn && <Link href="/signup">Sign up</Link>}
+        {profile?.role === "owner" && (
+          <Link href="/horse">Add Horse</Link>
+        )}
 
-        {loggedIn && (
+        {!user && (
+          <>
+            <Link href="/login">Login</Link>
+            <Link href="/signup">Sign up</Link>
+          </>
+        )}
+
+        {user && (
           <button onClick={logout} style={{ cursor: "pointer" }}>
             Logout
           </button>
