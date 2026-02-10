@@ -1,82 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useSearchParams } from "next/navigation";
 
 export default function HorsePage() {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const horseId = searchParams.get("id");
 
-  const handleAddHorse = async () => {
-    setLoading(true);
-    setMessage(null);
+  const [horse, setHorse] = useState<any>(null);
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!horseId) return;
+
+    supabase
+      .from("horses")
+      .select("*")
+      .eq("id", horseId)
+      .single()
+      .then(({ data }) => setHorse(data));
+  }, [horseId]);
+
+  const submitRequest = async () => {
+    setStatus(null);
 
     const {
       data: { user },
-      error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      setMessage("You must be logged in to add a horse.");
-      setLoading(false);
+    if (!user) {
+      setStatus("You must be logged in to request a horse.");
       return;
     }
 
-    const { error } = await supabase.from("horses").insert({
-      owner_id: user.id,
-      name,
-      description,
+    const { error } = await supabase.from("borrow_requests").insert({
+      horse_id: horseId,
+      borrower_id: user.id,
+      message,
     });
 
     if (error) {
-      setMessage(error.message);
+      setStatus(error.message);
     } else {
-      setMessage("Horse added successfully 🐴");
-      setName("");
-      setDescription("");
+      setStatus("Request sent successfully 🐎");
+      setMessage("");
     }
-
-    setLoading(false);
   };
+
+  if (!horse) {
+    return <p style={{ padding: 24 }}>Loading horse…</p>;
+  }
 
   return (
     <main style={{ maxWidth: 600, margin: "0 auto", padding: 24 }}>
-      <h1>Add a Horse</h1>
+      <h1>{horse.name}</h1>
+      <p>{horse.description}</p>
 
-      <label>
-        Horse name
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={{ width: "100%", padding: 8, marginTop: 4 }}
-        />
-      </label>
+      <h3 style={{ marginTop: 32 }}>Request to borrow</h3>
 
-      <br /><br />
-
-      <label>
-        Description
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={4}
-          style={{ width: "100%", padding: 8, marginTop: 4 }}
-        />
-      </label>
+      <textarea
+        placeholder="Tell the owner about yourself"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        rows={4}
+        style={{ width: "100%", padding: 8 }}
+      />
 
       <br /><br />
 
-      <button onClick={handleAddHorse} disabled={loading}>
-        {loading ? "Saving..." : "Add horse"}
+      <button onClick={submitRequest}>
+        Send request
       </button>
 
-      {message && (
-        <p style={{ marginTop: 16 }}>
-          {message}
-        </p>
-      )}
+      {status && <p style={{ marginTop: 16 }}>{status}</p>}
     </main>
   );
 }
