@@ -16,36 +16,45 @@ export default function OwnerDashboard() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadRequests = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  const loadRequests = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("borrow_requests")
-        .select(`
-          id,
-          message,
-          status,
-          horses ( name )
-        `)
-        .order("created_at", { ascending: false });
-
-      if (!error) {
-        setRequests((data as Request[]) || []);
-      }
-
+    if (!user) {
       setLoading(false);
-    };
+      return;
+    }
 
+    const { data, error } = await supabase
+      .from("borrow_requests")
+      .select(`
+        id,
+        message,
+        status,
+        horses ( name )
+      `)
+      .order("created_at", { ascending: false });
+
+    if (!error) {
+      setRequests((data as Request[]) || []);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
     loadRequests();
   }, []);
+
+  const updateStatus = async (id: string, status: "approved" | "rejected") => {
+    await supabase
+      .from("borrow_requests")
+      .update({ status })
+      .eq("id", id);
+
+    loadRequests();
+  };
 
   if (loading) {
     return <p style={{ padding: 24 }}>Loading owner dashboard…</p>;
@@ -72,6 +81,22 @@ export default function OwnerDashboard() {
 
           <p>{req.message}</p>
           <p>Status: {req.status}</p>
+
+          {req.status === "pending" && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={() => updateStatus(req.id, "approved")}
+                style={{ marginRight: 8 }}
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => updateStatus(req.id, "rejected")}
+              >
+                Reject
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </main>
