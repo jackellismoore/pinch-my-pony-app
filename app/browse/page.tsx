@@ -1,47 +1,70 @@
-import { supabase } from "../lib/supabaseClient";
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/app/lib/supabaseClient";
 
-export default async function BrowsePage() {
-  const { data: horses, error } = await supabase
-    .from("horses")
-    .select("id, name, description, created_at")
-    .order("created_at", { ascending: false });
+type Horse = {
+  id: string;
+  name: string;
+  breed: string | null;
+};
 
-  if (error) {
-    return (
-      <main style={{ padding: 24 }}>
-        <h1>Browse Horses</h1>
-        <p>Error loading horses.</p>
-      </main>
-    );
+export default function BrowsePage() {
+  const [horses, setHorses] = useState<Horse[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadHorses = async () => {
+      const { data, error } = await supabase
+        .from("horses")
+        .select("id, name, breed")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error loading horses:", error.message);
+      } else {
+        setHorses(data || []);
+      }
+
+      setLoading(false);
+    };
+
+    loadHorses();
+  }, []);
+
+  if (loading) {
+    return <p>Loading horses…</p>;
+  }
+
+  if (horses.length === 0) {
+    return <p>No horses available yet.</p>;
   }
 
   return (
-    <main style={{ maxWidth: 800, margin: "0 auto", padding: 24 }}>
-      <h1>Browse Horses 🐎</h1>
+    <div style={{ maxWidth: 800, margin: "0 auto" }}>
+      <h1>Browse Horses</h1>
 
-      {horses.length === 0 && <p>No horses yet.</p>}
-
-      <ul style={{ marginTop: 24 }}>
+      <ul style={{ listStyle: "none", padding: 0 }}>
         {horses.map((horse) => (
           <li
             key={horse.id}
             style={{
-              border: "1px solid #eee",
+              border: "1px solid #ccc",
               padding: 16,
-              marginBottom: 16,
-              borderRadius: 6,
+              marginBottom: 12,
+              borderRadius: 8,
             }}
           >
             <h2>{horse.name}</h2>
-            <p>{horse.description}</p>
+            {horse.breed && <p>Breed: {horse.breed}</p>}
 
-            <Link href={`/horse?id=${horse.id}`}>
-              View horse
+            <Link href={`/request?horseId=${horse.id}`}>
+              Request to borrow →
             </Link>
           </li>
         ))}
       </ul>
-    </main>
+    </div>
   );
 }
