@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/app/lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 
 export default function HorsePage() {
   const [name, setName] = useState("");
@@ -54,8 +54,7 @@ export default function HorsePage() {
         />
       </label>
 
-      <br />
-      <br />
+      <br /><br />
 
       <label>
         Description
@@ -67,15 +66,14 @@ export default function HorsePage() {
         />
       </label>
 
-      <br />
-      <br />
+      <br /><br />
 
       <button onClick={handleAddHorse} disabled={loading}>
         {loading ? "Saving..." : "Add horse"}
       </button>
 
       {message && (
-        <p style={{ marginTop: 16, color: message.includes("success") ? "green" : "red" }}>
+        <p style={{ marginTop: 16 }}>
           {message}
         </p>
       )}
