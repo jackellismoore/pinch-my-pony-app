@@ -1,13 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-} from "react-leaflet";
+
+// Dynamically load Leaflet components (prevents SSR build errors)
+const MapContainer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.MapContainer),
+  { ssr: false }
+);
+
+const TileLayer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.TileLayer),
+  { ssr: false }
+);
+
+const Marker = dynamic(
+  () => import("react-leaflet").then((mod) => mod.Marker),
+  { ssr: false }
+);
+
+const Popup = dynamic(
+  () => import("react-leaflet").then((mod) => mod.Popup),
+  { ssr: false }
+);
 
 type Horse = {
   id: string;
@@ -105,51 +121,51 @@ export default function BrowsePage() {
 
       {/* RIGHT SIDE MAP */}
       <div style={{ width: "60%" }}>
-        <MapContainer
-          center={
-            userLocation
-              ? [userLocation.lat, userLocation.lng]
-              : [51.505, -0.09]
-          }
-          zoom={10}
-          style={{ height: "100%", width: "100%" }}
-        >
-          <TileLayer
-            attribution="© OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+        {typeof window !== "undefined" && (
+          <MapContainer
+            center={
+              userLocation
+                ? [userLocation.lat, userLocation.lng]
+                : [51.505, -0.09]
+            }
+            zoom={10}
+            style={{ height: "100%", width: "100%" }}
+          >
+            <TileLayer
+              attribution="© OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
 
-          {userLocation && (
-            <Marker
-              position={[userLocation.lat, userLocation.lng]}
-            >
-              <Popup>You are here</Popup>
-            </Marker>
-          )}
+            {userLocation && (
+              <Marker position={[userLocation.lat, userLocation.lng]}>
+                <Popup>You are here</Popup>
+              </Marker>
+            )}
 
-          {horses.map((horse) => (
-            <Marker
-              key={horse.id}
-              position={[
-                Number(horse.latitude),
-                Number(horse.longitude),
-              ]}
-              eventHandlers={{
-                click: () => setSelectedHorse(horse.id),
-              }}
-            >
-              <Popup>
-                <strong>{horse.name}</strong>
-                <br />
-                {horse.breed}
-                <br />
-                <a href={`/horse/${horse.id}`}>
-                  View Horse
-                </a>
-              </Popup>
-            </Marker>
-          ))}
-        </MapContainer>
+            {horses.map((horse) => (
+              <Marker
+                key={horse.id}
+                position={[
+                  Number(horse.latitude),
+                  Number(horse.longitude),
+                ]}
+                eventHandlers={{
+                  click: () => setSelectedHorse(horse.id),
+                }}
+              >
+                <Popup>
+                  <strong>{horse.name}</strong>
+                  <br />
+                  {horse.breed}
+                  <br />
+                  <a href={`/horse/${horse.id}`}>
+                    View Horse
+                  </a>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        )}
       </div>
     </div>
   );
