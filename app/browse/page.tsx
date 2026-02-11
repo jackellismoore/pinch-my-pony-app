@@ -1,28 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
-// Leaflet dynamic imports (important for Next 16)
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false }
-);
-
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false }
-);
-
-const Marker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Marker),
-  { ssr: false }
-);
-
-const Popup = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Popup),
+const HorseMap = dynamic(
+  () => import("../components/HorseMap"),
   { ssr: false }
 );
 
@@ -68,15 +52,8 @@ export default function BrowsePage() {
     <div style={{ padding: 30 }}>
       <h1>Browse Horses</h1>
 
-      {/* FILTER BAR */}
-      <div
-        style={{
-          marginBottom: 20,
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-        }}
-      >
+      {/* FILTERS */}
+      <div style={{ marginBottom: 20, display: "flex", gap: 10 }}>
         <input
           placeholder="Location"
           value={locationFilter}
@@ -107,10 +84,8 @@ export default function BrowsePage() {
       </div>
 
       <div style={{ display: "flex", gap: 20 }}>
-        {/* LEFT SIDE – HORSE LIST */}
+        {/* LIST */}
         <div style={{ width: "50%" }}>
-          {horses.length === 0 && <p>No horses found.</p>}
-
           {horses.map((horse) => (
             <div
               key={horse.id}
@@ -159,39 +134,9 @@ export default function BrowsePage() {
           ))}
         </div>
 
-        {/* RIGHT SIDE – MAP */}
+        {/* MAP */}
         <div style={{ width: "50%" }}>
-          {typeof window !== "undefined" && (
-            <MapContainer
-              center={[51.505, -0.09]}
-              zoom={7}
-              style={{ height: "600px", width: "100%" }}
-            >
-              <TileLayer
-                attribution='&copy; OpenStreetMap contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-
-              {horses
-                .filter((h) => h.lat && h.lng)
-                .map((horse) => (
-                  <Marker
-                    key={horse.id}
-                    position={[horse.lat, horse.lng]}
-                  >
-                    <Popup>
-                      <strong>{horse.name}</strong>
-                      <br />
-                      {horse.location}
-                      <br />
-                      <Link href={`/request?horseId=${horse.id}`}>
-                        View
-                      </Link>
-                    </Popup>
-                  </Marker>
-                ))}
-            </MapContainer>
-          )}
+          <HorseMap horses={horses} />
         </div>
       </div>
     </div>
