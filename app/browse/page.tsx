@@ -23,6 +23,7 @@ type Horse = {
   lat: number;
   lng: number;
   price_per_day: number;
+  is_active: boolean;
   distance?: number;
 };
 
@@ -84,7 +85,10 @@ export default function BrowsePage() {
   };
 
   const loadHorses = async () => {
-    const { data } = await supabase.from("horses").select("*");
+    const { data } = await supabase
+      .from("horses")
+      .select("*")
+      .eq("is_active", true);
 
     let results = (data as Horse[]) || [];
 
