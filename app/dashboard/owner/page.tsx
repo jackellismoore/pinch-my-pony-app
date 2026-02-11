@@ -1,68 +1,107 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
+
+type Horse = {
+  id: string;
+  name: string;
+  breed: string | null;
+};
 
 type Request = {
   id: string;
   message: string;
   status: string;
+  borrower_id: string;
   horses: {
     name: string;
   }[];
 };
 
 export default function OwnerDashboard() {
+  const [horses, setHorses] = useState<Horse[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadRequests = async () => {
+  const loadData = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) return;
 
-    const { data, error } = await supabase
+    // Load owner's horses
+    const { data: horsesData } = await supabase
+      .from("horses")
+      .select("id, name, breed")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: false });
+
+    setHorses(horsesData || []);
+
+    // Load requests for owner's horses
+    const { data: requestsData } = await supabase
       .from("borrow_requests")
       .select(`
         id,
         message,
         status,
-        horses ( name )
+        borrower_id,
+        horses!inner(name, owner_id)
       `)
+      .eq("horses.owner_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (!error) {
-      setRequests((data as Request[]) || []);
-    }
+    setRequests((requestsData as Request[]) || []);
 
     setLoading(false);
   };
 
   useEffect(() => {
-    loadRequests();
+    loadData();
   }, []);
 
-  const updateStatus = async (id: string, status: "approved" | "rejected") => {
+  const updateStatus = async (
+    id: string,
+    status: "approved" | "rejected"
+  ) => {
     await supabase
       .from("borrow_requests")
       .update({ status })
       .eq("id", id);
 
-    loadRequests();
+    loadData();
   };
 
-  if (loading) {
-    return <p style={{ padding: 24 }}>Loading owner dashboard…</p>;
-  }
+  if (loading) return <p style={{ padding: 40 }}>Loading…</p>;
 
   return (
-    <main style={{ maxWidth: 800, margin: "40px auto" }}>
+    <main style={{ padding: 40 }}>
       <h1>Owner Dashboard</h1>
+
+      {/* My Horses Section */}
+      <h2 style={{ marginTop: 32 }}>My Horses</h2>
+
+      {horses.length === 0 && <p>You have not added any horses yet.</p>}
+
+      {horses.map((horse) => (
+        <div
+          key={horse.id}
+          style={{
+            border: "1px solid #ddd",
+            padding: 16,
+            marginBottom: 12,
+            borderRadius: 8,
+          }}
+        >
+          <h3>{horse.name}</h3>
+          {horse.breed && <p>{horse.breed}</p>}
+        </div>
+      ))}
+
+      {/* Requests Section */}
+      <h2 style={{ marginTop: 40 }}>Borrow Requests</h2>
 
       {requests.length === 0 && <p>No requests yet.</p>}
 
@@ -72,15 +111,35 @@ export default function OwnerDashboard() {
           style={{
             border: "1px solid #ddd",
             padding: 16,
-            marginBottom: 12,
-            borderRadius: 6,
+            marginBottom: 16,
+            borderRadius: 8,
           }}
         >
-          <strong>Horse:</strong>{" "}
-          {req.horses?.[0]?.name || "Unknown"}
+          <h3>{req.horses?.[0]?.name}</h3>
 
-          <p>{req.message}</p>
-          <p>Status: {req.status}</p>
+          <p>
+            <strong>Borrower:</strong> {req.borrower_id}
+          </p>
+
+          <p>
+            <strong>Message:</strong> {req.message}
+          </p>
+
+          <p>
+            <strong>Status:</strong>{" "}
+            <span
+              style={{
+                color:
+                  req.status === "approved"
+                    ? "green"
+                    : req.status === "rejected"
+                    ? "red"
+                    : "orange",
+              }}
+            >
+              {req.status}
+            </span>
+          </p>
 
           {req.status === "pending" && (
             <div style={{ marginTop: 8 }}>
