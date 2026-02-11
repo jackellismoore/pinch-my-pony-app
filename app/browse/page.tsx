@@ -59,8 +59,8 @@ export default function BrowsePage() {
               <h3>{horse.name}</h3>
               {horse.breed && <p>{horse.breed}</p>}
 
-              <Link href={`/horse?id=${horse.id}`}>
-                View horse →
+              <Link href={`/request?horseId=${horse.id}`}>
+                Request to borrow →
               </Link>
             </div>
           </div>
