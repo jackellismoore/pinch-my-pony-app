@@ -1,6 +1,9 @@
 import "./globals.css";
-import Header from "./components/Header";
-import Footer from "./components/Footer";
+
+export const metadata = {
+  title: "Pinch My Pony",
+  description: "Borrow and share horses near you",
+};
 
 export default function RootLayout({
   children,
@@ -9,11 +12,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0 }}>
-        <Header />
-        {children}
-        <Footer />
-      </body>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/leaflet/dist/leaflet.css"
+        />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }
