@@ -11,10 +11,10 @@ export default function Header() {
   const router = useRouter();
 
   useEffect(() => {
-    checkUser();
+    loadUser();
   }, []);
 
-  const checkUser = async () => {
+  const loadUser = async () => {
     const { data } = await supabase.auth.getUser();
     const currentUser = data.user;
 
@@ -31,9 +31,10 @@ export default function Header() {
     }
   };
 
-  const handleLogout = async () => {
+  const logout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
+    router.refresh();
   };
 
   return (
@@ -53,7 +54,7 @@ export default function Header() {
         </h2>
       </Link>
 
-      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 20 }}>
         {!user && (
           <>
             <Link href="/login">Login</Link>
@@ -66,15 +67,13 @@ export default function Header() {
             <Link href="/browse">Browse</Link>
 
             {role === "owner" && (
-              <>
-                <Link href="/dashboard/owner/horses">
-                  My Horses
-                </Link>
-              </>
+              <Link href="/dashboard/owner/horses">
+                My Horses
+              </Link>
             )}
 
             <button
-              onClick={handleLogout}
+              onClick={logout}
               style={{
                 background: "#111",
                 color: "white",
