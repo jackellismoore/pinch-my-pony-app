@@ -6,8 +6,13 @@ import { supabase } from "@/lib/supabaseClient";
 type Request = {
   id: string;
   status: string;
-  horses: { name: string }[];
-  profiles: { full_name: string }[];
+  horses: {
+    name: string;
+    owner_id: string;
+  };
+  profiles: {
+    full_name: string;
+  };
 };
 
 export default function OwnerDashboard() {
@@ -18,18 +23,26 @@ export default function OwnerDashboard() {
   }, []);
 
   const loadRequests = async () => {
-    const { data } = await supabase
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
         id,
         status,
-        horses!inner(name, owner_id),
-        profiles!borrow_requests_borrower_id_fkey(full_name)
+        horses(name, owner_id),
+        profiles(full_name)
       `)
-      .eq("horses.owner_id", (await supabase.auth.getUser()).data.user?.id)
+      .eq("horses.owner_id", user.id)
       .order("created_at", { ascending: false });
 
-    setRequests((data as Request[]) || []);
+    if (!error) {
+      setRequests((data as Request[]) || []);
+    }
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
@@ -58,11 +71,11 @@ export default function OwnerDashboard() {
             background: "#fff",
           }}
         >
-          <h3>{req.horses?.[0]?.name}</h3>
+          <h3>{req.horses?.name}</h3>
 
           <p>
             <strong>
-              {req.profiles?.[0]?.full_name || "Unknown User"}
+              {req.profiles?.full_name || "Unknown User"}
             </strong>
           </p>
 
