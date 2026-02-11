@@ -1,23 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 
 export default function RequestClient({ horseId }: { horseId: string }) {
   const [message, setMessage] = useState("");
-  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
-  const [error, setError] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
 
-  const sendRequest = async () => {
-    setError("");
-    setStatus("idle");
+  const handleSubmit = async () => {
+    setStatus(null);
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setError("You must be logged in.");
+      setStatus("You must be logged in.");
       return;
     }
 
@@ -29,40 +27,35 @@ export default function RequestClient({ horseId }: { horseId: string }) {
     });
 
     if (error) {
-      setError(error.message);
+      setStatus(error.message);
     } else {
-      setStatus("success");
+      setStatus("Request sent!");
       setMessage("");
     }
   };
 
   return (
-    <div style={{ padding: 40 }}>
-      <h2>Request to borrow</h2>
+    <div style={{ marginTop: 20 }}>
+      <h3>Request to borrow</h3>
 
       <textarea
+        placeholder="Write your message..."
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        placeholder="Tell the owner why you'd like to borrow this horse..."
-        style={{
-          width: "100%",
-          height: 120,
-          marginBottom: 20,
-          padding: 10,
-        }}
+        style={{ width: "100%", padding: 10, marginBottom: 10 }}
       />
 
-      <button onClick={sendRequest}>Send request</button>
+      <button onClick={handleSubmit}>Send request</button>
 
-      {status === "success" && (
-        <p style={{ color: "green", marginTop: 20 }}>
-          ✅ Request sent successfully!
-        </p>
-      )}
-
-      {error && (
-        <p style={{ color: "red", marginTop: 20 }}>
-          {error}
+      {status && (
+        <p
+          style={{
+            marginTop: 15,
+            color: status === "Request sent!" ? "green" : "red",
+            fontWeight: 500,
+          }}
+        >
+          {status}
         </p>
       )}
     </div>
