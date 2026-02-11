@@ -6,12 +6,8 @@ import { supabase } from "@/lib/supabaseClient";
 type Request = {
   id: string;
   status: string;
-  profiles: {
-    full_name: string;
-  };
-  horses: {
-    name: string;
-  };
+  horses: { name: string }[];
+  profiles: { full_name: string }[];
 };
 
 export default function OwnerDashboard() {
@@ -33,7 +29,7 @@ export default function OwnerDashboard() {
       `)
       .order("created_at", { ascending: false });
 
-    setRequests(data || []);
+    setRequests((data as Request[]) || []);
     setLoading(false);
   };
 
@@ -65,8 +61,11 @@ export default function OwnerDashboard() {
           }}
         >
           <p>
-            <strong>{req.profiles?.full_name || "Unknown User"}</strong> wants
-            to borrow <strong>{req.horses?.name}</strong>
+            <strong>
+              {req.profiles?.[0]?.full_name || "Unknown User"}
+            </strong>{" "}
+            wants to borrow{" "}
+            <strong>{req.horses?.[0]?.name}</strong>
           </p>
 
           <p>Status: {req.status}</p>
