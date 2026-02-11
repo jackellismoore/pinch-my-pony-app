@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabaseClient";
 type Request = {
   id: string;
   status: string;
-  message: string;
   horses: { name: string }[];
 };
 
@@ -15,36 +14,40 @@ export default function BorrowerDashboard() {
 
   useEffect(() => {
     loadRequests();
+
+    const channel = supabase
+      .channel("borrower-requests")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "borrow_requests" },
+        () => {
+          loadRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadRequests = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
+    const user = await supabase.auth.getUser();
 
     const { data } = await supabase
       .from("borrow_requests")
-      .select(`
-        id,
-        message,
-        status,
-        horses(name)
-      `)
-      .eq("borrower_id", user.id)
+      .select(`id, status, horses(name)`)
+      .eq("borrower_id", user.data.user?.id)
       .order("created_at", { ascending: false });
 
     setRequests((data as Request[]) || []);
   };
 
   return (
-    <main style={{ padding: 40 }}>
+    <div style={{ padding: 40 }}>
       <h1>My Requests</h1>
 
-      {requests.length === 0 && (
-        <p>You have no requests yet.</p>
-      )}
+      {requests.length === 0 && <p>No requests yet.</p>}
 
       {requests.map((req) => (
         <div
@@ -56,24 +59,27 @@ export default function BorrowerDashboard() {
             borderRadius: 8,
           }}
         >
-          <h3>{req.horses?.[0]?.name}</h3>
-          <p>{req.message}</p>
+          <p>
+            Horse: <strong>{req.horses?.[0]?.name}</strong>
+          </p>
 
-          <p
-            style={{
-              color:
-                req.status === "approved"
-                  ? "green"
-                  : req.status === "rejected"
-                  ? "red"
-                  : "orange",
-              fontWeight: 500,
-            }}
-          >
-            {req.status.toUpperCase()}
+          <p>
+            Status:{" "}
+            <strong
+              style={{
+                color:
+                  req.status === "approved"
+                    ? "green"
+                    : req.status === "declined"
+                    ? "red"
+                    : "orange",
+              }}
+            >
+              {req.status}
+            </strong>
           </p>
         </div>
       ))}
-    </main>
+    </div>
   );
 }

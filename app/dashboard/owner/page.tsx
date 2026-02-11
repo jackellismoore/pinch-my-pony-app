@@ -16,6 +16,21 @@ export default function OwnerDashboard() {
 
   useEffect(() => {
     loadRequests();
+
+    const channel = supabase
+      .channel("owner-requests")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "borrow_requests" },
+        () => {
+          loadRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadRequests = async () => {
@@ -38,8 +53,6 @@ export default function OwnerDashboard() {
       .from("borrow_requests")
       .update({ status: newStatus })
       .eq("id", id);
-
-    loadRequests();
   };
 
   if (loading) return <p>Loading...</p>;
