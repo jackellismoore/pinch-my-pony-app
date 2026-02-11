@@ -21,6 +21,7 @@ export default function BrowsePage() {
     lat: number;
     lng: number;
   } | null>(null);
+  const [maxDistance, setMaxDistance] = useState(50);
 
   useEffect(() => {
     getUserLocation();
@@ -36,7 +37,6 @@ export default function BrowsePage() {
       (position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-
         setUserLocation({ lat, lng });
         loadHorses({ lat, lng });
       },
@@ -52,7 +52,7 @@ export default function BrowsePage() {
     lat2: number,
     lon2: number
   ) => {
-    const R = 6371; // km
+    const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
 
@@ -75,8 +75,7 @@ export default function BrowsePage() {
       .from("horses")
       .select(
         "id, name, breed, image_url, location_name, latitude, longitude"
-      )
-      .order("created_at", { ascending: false });
+      );
 
     if (!data) return;
 
@@ -94,33 +93,47 @@ export default function BrowsePage() {
 
           return { ...horse, distance };
         }
-
         return horse;
       });
-
-      enriched.sort((a, b) =>
-        (a.distance || 9999) - (b.distance || 9999)
-      );
     }
 
     setHorses(enriched);
   };
 
+  const filteredHorses = horses.filter(
+    (horse) =>
+      !horse.distance || horse.distance <= maxDistance
+  );
+
   return (
     <div style={{ padding: 40 }}>
-      <h1 style={{ marginBottom: 30 }}>Browse Horses</h1>
+      <h1>Browse Horses</h1>
 
-      {horses.length === 0 && <p>No horses available yet.</p>}
+      {userLocation && (
+        <div style={{ marginBottom: 20 }}>
+          <label>
+            Show within {maxDistance} km
+          </label>
+          <input
+            type="range"
+            min="5"
+            max="200"
+            value={maxDistance}
+            onChange={(e) =>
+              setMaxDistance(Number(e.target.value))
+            }
+          />
+        </div>
+      )}
 
       <div style={{ display: "grid", gap: 20 }}>
-        {horses.map((horse) => (
+        {filteredHorses.map((horse) => (
           <div
             key={horse.id}
             style={{
               border: "1px solid #ddd",
               borderRadius: 10,
               padding: 20,
-              background: "#fff",
             }}
           >
             <img
@@ -131,37 +144,43 @@ export default function BrowsePage() {
                 height: 200,
                 objectFit: "cover",
                 borderRadius: 8,
-                marginBottom: 10,
               }}
             />
 
             <h3>{horse.name}</h3>
             <p>{horse.breed}</p>
-
-            {horse.location_name && (
-              <p>📍 {horse.location_name}</p>
-            )}
+            <p>📍 {horse.location_name}</p>
 
             {horse.distance && (
-              <p>
-                📏 {horse.distance.toFixed(1)} km away
-              </p>
+              <p>📏 {horse.distance.toFixed(1)} km away</p>
             )}
 
-            <Link href={`/horse/${horse.id}`}>
-              <button
-                style={{
-                  marginTop: 10,
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  background: "#2563eb",
-                  color: "white",
-                  border: "none",
-                }}
-              >
-                View Horse
-              </button>
-            </Link>
+            {horse.latitude && horse.longitude && (
+              <iframe
+                width="100%"
+                height="200"
+                style={{ borderRadius: 8 }}
+                loading="lazy"
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${horse.longitude - 0.01}%2C${horse.latitude - 0.01}%2C${horse.longitude + 0.01}%2C${horse.latitude + 0.01}&layer=mapnik&marker=${horse.latitude}%2C${horse.longitude}`}
+              />
+            )}
+
+            <div style={{ marginTop: 10 }}>
+              <Link href={`/horse/${horse.id}`}>
+                <button>View Horse</button>
+              </Link>
+
+              {horse.latitude && horse.longitude && (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${horse.latitude},${horse.longitude}`}
+                  target="_blank"
+                >
+                  <button style={{ marginLeft: 10 }}>
+                    Get Directions
+                  </button>
+                </a>
+              )}
+            </div>
           </div>
         ))}
       </div>
