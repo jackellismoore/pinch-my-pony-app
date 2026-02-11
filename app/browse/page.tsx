@@ -55,21 +55,22 @@ export default function BrowsePage() {
   };
 
   const loadHorses = async () => {
-    const { data, error } = await supabase
-      .from("horses")
-      .select("*");
-
-    console.log("HORSES FROM DB:", data);
-
-    if (!error && data) {
-      setHorses(data as Horse[]);
-    }
+    const { data } = await supabase.from("horses").select("*");
+    if (data) setHorses(data as Horse[]);
   };
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>
-      <div style={{ width: "40%", padding: 20, overflowY: "scroll" }}>
-        <h2>All Horses</h2>
+      {/* LEFT SIDE LIST */}
+      <div
+        style={{
+          width: "40%",
+          padding: 20,
+          overflowY: "auto",
+          borderRight: "1px solid #eee",
+        }}
+      >
+        <h2>Browse Horses</h2>
 
         {horses.map((horse) => (
           <div
@@ -77,21 +78,29 @@ export default function BrowsePage() {
             style={{
               border: "1px solid #ddd",
               padding: 15,
-              marginBottom: 15,
               borderRadius: 8,
+              marginBottom: 15,
             }}
           >
+            <img
+              src={horse.image_url}
+              alt={horse.name}
+              style={{
+                width: "100%",
+                height: 140,
+                objectFit: "cover",
+                borderRadius: 6,
+                marginBottom: 10,
+              }}
+            />
             <h3>{horse.name}</h3>
             <p>{horse.breed}</p>
-            <p>📍 {horse.location_name || "No location set"}</p>
-            <p>
-              Lat: {horse.latitude || "None"} | Lng:{" "}
-              {horse.longitude || "None"}
-            </p>
+            <p>📍 {horse.location_name || "Location not set"}</p>
           </div>
         ))}
       </div>
 
+      {/* RIGHT SIDE MAP */}
       <div style={{ width: "60%" }}>
         {typeof window !== "undefined" && (
           <MapContainer
@@ -119,6 +128,8 @@ export default function BrowsePage() {
                 >
                   <Popup>
                     <strong>{horse.name}</strong>
+                    <br />
+                    {horse.breed}
                   </Popup>
                 </Marker>
               ) : null
