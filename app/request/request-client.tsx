@@ -1,24 +1,38 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 export default function RequestClient({ horseId }: { horseId: string }) {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [alreadyRequested, setAlreadyRequested] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
-    checkExistingRequest();
+    checkOwnershipAndExisting();
   }, []);
 
-  const checkExistingRequest = async () => {
+  const checkOwnershipAndExisting = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) return;
 
+    // Check if user owns this horse
+    const { data: horse } = await supabase
+      .from("horses")
+      .select("owner_id")
+      .eq("id", horseId)
+      .single();
+
+    if (horse?.owner_id === user.id) {
+      setIsOwner(true);
+      return;
+    }
+
+    // Check for existing pending request
     const { data } = await supabase
       .from("borrow_requests")
       .select("id")
@@ -58,6 +72,14 @@ export default function RequestClient({ horseId }: { horseId: string }) {
       setAlreadyRequested(true);
     }
   };
+
+  if (isOwner) {
+    return (
+      <p style={{ marginTop: 20, color: "red" }}>
+        You cannot request your own horse.
+      </p>
+    );
+  }
 
   if (alreadyRequested) {
     return (
