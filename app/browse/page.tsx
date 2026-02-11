@@ -28,10 +28,49 @@ export default function BrowsePage() {
   const [horses, setHorses] = useState<Horse[]>([]);
   const [locationFilter, setLocationFilter] = useState("");
   const [maxAge, setMaxAge] = useState("");
+  const [radius, setRadius] = useState("");
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   useEffect(() => {
     loadHorses();
+    getUserLocation();
   }, []);
+
+  const getUserLocation = () => {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition((position) => {
+      setUserLocation({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      });
+    });
+  };
+
+  const calculateDistance = (
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+  ) => {
+    const R = 3958.8; // miles
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+  };
 
   const loadHorses = async () => {
     let query = supabase.from("horses").select("*");
@@ -45,7 +84,25 @@ export default function BrowsePage() {
     }
 
     const { data } = await query;
-    setHorses((data as Horse[]) || []);
+
+    let results = (data as Horse[]) || [];
+
+    if (radius && userLocation) {
+      results = results.filter((horse) => {
+        if (!horse.lat || !horse.lng) return false;
+
+        const distance = calculateDistance(
+          userLocation.lat,
+          userLocation.lng,
+          horse.lat,
+          horse.lng
+        );
+
+        return distance <= Number(radius);
+      });
+    }
+
+    setHorses(results);
   };
 
   return (
@@ -53,12 +110,11 @@ export default function BrowsePage() {
       <h1>Browse Horses</h1>
 
       {/* FILTERS */}
-      <div style={{ marginBottom: 20, display: "flex", gap: 10 }}>
+      <div style={{ marginBottom: 20, display: "flex", gap: 10, flexWrap: "wrap" }}>
         <input
           placeholder="Location"
           value={locationFilter}
           onChange={(e) => setLocationFilter(e.target.value)}
-          style={{ padding: 8 }}
         />
 
         <input
@@ -66,21 +122,16 @@ export default function BrowsePage() {
           placeholder="Max Age"
           value={maxAge}
           onChange={(e) => setMaxAge(e.target.value)}
-          style={{ padding: 8 }}
         />
 
-        <button
-          onClick={loadHorses}
-          style={{
-            padding: "8px 14px",
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-          }}
-        >
-          Apply
-        </button>
+        <input
+          type="number"
+          placeholder="Radius (miles)"
+          value={radius}
+          onChange={(e) => setRadius(e.target.value)}
+        />
+
+        <button onClick={loadHorses}>Apply</button>
       </div>
 
       <div style={{ display: "flex", gap: 20 }}>
@@ -106,7 +157,6 @@ export default function BrowsePage() {
                     height: 180,
                     objectFit: "cover",
                     borderRadius: 8,
-                    marginBottom: 10,
                   }}
                 />
               )}
@@ -117,18 +167,7 @@ export default function BrowsePage() {
               <p>{horse.location}</p>
 
               <Link href={`/request?horseId=${horse.id}`}>
-                <button
-                  style={{
-                    marginTop: 8,
-                    padding: "6px 12px",
-                    background: "#16a34a",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 6,
-                  }}
-                >
-                  Request
-                </button>
+                <button style={{ marginTop: 8 }}>Request</button>
               </Link>
             </div>
           ))}
@@ -136,7 +175,7 @@ export default function BrowsePage() {
 
         {/* MAP */}
         <div style={{ width: "50%" }}>
-          <HorseMap horses={horses} />
+          <HorseMap horses={horses} userLocation={userLocation} />
         </div>
       </div>
     </div>
