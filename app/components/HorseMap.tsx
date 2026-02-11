@@ -1,8 +1,15 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMap,
+} from "react-leaflet";
 import { useEffect } from "react";
 import Link from "next/link";
+import type { LatLngExpression } from "leaflet";
 
 type Horse = {
   id: string;
@@ -16,15 +23,15 @@ function AutoCenter({ horses }: { horses: Horse[] }) {
   const map = useMap();
 
   useEffect(() => {
-    if (horses.length === 0) return;
+    const valid = horses.filter((h) => h.lat && h.lng);
 
-    const bounds = horses
-      .filter((h) => h.lat && h.lng)
-      .map((h) => [h.lat, h.lng]) as [number, number][];
+    if (valid.length === 0) return;
 
-    if (bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [50, 50] });
-    }
+    const bounds = valid.map(
+      (h) => [h.lat, h.lng] as LatLngExpression
+    );
+
+    map.fitBounds(bounds as any, { padding: [50, 50] });
   }, [horses, map]);
 
   return null;
@@ -37,13 +44,13 @@ export default function HorseMap({
   horses: Horse[];
   userLocation: { lat: number; lng: number } | null;
 }) {
+  const center: LatLngExpression = userLocation
+    ? [userLocation.lat, userLocation.lng]
+    : [51.505, -0.09];
+
   return (
     <MapContainer
-      center={
-        userLocation
-          ? [userLocation.lat, userLocation.lng]
-          : [51.505, -0.09]
-      }
+      center={center}
       zoom={7}
       style={{ height: "600px", width: "100%" }}
     >
@@ -57,7 +64,10 @@ export default function HorseMap({
       {horses
         .filter((h) => h.lat && h.lng)
         .map((horse) => (
-          <Marker key={horse.id} position={[horse.lat, horse.lng]}>
+          <Marker
+            key={horse.id}
+            position={[horse.lat, horse.lng] as LatLngExpression}
+          >
             <Popup>
               <strong>{horse.name}</strong>
               <br />
