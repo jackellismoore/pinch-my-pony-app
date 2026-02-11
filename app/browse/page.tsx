@@ -12,6 +12,7 @@ const HorseMap = dynamic(
 
 type Horse = {
   id: string;
+  owner_id: string;
   name: string;
   breed: string;
   age: number;
@@ -68,7 +69,7 @@ export default function BrowsePage() {
     lat2: number,
     lng2: number
   ) => {
-    const R = 3958.8; // miles
+    const R = 3958.8;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLng = ((lng2 - lng1) * Math.PI) / 180;
 
@@ -207,6 +208,19 @@ export default function BrowsePage() {
               )}
 
               <h3>{horse.name}</h3>
+
+              {/* OWNER PROFILE LINK */}
+              <Link href={`/owner/${horse.owner_id}`}>
+                <p
+                  style={{
+                    color: "#2563eb",
+                    cursor: "pointer",
+                    marginBottom: 6,
+                  }}
+                >
+                  View Owner Profile
+                </p>
+              </Link>
 
               {horse.distance && (
                 <p style={{ color: "#2563eb", fontWeight: 500 }}>
