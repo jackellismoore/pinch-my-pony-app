@@ -4,6 +4,7 @@ import "./globals.css";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function RootLayout({
   children,
@@ -101,6 +102,8 @@ export default function RootLayout({
           </Link>
 
           <nav style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {user && role === "owner" && <NotificationBell />}
+
             {user && (
               <Link href="/browse" style={navButton}>
                 Browse
@@ -122,12 +125,6 @@ export default function RootLayout({
             {user && role === "borrower" && (
               <Link href="/dashboard/borrower" style={navButton}>
                 My Requests
-              </Link>
-            )}
-
-            {user && (
-              <Link href="/profile" style={navButton}>
-                Profile
               </Link>
             )}
 
