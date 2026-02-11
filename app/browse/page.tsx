@@ -4,23 +4,23 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 
-// Dynamically load Leaflet components (prevents SSR build errors)
-const MapContainer = dynamic(
+// Cast as any to avoid Next 16 dynamic typing issue
+const MapContainer: any = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
   { ssr: false }
 );
 
-const TileLayer = dynamic(
+const TileLayer: any = dynamic(
   () => import("react-leaflet").then((mod) => mod.TileLayer),
   { ssr: false }
 );
 
-const Marker = dynamic(
+const Marker: any = dynamic(
   () => import("react-leaflet").then((mod) => mod.Marker),
   { ssr: false }
 );
 
-const Popup = dynamic(
+const Popup: any = dynamic(
   () => import("react-leaflet").then((mod) => mod.Popup),
   { ssr: false }
 );
