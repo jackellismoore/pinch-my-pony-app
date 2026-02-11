@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 type Request = {
   id: string;
   status: string;
+  message: string;
   horses: { name: string }[];
 };
 
@@ -14,21 +15,6 @@ export default function BorrowerDashboard() {
 
   useEffect(() => {
     loadRequests();
-
-    const channel = supabase
-      .channel("borrower-requests")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "borrow_requests" },
-        () => {
-          loadRequests();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   const loadRequests = async () => {
@@ -36,7 +22,7 @@ export default function BorrowerDashboard() {
 
     const { data } = await supabase
       .from("borrow_requests")
-      .select(`id, status, horses(name)`)
+      .select(`id, status, message, horses(name)`)
       .eq("borrower_id", user.data.user?.id)
       .order("created_at", { ascending: false });
 
@@ -47,37 +33,52 @@ export default function BorrowerDashboard() {
     <div style={{ padding: 40 }}>
       <h1>My Requests</h1>
 
-      {requests.length === 0 && <p>No requests yet.</p>}
+      {requests.length === 0 && (
+        <p>You haven't made any requests yet.</p>
+      )}
 
       {requests.map((req) => (
         <div
           key={req.id}
           style={{
-            border: "1px solid #ddd",
+            border: "1px solid #e5e7eb",
+            borderRadius: 12,
             padding: 20,
             marginBottom: 20,
-            borderRadius: 8,
+            background: "#ffffff",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
           }}
         >
-          <p>
-            Horse: <strong>{req.horses?.[0]?.name}</strong>
+          <h3 style={{ marginBottom: 6 }}>
+            {req.horses?.[0]?.name}
+          </h3>
+
+          <p style={{ fontSize: 14, marginBottom: 10 }}>
+            {req.message}
           </p>
 
-          <p>
-            Status:{" "}
-            <strong
-              style={{
-                color:
-                  req.status === "approved"
-                    ? "green"
-                    : req.status === "declined"
-                    ? "red"
-                    : "orange",
-              }}
-            >
-              {req.status}
-            </strong>
-          </p>
+          <span
+            style={{
+              padding: "4px 10px",
+              borderRadius: 20,
+              fontSize: 13,
+              fontWeight: 600,
+              background:
+                req.status === "approved"
+                  ? "#dcfce7"
+                  : req.status === "declined"
+                  ? "#fee2e2"
+                  : "#fef9c3",
+              color:
+                req.status === "approved"
+                  ? "#166534"
+                  : req.status === "declined"
+                  ? "#991b1b"
+                  : "#92400e",
+            }}
+          >
+            {req.status.toUpperCase()}
+          </span>
         </div>
       ))}
     </div>

@@ -12,25 +12,9 @@ type Request = {
 
 export default function OwnerDashboard() {
   const [requests, setRequests] = useState<Request[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadRequests();
-
-    const channel = supabase
-      .channel("owner-requests")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "borrow_requests" },
-        () => {
-          loadRequests();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   const loadRequests = async () => {
@@ -39,23 +23,23 @@ export default function OwnerDashboard() {
       .select(`
         id,
         status,
-        horses(name),
+        horses!inner(name, owner_id),
         profiles!borrow_requests_borrower_id_fkey(full_name)
       `)
+      .eq("horses.owner_id", (await supabase.auth.getUser()).data.user?.id)
       .order("created_at", { ascending: false });
 
     setRequests((data as Request[]) || []);
-    setLoading(false);
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
-    await supabase
+    const { error } = await supabase
       .from("borrow_requests")
       .update({ status: newStatus })
       .eq("id", id);
-  };
 
-  if (loading) return <p>Loading...</p>;
+    if (!error) loadRequests();
+  };
 
   return (
     <div style={{ padding: 40 }}>
@@ -71,14 +55,15 @@ export default function OwnerDashboard() {
             padding: 20,
             marginBottom: 20,
             borderRadius: 8,
+            background: "#fff",
           }}
         >
+          <h3>{req.horses?.[0]?.name}</h3>
+
           <p>
             <strong>
               {req.profiles?.[0]?.full_name || "Unknown User"}
-            </strong>{" "}
-            wants to borrow{" "}
-            <strong>{req.horses?.[0]?.name}</strong>
+            </strong>
           </p>
 
           <p>Status: {req.status}</p>
@@ -89,8 +74,8 @@ export default function OwnerDashboard() {
                 onClick={() => updateStatus(req.id, "approved")}
                 style={{
                   marginRight: 10,
-                  padding: "6px 12px",
-                  background: "green",
+                  padding: "8px 14px",
+                  background: "#16a34a",
                   color: "white",
                   border: "none",
                   borderRadius: 6,
@@ -102,8 +87,8 @@ export default function OwnerDashboard() {
               <button
                 onClick={() => updateStatus(req.id, "declined")}
                 style={{
-                  padding: "6px 12px",
-                  background: "red",
+                  padding: "8px 14px",
+                  background: "#dc2626",
                   color: "white",
                   border: "none",
                   borderRadius: 6,
