@@ -22,6 +22,7 @@ type Horse = {
   image_url: string;
   lat: number;
   lng: number;
+  price_per_day: number;
   distance?: number;
 };
 
@@ -34,6 +35,7 @@ export default function BrowsePage() {
   } | null>(null);
 
   const [radius, setRadius] = useState<number>(50);
+  const [maxPrice, setMaxPrice] = useState<number>(200);
   const [hoveredHorseId, setHoveredHorseId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,8 +47,8 @@ export default function BrowsePage() {
   }, [userLocation]);
 
   useEffect(() => {
-    applyRadiusFilter();
-  }, [horses, radius]);
+    applyFilters();
+  }, [horses, radius, maxPrice]);
 
   const getUserLocation = () => {
     if (!navigator.geolocation) return;
@@ -101,12 +103,14 @@ export default function BrowsePage() {
         }
         return horse;
       });
+
+      results.sort((a, b) => (a.distance || 0) - (b.distance || 0));
     }
 
     setHorses(results);
   };
 
-  const applyRadiusFilter = () => {
+  const applyFilters = () => {
     if (!userLocation) {
       setFilteredHorses(horses);
       return;
@@ -114,7 +118,11 @@ export default function BrowsePage() {
 
     const filtered = horses.filter((horse) => {
       if (!horse.distance) return false;
-      return horse.distance <= radius;
+
+      return (
+        horse.distance <= radius &&
+        (horse.price_per_day || 0) <= maxPrice
+      );
     });
 
     setFilteredHorses(filtered);
@@ -124,19 +132,41 @@ export default function BrowsePage() {
     <div style={{ padding: 30 }}>
       <h1>Browse Horses</h1>
 
-      {/* Radius Filter */}
-      <div style={{ marginBottom: 20 }}>
-        <label style={{ marginRight: 10 }}>Radius:</label>
-        <select
-          value={radius}
-          onChange={(e) => setRadius(Number(e.target.value))}
-        >
-          <option value={10}>10 miles</option>
-          <option value={25}>25 miles</option>
-          <option value={50}>50 miles</option>
-          <option value={100}>100 miles</option>
-          <option value={500}>500 miles</option>
-        </select>
+      {/* FILTER BAR */}
+      <div
+        style={{
+          marginBottom: 20,
+          display: "flex",
+          gap: 20,
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <label>Radius: </label>
+          <select
+            value={radius}
+            onChange={(e) => setRadius(Number(e.target.value))}
+          >
+            <option value={10}>10 miles</option>
+            <option value={25}>25 miles</option>
+            <option value={50}>50 miles</option>
+            <option value={100}>100 miles</option>
+            <option value={500}>500 miles</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Max Price: </label>
+          <select
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(Number(e.target.value))}
+          >
+            <option value={50}>£50</option>
+            <option value={100}>£100</option>
+            <option value={200}>£200</option>
+            <option value={500}>£500</option>
+          </select>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 20 }}>
@@ -156,6 +186,7 @@ export default function BrowsePage() {
                 marginBottom: 15,
                 borderRadius: 10,
                 background: "#fff",
+                transition: "0.2s ease",
               }}
             >
               {horse.image_url && (
@@ -179,6 +210,10 @@ export default function BrowsePage() {
                 </p>
               )}
 
+              <p style={{ fontWeight: 600 }}>
+                £{horse.price_per_day} per day
+              </p>
+
               <p>
                 {horse.age} yrs • {horse.height_hh}hh
               </p>
@@ -186,7 +221,9 @@ export default function BrowsePage() {
               <p>{horse.location}</p>
 
               <Link href={`/request?horseId=${horse.id}`}>
-                <button style={{ marginTop: 8 }}>Request</button>
+                <button style={{ marginTop: 8 }}>
+                  Request
+                </button>
               </Link>
             </div>
           ))}
