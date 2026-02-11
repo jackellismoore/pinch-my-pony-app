@@ -6,17 +6,19 @@ import { supabase } from "@/lib/supabaseClient";
 type Request = {
   id: string;
   status: string;
+  message: string | null;
   horses: {
     name: string;
     owner_id: string;
-  };
+  }[];
   profiles: {
     full_name: string;
-  };
+  }[];
 };
 
 export default function OwnerDashboard() {
   const [requests, setRequests] = useState<Request[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadRequests();
@@ -34,6 +36,7 @@ export default function OwnerDashboard() {
       .select(`
         id,
         status,
+        message,
         horses(name, owner_id),
         profiles(full_name)
       `)
@@ -41,22 +44,32 @@ export default function OwnerDashboard() {
       .order("created_at", { ascending: false });
 
     if (!error) {
-      setRequests((data as Request[]) || []);
+      setRequests(data || []);
     }
+
+    setLoading(false);
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
-    const { error } = await supabase
+    await supabase
       .from("borrow_requests")
       .update({ status: newStatus })
       .eq("id", id);
 
-    if (!error) loadRequests();
+    loadRequests();
   };
 
+  const getStatusColor = (status: string) => {
+    if (status === "approved") return "#16a34a";
+    if (status === "declined") return "#dc2626";
+    return "#f59e0b"; // pending
+  };
+
+  if (loading) return <p style={{ padding: 40 }}>Loading...</p>;
+
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Owner Dashboard</h1>
+    <div style={{ padding: 40, maxWidth: 900, margin: "0 auto" }}>
+      <h1 style={{ marginBottom: 30 }}>Owner Dashboard</h1>
 
       {requests.length === 0 && <p>No requests yet.</p>}
 
@@ -64,25 +77,42 @@ export default function OwnerDashboard() {
         <div
           key={req.id}
           style={{
-            border: "1px solid #ddd",
-            padding: 20,
+            border: "1px solid #e5e7eb",
+            padding: 24,
             marginBottom: 20,
-            borderRadius: 8,
+            borderRadius: 10,
             background: "#fff",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
           }}
         >
-          <h3>{req.horses?.name}</h3>
+          <h3 style={{ marginBottom: 8 }}>
+            {req.horses?.[0]?.name}
+          </h3>
 
-          <p>
+          <p style={{ marginBottom: 6 }}>
             <strong>
-              {req.profiles?.full_name || "Unknown User"}
+              {req.profiles?.[0]?.full_name || "Unknown User"}
             </strong>
           </p>
 
-          <p>Status: {req.status}</p>
+          {req.message && (
+            <p style={{ marginBottom: 10, fontStyle: "italic" }}>
+              "{req.message}"
+            </p>
+          )}
+
+          <p
+            style={{
+              fontWeight: 600,
+              color: getStatusColor(req.status),
+              marginBottom: 12,
+            }}
+          >
+            {req.status.toUpperCase()}
+          </p>
 
           {req.status === "pending" && (
-            <div style={{ marginTop: 10 }}>
+            <div>
               <button
                 onClick={() => updateStatus(req.id, "approved")}
                 style={{
@@ -92,6 +122,7 @@ export default function OwnerDashboard() {
                   color: "white",
                   border: "none",
                   borderRadius: 6,
+                  cursor: "pointer",
                 }}
               >
                 Approve
@@ -105,6 +136,7 @@ export default function OwnerDashboard() {
                   color: "white",
                   border: "none",
                   borderRadius: 6,
+                  cursor: "pointer",
                 }}
               >
                 Decline
