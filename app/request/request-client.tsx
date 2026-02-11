@@ -1,75 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
 
-export default function RequestClient({
-  horseId,
-}: {
-  horseId: string;
-}) {
-  const [horse, setHorse] = useState<any>(null);
+export default function RequestClient({ horseId }: { horseId: string }) {
   const [message, setMessage] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    const loadHorse = async () => {
-      const { data } = await supabase
-        .from("horses")
-        .select("*")
-        .eq("id", horseId)
-        .single();
+  const sendRequest = async () => {
+    setError("");
+    setStatus("idle");
 
-      setHorse(data);
-    };
-
-    loadHorse();
-  }, [horseId]);
-
-  const handleRequest = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user || !horse) return;
+    if (!user) {
+      setError("You must be logged in.");
+      return;
+    }
 
     const { error } = await supabase.from("borrow_requests").insert({
-      horse_id: horse.id,
+      horse_id: horseId,
       borrower_id: user.id,
       message,
       status: "pending",
     });
 
     if (error) {
-      setStatus(error.message);
+      setError(error.message);
     } else {
-      setStatus("Request sent!");
+      setStatus("success");
+      setMessage("");
     }
   };
 
-  if (!horse) return <p style={{ padding: 40 }}>Loading horse...</p>;
-
   return (
-    <main style={{ padding: 40 }}>
-      <h1>{horse.name}</h1>
-      <p>{horse.breed}</p>
-
-      <h2 style={{ marginTop: 30 }}>Request to borrow</h2>
+    <div style={{ padding: 40 }}>
+      <h2>Request to borrow</h2>
 
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        rows={4}
-        style={{ width: "100%", marginBottom: 20 }}
+        placeholder="Tell the owner why you'd like to borrow this horse..."
+        style={{
+          width: "100%",
+          height: 120,
+          marginBottom: 20,
+          padding: 10,
+        }}
       />
 
-      <button onClick={handleRequest}>Send request</button>
+      <button onClick={sendRequest}>Send request</button>
 
-      {status && (
-        <p style={{ marginTop: 20, color: "red" }}>
-          {status}
+      {status === "success" && (
+        <p style={{ color: "green", marginTop: 20 }}>
+          ✅ Request sent successfully!
         </p>
       )}
-    </main>
+
+      {error && (
+        <p style={{ color: "red", marginTop: 20 }}>
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
