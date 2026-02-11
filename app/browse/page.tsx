@@ -1,142 +1,81 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
-
-const MapContainer: any = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false }
-);
-
-const TileLayer: any = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false }
-);
-
-const Marker: any = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Marker),
-  { ssr: false }
-);
-
-const Popup: any = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Popup),
-  { ssr: false }
-);
+import Link from "next/link";
 
 type Horse = {
   id: string;
   name: string;
   breed: string;
-  image_url: string;
-  location_name: string | null;
-  latitude: number | null;
-  longitude: number | null;
+  age: number;
+  height_hh: number;
+  temperament: string;
+  location: string;
+  description: string;
 };
 
 export default function BrowsePage() {
   const [horses, setHorses] = useState<Horse[]>([]);
-  const [userLocation, setUserLocation] = useState<any>(null);
 
   useEffect(() => {
-    getUserLocation();
     loadHorses();
   }, []);
 
-  const getUserLocation = () => {
-    if (!navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition((position) => {
-      setUserLocation({
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-      });
-    });
-  };
-
   const loadHorses = async () => {
-    const { data } = await supabase.from("horses").select("*");
-    if (data) setHorses(data as Horse[]);
+    const { data } = await supabase
+      .from("horses")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    setHorses((data as Horse[]) || []);
   };
 
   return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      {/* LEFT SIDE LIST */}
-      <div
-        style={{
-          width: "40%",
-          padding: 20,
-          overflowY: "auto",
-          borderRight: "1px solid #eee",
-        }}
-      >
-        <h2>Browse Horses</h2>
+    <div style={{ padding: 40 }}>
+      <h1>Browse Horses</h1>
 
-        {horses.map((horse) => (
-          <div
-            key={horse.id}
-            style={{
-              border: "1px solid #ddd",
-              padding: 15,
-              borderRadius: 8,
-              marginBottom: 15,
-            }}
-          >
-            <img
-              src={horse.image_url}
-              alt={horse.name}
+      {horses.length === 0 && <p>No horses listed yet.</p>}
+
+      {horses.map((horse) => (
+        <div
+          key={horse.id}
+          style={{
+            border: "1px solid #ddd",
+            padding: 20,
+            marginBottom: 20,
+            borderRadius: 8,
+            background: "#fff",
+          }}
+        >
+          <h2>{horse.name}</h2>
+
+          <p><strong>Breed:</strong> {horse.breed}</p>
+          <p><strong>Age:</strong> {horse.age} years</p>
+          <p><strong>Height:</strong> {horse.height_hh}hh</p>
+          <p><strong>Temperament:</strong> {horse.temperament}</p>
+          <p><strong>Location:</strong> {horse.location}</p>
+
+          {horse.description && (
+            <p style={{ marginTop: 10 }}>{horse.description}</p>
+          )}
+
+          <Link href={`/request?horseId=${horse.id}`}>
+            <button
               style={{
-                width: "100%",
-                height: 140,
-                objectFit: "cover",
+                marginTop: 10,
+                padding: "8px 16px",
+                background: "#16a34a",
+                color: "white",
+                border: "none",
                 borderRadius: 6,
-                marginBottom: 10,
               }}
-            />
-            <h3>{horse.name}</h3>
-            <p>{horse.breed}</p>
-            <p>📍 {horse.location_name || "Location not set"}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* RIGHT SIDE MAP */}
-      <div style={{ width: "60%" }}>
-        {typeof window !== "undefined" && (
-          <MapContainer
-            center={
-              userLocation
-                ? [userLocation.lat, userLocation.lng]
-                : [51.505, -0.09]
-            }
-            zoom={10}
-            style={{ height: "100%", width: "100%" }}
-          >
-            <TileLayer
-              attribution="© OpenStreetMap contributors"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-
-            {horses.map((horse) =>
-              horse.latitude && horse.longitude ? (
-                <Marker
-                  key={horse.id}
-                  position={[
-                    Number(horse.latitude),
-                    Number(horse.longitude),
-                  ]}
-                >
-                  <Popup>
-                    <strong>{horse.name}</strong>
-                    <br />
-                    {horse.breed}
-                  </Popup>
-                </Marker>
-              ) : null
-            )}
-          </MapContainer>
-        )}
-      </div>
+            >
+              Request to Borrow
+            </button>
+          </Link>
+        </div>
+      ))}
     </div>
   );
 }
