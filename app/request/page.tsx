@@ -1,11 +1,12 @@
 import RequestClient from "./request-client";
 
-export default function RequestPage({
+export default async function RequestPage({
   searchParams,
 }: {
-  searchParams: { horseId?: string };
+  searchParams: Promise<{ horseId?: string }>;
 }) {
-  const horseId = searchParams.horseId;
+  const params = await searchParams;
+  const horseId = params?.horseId;
 
   if (!horseId) {
     return <p style={{ padding: 40 }}>Invalid request.</p>;
