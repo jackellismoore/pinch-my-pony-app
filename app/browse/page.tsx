@@ -27,11 +27,13 @@ type Horse = {
 
 export default function BrowsePage() {
   const [horses, setHorses] = useState<Horse[]>([]);
+  const [filteredHorses, setFilteredHorses] = useState<Horse[]>([]);
   const [userLocation, setUserLocation] = useState<{
     lat: number;
     lng: number;
   } | null>(null);
 
+  const [radius, setRadius] = useState<number>(50);
   const [hoveredHorseId, setHoveredHorseId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,6 +43,10 @@ export default function BrowsePage() {
   useEffect(() => {
     loadHorses();
   }, [userLocation]);
+
+  useEffect(() => {
+    applyRadiusFilter();
+  }, [horses, radius]);
 
   const getUserLocation = () => {
     if (!navigator.geolocation) return;
@@ -59,7 +65,7 @@ export default function BrowsePage() {
     lat2: number,
     lng2: number
   ) => {
-    const R = 3958.8;
+    const R = 3958.8; // miles
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLng = ((lng2 - lng1) * Math.PI) / 180;
 
@@ -95,34 +101,61 @@ export default function BrowsePage() {
         }
         return horse;
       });
-
-      results.sort((a, b) => (a.distance || 0) - (b.distance || 0));
     }
 
     setHorses(results);
+  };
+
+  const applyRadiusFilter = () => {
+    if (!userLocation) {
+      setFilteredHorses(horses);
+      return;
+    }
+
+    const filtered = horses.filter((horse) => {
+      if (!horse.distance) return false;
+      return horse.distance <= radius;
+    });
+
+    setFilteredHorses(filtered);
   };
 
   return (
     <div style={{ padding: 30 }}>
       <h1>Browse Horses</h1>
 
+      {/* Radius Filter */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ marginRight: 10 }}>Radius:</label>
+        <select
+          value={radius}
+          onChange={(e) => setRadius(Number(e.target.value))}
+        >
+          <option value={10}>10 miles</option>
+          <option value={25}>25 miles</option>
+          <option value={50}>50 miles</option>
+          <option value={100}>100 miles</option>
+          <option value={500}>500 miles</option>
+        </select>
+      </div>
+
       <div style={{ display: "flex", gap: 20 }}>
         {/* LIST */}
         <div style={{ width: "50%" }}>
-          {horses.map((horse) => (
+          {filteredHorses.map((horse) => (
             <div
               key={horse.id}
               onMouseEnter={() => setHoveredHorseId(horse.id)}
               onMouseLeave={() => setHoveredHorseId(null)}
               style={{
-                border: hoveredHorseId === horse.id
-                  ? "2px solid #2563eb"
-                  : "1px solid #ddd",
+                border:
+                  hoveredHorseId === horse.id
+                    ? "2px solid #2563eb"
+                    : "1px solid #ddd",
                 padding: 15,
                 marginBottom: 15,
                 borderRadius: 10,
                 background: "#fff",
-                transition: "0.2s ease",
               }}
             >
               {horse.image_url && (
@@ -146,14 +179,14 @@ export default function BrowsePage() {
                 </p>
               )}
 
-              <p>{horse.age} yrs • {horse.height_hh}hh</p>
+              <p>
+                {horse.age} yrs • {horse.height_hh}hh
+              </p>
               <p>{horse.temperament}</p>
               <p>{horse.location}</p>
 
               <Link href={`/request?horseId=${horse.id}`}>
-                <button style={{ marginTop: 8 }}>
-                  Request
-                </button>
+                <button style={{ marginTop: 8 }}>Request</button>
               </Link>
             </div>
           ))}
@@ -162,7 +195,7 @@ export default function BrowsePage() {
         {/* MAP */}
         <div style={{ width: "50%" }}>
           <HorseMap
-            horses={horses}
+            horses={filteredHorses}
             userLocation={userLocation}
             highlightedId={hoveredHorseId}
           />
