@@ -2,81 +2,56 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-
-type Profile = {
-  role: "owner" | "borrower";
-};
+import { supabase } from "../lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      if (data.user) loadProfile(data.user.id);
-    });
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+    };
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) loadProfile(session.user.id);
-        else setProfile(null);
-      }
-    );
-
-    return () => listener.subscription.unsubscribe();
+    getUser();
   }, []);
-
-  const loadProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .single();
-
-    setProfile(data);
-  };
 
   const logout = async () => {
     await supabase.auth.signOut();
+    router.push("/");
   };
 
   return (
     <header
       style={{
-        padding: "16px 32px",
-        borderBottom: "1px solid #eee",
+        padding: 20,
+        borderBottom: "1px solid #ddd",
         display: "flex",
         justifyContent: "space-between",
-        alignItems: "center",
       }}
     >
-      <Link href="/" style={{ fontWeight: "bold", fontSize: 20 }}>
-        🐴 Pinch My Pony
-      </Link>
+      <div>
+        <Link href="/">🐎 Pinch My Pony</Link>
+      </div>
 
-      <nav style={{ display: "flex", gap: 16 }}>
+      <nav style={{ display: "flex", gap: 20 }}>
         <Link href="/browse">Browse</Link>
 
-        {user && <Link href="/dashboard">Dashboard</Link>}
-
-        {profile?.role === "owner" && (
-          <Link href="/horse">Add Horse</Link>
-        )}
-
-        {!user && (
+        {user ? (
+          <>
+            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/profile">Profile</Link>
+            <button onClick={logout}>Logout</button>
+          </>
+        ) : (
           <>
             <Link href="/login">Login</Link>
-            <Link href="/signup">Sign up</Link>
+            <Link href="/signup">Sign Up</Link>
           </>
-        )}
-
-        {user && (
-          <button onClick={logout} style={{ cursor: "pointer" }}>
-            Logout
-          </button>
         )}
       </nav>
     </header>
