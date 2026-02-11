@@ -1,80 +1,155 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { supabase } from "../lib/supabaseClient";
+import { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function HorseClient() {
-  const searchParams = useSearchParams();
-  const horseId = searchParams.get("id");
+  const [name, setName] = useState("");
+  const [breed, setBreed] = useState("");
+  const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const [horse, setHorse] = useState<any>(null);
-  const [message, setMessage] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
+  const getLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation not supported.");
+      return;
+    }
 
-  useEffect(() => {
-    if (!horseId) return;
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
 
-    supabase
-      .from("horses")
-      .select("*")
-      .eq("id", horseId)
-      .single()
-      .then(({ data }) => setHorse(data));
-  }, [horseId]);
+        setLatitude(lat);
+        setLongitude(lng);
 
-  const submitRequest = async () => {
-    setStatus(null);
+        // Reverse geocode (OpenStreetMap)
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
+        );
+
+        const data = await res.json();
+
+        const place =
+          data.address.city ||
+          data.address.town ||
+          data.address.village ||
+          data.display_name;
+
+        setLocationName(place);
+      },
+      () => {
+        alert("Location permission denied.");
+      }
+    );
+  };
+
+  const handleSubmit = async () => {
+    setLoading(true);
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setStatus("You must be logged in to request a horse.");
+      alert("You must be logged in.");
+      setLoading(false);
       return;
     }
 
-    const { error } = await supabase.from("borrow_requests").insert({
-      horse_id: horseId,
-      borrower_id: user.id,
-      message,
+    const { error } = await supabase.from("horses").insert({
+      name,
+      breed,
+      description,
+      image_url: imageUrl,
+      owner_id: user.id,
+      location_name: locationName,
+      latitude,
+      longitude,
     });
 
+    setLoading(false);
+
     if (error) {
-      setStatus(error.message);
+      alert("Error adding horse.");
     } else {
-      setStatus("Request sent successfully 🐎");
-      setMessage("");
+      alert("Horse added successfully!");
+      setName("");
+      setBreed("");
+      setDescription("");
+      setImageUrl("");
+      setLocationName("");
     }
   };
 
-  if (!horse) {
-    return <p style={{ padding: 24 }}>Loading horse…</p>;
-  }
-
   return (
-    <main style={{ maxWidth: 600, margin: "0 auto", padding: 24 }}>
-      <h1>{horse.name}</h1>
-      <p>{horse.description}</p>
+    <div style={{ padding: 40, maxWidth: 600, margin: "0 auto" }}>
+      <h1 style={{ marginBottom: 20 }}>Add a Horse</h1>
 
-      <h3 style={{ marginTop: 32 }}>Request to borrow</h3>
-
-      <textarea
-        placeholder="Tell the owner about yourself"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        rows={4}
-        style={{ width: "100%", padding: 8 }}
+      <input
+        placeholder="Horse name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        style={{ display: "block", marginBottom: 10, width: "100%" }}
       />
 
-      <br /><br />
+      <input
+        placeholder="Breed"
+        value={breed}
+        onChange={(e) => setBreed(e.target.value)}
+        style={{ display: "block", marginBottom: 10, width: "100%" }}
+      />
 
-      <button onClick={submitRequest}>
-        Send request
+      <textarea
+        placeholder="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        style={{ display: "block", marginBottom: 10, width: "100%" }}
+      />
+
+      <input
+        placeholder="Image URL"
+        value={imageUrl}
+        onChange={(e) => setImageUrl(e.target.value)}
+        style={{ display: "block", marginBottom: 10, width: "100%" }}
+      />
+
+      <button
+        onClick={getLocation}
+        style={{
+          marginBottom: 10,
+          padding: "8px 12px",
+          borderRadius: 6,
+          border: "1px solid #ddd",
+        }}
+      >
+        📍 Use My Current Location
       </button>
 
-      {status && <p style={{ marginTop: 16 }}>{status}</p>}
-    </main>
+      {locationName && (
+        <p style={{ marginBottom: 20 }}>
+          Location: <strong>{locationName}</strong>
+        </p>
+      )}
+
+      <button
+        onClick={handleSubmit}
+        disabled={loading}
+        style={{
+          padding: "10px 16px",
+          borderRadius: 6,
+          background: "#2563eb",
+          color: "white",
+          border: "none",
+          width: "100%",
+        }}
+      >
+        {loading ? "Adding..." : "Add Horse"}
+      </button>
+    </div>
   );
 }

@@ -7,65 +7,80 @@ import { supabase } from "@/lib/supabaseClient";
 type Horse = {
   id: string;
   name: string;
-  breed: string | null;
-  description: string | null;
+  breed: string;
+  image_url: string;
+  location_name: string;
 };
 
 export default function BrowsePage() {
   const [horses, setHorses] = useState<Horse[]>([]);
 
   useEffect(() => {
-    const loadHorses = async () => {
-      const { data } = await supabase
-        .from("horses")
-        .select("id, name, breed, description")
-        .order("created_at", { ascending: false });
-
-      setHorses(data || []);
-    };
-
     loadHorses();
   }, []);
 
-  return (
-    <main style={{ padding: 40 }}>
-      <h1>Browse Horses</h1>
+  const loadHorses = async () => {
+    const { data } = await supabase
+      .from("horses")
+      .select("id, name, breed, image_url, location_name")
+      .order("created_at", { ascending: false });
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-          gap: 24,
-          marginTop: 24,
-        }}
-      >
+    setHorses(data || []);
+  };
+
+  return (
+    <div style={{ padding: 40 }}>
+      <h1 style={{ marginBottom: 30 }}>Browse Horses</h1>
+
+      {horses.length === 0 && <p>No horses available yet.</p>}
+
+      <div style={{ display: "grid", gap: 20 }}>
         {horses.map((horse) => (
           <div
             key={horse.id}
             style={{
               border: "1px solid #ddd",
-              borderRadius: 8,
-              overflow: "hidden",
+              borderRadius: 10,
+              padding: 20,
               background: "#fff",
             }}
           >
             <img
-              src="https://placehold.co/400x250?text=Horse"
+              src={horse.image_url}
               alt={horse.name}
-              style={{ width: "100%", height: 180, objectFit: "cover" }}
+              style={{
+                width: "100%",
+                height: 200,
+                objectFit: "cover",
+                borderRadius: 8,
+                marginBottom: 10,
+              }}
             />
 
-            <div style={{ padding: 16 }}>
-              <h3>{horse.name}</h3>
-              {horse.breed && <p>{horse.breed}</p>}
+            <h3>{horse.name}</h3>
+            <p>{horse.breed}</p>
 
-              <Link href={`/request?horseId=${horse.id}`}>
-                Request to borrow →
-              </Link>
-            </div>
+            {horse.location_name && (
+              <p>📍 {horse.location_name}</p>
+            )}
+
+            <Link href={`/horse/${horse.id}`}>
+              <button
+                style={{
+                  marginTop: 10,
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  background: "#2563eb",
+                  color: "white",
+                  border: "none",
+                }}
+              >
+                View Horse
+              </button>
+            </Link>
           </div>
         ))}
       </div>
-    </main>
+    </div>
   );
 }
