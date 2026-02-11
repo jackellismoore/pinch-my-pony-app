@@ -1,15 +1,13 @@
 "use client";
 
 import {
-  MapContainer,
-  TileLayer,
+  GoogleMap,
   Marker,
-  Popup,
-  useMap,
-} from "react-leaflet";
-import { useEffect } from "react";
+  InfoWindow,
+  useLoadScript,
+} from "@react-google-maps/api";
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import type { LatLngExpression } from "leaflet";
 
 type Horse = {
   id: string;
@@ -19,66 +17,67 @@ type Horse = {
   lng: number;
 };
 
-function AutoCenter({ horses }: { horses: Horse[] }) {
-  const map = useMap();
-
-  useEffect(() => {
-    const valid = horses.filter((h) => h.lat && h.lng);
-
-    if (valid.length === 0) return;
-
-    const bounds = valid.map(
-      (h) => [h.lat, h.lng] as LatLngExpression
-    );
-
-    map.fitBounds(bounds as any, { padding: [50, 50] });
-  }, [horses, map]);
-
-  return null;
-}
-
 export default function HorseMap({
   horses,
   userLocation,
+  highlightedId,
 }: {
   horses: Horse[];
   userLocation: { lat: number; lng: number } | null;
+  highlightedId?: string | null;
 }) {
-  const center: LatLngExpression = userLocation
-    ? [userLocation.lat, userLocation.lng]
-    : [51.505, -0.09];
+  const { isLoaded } = useLoadScript({
+    googleMapsApiKey:
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
+  });
+
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const center = useMemo(() => {
+    if (userLocation) return userLocation;
+    return { lat: 51.505, lng: -0.09 };
+  }, [userLocation]);
+
+  if (!isLoaded) return <div>Loading map...</div>;
 
   return (
-    <MapContainer
-      center={center}
+    <GoogleMap
       zoom={7}
-      style={{ height: "600px", width: "100%" }}
+      center={center}
+      mapContainerStyle={{ width: "100%", height: "600px" }}
     >
-      <TileLayer
-        attribution="&copy; OpenStreetMap contributors"
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+      {horses.map((horse) => (
+        <Marker
+          key={horse.id}
+          position={{ lat: horse.lat, lng: horse.lng }}
+          onClick={() => setSelected(horse.id)}
+          icon={
+            highlightedId === horse.id
+              ? "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+              : undefined
+          }
+        />
+      ))}
 
-      <AutoCenter horses={horses} />
-
-      {horses
-        .filter((h) => h.lat && h.lng)
-        .map((horse) => (
-          <Marker
-            key={horse.id}
-            position={[horse.lat, horse.lng] as LatLngExpression}
-          >
-            <Popup>
-              <strong>{horse.name}</strong>
-              <br />
-              {horse.location}
-              <br />
-              <Link href={`/request?horseId=${horse.id}`}>
-                View
-              </Link>
-            </Popup>
-          </Marker>
-        ))}
-    </MapContainer>
+      {selected && (
+        <InfoWindow
+          position={{
+            lat: horses.find((h) => h.id === selected)!.lat,
+            lng: horses.find((h) => h.id === selected)!.lng,
+          }}
+          onCloseClick={() => setSelected(null)}
+        >
+          <div>
+            <strong>
+              {horses.find((h) => h.id === selected)!.name}
+            </strong>
+            <br />
+            <Link href={`/request?horseId=${selected}`}>
+              View Horse
+            </Link>
+          </div>
+        </InfoWindow>
+      )}
+    </GoogleMap>
   );
 }

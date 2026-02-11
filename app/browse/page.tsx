@@ -22,22 +22,25 @@ type Horse = {
   image_url: string;
   lat: number;
   lng: number;
+  distance?: number;
 };
 
 export default function BrowsePage() {
   const [horses, setHorses] = useState<Horse[]>([]);
-  const [locationFilter, setLocationFilter] = useState("");
-  const [maxAge, setMaxAge] = useState("");
-  const [radius, setRadius] = useState("");
   const [userLocation, setUserLocation] = useState<{
     lat: number;
     lng: number;
   } | null>(null);
 
+  const [hoveredHorseId, setHoveredHorseId] = useState<string | null>(null);
+
   useEffect(() => {
-    loadHorses();
     getUserLocation();
   }, []);
+
+  useEffect(() => {
+    loadHorses();
+  }, [userLocation]);
 
   const getUserLocation = () => {
     if (!navigator.geolocation) return;
@@ -56,7 +59,7 @@ export default function BrowsePage() {
     lat2: number,
     lng2: number
   ) => {
-    const R = 3958.8; // miles
+    const R = 3958.8;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLng = ((lng2 - lng1) * Math.PI) / 180;
 
@@ -73,33 +76,27 @@ export default function BrowsePage() {
   };
 
   const loadHorses = async () => {
-    let query = supabase.from("horses").select("*");
-
-    if (locationFilter) {
-      query = query.ilike("location", `%${locationFilter}%`);
-    }
-
-    if (maxAge) {
-      query = query.lte("age", Number(maxAge));
-    }
-
-    const { data } = await query;
+    const { data } = await supabase.from("horses").select("*");
 
     let results = (data as Horse[]) || [];
 
-    if (radius && userLocation) {
-      results = results.filter((horse) => {
-        if (!horse.lat || !horse.lng) return false;
-
-        const distance = calculateDistance(
-          userLocation.lat,
-          userLocation.lng,
-          horse.lat,
-          horse.lng
-        );
-
-        return distance <= Number(radius);
+    if (userLocation) {
+      results = results.map((horse) => {
+        if (horse.lat && horse.lng) {
+          return {
+            ...horse,
+            distance: calculateDistance(
+              userLocation.lat,
+              userLocation.lng,
+              horse.lat,
+              horse.lng
+            ),
+          };
+        }
+        return horse;
       });
+
+      results.sort((a, b) => (a.distance || 0) - (b.distance || 0));
     }
 
     setHorses(results);
@@ -109,43 +106,23 @@ export default function BrowsePage() {
     <div style={{ padding: 30 }}>
       <h1>Browse Horses</h1>
 
-      {/* FILTERS */}
-      <div style={{ marginBottom: 20, display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <input
-          placeholder="Location"
-          value={locationFilter}
-          onChange={(e) => setLocationFilter(e.target.value)}
-        />
-
-        <input
-          type="number"
-          placeholder="Max Age"
-          value={maxAge}
-          onChange={(e) => setMaxAge(e.target.value)}
-        />
-
-        <input
-          type="number"
-          placeholder="Radius (miles)"
-          value={radius}
-          onChange={(e) => setRadius(e.target.value)}
-        />
-
-        <button onClick={loadHorses}>Apply</button>
-      </div>
-
       <div style={{ display: "flex", gap: 20 }}>
         {/* LIST */}
         <div style={{ width: "50%" }}>
           {horses.map((horse) => (
             <div
               key={horse.id}
+              onMouseEnter={() => setHoveredHorseId(horse.id)}
+              onMouseLeave={() => setHoveredHorseId(null)}
               style={{
-                border: "1px solid #ddd",
+                border: hoveredHorseId === horse.id
+                  ? "2px solid #2563eb"
+                  : "1px solid #ddd",
                 padding: 15,
                 marginBottom: 15,
                 borderRadius: 10,
                 background: "#fff",
+                transition: "0.2s ease",
               }}
             >
               {horse.image_url && (
@@ -162,12 +139,21 @@ export default function BrowsePage() {
               )}
 
               <h3>{horse.name}</h3>
+
+              {horse.distance && (
+                <p style={{ color: "#2563eb", fontWeight: 500 }}>
+                  {horse.distance.toFixed(1)} miles away
+                </p>
+              )}
+
               <p>{horse.age} yrs • {horse.height_hh}hh</p>
               <p>{horse.temperament}</p>
               <p>{horse.location}</p>
 
               <Link href={`/request?horseId=${horse.id}`}>
-                <button style={{ marginTop: 8 }}>Request</button>
+                <button style={{ marginTop: 8 }}>
+                  Request
+                </button>
               </Link>
             </div>
           ))}
@@ -175,7 +161,11 @@ export default function BrowsePage() {
 
         {/* MAP */}
         <div style={{ width: "50%" }}>
-          <HorseMap horses={horses} userLocation={userLocation} />
+          <HorseMap
+            horses={horses}
+            userLocation={userLocation}
+            highlightedId={hoveredHorseId}
+          />
         </div>
       </div>
     </div>
