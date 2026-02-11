@@ -1,114 +1,84 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { supabase } from "../lib/supabaseClient";
 
-export default function HorsePage() {
+export default function AddHorsePage() {
   const router = useRouter();
+
   const [name, setName] = useState("");
   const [breed, setBreed] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
+  const [age, setAge] = useState("");
+  const [height, setHeight] = useState("");
+  const [temperament, setTemperament] = useState("");
+  const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
-  useEffect(() => {
-    const loadOwner = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-      if (!user) {
-        router.replace("/signup");
-        return;
-      }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, role")
-        .eq("id", user.id)
-        .single();
+    if (!user) return;
 
-      if (!profile || profile.role !== "owner") {
-        router.replace("/browse");
-        return;
-      }
+    let imageUrl = "";
 
-      setOwnerId(profile.id);
-    };
-
-    loadOwner();
-  }, [router]);
-
-  const handleCreateHorse = async () => {
-    if (!ownerId) return;
-
-    let photoUrl = null;
-
-    if (file) {
-      const filePath = `${ownerId}/${Date.now()}-${file.name}`;
+    if (imageFile) {
+      const filePath = `${user.id}-${Date.now()}`;
 
       const { error: uploadError } = await supabase.storage
-        .from("horse-photos")
-        .upload(filePath, file);
+        .from("horse-images")
+        .upload(filePath, imageFile);
 
-      if (uploadError) {
-        setMessage(uploadError.message);
-        return;
+      if (!uploadError) {
+        const { data } = supabase.storage
+          .from("horse-images")
+          .getPublicUrl(filePath);
+
+        imageUrl = data.publicUrl;
       }
-
-      const { data } = supabase.storage
-        .from("horse-photos")
-        .getPublicUrl(filePath);
-
-      photoUrl = data.publicUrl;
     }
 
-    const { error } = await supabase.from("horses").insert({
+    await supabase.from("horses").insert({
       name,
       breed,
-      owner_id: ownerId,
-      photo_url: photoUrl,
+      age: Number(age),
+      height_hh: Number(height),
+      temperament,
+      location,
+      description,
+      image_url: imageUrl,
+      owner_id: user.id,
     });
 
-    if (error) {
-      setMessage(error.message);
-    } else {
-      setMessage("Horse added successfully 🐎");
-      setName("");
-      setBreed("");
-      setFile(null);
-    }
+    router.push("/dashboard/owner");
   };
 
   return (
-    <main style={{ maxWidth: 500, margin: "40px auto" }}>
-      <h1>Add a Horse</h1>
+    <div style={{ padding: 40, maxWidth: 600 }}>
+      <h1>Add Horse</h1>
 
-      <input
-        placeholder="Horse name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        style={{ width: "100%", marginBottom: 12 }}
-      />
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <input placeholder="Name" required onChange={(e) => setName(e.target.value)} />
+        <input placeholder="Breed" required onChange={(e) => setBreed(e.target.value)} />
+        <input type="number" placeholder="Age" required onChange={(e) => setAge(e.target.value)} />
+        <input type="number" step="0.1" placeholder="Height (hh)" required onChange={(e) => setHeight(e.target.value)} />
+        <input placeholder="Temperament" required onChange={(e) => setTemperament(e.target.value)} />
+        <input placeholder="Location" required onChange={(e) => setLocation(e.target.value)} />
+        <textarea placeholder="Description" required onChange={(e) => setDescription(e.target.value)} />
 
-      <input
-        placeholder="Breed"
-        value={breed}
-        onChange={(e) => setBreed(e.target.value)}
-        style={{ width: "100%", marginBottom: 12 }}
-      />
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+        />
 
-      <input
-        type="file"
-        accept="image/*"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-        style={{ marginBottom: 12 }}
-      />
-
-      <button onClick={handleCreateHorse}>Add Horse</button>
-
-      {message && <p style={{ marginTop: 16 }}>{message}</p>}
-    </main>
+        <button type="submit">Save Horse</button>
+      </form>
+    </div>
   );
 }
