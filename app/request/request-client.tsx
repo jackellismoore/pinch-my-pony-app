@@ -1,56 +1,75 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function RequestClient({ horseId }: { horseId: string }) {
-  const router = useRouter();
+export default function RequestClient({
+  horseId,
+}: {
+  horseId: string;
+}) {
+  const [horse, setHorse] = useState<any>(null);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [status, setStatus] = useState("");
 
-  const submitRequest = async () => {
-    setError(null);
+  useEffect(() => {
+    const loadHorse = async () => {
+      const { data } = await supabase
+        .from("horses")
+        .select("*")
+        .eq("id", horseId)
+        .single();
 
+      setHorse(data);
+    };
+
+    loadHorse();
+  }, [horseId]);
+
+  const handleRequest = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+    if (!user || !horse) return;
 
     const { error } = await supabase.from("borrow_requests").insert({
-      horse_id: horseId,
+      horse_id: horse.id,
       borrower_id: user.id,
       message,
+      status: "pending",
     });
 
     if (error) {
-      setError(error.message);
+      setStatus(error.message);
     } else {
-      setSuccess(true);
-      setMessage("");
+      setStatus("Request sent!");
     }
   };
 
+  if (!horse) return <p style={{ padding: 40 }}>Loading horse...</p>;
+
   return (
-    <main style={{ padding: 40, maxWidth: 500 }}>
-      <h1>Request to Borrow</h1>
+    <main style={{ padding: 40 }}>
+      <h1>{horse.name}</h1>
+      <p>{horse.breed}</p>
+
+      <h2 style={{ marginTop: 30 }}>Request to borrow</h2>
 
       <textarea
-        placeholder="Write a short message to the owner..."
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        style={{ width: "100%", height: 120, marginBottom: 16 }}
+        rows={4}
+        style={{ width: "100%", marginBottom: 20 }}
       />
 
-      <button onClick={submitRequest}>Send Request</button>
+      <button onClick={handleRequest}>Send request</button>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {success && <p style={{ color: "green" }}>Request sent!</p>}
+      {status && (
+        <p style={{ marginTop: 20, color: "red" }}>
+          {status}
+        </p>
+      )}
     </main>
   );
 }
