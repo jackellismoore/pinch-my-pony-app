@@ -3,45 +3,29 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type Horse = {
-  id: string;
-  name: string;
-  breed: string | null;
-};
-
 type Request = {
   id: string;
   message: string;
   status: string;
   borrower_id: string;
-  horses: {
-    name: string;
-  }[];
+  horses: { name: string }[];
 };
 
 export default function OwnerDashboard() {
-  const [horses, setHorses] = useState<Horse[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const loadRequests = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) return;
 
-    // Load owner's horses
-    const { data: horsesData } = await supabase
-      .from("horses")
-      .select("id, name, breed")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: false });
-
-    setHorses(horsesData || []);
-
-    // Load requests for owner's horses
-    const { data: requestsData } = await supabase
+    const { data } = await supabase
       .from("borrow_requests")
       .select(`
         id,
@@ -53,55 +37,21 @@ export default function OwnerDashboard() {
       .eq("horses.owner_id", user.id)
       .order("created_at", { ascending: false });
 
-    setRequests((requestsData as Request[]) || []);
-
-    setLoading(false);
+    setRequests((data as Request[]) || []);
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const updateStatus = async (
-    id: string,
-    status: "approved" | "rejected"
-  ) => {
+  const updateStatus = async (id: string, status: "approved" | "rejected") => {
     await supabase
       .from("borrow_requests")
       .update({ status })
       .eq("id", id);
 
-    loadData();
+    loadRequests();
   };
-
-  if (loading) return <p style={{ padding: 40 }}>Loading…</p>;
 
   return (
     <main style={{ padding: 40 }}>
       <h1>Owner Dashboard</h1>
-
-      {/* My Horses Section */}
-      <h2 style={{ marginTop: 32 }}>My Horses</h2>
-
-      {horses.length === 0 && <p>You have not added any horses yet.</p>}
-
-      {horses.map((horse) => (
-        <div
-          key={horse.id}
-          style={{
-            border: "1px solid #ddd",
-            padding: 16,
-            marginBottom: 12,
-            borderRadius: 8,
-          }}
-        >
-          <h3>{horse.name}</h3>
-          {horse.breed && <p>{horse.breed}</p>}
-        </div>
-      ))}
-
-      {/* Requests Section */}
-      <h2 style={{ marginTop: 40 }}>Borrow Requests</h2>
 
       {requests.length === 0 && <p>No requests yet.</p>}
 
@@ -110,20 +60,16 @@ export default function OwnerDashboard() {
           key={req.id}
           style={{
             border: "1px solid #ddd",
-            padding: 16,
-            marginBottom: 16,
+            padding: 20,
+            marginBottom: 20,
             borderRadius: 8,
+            background: "#fff",
           }}
         >
           <h3>{req.horses?.[0]?.name}</h3>
 
-          <p>
-            <strong>Borrower:</strong> {req.borrower_id}
-          </p>
-
-          <p>
-            <strong>Message:</strong> {req.message}
-          </p>
+          <p><strong>Borrower:</strong> {req.borrower_id}</p>
+          <p><strong>Message:</strong> {req.message}</p>
 
           <p>
             <strong>Status:</strong>{" "}
@@ -142,13 +88,14 @@ export default function OwnerDashboard() {
           </p>
 
           {req.status === "pending" && (
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 10 }}>
               <button
                 onClick={() => updateStatus(req.id, "approved")}
-                style={{ marginRight: 8 }}
+                style={{ marginRight: 10 }}
               >
                 Approve
               </button>
+
               <button
                 onClick={() => updateStatus(req.id, "rejected")}
               >
