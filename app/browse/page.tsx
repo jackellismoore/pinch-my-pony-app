@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 
-// Cast as any to avoid Next 16 dynamic typing issue
 const MapContainer: any = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
   { ssr: false }
@@ -30,18 +29,14 @@ type Horse = {
   name: string;
   breed: string;
   image_url: string;
-  location_name: string;
-  latitude: number;
-  longitude: number;
+  location_name: string | null;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 export default function BrowsePage() {
   const [horses, setHorses] = useState<Horse[]>([]);
-  const [userLocation, setUserLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-  const [selectedHorse, setSelectedHorse] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<any>(null);
 
   useEffect(() => {
     getUserLocation();
@@ -60,66 +55,43 @@ export default function BrowsePage() {
   };
 
   const loadHorses = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("horses")
-      .select(
-        "id, name, breed, image_url, location_name, latitude, longitude"
-      );
+      .select("*");
 
-    if (data) {
-      const valid = data.filter(
-        (h) => h.latitude && h.longitude
-      ) as Horse[];
-      setHorses(valid);
+    console.log("HORSES FROM DB:", data);
+
+    if (!error && data) {
+      setHorses(data as Horse[]);
     }
   };
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>
-      {/* LEFT SIDE LIST */}
-      <div
-        style={{
-          width: "40%",
-          overflowY: "scroll",
-          padding: 20,
-          borderRight: "1px solid #ddd",
-        }}
-      >
-        <h2>Horses Near You</h2>
+      <div style={{ width: "40%", padding: 20, overflowY: "scroll" }}>
+        <h2>All Horses</h2>
 
         {horses.map((horse) => (
           <div
             key={horse.id}
-            onClick={() => setSelectedHorse(horse.id)}
             style={{
-              border:
-                selectedHorse === horse.id
-                  ? "2px solid #2563eb"
-                  : "1px solid #ddd",
-              borderRadius: 10,
+              border: "1px solid #ddd",
               padding: 15,
               marginBottom: 15,
-              cursor: "pointer",
+              borderRadius: 8,
             }}
           >
-            <img
-              src={horse.image_url}
-              alt={horse.name}
-              style={{
-                width: "100%",
-                height: 150,
-                objectFit: "cover",
-                borderRadius: 8,
-              }}
-            />
             <h3>{horse.name}</h3>
             <p>{horse.breed}</p>
-            <p>📍 {horse.location_name}</p>
+            <p>📍 {horse.location_name || "No location set"}</p>
+            <p>
+              Lat: {horse.latitude || "None"} | Lng:{" "}
+              {horse.longitude || "None"}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* RIGHT SIDE MAP */}
       <div style={{ width: "60%" }}>
         {typeof window !== "undefined" && (
           <MapContainer
@@ -136,34 +108,21 @@ export default function BrowsePage() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            {userLocation && (
-              <Marker position={[userLocation.lat, userLocation.lng]}>
-                <Popup>You are here</Popup>
-              </Marker>
+            {horses.map((horse) =>
+              horse.latitude && horse.longitude ? (
+                <Marker
+                  key={horse.id}
+                  position={[
+                    Number(horse.latitude),
+                    Number(horse.longitude),
+                  ]}
+                >
+                  <Popup>
+                    <strong>{horse.name}</strong>
+                  </Popup>
+                </Marker>
+              ) : null
             )}
-
-            {horses.map((horse) => (
-              <Marker
-                key={horse.id}
-                position={[
-                  Number(horse.latitude),
-                  Number(horse.longitude),
-                ]}
-                eventHandlers={{
-                  click: () => setSelectedHorse(horse.id),
-                }}
-              >
-                <Popup>
-                  <strong>{horse.name}</strong>
-                  <br />
-                  {horse.breed}
-                  <br />
-                  <a href={`/horse/${horse.id}`}>
-                    View Horse
-                  </a>
-                </Popup>
-              </Marker>
-            ))}
           </MapContainer>
         )}
       </div>
