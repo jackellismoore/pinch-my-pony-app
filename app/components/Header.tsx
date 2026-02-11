@@ -20,10 +20,10 @@ export default function Header() {
   const router = useRouter();
 
   useEffect(() => {
-    loadUser();
+    initialize();
   }, []);
 
-  const loadUser = async () => {
+  const initialize = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -41,11 +41,7 @@ export default function Header() {
     if (profile?.role === "owner") {
       setIsOwner(true);
       loadNotifications(user.id);
-
-      // Auto-refresh every 10 seconds
-      setInterval(() => {
-        loadNotifications(user.id);
-      }, 10000);
+      subscribeToRealtime(user.id);
     }
   };
 
@@ -62,6 +58,23 @@ export default function Header() {
       .order("created_at", { ascending: false });
 
     setNotifications((data as Notification[]) || []);
+  };
+
+  const subscribeToRealtime = (ownerId: string) => {
+    supabase
+      .channel("borrow_requests_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "borrow_requests",
+        },
+        () => {
+          loadNotifications(ownerId);
+        }
+      )
+      .subscribe();
   };
 
   const logout = async () => {
@@ -122,7 +135,7 @@ export default function Header() {
                       position: "absolute",
                       right: 0,
                       top: 30,
-                      width: 280,
+                      width: 300,
                       background: "white",
                       border: "1px solid #ddd",
                       borderRadius: 8,
@@ -155,7 +168,7 @@ export default function Header() {
                             color: "#555",
                           }}
                         >
-                          {n.message.slice(0, 40)}...
+                          {n.message.slice(0, 50)}...
                         </p>
                       </div>
                     ))}
