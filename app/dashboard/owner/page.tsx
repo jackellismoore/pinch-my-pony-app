@@ -13,19 +13,19 @@ type Request = {
 
 export default function OwnerDashboard() {
   const [requests, setRequests] = useState<Request[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadRequests();
   }, []);
 
   const loadRequests = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await supabase.auth.getUser();
+    const userId = user.data.user?.id;
 
-    if (!user) return;
+    if (!userId) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
         id,
@@ -33,95 +33,82 @@ export default function OwnerDashboard() {
         horses!inner(name, owner_id),
         profiles!borrow_requests_borrower_id_fkey(full_name)
       `)
-      .eq("horses.owner_id", user.id)
+      .eq("horses.owner_id", userId)
       .order("created_at", { ascending: false });
 
-    setRequests((data as Request[]) || []);
+    if (!error && data) {
+      setRequests(data as Request[]);
+    }
+
+    setLoading(false);
   };
 
-  const updateStatus = async (id: string, newStatus: string) => {
-    await supabase
-      .from("borrow_requests")
-      .update({ status: newStatus })
-      .eq("id", id);
-
-    loadRequests();
-  };
+  if (loading) {
+    return <div style={{ padding: 40 }}>Loading...</div>;
+  }
 
   return (
     <div style={{ padding: 40 }}>
       <h1>Owner Dashboard</h1>
 
-      {requests.length === 0 && <p>No requests yet.</p>}
+      {requests.length === 0 && (
+        <p>No requests yet.</p>
+      )}
 
       {requests.map((req) => (
         <div
           key={req.id}
           style={{
-            border: "1px solid #ddd",
+            border: "1px solid #e5e7eb",
             padding: 20,
             marginBottom: 20,
-            borderRadius: 8,
+            borderRadius: 10,
             background: "#fff",
           }}
         >
-          <h3>{req.horses?.[0]?.name}</h3>
+          <h3>
+            {req.horses?.[0]?.name || "Horse"}
+          </h3>
 
           <p>
+            Borrower:{" "}
             <strong>
               {req.profiles?.[0]?.full_name || "Unknown User"}
             </strong>
           </p>
 
-          <p>Status: {req.status}</p>
+          <p>
+            Status:{" "}
+            <strong
+              style={{
+                color:
+                  req.status === "approved"
+                    ? "#16a34a"
+                    : req.status === "declined"
+                    ? "#dc2626"
+                    : "#d97706",
+              }}
+            >
+              {req.status}
+            </strong>
+          </p>
 
-          {req.status === "pending" && (
-            <div style={{ marginTop: 10 }}>
-              <button
-                onClick={() => updateStatus(req.id, "approved")}
-                style={{
-                  marginRight: 10,
-                  padding: "8px 14px",
-                  background: "#16a34a",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Approve
-              </button>
-
-              <button
-                onClick={() => updateStatus(req.id, "declined")}
-                style={{
-                  padding: "8px 14px",
-                  background: "#dc2626",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Decline
-              </button>
-            </div>
-          )}
-
-          {/* OPEN CHAT BUTTON */}
-          <div style={{ marginTop: 15 }}>
-            <Link href={`/messages/${req.id}`}>
-              <button
-                style={{
-                  padding: "8px 14px",
-                  background: "#2563eb",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Open Chat
-              </button>
-            </Link>
-          </div>
+          {/* LINK TO CONVERSATION */}
+          <Link href={`/messages/${req.id}`}>
+            <button
+              style={{
+                marginTop: 12,
+                padding: "8px 14px",
+                background: "#2563eb",
+                color: "white",
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Open Conversation
+            </button>
+          </Link>
         </div>
       ))}
     </div>
