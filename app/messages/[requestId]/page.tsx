@@ -9,6 +9,7 @@ type Message = {
   content: string;
   sender_id: string;
   created_at: string;
+  image_url?: string;
 };
 
 export default function ChatPage() {
@@ -19,36 +20,13 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [approved, setApproved] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
   useEffect(() => {
-    loadInitial();
+    initialize();
   }, []);
 
-  useEffect(() => {
-    if (!requestId) return;
-
-    const channel = supabase
-      .channel("chat-" + requestId)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `request_id=eq.${requestId}`,
-        },
-        (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [requestId]);
-
-  const loadInitial = async () => {
+  const initialize = async () => {
     const { data: user } = await supabase.auth.getUser();
     setUserId(user.user?.id || null);
 
@@ -70,11 +48,41 @@ export default function ChatPage() {
 
     if (data) setMessages(data);
 
-    await supabase
-      .from("messages")
-      .update({ read: true })
-      .eq("request_id", requestId)
-      .neq("sender_id", user.user?.id);
+    subscribeRealtime(user.user?.id);
+  };
+
+  const subscribeRealtime = (uid: string | undefined) => {
+    const channel = supabase.channel("chat-" + requestId);
+
+    channel
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `request_id=eq.${requestId}`,
+        },
+        (payload) => {
+          setMessages((prev) => [...prev, payload.new as Message]);
+        }
+      )
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        const users = Object.keys(state).filter((id) => id !== uid);
+        setTypingUsers(users);
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED" && uid) {
+          await channel.track({ typing: false }, { key: uid });
+        }
+      });
+  };
+
+  const handleTyping = async (value: string) => {
+    setNewMessage(value);
+    const channel = supabase.channel("chat-" + requestId);
+    await channel.track({ typing: value.length > 0 });
   };
 
   const sendMessage = async () => {
@@ -106,7 +114,6 @@ export default function ChatPage() {
           height: 400,
           overflowY: "auto",
           marginBottom: 20,
-          background: "#fff",
         }}
       >
         {messages.map((msg) => (
@@ -129,16 +136,28 @@ export default function ChatPage() {
               }}
             >
               {msg.content}
+              {msg.image_url && (
+                <img
+                  src={msg.image_url}
+                  style={{ maxWidth: 200, display: "block", marginTop: 8 }}
+                />
+              )}
             </div>
           </div>
         ))}
+
+        {typingUsers.length > 0 && (
+          <p style={{ fontStyle: "italic", color: "#666" }}>
+            Someone is typing...
+          </p>
+        )}
       </div>
 
       {approved && (
         <div style={{ display: "flex", gap: 10 }}>
           <input
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => handleTyping(e.target.value)}
             style={{ flex: 1, padding: 10 }}
             placeholder="Type message..."
           />
