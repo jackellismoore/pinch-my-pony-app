@@ -1,71 +1,103 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import NotificationBell from "./NotificationBell";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
+  const [role, setRole] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    checkUser();
+    loadUser();
   }, []);
 
-  const checkUser = async () => {
+  const loadUser = async () => {
     const { data } = await supabase.auth.getUser();
-    setUser(data.user);
+    const currentUser = data.user;
+
+    if (!currentUser) return;
+
+    setUser(currentUser);
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", currentUser.id)
+      .single();
+
+    if (profile) {
+      setRole(profile.role);
+    }
   };
 
-  const logout = async () => {
+  const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
+    router.refresh();
   };
 
   return (
-    <div
+    <header
       style={{
-        padding: "15px 40px",
-        borderBottom: "1px solid #eee",
+        padding: "16px 30px",
         display: "flex",
         justifyContent: "space-between",
-        background: "#fff",
+        alignItems: "center",
+        borderBottom: "1px solid #eee",
+        background: "#ffffff",
       }}
     >
-      <Link href="/">
-        <h2>🐎 Pinch My Pony</h2>
-      </Link>
-
-      <div style={{ display: "flex", gap: 20 }}>
-        {!user && (
-          <>
-            <Link href="/login">Login</Link>
-            <Link href="/signup">Sign Up</Link>
-          </>
-        )}
+      {/* Left */}
+      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+        <Link href="/" style={{ fontWeight: 700, fontSize: 18 }}>
+          🐴 Pinch My Pony
+        </Link>
 
         {user && (
           <>
-            <Link href="/browse">Browse</Link>
             <Link href="/dashboard">Dashboard</Link>
+            <Link href="/browse">Browse</Link>
             <Link href="/messages">Messages</Link>
 
+            {role === "owner" && (
+              <>
+                <Link href="/my-horses">My Horses</Link>
+                <Link href="/horse">Add Horse</Link>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Right */}
+      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+        {user ? (
+          <>
+            <NotificationBell />
             <button
-              onClick={logout}
+              onClick={handleLogout}
               style={{
-                background: "#111",
-                color: "white",
                 padding: "6px 12px",
                 borderRadius: 6,
-                border: "none",
+                border: "1px solid #ddd",
+                background: "#fff",
+                cursor: "pointer",
               }}
             >
               Logout
             </button>
           </>
+        ) : (
+          <>
+            <Link href="/login">Login</Link>
+            <Link href="/signup">Sign Up</Link>
+          </>
         )}
       </div>
-    </div>
+    </header>
   );
 }
