@@ -46,13 +46,20 @@ export default function AddHorsePage() {
 
   const handlePlaceChanged = () => {
     const place = autocompleteRef.current?.getPlace();
-    if (!place?.geometry) return;
+
+    if (!place || !place.geometry || !place.geometry.location) {
+      alert("Please select a valid location from the dropdown.");
+      return;
+    }
+
+    const lat = place.geometry.location.lat();
+    const lng = place.geometry.location.lng();
 
     setForm((prev) => ({
       ...prev,
       location: place.formatted_address ?? "",
-      lat: place.geometry.location?.lat() ?? null,
-      lng: place.geometry.location?.lng() ?? null,
+      lat: lat ?? null,
+      lng: lng ?? null,
     }));
   };
 
@@ -81,17 +88,25 @@ export default function AddHorsePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.lat || !form.lng) {
+    if (form.lat === null || form.lng === null) {
       alert("Please select a valid location.");
       return;
     }
 
     setLoading(true);
 
-    const { data: userData } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("Not logged in");
+      setLoading(false);
+      return;
+    }
 
     await supabase.from("horses").insert({
-      owner_id: userData.user?.id,
+      owner_id: user.id,
       name: form.name,
       breed: form.breed,
       age: Number(form.age),
@@ -102,13 +117,15 @@ export default function AddHorsePage() {
       lat: form.lat,
       lng: form.lng,
       image_url: form.image_url,
-      active: true,
+      is_active: true,
     });
 
     router.push("/dashboard/owner/horses");
   };
 
-  if (!isLoaded) return <div style={{ padding: 40 }}>Loading...</div>;
+  if (!isLoaded) {
+    return <div style={{ padding: 40 }}>Loading Google Maps...</div>;
+  }
 
   return (
     <div style={{ padding: 40 }}>
@@ -123,35 +140,67 @@ export default function AddHorsePage() {
           gap: 10,
         }}
       >
-        <input required placeholder="Name"
+        <input
+          required
+          placeholder="Horse Name"
+          value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
         />
 
-        <input required placeholder="Breed"
+        <input
+          required
+          placeholder="Breed"
+          value={form.breed}
           onChange={(e) => setForm({ ...form, breed: e.target.value })}
         />
 
-        <input required type="number" placeholder="Age"
+        <input
+          required
+          type="number"
+          placeholder="Age"
+          value={form.age}
           onChange={(e) => setForm({ ...form, age: e.target.value })}
         />
 
-        <input required type="number" placeholder="Height (hh)"
-          onChange={(e) => setForm({ ...form, height_hh: e.target.value })}
+        <input
+          required
+          type="number"
+          placeholder="Height (hh)"
+          value={form.height_hh}
+          onChange={(e) =>
+            setForm({ ...form, height_hh: e.target.value })
+          }
         />
 
-        <input required placeholder="Temperament"
-          onChange={(e) => setForm({ ...form, temperament: e.target.value })}
+        <input
+          required
+          placeholder="Temperament"
+          value={form.temperament}
+          onChange={(e) =>
+            setForm({ ...form, temperament: e.target.value })
+          }
         />
 
-        <textarea placeholder="Description"
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
+        <textarea
+          placeholder="Description"
+          value={form.description}
+          onChange={(e) =>
+            setForm({ ...form, description: e.target.value })
+          }
         />
 
         <Autocomplete
           onLoad={(auto) => (autocompleteRef.current = auto)}
           onPlaceChanged={handlePlaceChanged}
         >
-          <input required placeholder="Search Location" />
+          <input
+            required
+            placeholder="Search Location"
+            value={form.location}
+            onChange={(e) =>
+              setForm({ ...form, location: e.target.value })
+            }
+          />
         </Autocomplete>
 
         <input
