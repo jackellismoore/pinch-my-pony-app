@@ -11,197 +11,139 @@ type Message = {
   created_at: string;
 };
 
-type Request = {
-  id: string;
-  status: string;
-  borrower_id: string;
-  horses: { name: string }[];
-};
-
-export default function MessagePage() {
+export default function ChatPage() {
   const params = useParams();
-  const requestId = params.requestId as string;
+  const requestId = params?.requestId as string;
 
   const [messages, setMessages] = useState<Message[]>([]);
-  const [request, setRequest] = useState<Request | null>(null);
   const [newMessage, setNewMessage] = useState("");
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [approved, setApproved] = useState(false);
 
   useEffect(() => {
-    loadData();
+    loadInitial();
   }, []);
 
-  const loadData = async () => {
-    const user = await supabase.auth.getUser();
-    setCurrentUser(user.data.user?.id || null);
+  useEffect(() => {
+    if (!requestId) return;
 
-    const { data: reqData } = await supabase
+    const channel = supabase
+      .channel("chat-" + requestId)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `request_id=eq.${requestId}`,
+        },
+        (payload) => {
+          setMessages((prev) => [...prev, payload.new as Message]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [requestId]);
+
+  const loadInitial = async () => {
+    const { data: user } = await supabase.auth.getUser();
+    setUserId(user.user?.id || null);
+
+    const { data: request } = await supabase
       .from("borrow_requests")
-      .select(`
-        id,
-        status,
-        borrower_id,
-        horses(name)
-      `)
+      .select("status")
       .eq("id", requestId)
       .single();
 
-    setRequest(reqData);
+    if (request?.status === "approved") {
+      setApproved(true);
+    }
 
-    const { data: msgData } = await supabase
+    const { data } = await supabase
       .from("messages")
       .select("*")
       .eq("request_id", requestId)
       .order("created_at", { ascending: true });
 
-    setMessages(msgData || []);
+    if (data) setMessages(data);
+
+    await supabase
+      .from("messages")
+      .update({ read: true })
+      .eq("request_id", requestId)
+      .neq("sender_id", user.user?.id);
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !currentUser) return;
+    if (!newMessage.trim()) return;
 
     await supabase.from("messages").insert({
       request_id: requestId,
-      sender_id: currentUser,
+      sender_id: userId,
       content: newMessage,
     });
 
     setNewMessage("");
-    loadData();
   };
-
-  const updateStatus = async (status: string) => {
-    await supabase
-      .from("borrow_requests")
-      .update({ status })
-      .eq("id", requestId);
-
-    loadData();
-  };
-
-  if (!request) return <div style={{ padding: 40 }}>Loading...</div>;
-
-  const isOwner = currentUser !== request.borrower_id;
-  const canChat = request.status === "approved";
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>Conversation</h1>
-      <h3>Horse: {request.horses?.[0]?.name}</h3>
-      <p>Status: <strong>{request.status}</strong></p>
+      <h2>Conversation</h2>
 
-      {/* Owner Controls */}
-      {isOwner && request.status === "pending" && (
-        <div style={{ marginBottom: 20 }}>
-          <button
-            onClick={() => updateStatus("approved")}
-            style={{
-              marginRight: 10,
-              background: "#16a34a",
-              color: "white",
-              padding: "8px 14px",
-              borderRadius: 6,
-              border: "none",
-            }}
-          >
-            Approve
-          </button>
-
-          <button
-            onClick={() => updateStatus("declined")}
-            style={{
-              background: "#dc2626",
-              color: "white",
-              padding: "8px 14px",
-              borderRadius: 6,
-              border: "none",
-            }}
-          >
-            Decline
-          </button>
-        </div>
+      {!approved && (
+        <p style={{ color: "red" }}>
+          This request must be approved before messaging.
+        </p>
       )}
 
-      {/* Messages */}
       <div
         style={{
           border: "1px solid #ddd",
           padding: 20,
-          borderRadius: 8,
-          minHeight: 300,
+          height: 400,
+          overflowY: "auto",
           marginBottom: 20,
+          background: "#fff",
         }}
       >
         {messages.map((msg) => (
           <div
             key={msg.id}
             style={{
+              textAlign: msg.sender_id === userId ? "right" : "left",
               marginBottom: 12,
-              textAlign:
-                msg.sender_id === currentUser ? "right" : "left",
             }}
           >
             <div
               style={{
                 display: "inline-block",
+                padding: 10,
+                borderRadius: 10,
                 background:
-                  msg.sender_id === currentUser
-                    ? "#2563eb"
-                    : "#f3f4f6",
+                  msg.sender_id === userId ? "#2563eb" : "#eee",
                 color:
-                  msg.sender_id === currentUser
-                    ? "white"
-                    : "black",
-                padding: "8px 12px",
-                borderRadius: 8,
+                  msg.sender_id === userId ? "#fff" : "#000",
               }}
             >
               {msg.content}
             </div>
           </div>
         ))}
-
-        {messages.length === 0 && (
-          <p style={{ color: "#666" }}>
-            No messages yet.
-          </p>
-        )}
       </div>
 
-      {/* Chat Box */}
-      {canChat ? (
+      {approved && (
         <div style={{ display: "flex", gap: 10 }}>
           <input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            style={{
-              flex: 1,
-              padding: 10,
-              borderRadius: 6,
-              border: "1px solid #ccc",
-            }}
+            style={{ flex: 1, padding: 10 }}
+            placeholder="Type message..."
           />
-
-          <button
-            onClick={sendMessage}
-            style={{
-              background: "#2563eb",
-              color: "white",
-              padding: "10px 16px",
-              borderRadius: 6,
-              border: "none",
-            }}
-          >
-            Send
-          </button>
+          <button onClick={sendMessage}>Send</button>
         </div>
-      ) : (
-        <p style={{ color: "#888" }}>
-          {request.status === "pending"
-            ? "Waiting for owner approval..."
-            : "Request declined. Chat disabled."}
-        </p>
       )}
     </div>
   );
