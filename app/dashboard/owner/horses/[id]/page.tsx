@@ -3,12 +3,26 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useParams, useRouter } from "next/navigation";
+import {
+  GoogleMap,
+  Marker,
+  useLoadScript,
+  Autocomplete,
+} from "@react-google-maps/api";
 
 export default function EditHorsePage() {
   const { id } = useParams();
   const router = useRouter();
 
+  const { isLoaded } = useLoadScript({
+    googleMapsApiKey:
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
+    libraries: ["places"],
+  });
+
   const [horse, setHorse] = useState<any>(null);
+  const [locationCoords, setLocationCoords] = useState<any>(null);
+  const [autocomplete, setAutocomplete] = useState<any>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
@@ -23,6 +37,28 @@ export default function EditHorsePage() {
       .single();
 
     setHorse(data);
+
+    if (data?.lat && data?.lng) {
+      setLocationCoords({
+        lat: data.lat,
+        lng: data.lng,
+      });
+    }
+  };
+
+  const onPlaceChanged = () => {
+    if (autocomplete) {
+      const place = autocomplete.getPlace();
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+
+      setHorse({
+        ...horse,
+        location: place.formatted_address,
+      });
+
+      setLocationCoords({ lat, lng });
+    }
   };
 
   const uploadImage = async () => {
@@ -52,9 +88,11 @@ export default function EditHorsePage() {
         age: horse.age,
         height_hh: horse.height_hh,
         temperament: horse.temperament,
-        location: horse.location,
         description: horse.description,
         price_per_day: horse.price_per_day,
+        location: horse.location,
+        lat: locationCoords?.lat,
+        lng: locationCoords?.lng,
         image_url: imageUrl,
       })
       .eq("id", id);
@@ -62,14 +100,15 @@ export default function EditHorsePage() {
     router.push("/dashboard/owner/horses");
   };
 
-  if (!horse) return <div style={{ padding: 40 }}>Loading...</div>;
+  if (!horse || !isLoaded)
+    return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
-    <div style={{ padding: 40 }}>
+    <div style={{ padding: 40, maxWidth: 700 }}>
       <h1>Edit Horse</h1>
 
       <input
-        value={horse.name}
+        value={horse.name || ""}
         onChange={(e) =>
           setHorse({ ...horse, name: e.target.value })
         }
@@ -77,7 +116,7 @@ export default function EditHorsePage() {
       />
 
       <input
-        value={horse.breed}
+        value={horse.breed || ""}
         onChange={(e) =>
           setHorse({ ...horse, breed: e.target.value })
         }
@@ -86,16 +125,19 @@ export default function EditHorsePage() {
 
       <input
         type="number"
-        value={horse.age}
+        value={horse.age || ""}
         onChange={(e) =>
-          setHorse({ ...horse, age: Number(e.target.value) })
+          setHorse({
+            ...horse,
+            age: Number(e.target.value),
+          })
         }
         placeholder="Age"
       />
 
       <input
         type="number"
-        value={horse.height_hh}
+        value={horse.height_hh || ""}
         onChange={(e) =>
           setHorse({
             ...horse,
@@ -106,7 +148,7 @@ export default function EditHorsePage() {
       />
 
       <input
-        value={horse.temperament}
+        value={horse.temperament || ""}
         onChange={(e) =>
           setHorse({
             ...horse,
@@ -117,16 +159,8 @@ export default function EditHorsePage() {
       />
 
       <input
-        value={horse.location}
-        onChange={(e) =>
-          setHorse({ ...horse, location: e.target.value })
-        }
-        placeholder="Location"
-      />
-
-      <input
         type="number"
-        value={horse.price_per_day}
+        value={horse.price_per_day || ""}
         onChange={(e) =>
           setHorse({
             ...horse,
@@ -137,7 +171,7 @@ export default function EditHorsePage() {
       />
 
       <textarea
-        value={horse.description}
+        value={horse.description || ""}
         onChange={(e) =>
           setHorse({
             ...horse,
@@ -146,6 +180,49 @@ export default function EditHorsePage() {
         }
         placeholder="Description"
       />
+
+      <Autocomplete
+        onLoad={(auto) => setAutocomplete(auto)}
+        onPlaceChanged={onPlaceChanged}
+      >
+        <input
+          value={horse.location || ""}
+          onChange={(e) =>
+            setHorse({
+              ...horse,
+              location: e.target.value,
+            })
+          }
+          placeholder="Search Location"
+        />
+      </Autocomplete>
+
+      {locationCoords && (
+        <GoogleMap
+          zoom={10}
+          center={locationCoords}
+          mapContainerStyle={{
+            width: "100%",
+            height: "300px",
+            marginTop: 20,
+          }}
+        >
+          <Marker position={locationCoords} />
+        </GoogleMap>
+      )}
+
+      {horse.image_url && (
+        <img
+          src={horse.image_url}
+          style={{
+            width: "100%",
+            maxHeight: 200,
+            objectFit: "cover",
+            marginTop: 20,
+            borderRadius: 8,
+          }}
+        />
+      )}
 
       <input
         type="file"
