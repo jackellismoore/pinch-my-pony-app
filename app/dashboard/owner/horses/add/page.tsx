@@ -1,20 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import { useLoadScript, Autocomplete } from "@react-google-maps/api";
+import {
+  GoogleMap,
+  LoadScript,
+  Autocomplete,
+} from "@react-google-maps/api";
 
-const libraries: any = ["places"];
+const libraries: ("places")[] = ["places"];
 
 export default function AddHorsePage() {
   const router = useRouter();
-  const { isLoaded } = useLoadScript({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
-    libraries,
-  });
-
-  const [autocomplete, setAutocomplete] = useState<any>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -22,102 +21,133 @@ export default function AddHorsePage() {
     age: "",
     height_hh: "",
     temperament: "",
-    location: "",
-    lat: 0,
-    lng: 0,
     description: "",
-    image_url: "",
+    location: "",
+    lat: null as number | null,
+    lng: null as number | null,
   });
 
-  const handleChange = (e: any) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handlePlaceChanged = () => {
+    const place = autocompleteRef.current?.getPlace();
+
+    if (!place?.geometry) return;
+
+    const lat = place.geometry.location?.lat();
+    const lng = place.geometry.location?.lng();
+
+    setForm({
+      ...form,
+      location: place.formatted_address || "",
+      lat: lat || null,
+      lng: lng || null,
+    });
   };
 
-  const onPlaceChanged = () => {
-    if (autocomplete) {
-      const place = autocomplete.getPlace();
-      const location = place.geometry.location;
-
-      setForm({
-        ...form,
-        location: place.formatted_address,
-        lat: location.lat(),
-        lng: location.lng(),
-      });
-    }
-  };
-
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-
+  const handleSubmit = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return;
+    if (!user) return alert("Not logged in");
 
-    await supabase.from("horses").insert([
-      {
-        ...form,
-        age: Number(form.age),
-        height_hh: Number(form.height_hh),
-        owner_id: user.id,
-        is_active: true,
-      },
-    ]);
+    const { error } = await supabase.from("horses").insert({
+      ...form,
+      age: Number(form.age),
+      height_hh: Number(form.height_hh),
+      owner_id: user.id,
+      is_active: true,
+    });
 
-    router.push("/dashboard/owner/horses");
+    if (error) {
+      console.error(error);
+      alert("Error adding horse");
+    } else {
+      router.push("/dashboard/owner/horses");
+    }
   };
-
-  if (!isLoaded) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 40 }}>
       <h1>Add Horse</h1>
 
-      <form onSubmit={handleSubmit} style={{ maxWidth: 600 }}>
-        <input name="name" placeholder="Name" onChange={handleChange} required />
-        <input name="breed" placeholder="Breed" onChange={handleChange} required />
-        <input name="age" placeholder="Age" type="number" onChange={handleChange} required />
-        <input name="height_hh" placeholder="Height (hh)" type="number" onChange={handleChange} required />
-        <input name="temperament" placeholder="Temperament" onChange={handleChange} required />
-
-        <Autocomplete
-          onLoad={(auto) => setAutocomplete(auto)}
-          onPlaceChanged={onPlaceChanged}
-        >
-          <input
-            placeholder="Search Location"
-            style={{ width: "100%", marginBottom: 10 }}
-          />
-        </Autocomplete>
+      <div style={{ maxWidth: 500 }}>
+        <input
+          placeholder="Horse Name"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
 
         <input
-          name="image_url"
-          placeholder="Image URL"
-          onChange={handleChange}
+          placeholder="Breed"
+          value={form.breed}
+          onChange={(e) => setForm({ ...form, breed: e.target.value })}
+        />
+
+        <input
+          placeholder="Age"
+          type="number"
+          value={form.age}
+          onChange={(e) => setForm({ ...form, age: e.target.value })}
+        />
+
+        <input
+          placeholder="Height (hh)"
+          type="number"
+          value={form.height_hh}
+          onChange={(e) =>
+            setForm({ ...form, height_hh: e.target.value })
+          }
+        />
+
+        <input
+          placeholder="Temperament"
+          value={form.temperament}
+          onChange={(e) =>
+            setForm({ ...form, temperament: e.target.value })
+          }
         />
 
         <textarea
-          name="description"
           placeholder="Description"
-          onChange={handleChange}
+          value={form.description}
+          onChange={(e) =>
+            setForm({ ...form, description: e.target.value })
+          }
         />
 
+        <LoadScript
+          googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!}
+          libraries={libraries}
+        >
+          <Autocomplete
+            onLoad={(auto) => (autocompleteRef.current = auto)}
+            onPlaceChanged={handlePlaceChanged}
+          >
+            <input
+              placeholder="Search Location"
+              value={form.location}
+              onChange={(e) =>
+                setForm({ ...form, location: e.target.value })
+              }
+              style={{ width: "100%", marginTop: 10 }}
+            />
+          </Autocomplete>
+        </LoadScript>
+
         <button
-          type="submit"
+          onClick={handleSubmit}
           style={{
             marginTop: 20,
-            padding: "10px 16px",
+            padding: "10px 18px",
             background: "#2563eb",
             color: "white",
             border: "none",
-            borderRadius: 8,
+            borderRadius: 6,
           }}
         >
-          Save Horse
+          Add Horse
         </button>
-      </form>
+      </div>
     </div>
   );
 }
