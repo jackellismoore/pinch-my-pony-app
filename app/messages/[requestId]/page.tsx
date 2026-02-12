@@ -10,6 +10,7 @@ type Message = {
   sender_id: string;
   created_at: string;
   image_url?: string;
+  read: boolean;
 };
 
 export default function ChatPage() {
@@ -33,7 +34,8 @@ export default function ChatPage() {
 
   const initialize = async () => {
     const { data: user } = await supabase.auth.getUser();
-    setUserId(user.user?.id || null);
+    const uid = user.user?.id || null;
+    setUserId(uid);
 
     const { data: request } = await supabase
       .from("borrow_requests")
@@ -45,7 +47,8 @@ export default function ChatPage() {
       setApproved(true);
     }
 
-    loadMessages();
+    await markAsRead(uid);
+    await loadMessages();
 
     supabase
       .channel("chat-" + requestId)
@@ -62,6 +65,16 @@ export default function ChatPage() {
         }
       )
       .subscribe();
+  };
+
+  const markAsRead = async (uid: string | null) => {
+    if (!uid) return;
+
+    await supabase
+      .from("messages")
+      .update({ read: true })
+      .eq("request_id", requestId)
+      .neq("sender_id", uid);
   };
 
   const loadMessages = async () => {
@@ -106,6 +119,7 @@ export default function ChatPage() {
       sender_id: userId,
       content: newMessage,
       image_url: imageUrl,
+      read: false,
     });
 
     setNewMessage("");
@@ -144,11 +158,9 @@ export default function ChatPage() {
                   borderRadius: 18,
                   background: isMe ? "#2563eb" : "#ffffff",
                   color: isMe ? "white" : "black",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
                 }}
               >
                 {msg.content}
-
                 {msg.image_url && (
                   <img
                     src={msg.image_url}
@@ -163,7 +175,6 @@ export default function ChatPage() {
             </div>
           );
         })}
-
         <div ref={bottomRef} />
       </div>
 
