@@ -3,151 +3,115 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import {
-  GoogleMap,
-  Marker,
-  useLoadScript,
-  Autocomplete,
-} from "@react-google-maps/api";
 
-export default function AddHorsePage() {
+const GOOGLE_LIBRARIES: ("places")[] = ["places"];
+
+export default function AddHorse() {
   const router = useRouter();
-  const { isLoaded } = useLoadScript({
-    googleMapsApiKey:
-      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
-    libraries: ["places"],
-  });
 
-  const [horse, setHorse] = useState<any>({});
-  const [locationCoords, setLocationCoords] = useState<any>(null);
-  const [autocomplete, setAutocomplete] = useState<any>(null);
+  const [name, setName] = useState("");
+  const [breed, setBreed] = useState("");
+  const [age, setAge] = useState<number | "">("");
+  const [height, setHeight] = useState<number | "">("");
+  const [temperament, setTemperament] = useState("");
+  const [location, setLocation] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const onPlaceChanged = () => {
-    if (autocomplete) {
-      const place = autocomplete.getPlace();
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
+  const handleSubmit = async () => {
+    setLoading(true);
 
-      setHorse({
-        ...horse,
-        location: place.formatted_address,
-      });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      setLocationCoords({ lat, lng });
+    if (!user) return;
+
+    let imageUrl = "";
+
+    // Upload image
+    if (imageFile) {
+      const fileName = `${Date.now()}-${imageFile.name}`;
+
+      const { error } = await supabase.storage
+        .from("horse-images")
+        .upload(fileName, imageFile);
+
+      if (!error) {
+        const { data } = supabase.storage
+          .from("horse-images")
+          .getPublicUrl(fileName);
+
+        imageUrl = data.publicUrl;
+      }
     }
-  };
 
-  const handleSave = async () => {
-    const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
-
+    // Insert horse
     await supabase.from("horses").insert({
-      ...horse,
-      owner_id: userId,
-      lat: locationCoords?.lat,
-      lng: locationCoords?.lng,
-      is_active: true,
+      name,
+      breed,
+      age,
+      height_hh: height,
+      temperament,
+      location,
+      lat,
+      lng,
+      image_url: imageUrl,
+      owner_id: user.id,
+      active: true,
     });
 
+    setLoading(false);
     router.push("/dashboard/owner/horses");
   };
-
-  if (!isLoaded) return <div>Loading map...</div>;
 
   return (
     <div style={{ padding: 40 }}>
       <h1>Add Horse</h1>
 
-      <input
-        placeholder="Name"
-        onChange={(e) =>
-          setHorse({ ...horse, name: e.target.value })
-        }
-      />
-
-      <input
-        placeholder="Breed"
-        onChange={(e) =>
-          setHorse({ ...horse, breed: e.target.value })
-        }
-      />
-
+      <input placeholder="Name" onChange={(e) => setName(e.target.value)} />
+      <input placeholder="Breed" onChange={(e) => setBreed(e.target.value)} />
       <input
         type="number"
         placeholder="Age"
-        onChange={(e) =>
-          setHorse({ ...horse, age: Number(e.target.value) })
-        }
+        onChange={(e) => setAge(Number(e.target.value))}
       />
-
       <input
         type="number"
         placeholder="Height (hh)"
-        onChange={(e) =>
-          setHorse({
-            ...horse,
-            height_hh: Number(e.target.value),
-          })
-        }
+        onChange={(e) => setHeight(Number(e.target.value))}
       />
-
       <input
         placeholder="Temperament"
-        onChange={(e) =>
-          setHorse({
-            ...horse,
-            temperament: e.target.value,
-          })
-        }
+        onChange={(e) => setTemperament(e.target.value)}
+      />
+      <input
+        placeholder="Location (City)"
+        onChange={(e) => setLocation(e.target.value)}
       />
 
       <input
-        type="number"
-        placeholder="Price per day"
-        onChange={(e) =>
-          setHorse({
-            ...horse,
-            price_per_day: Number(e.target.value),
-          })
-        }
+        type="file"
+        onChange={(e) => {
+          if (e.target.files) setImageFile(e.target.files[0]);
+        }}
       />
 
-      <Autocomplete
-        onLoad={(auto) => setAutocomplete(auto)}
-        onPlaceChanged={onPlaceChanged}
-      >
-        <input
-          placeholder="Search Location"
-          style={{ width: "100%", marginTop: 10 }}
-        />
-      </Autocomplete>
-
-      {locationCoords && (
-        <GoogleMap
-          zoom={10}
-          center={locationCoords}
-          mapContainerStyle={{
-            width: "100%",
-            height: "300px",
-            marginTop: 20,
-          }}
-        >
-          <Marker position={locationCoords} />
-        </GoogleMap>
-      )}
-
       <button
-        onClick={handleSave}
+        onClick={handleSubmit}
+        disabled={loading}
         style={{
           marginTop: 20,
-          padding: "10px 20px",
-          background: "#16a34a",
+          padding: "10px 16px",
+          background: "#2563eb",
           color: "white",
           border: "none",
           borderRadius: 6,
         }}
       >
-        Save Horse
+        {loading ? "Saving..." : "Save Horse"}
       </button>
     </div>
   );

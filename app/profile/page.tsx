@@ -26,15 +26,16 @@ export default function ProfilePage() {
     setProfile(data);
   };
 
-  if (!profile) return <p>Loading...</p>;
+  if (!profile) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>My Profile</h1>
+      <h1>{profile.full_name}</h1>
 
-      <p><strong>Name:</strong> {profile.full_name}</p>
-      <p><strong>Email:</strong> {profile.email}</p>
-      <p><strong>Role:</strong> {profile.role}</p>
+      <p><strong>Stable:</strong> {profile.stable_name}</p>
+      <p><strong>Age:</strong> {profile.age}</p>
+      <p><strong>Location:</strong> {profile.location}</p>
+      <p>{profile.bio}</p>
     </div>
   );
 }

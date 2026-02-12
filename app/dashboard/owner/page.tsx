@@ -1,150 +1,115 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
-type Request = {
-  id: string;
-  status: string;
-  message: string | null;
-  horses: {
-    name: string;
-    owner_id: string;
-  }[];
-  profiles: {
-    full_name: string;
-  }[];
-};
+export default function AddHorsePage() {
+  const router = useRouter();
 
-export default function OwnerDashboard() {
-  const [requests, setRequests] = useState<Request[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState("");
+  const [breed, setBreed] = useState("");
+  const [age, setAge] = useState<number | "">("");
+  const [height, setHeight] = useState<number | "">("");
+  const [temperament, setTemperament] = useState("");
+  const [location, setLocation] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadRequests();
-  }, []);
+  const handleSubmit = async () => {
+    setLoading(true);
 
-  const loadRequests = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from("borrow_requests")
-      .select(`
-        id,
-        status,
-        message,
-        horses(name, owner_id),
-        profiles(full_name)
-      `)
-      .eq("horses.owner_id", user.id)
-      .order("created_at", { ascending: false });
+    let imageUrl = "";
 
-    if (!error) {
-      setRequests(data || []);
+    // Upload image to Supabase storage
+    if (imageFile) {
+      const fileName = `${Date.now()}-${imageFile.name}`;
+
+      const { error } = await supabase.storage
+        .from("horse-images")
+        .upload(fileName, imageFile);
+
+      if (!error) {
+        const { data } = supabase.storage
+          .from("horse-images")
+          .getPublicUrl(fileName);
+
+        imageUrl = data.publicUrl;
+      }
     }
 
+    await supabase.from("horses").insert({
+      name,
+      breed,
+      age,
+      height_hh: height,
+      temperament,
+      location,
+      lat,
+      lng,
+      image_url: imageUrl,
+      owner_id: user.id,
+      active: true,
+    });
+
     setLoading(false);
+    router.push("/dashboard/owner/horses");
   };
-
-  const updateStatus = async (id: string, newStatus: string) => {
-    await supabase
-      .from("borrow_requests")
-      .update({ status: newStatus })
-      .eq("id", id);
-
-    loadRequests();
-  };
-
-  const getStatusColor = (status: string) => {
-    if (status === "approved") return "#16a34a";
-    if (status === "declined") return "#dc2626";
-    return "#f59e0b"; // pending
-  };
-
-  if (loading) return <p style={{ padding: 40 }}>Loading...</p>;
 
   return (
-    <div style={{ padding: 40, maxWidth: 900, margin: "0 auto" }}>
-      <h1 style={{ marginBottom: 30 }}>Owner Dashboard</h1>
+    <div style={{ padding: 40 }}>
+      <h1>Add Horse</h1>
 
-      {requests.length === 0 && <p>No requests yet.</p>}
+      <input placeholder="Name" onChange={(e) => setName(e.target.value)} />
+      <input placeholder="Breed" onChange={(e) => setBreed(e.target.value)} />
+      <input
+        type="number"
+        placeholder="Age"
+        onChange={(e) => setAge(Number(e.target.value))}
+      />
+      <input
+        type="number"
+        placeholder="Height (hh)"
+        onChange={(e) => setHeight(Number(e.target.value))}
+      />
+      <input
+        placeholder="Temperament"
+        onChange={(e) => setTemperament(e.target.value)}
+      />
+      <input
+        placeholder="Location"
+        onChange={(e) => setLocation(e.target.value)}
+      />
 
-      {requests.map((req) => (
-        <div
-          key={req.id}
-          style={{
-            border: "1px solid #e5e7eb",
-            padding: 24,
-            marginBottom: 20,
-            borderRadius: 10,
-            background: "#fff",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-          }}
-        >
-          <h3 style={{ marginBottom: 8 }}>
-            {req.horses?.[0]?.name}
-          </h3>
+      <input
+        type="file"
+        onChange={(e) => {
+          if (e.target.files) setImageFile(e.target.files[0]);
+        }}
+      />
 
-          <p style={{ marginBottom: 6 }}>
-            <strong>
-              {req.profiles?.[0]?.full_name || "Unknown User"}
-            </strong>
-          </p>
-
-          {req.message && (
-            <p style={{ marginBottom: 10, fontStyle: "italic" }}>
-              "{req.message}"
-            </p>
-          )}
-
-          <p
-            style={{
-              fontWeight: 600,
-              color: getStatusColor(req.status),
-              marginBottom: 12,
-            }}
-          >
-            {req.status.toUpperCase()}
-          </p>
-
-          {req.status === "pending" && (
-            <div>
-              <button
-                onClick={() => updateStatus(req.id, "approved")}
-                style={{
-                  marginRight: 10,
-                  padding: "8px 14px",
-                  background: "#16a34a",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                }}
-              >
-                Approve
-              </button>
-
-              <button
-                onClick={() => updateStatus(req.id, "declined")}
-                style={{
-                  padding: "8px 14px",
-                  background: "#dc2626",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                }}
-              >
-                Decline
-              </button>
-            </div>
-          )}
-        </div>
-      ))}
+      <button
+        onClick={handleSubmit}
+        disabled={loading}
+        style={{
+          marginTop: 20,
+          padding: "10px 16px",
+          background: "#2563eb",
+          color: "white",
+          border: "none",
+          borderRadius: 6,
+        }}
+      >
+        {loading ? "Saving..." : "Save Horse"}
+      </button>
     </div>
   );
 }
