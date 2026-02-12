@@ -9,8 +9,8 @@ import NotificationBell from "./NotificationBell";
 export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<string | null>(null);
-  const router = useRouter();
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     loadUser();
@@ -48,13 +48,7 @@ export default function Header() {
     router.push("/");
   };
 
-  const NavItem = ({
-    href,
-    label,
-  }: {
-    href: string;
-    label: string;
-  }) => (
+  const NavItem = ({ href, label }: any) => (
     <Link href={href} style={{ textDecoration: "none" }}>
       <span
         style={{
@@ -102,10 +96,7 @@ export default function Header() {
             {role === "owner" && (
               <>
                 <NavItem href="/dashboard/owner" label="Dashboard" />
-                <NavItem
-                  href="/dashboard/owner/horses"
-                  label="My Horses"
-                />
+                <NavItem href="/dashboard/owner/horses" label="My Horses" />
               </>
             )}
 

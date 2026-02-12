@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+const GoogleMap = dynamic(() => import("../components/GoogleMap"), {
+  ssr: false,
+});
 
 type Horse = {
   id: string;
@@ -14,6 +19,8 @@ type Horse = {
   temperament: string;
   location: string;
   image_url: string;
+  lat: number;
+  lng: number;
 };
 
 export default function BrowsePage() {
@@ -44,32 +51,38 @@ export default function BrowsePage() {
   };
 
   return (
-    <div style={{ padding: 40 }}>
+    <div style={{ padding: 30 }}>
       <h1>Browse Horses</h1>
 
-      {horses.length === 0 && <p>No horses available.</p>}
+      <div style={{ display: "flex", gap: 20 }}>
+        <div style={{ width: "50%" }}>
+          {horses.map((horse) => (
+            <div key={horse.id} style={cardStyle}>
+              {horse.image_url && (
+                <img
+                  src={horse.image_url}
+                  alt={horse.name}
+                  style={imageStyle}
+                />
+              )}
 
-      {horses.map((horse) => (
-        <div key={horse.id} style={cardStyle}>
-          {horse.image_url && (
-            <img
-              src={horse.image_url}
-              alt={horse.name}
-              style={imageStyle}
-            />
-          )}
+              <h3>{horse.name}</h3>
+              <p>{horse.breed}</p>
+              <p>{horse.age} yrs • {horse.height_hh}hh</p>
+              <p>{horse.temperament}</p>
+              <p>{horse.location}</p>
 
-          <h3>{horse.name}</h3>
-          <p>{horse.breed}</p>
-          <p>{horse.age} yrs • {horse.height_hh}hh</p>
-          <p>{horse.temperament}</p>
-          <p>{horse.location}</p>
-
-          <Link href={`/request?horseId=${horse.id}`}>
-            <button style={buttonStyle}>Request</button>
-          </Link>
+              <Link href={`/request?horseId=${horse.id}`}>
+                <button style={buttonStyle}>Request</button>
+              </Link>
+            </div>
+          ))}
         </div>
-      ))}
+
+        <div style={{ width: "50%", height: "600px" }}>
+          <GoogleMap horses={horses} />
+        </div>
+      </div>
     </div>
   );
 }
