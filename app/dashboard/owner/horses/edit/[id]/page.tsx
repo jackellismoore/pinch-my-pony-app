@@ -1,174 +1,113 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-type Horse = {
-  id: string;
-  name: string;
-  breed: string;
-  age: number;
-  height_hh: number;
-  temperament: string;
-  location: string;
-  image_url: string;
-  is_active: boolean;
-};
+export default function EditHorsePage() {
+  const { id } = useParams();
+  const router = useRouter();
 
-export default function OwnerHorsesPage() {
-  const [horses, setHorses] = useState<Horse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState<any>(null);
 
   useEffect(() => {
-    loadHorses();
-  }, []);
+    if (id) loadHorse();
+  }, [id]);
 
-  const loadHorses = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
+  const loadHorse = async () => {
     const { data } = await supabase
       .from("horses")
       .select("*")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: false });
+      .eq("id", id)
+      .single();
 
-    setHorses((data as Horse[]) || []);
-    setLoading(false);
+    if (data) setForm(data);
   };
 
-  const toggleActive = async (id: string, current: boolean) => {
-    await supabase
-      .from("horses")
-      .update({ is_active: !current })
-      .eq("id", id);
-
-    loadHorses();
-  };
-
-  const deleteHorse = async (id: string) => {
-    const confirmDelete = confirm("Delete this horse?");
-    if (!confirmDelete) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
     await supabase
       .from("horses")
-      .delete()
+      .update({
+        ...form,
+        age: Number(form.age),
+        height_hh: Number(form.height_hh),
+      })
       .eq("id", id);
 
-    loadHorses();
+    router.push("/dashboard/owner/horses");
   };
 
-  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
+  if (!form) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>My Horses</h1>
+      <h1>Edit Horse</h1>
 
-      <Link href="/dashboard/owner/horses/add">
-        <button style={primaryButton}>Add Horse</button>
-      </Link>
+      <form
+        onSubmit={handleSubmit}
+        style={{ maxWidth: 500, display: "flex", flexDirection: "column", gap: 10 }}
+      >
+        <input
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
 
-      {horses.length === 0 && <p>No horses yet.</p>}
+        <input
+          value={form.breed}
+          onChange={(e) => setForm({ ...form, breed: e.target.value })}
+        />
 
-      {horses.map((horse) => (
-        <div key={horse.id} style={cardStyle}>
-          {horse.image_url && (
-            <img
-              src={horse.image_url}
-              alt={horse.name}
-              style={imageStyle}
-            />
-          )}
+        <input
+          type="number"
+          value={form.age}
+          onChange={(e) => setForm({ ...form, age: e.target.value })}
+        />
 
-          <h3>{horse.name}</h3>
-          <p>{horse.breed}</p>
-          <p>{horse.age} yrs • {horse.height_hh}hh</p>
-          <p>{horse.temperament}</p>
-          <p>{horse.location}</p>
+        <input
+          type="number"
+          value={form.height_hh}
+          onChange={(e) =>
+            setForm({ ...form, height_hh: e.target.value })
+          }
+        />
 
-          <p>
-            Status:{" "}
-            <strong style={{ color: horse.is_active ? "green" : "red" }}>
-              {horse.is_active ? "Active" : "Inactive"}
-            </strong>
-          </p>
+        <input
+          value={form.temperament}
+          onChange={(e) =>
+            setForm({ ...form, temperament: e.target.value })
+          }
+        />
 
-          <div style={{ marginTop: 12 }}>
-            <Link href={`/dashboard/owner/horses/edit/${horse.id}`}>
-              <button style={greenButton}>Edit</button>
-            </Link>
+        <input
+          value={form.location}
+          onChange={(e) =>
+            setForm({ ...form, location: e.target.value })
+          }
+        />
 
-            <button
-              onClick={() => toggleActive(horse.id, horse.is_active)}
-              style={yellowButton}
-            >
-              {horse.is_active ? "Deactivate" : "Activate"}
-            </button>
+        <textarea
+          value={form.description}
+          onChange={(e) =>
+            setForm({ ...form, description: e.target.value })
+          }
+        />
 
-            <button
-              onClick={() => deleteHorse(horse.id)}
-              style={redButton}
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      ))}
+        <button
+          type="submit"
+          style={{
+            marginTop: 10,
+            padding: "10px 18px",
+            background: "#2563eb",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+          }}
+        >
+          Update Horse
+        </button>
+      </form>
     </div>
   );
 }
-
-const primaryButton = {
-  padding: "10px 16px",
-  background: "#2563eb",
-  color: "white",
-  border: "none",
-  borderRadius: 8,
-  marginBottom: 20,
-};
-
-const cardStyle = {
-  border: "1px solid #eee",
-  borderRadius: 12,
-  padding: 20,
-  marginBottom: 20,
-  background: "#fff",
-};
-
-const imageStyle = {
-  width: "100%",
-  height: 200,
-  objectFit: "cover" as const,
-  borderRadius: 8,
-  marginBottom: 10,
-};
-
-const greenButton = {
-  marginRight: 8,
-  padding: "6px 12px",
-  background: "#16a34a",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-};
-
-const yellowButton = {
-  marginRight: 8,
-  padding: "6px 12px",
-  background: "#f59e0b",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-};
-
-const redButton = {
-  padding: "6px 12px",
-  background: "#dc2626",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-};
