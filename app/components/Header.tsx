@@ -14,29 +14,38 @@ export default function Header() {
 
   useEffect(() => {
     loadUser();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user || null);
+        if (!session?.user) setRole(null);
+      }
+    );
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const loadUser = async () => {
     const { data } = await supabase.auth.getUser();
     const currentUser = data.user;
-
-    if (!currentUser) return;
-
     setUser(currentUser);
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", currentUser.id)
-      .single();
+    if (currentUser) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", currentUser.id)
+        .single();
 
-    if (profile) setRole(profile.role);
+      if (profile) setRole(profile.role);
+    }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    router.push("/");
   };
 
   const NavItem = ({
@@ -53,11 +62,8 @@ export default function Header() {
           borderRadius: 8,
           fontWeight: 500,
           cursor: "pointer",
-          background:
-            pathname === href ? "#2563eb" : "transparent",
-          color:
-            pathname === href ? "white" : "#1f2937",
-          transition: "0.2s ease",
+          background: pathname === href ? "#2563eb" : "transparent",
+          color: pathname === href ? "white" : "#1f2937",
         }}
       >
         {label}
@@ -73,11 +79,10 @@ export default function Header() {
         justifyContent: "space-between",
         alignItems: "center",
         borderBottom: "1px solid #eee",
-        background: "#ffffff",
+        background: "#fff",
       }}
     >
-      {/* LEFT */}
-      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 16 }}>
         <Link
           href="/"
           style={{
@@ -113,12 +118,10 @@ export default function Header() {
         )}
       </div>
 
-      {/* RIGHT */}
-      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 16 }}>
         {user ? (
           <>
             <NotificationBell />
-
             <button
               onClick={handleLogout}
               style={{
@@ -127,7 +130,6 @@ export default function Header() {
                 border: "1px solid #ddd",
                 background: "#fff",
                 cursor: "pointer",
-                fontWeight: 500,
               }}
             >
               Logout

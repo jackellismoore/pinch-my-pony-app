@@ -2,87 +2,36 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import dynamic from "next/dynamic";
-
-const HorseMap = dynamic(
-  () => import("../components/HorseMap"),
-  { ssr: false }
-);
 
 type Horse = {
   id: string;
-  owner_id: string;
   name: string;
   breed: string;
   age: number;
   height_hh: number;
   temperament: string;
   location: string;
-  description: string;
   image_url: string;
-  lat: number;
-  lng: number;
-  price_per_day: number;
-  is_active: boolean;
-  distance?: number;
 };
 
 export default function BrowsePage() {
   const [horses, setHorses] = useState<Horse[]>([]);
-  const [filteredHorses, setFilteredHorses] = useState<Horse[]>([]);
-  const [userLocation, setUserLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
-
-  const [radius, setRadius] = useState<number>(50);
-  const [maxPrice, setMaxPrice] = useState<number>(200);
-  const [hoveredHorseId, setHoveredHorseId] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    getUserLocation();
+    checkAuth();
   }, []);
 
-  useEffect(() => {
+  const checkAuth = async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) {
+      router.push("/");
+      return;
+    }
+
     loadHorses();
-  }, [userLocation]);
-
-  useEffect(() => {
-    applyFilters();
-  }, [horses, radius, maxPrice]);
-
-  const getUserLocation = () => {
-    if (!navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition((position) => {
-      setUserLocation({
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-      });
-    });
-  };
-
-  const calculateDistance = (
-    lat1: number,
-    lng1: number,
-    lat2: number,
-    lng2: number
-  ) => {
-    const R = 3958.8;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLng = ((lng2 - lng1) * Math.PI) / 180;
-
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
   };
 
   const loadHorses = async () => {
@@ -91,171 +40,60 @@ export default function BrowsePage() {
       .select("*")
       .eq("is_active", true);
 
-    let results = (data as Horse[]) || [];
-
-    if (userLocation) {
-      results = results.map((horse) => {
-        if (horse.lat && horse.lng) {
-          return {
-            ...horse,
-            distance: calculateDistance(
-              userLocation.lat,
-              userLocation.lng,
-              horse.lat,
-              horse.lng
-            ),
-          };
-        }
-        return horse;
-      });
-
-      results.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-    }
-
-    setHorses(results);
-  };
-
-  const applyFilters = () => {
-    if (!userLocation) {
-      setFilteredHorses(horses);
-      return;
-    }
-
-    const filtered = horses.filter((horse) => {
-      if (!horse.distance) return false;
-
-      return (
-        horse.distance <= radius &&
-        (horse.price_per_day || 0) <= maxPrice
-      );
-    });
-
-    setFilteredHorses(filtered);
+    setHorses((data as Horse[]) || []);
   };
 
   return (
-    <div style={{ padding: 30 }}>
+    <div style={{ padding: 40 }}>
       <h1>Browse Horses</h1>
 
-      {/* FILTER BAR */}
-      <div
-        style={{
-          marginBottom: 20,
-          display: "flex",
-          gap: 20,
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <label>Radius: </label>
-          <select
-            value={radius}
-            onChange={(e) => setRadius(Number(e.target.value))}
-          >
-            <option value={10}>10 miles</option>
-            <option value={25}>25 miles</option>
-            <option value={50}>50 miles</option>
-            <option value={100}>100 miles</option>
-            <option value={500}>500 miles</option>
-          </select>
+      {horses.length === 0 && <p>No horses available.</p>}
+
+      {horses.map((horse) => (
+        <div key={horse.id} style={cardStyle}>
+          {horse.image_url && (
+            <img
+              src={horse.image_url}
+              alt={horse.name}
+              style={imageStyle}
+            />
+          )}
+
+          <h3>{horse.name}</h3>
+          <p>{horse.breed}</p>
+          <p>{horse.age} yrs • {horse.height_hh}hh</p>
+          <p>{horse.temperament}</p>
+          <p>{horse.location}</p>
+
+          <Link href={`/request?horseId=${horse.id}`}>
+            <button style={buttonStyle}>Request</button>
+          </Link>
         </div>
-
-        <div>
-          <label>Max Price: </label>
-          <select
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(Number(e.target.value))}
-          >
-            <option value={50}>£50</option>
-            <option value={100}>£100</option>
-            <option value={200}>£200</option>
-            <option value={500}>£500</option>
-          </select>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 20 }}>
-        {/* LIST */}
-        <div style={{ width: "50%" }}>
-          {filteredHorses.map((horse) => (
-            <div
-              key={horse.id}
-              onMouseEnter={() => setHoveredHorseId(horse.id)}
-              onMouseLeave={() => setHoveredHorseId(null)}
-              style={{
-                border:
-                  hoveredHorseId === horse.id
-                    ? "2px solid #2563eb"
-                    : "1px solid #ddd",
-                padding: 15,
-                marginBottom: 15,
-                borderRadius: 10,
-                background: "#fff",
-                transition: "0.2s ease",
-              }}
-            >
-              {horse.image_url && (
-                <img
-                  src={horse.image_url}
-                  alt={horse.name}
-                  style={{
-                    width: "100%",
-                    height: 180,
-                    objectFit: "cover",
-                    borderRadius: 8,
-                  }}
-                />
-              )}
-
-              <h3>{horse.name}</h3>
-
-              {/* OWNER PROFILE LINK */}
-              <Link href={`/owner/${horse.owner_id}`}>
-                <p
-                  style={{
-                    color: "#2563eb",
-                    cursor: "pointer",
-                    marginBottom: 6,
-                  }}
-                >
-                  View Owner Profile
-                </p>
-              </Link>
-
-              {horse.distance && (
-                <p style={{ color: "#2563eb", fontWeight: 500 }}>
-                  {horse.distance.toFixed(1)} miles away
-                </p>
-              )}
-
-              <p style={{ fontWeight: 600 }}>
-                £{horse.price_per_day} per day
-              </p>
-
-              <p>
-                {horse.age} yrs • {horse.height_hh}hh
-              </p>
-              <p>{horse.temperament}</p>
-              <p>{horse.location}</p>
-
-              <Link href={`/request?horseId=${horse.id}`}>
-                <button style={{ marginTop: 8 }}>
-                  Request
-                </button>
-              </Link>
-            </div>
-          ))}
-        </div>
-
-        {/* MAP */}
-        <div style={{ width: "50%" }}>
-          <HorseMap
-            horses={filteredHorses}
-            userLocation={userLocation}
-            highlightedId={hoveredHorseId}
-          />
-        </div>
-      </div>
+      ))}
     </div>
   );
 }
+
+const cardStyle = {
+  border: "1px solid #eee",
+  borderRadius: 12,
+  padding: 20,
+  marginBottom: 20,
+  background: "#fff",
+};
+
+const imageStyle = {
+  width: "100%",
+  height: 200,
+  objectFit: "cover" as const,
+  borderRadius: 8,
+  marginBottom: 10,
+};
+
+const buttonStyle = {
+  padding: "8px 14px",
+  background: "#2563eb",
+  color: "white",
+  border: "none",
+  borderRadius: 6,
+};
