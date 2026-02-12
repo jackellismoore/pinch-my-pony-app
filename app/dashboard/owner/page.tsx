@@ -1,115 +1,129 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-export default function AddHorsePage() {
-  const router = useRouter();
+type Request = {
+  id: string;
+  status: string;
+  horses: { name: string }[];
+  profiles: { full_name: string }[];
+};
 
-  const [name, setName] = useState("");
-  const [breed, setBreed] = useState("");
-  const [age, setAge] = useState<number | "">("");
-  const [height, setHeight] = useState<number | "">("");
-  const [temperament, setTemperament] = useState("");
-  const [location, setLocation] = useState("");
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
+export default function OwnerDashboard() {
+  const [requests, setRequests] = useState<Request[]>([]);
 
-  const handleSubmit = async () => {
-    setLoading(true);
+  useEffect(() => {
+    loadRequests();
+  }, []);
 
+  const loadRequests = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) return;
 
-    let imageUrl = "";
+    const { data } = await supabase
+      .from("borrow_requests")
+      .select(`
+        id,
+        status,
+        horses!inner(name, owner_id),
+        profiles!borrow_requests_borrower_id_fkey(full_name)
+      `)
+      .eq("horses.owner_id", user.id)
+      .order("created_at", { ascending: false });
 
-    // Upload image to Supabase storage
-    if (imageFile) {
-      const fileName = `${Date.now()}-${imageFile.name}`;
+    setRequests((data as Request[]) || []);
+  };
 
-      const { error } = await supabase.storage
-        .from("horse-images")
-        .upload(fileName, imageFile);
+  const updateStatus = async (id: string, newStatus: string) => {
+    await supabase
+      .from("borrow_requests")
+      .update({ status: newStatus })
+      .eq("id", id);
 
-      if (!error) {
-        const { data } = supabase.storage
-          .from("horse-images")
-          .getPublicUrl(fileName);
-
-        imageUrl = data.publicUrl;
-      }
-    }
-
-    await supabase.from("horses").insert({
-      name,
-      breed,
-      age,
-      height_hh: height,
-      temperament,
-      location,
-      lat,
-      lng,
-      image_url: imageUrl,
-      owner_id: user.id,
-      active: true,
-    });
-
-    setLoading(false);
-    router.push("/dashboard/owner/horses");
+    loadRequests();
   };
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>Add Horse</h1>
+      <h1>Owner Dashboard</h1>
 
-      <input placeholder="Name" onChange={(e) => setName(e.target.value)} />
-      <input placeholder="Breed" onChange={(e) => setBreed(e.target.value)} />
-      <input
-        type="number"
-        placeholder="Age"
-        onChange={(e) => setAge(Number(e.target.value))}
-      />
-      <input
-        type="number"
-        placeholder="Height (hh)"
-        onChange={(e) => setHeight(Number(e.target.value))}
-      />
-      <input
-        placeholder="Temperament"
-        onChange={(e) => setTemperament(e.target.value)}
-      />
-      <input
-        placeholder="Location"
-        onChange={(e) => setLocation(e.target.value)}
-      />
+      {requests.length === 0 && <p>No requests yet.</p>}
 
-      <input
-        type="file"
-        onChange={(e) => {
-          if (e.target.files) setImageFile(e.target.files[0]);
-        }}
-      />
+      {requests.map((req) => (
+        <div
+          key={req.id}
+          style={{
+            border: "1px solid #ddd",
+            padding: 20,
+            marginBottom: 20,
+            borderRadius: 8,
+            background: "#fff",
+          }}
+        >
+          <h3>{req.horses?.[0]?.name}</h3>
 
-      <button
-        onClick={handleSubmit}
-        disabled={loading}
-        style={{
-          marginTop: 20,
-          padding: "10px 16px",
-          background: "#2563eb",
-          color: "white",
-          border: "none",
-          borderRadius: 6,
-        }}
-      >
-        {loading ? "Saving..." : "Save Horse"}
-      </button>
+          <p>
+            <strong>
+              {req.profiles?.[0]?.full_name || "Unknown User"}
+            </strong>
+          </p>
+
+          <p>Status: {req.status}</p>
+
+          {req.status === "pending" && (
+            <div style={{ marginTop: 10 }}>
+              <button
+                onClick={() => updateStatus(req.id, "approved")}
+                style={{
+                  marginRight: 10,
+                  padding: "8px 14px",
+                  background: "#16a34a",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+              >
+                Approve
+              </button>
+
+              <button
+                onClick={() => updateStatus(req.id, "declined")}
+                style={{
+                  padding: "8px 14px",
+                  background: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+              >
+                Decline
+              </button>
+            </div>
+          )}
+
+          {/* OPEN CHAT BUTTON */}
+          <div style={{ marginTop: 15 }}>
+            <Link href={`/messages/${req.id}`}>
+              <button
+                style={{
+                  padding: "8px 14px",
+                  background: "#2563eb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+              >
+                Open Chat
+              </button>
+            </Link>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
