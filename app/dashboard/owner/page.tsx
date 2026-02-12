@@ -1,114 +1,145 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
-type Request = {
+type Horse = {
   id: string;
-  status: string;
-  horses: { name: string }[];
-  profiles: { full_name: string }[];
+  name: string;
+  breed: string;
+  age: number;
+  height_hh: number;
+  temperament: string;
+  location: string;
+  image_url: string;
+  owner_id: string;
 };
 
-export default function OwnerDashboard() {
-  const [requests, setRequests] = useState<Request[]>([]);
+export default function OwnerHorsesPage() {
+  const [horses, setHorses] = useState<Horse[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadRequests();
+    loadHorses();
   }, []);
 
-  const loadRequests = async () => {
-    const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
+  const loadHorses = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!userId) return;
+    if (!user) return;
 
-    const { data, error } = await supabase
-      .from("borrow_requests")
-      .select(`
-        id,
-        status,
-        horses!inner(name, owner_id),
-        profiles!borrow_requests_borrower_id_fkey(full_name)
-      `)
-      .eq("horses.owner_id", userId)
+    const { data } = await supabase
+      .from("horses")
+      .select("*")
+      .eq("owner_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setRequests(data as Request[]);
-    }
-
+    setHorses((data as Horse[]) || []);
     setLoading(false);
   };
 
-  if (loading) {
-    return <div style={{ padding: 40 }}>Loading...</div>;
-  }
+  const deleteHorse = async (id: string) => {
+    const confirmDelete = confirm("Are you sure you want to delete this horse?");
+    if (!confirmDelete) return;
+
+    const { error } = await supabase
+      .from("horses")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      alert("Delete failed: " + error.message);
+    } else {
+      loadHorses();
+    }
+  };
+
+  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>Owner Dashboard</h1>
+      <h1>My Horses</h1>
 
-      {requests.length === 0 && (
-        <p>No requests yet.</p>
-      )}
-
-      {requests.map((req) => (
-        <div
-          key={req.id}
+      <Link href="/dashboard/owner/horses/add">
+        <button
           style={{
-            border: "1px solid #e5e7eb",
+            marginBottom: 20,
+            padding: "8px 14px",
+            background: "#2563eb",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+          }}
+        >
+          Add Horse
+        </button>
+      </Link>
+
+      {horses.length === 0 && <p>No horses yet.</p>}
+
+      {horses.map((horse) => (
+        <div
+          key={horse.id}
+          style={{
+            border: "1px solid #ddd",
             padding: 20,
             marginBottom: 20,
-            borderRadius: 10,
+            borderRadius: 8,
             background: "#fff",
           }}
         >
-          <h3>
-            {req.horses?.[0]?.name || "Horse"}
-          </h3>
-
-          <p>
-            Borrower:{" "}
-            <strong>
-              {req.profiles?.[0]?.full_name || "Unknown User"}
-            </strong>
-          </p>
-
-          <p>
-            Status:{" "}
-            <strong
+          {horse.image_url && (
+            <img
+              src={horse.image_url}
+              alt={horse.name}
               style={{
-                color:
-                  req.status === "approved"
-                    ? "#16a34a"
-                    : req.status === "declined"
-                    ? "#dc2626"
-                    : "#d97706",
+                width: "100%",
+                height: 200,
+                objectFit: "cover",
+                borderRadius: 8,
+                marginBottom: 10,
               }}
-            >
-              {req.status}
-            </strong>
-          </p>
+            />
+          )}
 
-          {/* LINK TO CONVERSATION */}
-          <Link href={`/messages/${req.id}`}>
+          <h3>{horse.name}</h3>
+          <p>{horse.breed}</p>
+          <p>{horse.age} yrs • {horse.height_hh}hh</p>
+          <p>{horse.temperament}</p>
+          <p>{horse.location}</p>
+
+          <div style={{ marginTop: 10 }}>
+            <Link href={`/dashboard/owner/horses/edit/${horse.id}`}>
+              <button
+                style={{
+                  marginRight: 10,
+                  padding: "6px 12px",
+                  background: "#16a34a",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+              >
+                Edit
+              </button>
+            </Link>
+
             <button
+              onClick={() => deleteHorse(horse.id)}
               style={{
-                marginTop: 12,
-                padding: "8px 14px",
-                background: "#2563eb",
+                padding: "6px 12px",
+                background: "#dc2626",
                 color: "white",
-                borderRadius: 6,
                 border: "none",
-                cursor: "pointer",
+                borderRadius: 6,
               }}
             >
-              Open Conversation
+              Delete
             </button>
-          </Link>
+          </div>
         </div>
       ))}
     </div>
