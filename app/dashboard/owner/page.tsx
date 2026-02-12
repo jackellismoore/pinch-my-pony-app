@@ -8,12 +8,8 @@ type Request = {
   status: string;
   horse_id: string;
   borrower_id: string;
-  horses: {
-    name: string;
-  } | null;
-  profiles: {
-    full_name: string | null;
-  } | null;
+  horses: { name: string }[];
+  profiles: { full_name: string | null }[];
 };
 
 export default function OwnerDashboard() {
@@ -36,7 +32,7 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // Step 1 — get horse IDs owned by this user
+    // 1️⃣ Get horses owned by user
     const { data: horses } = await supabase
       .from("horses")
       .select("id")
@@ -50,7 +46,7 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // Step 2 — get requests for those horses
+    // 2️⃣ Get borrow requests for those horses
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
@@ -64,8 +60,8 @@ export default function OwnerDashboard() {
       .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
 
-    if (!error) {
-      setRequests((data as Request[]) || []);
+    if (!error && data) {
+      setRequests(data as unknown as Request[]);
     }
 
     setLoading(false);
@@ -101,11 +97,11 @@ export default function OwnerDashboard() {
             background: "#fff",
           }}
         >
-          <h3>{req.horses?.name || "Unknown Horse"}</h3>
+          <h3>{req.horses?.[0]?.name || "Unknown Horse"}</h3>
 
           <p>
             <strong>
-              {req.profiles?.full_name || "Unknown User"}
+              {req.profiles?.[0]?.full_name || "Unknown User"}
             </strong>
           </p>
 
