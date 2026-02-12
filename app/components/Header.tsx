@@ -7,34 +7,20 @@ import { useRouter } from "next/navigation";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
-  const [role, setRole] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    loadUser();
+    checkUser();
   }, []);
 
-  const loadUser = async () => {
+  const checkUser = async () => {
     const { data } = await supabase.auth.getUser();
-    const currentUser = data.user;
-
-    setUser(currentUser);
-
-    if (currentUser) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", currentUser.id)
-        .single();
-
-      setRole(profile?.role || null);
-    }
+    setUser(data.user);
   };
 
   const logout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
-    router.refresh();
   };
 
   return (
@@ -44,14 +30,11 @@ export default function Header() {
         borderBottom: "1px solid #eee",
         display: "flex",
         justifyContent: "space-between",
-        alignItems: "center",
         background: "#fff",
       }}
     >
       <Link href="/">
-        <h2 style={{ cursor: "pointer" }}>
-          🐎 Pinch My Pony
-        </h2>
+        <h2>🐎 Pinch My Pony</h2>
       </Link>
 
       <div style={{ display: "flex", gap: 20 }}>
@@ -65,12 +48,8 @@ export default function Header() {
         {user && (
           <>
             <Link href="/browse">Browse</Link>
-
-            {role === "owner" && (
-              <Link href="/dashboard/owner/horses">
-                My Horses
-              </Link>
-            )}
+            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/messages">Messages</Link>
 
             <button
               onClick={logout}
@@ -80,7 +59,6 @@ export default function Header() {
                 padding: "6px 12px",
                 borderRadius: 6,
                 border: "none",
-                cursor: "pointer",
               }}
             >
               Logout

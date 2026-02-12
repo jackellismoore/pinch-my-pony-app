@@ -4,21 +4,20 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 
-type Request = {
+type Conversation = {
   id: string;
-  status: string;
   horses: { name: string }[];
-  profiles: { full_name: string }[];
+  status: string;
 };
 
-export default function OwnerDashboard() {
-  const [requests, setRequests] = useState<Request[]>([]);
+export default function MessagesPage() {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
 
   useEffect(() => {
-    loadRequests();
+    loadConversations();
   }, []);
 
-  const loadRequests = async () => {
+  const loadConversations = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -30,33 +29,24 @@ export default function OwnerDashboard() {
       .select(`
         id,
         status,
-        horses!inner(name, owner_id),
-        profiles!borrow_requests_borrower_id_fkey(full_name)
+        horses(name, owner_id),
+        borrower_id
       `)
-      .eq("horses.owner_id", user.id)
+      .or(`borrower_id.eq.${user.id},horses.owner_id.eq.${user.id}`)
       .order("created_at", { ascending: false });
 
-    setRequests((data as Request[]) || []);
-  };
-
-  const updateStatus = async (id: string, newStatus: string) => {
-    await supabase
-      .from("borrow_requests")
-      .update({ status: newStatus })
-      .eq("id", id);
-
-    loadRequests();
+    setConversations((data as Conversation[]) || []);
   };
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>Owner Dashboard</h1>
+      <h1>Messages</h1>
 
-      {requests.length === 0 && <p>No requests yet.</p>}
+      {conversations.length === 0 && <p>No conversations yet.</p>}
 
-      {requests.map((req) => (
+      {conversations.map((conv) => (
         <div
-          key={req.id}
+          key={conv.id}
           style={{
             border: "1px solid #ddd",
             padding: 20,
@@ -65,63 +55,23 @@ export default function OwnerDashboard() {
             background: "#fff",
           }}
         >
-          <h3>{req.horses?.[0]?.name}</h3>
+          <h3>{conv.horses?.[0]?.name}</h3>
+          <p>Status: {conv.status}</p>
 
-          <p>
-            <strong>
-              {req.profiles?.[0]?.full_name || "Unknown User"}
-            </strong>
-          </p>
-
-          <p>Status: {req.status}</p>
-
-          {req.status === "pending" && (
-            <div style={{ marginTop: 10 }}>
-              <button
-                onClick={() => updateStatus(req.id, "approved")}
-                style={{
-                  marginRight: 10,
-                  padding: "8px 14px",
-                  background: "#16a34a",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Approve
-              </button>
-
-              <button
-                onClick={() => updateStatus(req.id, "declined")}
-                style={{
-                  padding: "8px 14px",
-                  background: "#dc2626",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Decline
-              </button>
-            </div>
-          )}
-
-          {/* OPEN CHAT BUTTON */}
-          <div style={{ marginTop: 15 }}>
-            <Link href={`/messages/${req.id}`}>
-              <button
-                style={{
-                  padding: "8px 14px",
-                  background: "#2563eb",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Open Chat
-              </button>
-            </Link>
-          </div>
+          <Link href={`/messages/${conv.id}`}>
+            <button
+              style={{
+                marginTop: 10,
+                padding: "8px 14px",
+                background: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+              }}
+            >
+              Open Conversation
+            </button>
+          </Link>
         </div>
       ))}
     </div>
