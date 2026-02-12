@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useParams } from "next/navigation";
 
@@ -15,6 +15,7 @@ type Message = {
 export default function ChatPage() {
   const params = useParams();
   const requestId = params?.requestId as string;
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -25,6 +26,10 @@ export default function ChatPage() {
   useEffect(() => {
     initialize();
   }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const initialize = async () => {
     const { data: user } = await supabase.auth.getUser();
@@ -108,75 +113,70 @@ export default function ChatPage() {
   };
 
   return (
-    <div style={{ padding: 40 }}>
-      <h2>Conversation</h2>
-
-      {!approved && (
-        <p style={{ color: "red" }}>
-          This request must be approved before messaging.
-        </p>
-      )}
+    <div style={{ padding: 30, maxWidth: 800, margin: "0 auto" }}>
+      <h2 style={{ marginBottom: 20 }}>Conversation</h2>
 
       <div
         style={{
-          border: "1px solid #ddd",
-          padding: 20,
-          height: 400,
+          height: 500,
           overflowY: "auto",
-          marginBottom: 20,
-          borderRadius: 10,
-          background: "#fff",
+          padding: 20,
+          borderRadius: 12,
+          background: "#f3f4f6",
         }}
       >
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            style={{
-              textAlign: msg.sender_id === userId ? "right" : "left",
-              marginBottom: 12,
-            }}
-          >
+        {messages.map((msg) => {
+          const isMe = msg.sender_id === userId;
+
+          return (
             <div
+              key={msg.id}
               style={{
-                display: "inline-block",
-                padding: 10,
-                borderRadius: 10,
-                background:
-                  msg.sender_id === userId ? "#2563eb" : "#eee",
-                color:
-                  msg.sender_id === userId ? "#fff" : "#000",
-                maxWidth: "70%",
+                display: "flex",
+                justifyContent: isMe ? "flex-end" : "flex-start",
+                marginBottom: 12,
               }}
             >
-              {msg.content}
+              <div
+                style={{
+                  maxWidth: "70%",
+                  padding: 12,
+                  borderRadius: 18,
+                  background: isMe ? "#2563eb" : "#ffffff",
+                  color: isMe ? "white" : "black",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                }}
+              >
+                {msg.content}
 
-              {msg.image_url && (
-                <img
-                  src={msg.image_url}
-                  alt="attachment"
-                  style={{
-                    maxWidth: "100%",
-                    marginTop: 8,
-                    borderRadius: 8,
-                  }}
-                />
-              )}
+                {msg.image_url && (
+                  <img
+                    src={msg.image_url}
+                    style={{
+                      width: "100%",
+                      marginTop: 10,
+                      borderRadius: 12,
+                    }}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
+
+        <div ref={bottomRef} />
       </div>
 
       {approved && (
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
           <input
-            type="text"
-            placeholder="Type message..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type a message..."
             style={{
               flex: 1,
-              padding: 10,
-              borderRadius: 6,
+              padding: 12,
+              borderRadius: 8,
               border: "1px solid #ddd",
             }}
           />
@@ -191,11 +191,11 @@ export default function ChatPage() {
           <button
             onClick={sendMessage}
             style={{
-              padding: "8px 14px",
+              padding: "10px 16px",
               background: "#2563eb",
               color: "white",
+              borderRadius: 8,
               border: "none",
-              borderRadius: 6,
             }}
           >
             Send
