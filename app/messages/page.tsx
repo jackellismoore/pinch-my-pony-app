@@ -6,8 +6,9 @@ import Link from "next/link";
 
 type Conversation = {
   id: string;
-  horses: { name: string }[];
   status: string;
+  horses: { name: string }[];
+  profiles: { full_name: string }[];
 };
 
 export default function MessagesPage() {
@@ -18,11 +19,10 @@ export default function MessagesPage() {
   }, []);
 
   const loadConversations = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await supabase.auth.getUser();
+    const userId = user.data.user?.id;
 
-    if (!user) return;
+    if (!userId) return;
 
     const { data } = await supabase
       .from("borrow_requests")
@@ -30,19 +30,23 @@ export default function MessagesPage() {
         id,
         status,
         horses(name, owner_id),
-        borrower_id
+        profiles!borrow_requests_borrower_id_fkey(full_name)
       `)
-      .or(`borrower_id.eq.${user.id},horses.owner_id.eq.${user.id}`)
+      .or(`borrower_id.eq.${userId},horses.owner_id.eq.${userId}`)
       .order("created_at", { ascending: false });
 
-    setConversations((data as Conversation[]) || []);
+    if (data) {
+      setConversations(data as Conversation[]);
+    }
   };
 
   return (
     <div style={{ padding: 40 }}>
       <h1>Messages</h1>
 
-      {conversations.length === 0 && <p>No conversations yet.</p>}
+      {conversations.length === 0 && (
+        <p>No conversations yet.</p>
+      )}
 
       {conversations.map((conv) => (
         <div
@@ -50,26 +54,25 @@ export default function MessagesPage() {
           style={{
             border: "1px solid #ddd",
             padding: 20,
-            marginBottom: 20,
+            marginBottom: 15,
             borderRadius: 8,
             background: "#fff",
           }}
         >
           <h3>{conv.horses?.[0]?.name}</h3>
+
+          <p>
+            With:{" "}
+            <strong>
+              {conv.profiles?.[0]?.full_name || "User"}
+            </strong>
+          </p>
+
           <p>Status: {conv.status}</p>
 
           <Link href={`/messages/${conv.id}`}>
-            <button
-              style={{
-                marginTop: 10,
-                padding: "8px 14px",
-                background: "#2563eb",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-              }}
-            >
-              Open Conversation
+            <button style={{ marginTop: 8 }}>
+              Open Chat
             </button>
           </Link>
         </div>
