@@ -17,6 +17,7 @@ type HorseForm = {
   location: string;
   lat: number | null;
   lng: number | null;
+  image_url: string;
 };
 
 export default function AddHorsePage() {
@@ -28,6 +29,8 @@ export default function AddHorsePage() {
     libraries,
   });
 
+  const [loading, setLoading] = useState(false);
+
   const [form, setForm] = useState<HorseForm>({
     name: "",
     breed: "",
@@ -38,41 +41,57 @@ export default function AddHorsePage() {
     location: "",
     lat: null,
     lng: null,
+    image_url: "",
   });
 
   const handlePlaceChanged = () => {
     const place = autocompleteRef.current?.getPlace();
     if (!place?.geometry) return;
 
-    const lat = place.geometry.location?.lat();
-    const lng = place.geometry.location?.lng();
-
     setForm((prev) => ({
       ...prev,
       location: place.formatted_address ?? "",
-      lat: lat ?? null,
-      lng: lng ?? null,
+      lat: place.geometry.location?.lat() ?? null,
+      lng: place.geometry.location?.lng() ?? null,
+    }));
+  };
+
+  const handleImageUpload = async (file: File) => {
+    const fileName = `${Date.now()}-${file.name}`;
+
+    const { error } = await supabase.storage
+      .from("horse-images")
+      .upload(fileName, file);
+
+    if (error) {
+      alert("Image upload failed");
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("horse-images")
+      .getPublicUrl(fileName);
+
+    setForm((prev) => ({
+      ...prev,
+      image_url: data.publicUrl,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert("Not logged in");
+    if (!form.lat || !form.lng) {
+      alert("Please select a valid location.");
       return;
     }
 
-    if (form.lat === null || form.lng === null) {
-      alert("Please select a location from suggestions.");
-      return;
-    }
+    setLoading(true);
 
-    const { error } = await supabase.from("horses").insert({
+    const { data: userData } = await supabase.auth.getUser();
+
+    await supabase.from("horses").insert({
+      owner_id: userData.user?.id,
       name: form.name,
       breed: form.breed,
       age: Number(form.age),
@@ -82,21 +101,14 @@ export default function AddHorsePage() {
       location: form.location,
       lat: form.lat,
       lng: form.lng,
-      owner_id: user.id,
-      is_active: true,
+      image_url: form.image_url,
+      active: true,
     });
 
-    if (error) {
-      console.error(error);
-      alert("Error adding horse.");
-    } else {
-      router.push("/dashboard/owner/horses");
-    }
+    router.push("/dashboard/owner/horses");
   };
 
-  if (!isLoaded) {
-    return <div style={{ padding: 40 }}>Loading Google Maps...</div>;
-  }
+  if (!isLoaded) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 40 }}>
@@ -111,82 +123,65 @@ export default function AddHorsePage() {
           gap: 10,
         }}
       >
-        <input
-          placeholder="Horse Name"
-          value={form.name}
+        <input required placeholder="Name"
           onChange={(e) => setForm({ ...form, name: e.target.value })}
-          required
         />
 
-        <input
-          placeholder="Breed"
-          value={form.breed}
+        <input required placeholder="Breed"
           onChange={(e) => setForm({ ...form, breed: e.target.value })}
-          required
         />
 
-        <input
-          type="number"
-          placeholder="Age"
-          value={form.age}
+        <input required type="number" placeholder="Age"
           onChange={(e) => setForm({ ...form, age: e.target.value })}
-          required
         />
 
-        <input
-          type="number"
-          placeholder="Height (hh)"
-          value={form.height_hh}
-          onChange={(e) =>
-            setForm({ ...form, height_hh: e.target.value })
-          }
-          required
+        <input required type="number" placeholder="Height (hh)"
+          onChange={(e) => setForm({ ...form, height_hh: e.target.value })}
         />
 
-        <input
-          placeholder="Temperament"
-          value={form.temperament}
-          onChange={(e) =>
-            setForm({ ...form, temperament: e.target.value })
-          }
-          required
+        <input required placeholder="Temperament"
+          onChange={(e) => setForm({ ...form, temperament: e.target.value })}
         />
 
-        <textarea
-          placeholder="Description"
-          value={form.description}
-          onChange={(e) =>
-            setForm({ ...form, description: e.target.value })
-          }
+        <textarea placeholder="Description"
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
         />
 
         <Autocomplete
           onLoad={(auto) => (autocompleteRef.current = auto)}
           onPlaceChanged={handlePlaceChanged}
         >
-          <input
-            placeholder="Search Location"
-            value={form.location}
-            onChange={(e) =>
-              setForm({ ...form, location: e.target.value })
-            }
-            required
-          />
+          <input required placeholder="Search Location" />
         </Autocomplete>
 
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            if (e.target.files) {
+              handleImageUpload(e.target.files[0]);
+            }
+          }}
+        />
+
+        {form.image_url && (
+          <img
+            src={form.image_url}
+            style={{ width: "100%", borderRadius: 8 }}
+          />
+        )}
+
         <button
-          type="submit"
+          disabled={loading}
           style={{
-            marginTop: 10,
-            padding: "10px 18px",
+            padding: "10px",
             background: "#2563eb",
             color: "white",
             border: "none",
             borderRadius: 6,
-            cursor: "pointer",
           }}
         >
-          Add Horse
+          {loading ? "Saving..." : "Add Horse"}
         </button>
       </form>
     </div>
