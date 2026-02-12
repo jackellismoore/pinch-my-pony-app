@@ -65,7 +65,7 @@ export default function Header() {
 
             {role === "owner" && (
               <>
-                <Link href="/my-horses">My Horses</Link>
+                <Link href="/dashboard/owner/horses">My Horses</Link>
                 <Link href="/horse">Add Horse</Link>
               </>
             )}

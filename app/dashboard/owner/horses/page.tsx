@@ -7,21 +7,28 @@ import Link from "next/link";
 type Horse = {
   id: string;
   name: string;
+  breed: string;
+  age: number;
+  height_hh: number;
+  temperament: string;
+  location: string;
   image_url: string;
-  price_per_day: number;
-  is_active: boolean;
+  active: boolean;
 };
 
 export default function OwnerHorsesPage() {
   const [horses, setHorses] = useState<Horse[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadHorses();
   }, []);
 
   const loadHorses = async () => {
-    const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
+    const { data: user } = await supabase.auth.getUser();
+    const userId = user.user?.id;
+
+    if (!userId) return;
 
     const { data } = await supabase
       .from("horses")
@@ -30,42 +37,54 @@ export default function OwnerHorsesPage() {
       .order("created_at", { ascending: false });
 
     setHorses((data as Horse[]) || []);
+    setLoading(false);
   };
 
   const toggleActive = async (horseId: string, current: boolean) => {
     await supabase
       .from("horses")
-      .update({ is_active: !current })
+      .update({ active: !current })
       .eq("id", horseId);
 
     loadHorses();
   };
 
+  const deleteHorse = async (horseId: string) => {
+    const confirmDelete = confirm("Delete this horse?");
+    if (!confirmDelete) return;
+
+    await supabase
+      .from("horses")
+      .delete()
+      .eq("id", horseId);
+
+    loadHorses();
+  };
+
+  if (loading) {
+    return <div style={{ padding: 40 }}>Loading...</div>;
+  }
+
   return (
     <div style={{ padding: 40 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: 30,
-        }}
-      >
-        <h1>Manage My Horses</h1>
+      <h1>My Horses</h1>
 
-        <Link href="/dashboard/owner/horses/add">
-          <button
-            style={{
-              padding: "8px 14px",
-              background: "#2563eb",
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-            }}
-          >
-            + Add Horse
-          </button>
-        </Link>
-      </div>
+      <Link href="/horse">
+        <button
+          style={{
+            marginBottom: 20,
+            padding: "8px 14px",
+            background: "#2563eb",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+          }}
+        >
+          Add Horse
+        </button>
+      </Link>
+
+      {horses.length === 0 && <p>No horses yet.</p>}
 
       {horses.map((horse) => (
         <div
@@ -74,7 +93,7 @@ export default function OwnerHorsesPage() {
             border: "1px solid #ddd",
             padding: 20,
             marginBottom: 20,
-            borderRadius: 10,
+            borderRadius: 8,
             background: "#fff",
           }}
         >
@@ -83,44 +102,48 @@ export default function OwnerHorsesPage() {
               src={horse.image_url}
               alt={horse.name}
               style={{
-                width: "100%",
-                maxHeight: 200,
+                width: 250,
+                height: 160,
                 objectFit: "cover",
-                borderRadius: 8,
+                borderRadius: 6,
+                marginBottom: 10,
               }}
             />
           )}
 
           <h3>{horse.name}</h3>
-          <p>£{horse.price_per_day} per day</p>
+          <p>{horse.breed}</p>
+          <p>{horse.age} yrs • {horse.height_hh}hh</p>
+          <p>{horse.temperament}</p>
+          <p>{horse.location}</p>
 
-          <p>
+          <p style={{ fontWeight: 600 }}>
             Status:{" "}
-            <strong style={{ color: horse.is_active ? "green" : "red" }}>
-              {horse.is_active ? "Active" : "Inactive"}
-            </strong>
+            <span style={{ color: horse.active ? "green" : "red" }}>
+              {horse.active ? "Active" : "Inactive"}
+            </span>
           </p>
 
           <div style={{ marginTop: 10 }}>
             <button
-              onClick={() => toggleActive(horse.id, horse.is_active)}
+              onClick={() => toggleActive(horse.id, horse.active)}
               style={{
                 marginRight: 10,
-                padding: "8px 14px",
-                background: horse.is_active ? "#dc2626" : "#16a34a",
-                color: "white",
+                padding: "6px 10px",
+                background: "#facc15",
                 border: "none",
                 borderRadius: 6,
               }}
             >
-              {horse.is_active ? "Deactivate" : "Activate"}
+              Toggle Active
             </button>
 
-            <Link href={`/dashboard/owner/horses/${horse.id}`}>
+            <Link href={`/horse/edit/${horse.id}`}>
               <button
                 style={{
-                  padding: "8px 14px",
-                  background: "#111",
+                  marginRight: 10,
+                  padding: "6px 10px",
+                  background: "#2563eb",
                   color: "white",
                   border: "none",
                   borderRadius: 6,
@@ -129,6 +152,19 @@ export default function OwnerHorsesPage() {
                 Edit
               </button>
             </Link>
+
+            <button
+              onClick={() => deleteHorse(horse.id)}
+              style={{
+                padding: "6px 10px",
+                background: "#dc2626",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+              }}
+            >
+              Delete
+            </button>
           </div>
         </div>
       ))}
