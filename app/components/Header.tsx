@@ -1,45 +1,44 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import NotificationBell from "./NotificationBell";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<string | null>(null);
-  const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
-    loadUser();
+    checkUser();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user || null);
-        if (!session?.user) setRole(null);
-      }
-    );
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      checkUser();
+    });
 
     return () => {
       listener.subscription.unsubscribe();
     };
   }, []);
 
-  const loadUser = async () => {
-    const { data } = await supabase.auth.getUser();
-    const currentUser = data.user;
-    setUser(currentUser);
+  const checkUser = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (currentUser) {
-      const { data: profile } = await supabase
+    setUser(user);
+
+    if (user) {
+      const { data } = await supabase
         .from("profiles")
         .select("role")
-        .eq("id", currentUser.id)
+        .eq("id", user.id)
         .single();
 
-      if (profile) setRole(profile.role);
+      setRole(data?.role || null);
+    } else {
+      setRole(null);
     }
   };
 
@@ -48,91 +47,69 @@ export default function Header() {
     router.push("/");
   };
 
-  const NavItem = ({ href, label }: any) => (
-    <Link href={href} style={{ textDecoration: "none" }}>
-      <span
-        style={{
-          padding: "8px 14px",
-          borderRadius: 8,
-          fontWeight: 500,
-          cursor: "pointer",
-          background: pathname === href ? "#2563eb" : "transparent",
-          color: pathname === href ? "white" : "#1f2937",
-        }}
-      >
-        {label}
-      </span>
-    </Link>
-  );
-
   return (
-    <header
-      style={{
-        padding: "16px 30px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        borderBottom: "1px solid #eee",
-        background: "#fff",
-      }}
-    >
-      <div style={{ display: "flex", gap: 16 }}>
-        <Link
-          href="/"
-          style={{
-            fontWeight: 700,
-            fontSize: 18,
-            textDecoration: "none",
-            color: "#111",
-          }}
-        >
-          🐴 Pinch My Pony
-        </Link>
+    <header style={headerStyle}>
+      <Link href="/" style={logoStyle}>
+        🐴 Pinch My Pony
+      </Link>
 
-        {user && (
-          <>
-            <NavItem href="/browse" label="Browse" />
-
-            {role === "owner" && (
-              <>
-                <NavItem href="/dashboard/owner" label="Dashboard" />
-                <NavItem href="/dashboard/owner/horses" label="My Horses" />
-              </>
-            )}
-
-            {role === "borrower" && (
-              <NavItem href="/dashboard/borrower" label="Dashboard" />
-            )}
-
-            <NavItem href="/messages" label="Messages" />
-          </>
-        )}
-      </div>
-
-      <div style={{ display: "flex", gap: 16 }}>
+      <nav style={navStyle}>
         {user ? (
           <>
-            <NotificationBell />
-            <button
-              onClick={handleLogout}
-              style={{
-                padding: "8px 14px",
-                borderRadius: 8,
-                border: "1px solid #ddd",
-                background: "#fff",
-                cursor: "pointer",
-              }}
-            >
+            <Link href="/browse">Browse</Link>
+
+            {role === "owner" && (
+              <Link href="/dashboard/owner/horses">
+                My Horses
+              </Link>
+            )}
+
+            <Link href="/messages">Messages</Link>
+
+            <Link href="/dashboard">Dashboard</Link>
+
+            <button onClick={handleLogout} style={logoutButton}>
               Logout
             </button>
           </>
         ) : (
           <>
-            <NavItem href="/login" label="Login" />
-            <NavItem href="/signup" label="Sign Up" />
+            <Link href="/login">Login</Link>
+            <Link href="/signup">Sign Up</Link>
           </>
         )}
-      </div>
+      </nav>
     </header>
   );
 }
+
+const headerStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "16px 40px",
+  borderBottom: "1px solid #eee",
+  background: "#ffffff",
+};
+
+const logoStyle = {
+  fontWeight: "bold",
+  fontSize: "20px",
+  textDecoration: "none",
+  color: "#111",
+};
+
+const navStyle = {
+  display: "flex",
+  gap: "20px",
+  alignItems: "center",
+};
+
+const logoutButton = {
+  background: "#dc2626",
+  color: "white",
+  border: "none",
+  padding: "6px 12px",
+  borderRadius: "6px",
+  cursor: "pointer",
+};
