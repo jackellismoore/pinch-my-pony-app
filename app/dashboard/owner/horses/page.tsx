@@ -7,12 +7,6 @@ import Link from "next/link";
 type Horse = {
   id: string;
   name: string;
-  breed: string;
-  age: number;
-  height_hh: number;
-  temperament: string;
-  location: string;
-  description: string;
   image_url: string;
   price_per_day: number;
   is_active: boolean;
@@ -49,7 +43,29 @@ export default function OwnerHorsesPage() {
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>Manage My Horses</h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 30,
+        }}
+      >
+        <h1>Manage My Horses</h1>
+
+        <Link href="/dashboard/owner/horses/add">
+          <button
+            style={{
+              padding: "8px 14px",
+              background: "#2563eb",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+            }}
+          >
+            + Add Horse
+          </button>
+        </Link>
+      </div>
 
       {horses.map((horse) => (
         <div
@@ -104,7 +120,7 @@ export default function OwnerHorsesPage() {
               <button
                 style={{
                   padding: "8px 14px",
-                  background: "#2563eb",
+                  background: "#111",
                   color: "white",
                   border: "none",
                   borderRadius: 6,
