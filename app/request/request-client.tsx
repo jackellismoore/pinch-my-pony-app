@@ -1,118 +1,77 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function RequestClient({ horseId }: { horseId: string }) {
-  const [message, setMessage] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
-  const [alreadyRequested, setAlreadyRequested] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    checkOwnershipAndExisting();
-  }, []);
-
-  const checkOwnershipAndExisting = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    // Check if user owns this horse
-    const { data: horse } = await supabase
-      .from("horses")
-      .select("owner_id")
-      .eq("id", horseId)
-      .single();
-
-    if (horse?.owner_id === user.id) {
-      setIsOwner(true);
-      return;
-    }
-
-    // Check for existing pending request
-    const { data } = await supabase
-      .from("borrow_requests")
-      .select("id")
-      .eq("horse_id", horseId)
-      .eq("borrower_id", user.id)
-      .eq("status", "pending");
-
-    if (data && data.length > 0) {
-      setAlreadyRequested(true);
-    }
-  };
-
-  const handleSubmit = async () => {
-    setStatus(null);
+  const sendRequest = async () => {
+    setLoading(true);
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      setStatus("You must be logged in.");
+      alert("You must be logged in.");
+      setLoading(false);
+      return;
+    }
+
+    // ✅ Only block if pending or approved
+    const { data: existing } = await supabase
+      .from("borrow_requests")
+      .select("id,status")
+      .eq("horse_id", horseId)
+      .eq("borrower_id", user.id)
+      .in("status", ["pending", "approved"]);
+
+    if (existing && existing.length > 0) {
+      alert("You already have an active request for this horse.");
+      setLoading(false);
       return;
     }
 
     const { error } = await supabase.from("borrow_requests").insert({
       horse_id: horseId,
       borrower_id: user.id,
-      message,
       status: "pending",
     });
 
     if (error) {
-      setStatus(error.message);
+      alert("Something went wrong.");
     } else {
-      setStatus("Request sent!");
-      setMessage("");
-      setAlreadyRequested(true);
+      setSuccess(true);
     }
+
+    setLoading(false);
   };
 
-  if (isOwner) {
+  if (success) {
     return (
-      <p style={{ marginTop: 20, color: "red" }}>
-        You cannot request your own horse.
-      </p>
-    );
-  }
-
-  if (alreadyRequested) {
-    return (
-      <p style={{ marginTop: 20, color: "orange" }}>
-        You already have a pending request for this horse.
-      </p>
+      <div style={{ marginTop: 20, color: "green", fontWeight: 600 }}>
+        Request Sent ✔
+      </div>
     );
   }
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <h3>Request to borrow</h3>
-
-      <textarea
-        placeholder="Write your message..."
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        style={{ width: "100%", padding: 10, marginBottom: 10 }}
-      />
-
-      <button onClick={handleSubmit}>Send request</button>
-
-      {status && (
-        <p
-          style={{
-            marginTop: 15,
-            color: status === "Request sent!" ? "green" : "red",
-            fontWeight: 500,
-          }}
-        >
-          {status}
-        </p>
-      )}
-    </div>
+    <button
+      onClick={sendRequest}
+      disabled={loading}
+      style={{
+        marginTop: 10,
+        padding: "10px 16px",
+        background: "#2563eb",
+        color: "white",
+        border: "none",
+        borderRadius: 6,
+        cursor: "pointer",
+      }}
+    >
+      {loading ? "Sending..." : "Request to Borrow"}
+    </button>
   );
 }
