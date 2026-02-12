@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { LoadScript, Autocomplete } from "@react-google-maps/api";
+
+const libraries: ("places")[] = ["places"];
 
 export default function EditHorsePage() {
   const { id } = useParams();
   const router = useRouter();
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
   const [form, setForm] = useState<any>(null);
 
@@ -22,6 +26,22 @@ export default function EditHorsePage() {
       .single();
 
     if (data) setForm(data);
+  };
+
+  const handlePlaceChanged = () => {
+    const place = autocompleteRef.current?.getPlace();
+
+    if (!place?.geometry) return;
+
+    const lat = place.geometry.location?.lat();
+    const lng = place.geometry.location?.lng();
+
+    setForm((prev: any) => ({
+      ...prev,
+      location: place.formatted_address,
+      lat,
+      lng,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,19 +100,32 @@ export default function EditHorsePage() {
           }
         />
 
-        <input
-          value={form.location}
-          onChange={(e) =>
-            setForm({ ...form, location: e.target.value })
-          }
-        />
-
         <textarea
           value={form.description}
           onChange={(e) =>
             setForm({ ...form, description: e.target.value })
           }
         />
+
+        <LoadScript
+          googleMapsApiKey={
+            process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string
+          }
+          libraries={libraries}
+        >
+          <Autocomplete
+            onLoad={(auto) => (autocompleteRef.current = auto)}
+            onPlaceChanged={handlePlaceChanged}
+          >
+            <input
+              value={form.location || ""}
+              placeholder="Search Location"
+              onChange={(e) =>
+                setForm({ ...form, location: e.target.value })
+              }
+            />
+          </Autocomplete>
+        </LoadScript>
 
         <button
           type="submit"
