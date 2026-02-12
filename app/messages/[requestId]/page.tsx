@@ -18,9 +18,9 @@ export default function ChatPage() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [approved, setApproved] = useState(false);
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
   useEffect(() => {
     initialize();
@@ -40,21 +40,10 @@ export default function ChatPage() {
       setApproved(true);
     }
 
-    const { data } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("request_id", requestId)
-      .order("created_at", { ascending: true });
+    loadMessages();
 
-    if (data) setMessages(data);
-
-    subscribeRealtime(user.user?.id);
-  };
-
-  const subscribeRealtime = (uid: string | undefined) => {
-    const channel = supabase.channel("chat-" + requestId);
-
-    channel
+    supabase
+      .channel("chat-" + requestId)
       .on(
         "postgres_changes",
         {
@@ -67,34 +56,55 @@ export default function ChatPage() {
           setMessages((prev) => [...prev, payload.new as Message]);
         }
       )
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        const users = Object.keys(state).filter((id) => id !== uid);
-        setTypingUsers(users);
-      })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED" && uid) {
-          await channel.track({ typing: false }, { key: uid });
-        }
-      });
+      .subscribe();
   };
 
-  const handleTyping = async (value: string) => {
-    setNewMessage(value);
-    const channel = supabase.channel("chat-" + requestId);
-    await channel.track({ typing: value.length > 0 });
+  const loadMessages = async () => {
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: true });
+
+    if (data) setMessages(data);
+  };
+
+  const uploadImage = async () => {
+    if (!selectedFile) return null;
+
+    const filePath = `${requestId}/${Date.now()}-${selectedFile.name}`;
+
+    const { error } = await supabase.storage
+      .from("chat-images")
+      .upload(filePath, selectedFile);
+
+    if (error) return null;
+
+    const { data } = supabase.storage
+      .from("chat-images")
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() && !selectedFile) return;
+
+    let imageUrl = null;
+
+    if (selectedFile) {
+      imageUrl = await uploadImage();
+    }
 
     await supabase.from("messages").insert({
       request_id: requestId,
       sender_id: userId,
       content: newMessage,
+      image_url: imageUrl,
     });
 
     setNewMessage("");
+    setSelectedFile(null);
   };
 
   return (
@@ -114,6 +124,8 @@ export default function ChatPage() {
           height: 400,
           overflowY: "auto",
           marginBottom: 20,
+          borderRadius: 10,
+          background: "#fff",
         }}
       >
         {messages.map((msg) => (
@@ -133,35 +145,61 @@ export default function ChatPage() {
                   msg.sender_id === userId ? "#2563eb" : "#eee",
                 color:
                   msg.sender_id === userId ? "#fff" : "#000",
+                maxWidth: "70%",
               }}
             >
               {msg.content}
+
               {msg.image_url && (
                 <img
                   src={msg.image_url}
-                  style={{ maxWidth: 200, display: "block", marginTop: 8 }}
+                  alt="attachment"
+                  style={{
+                    maxWidth: "100%",
+                    marginTop: 8,
+                    borderRadius: 8,
+                  }}
                 />
               )}
             </div>
           </div>
         ))}
-
-        {typingUsers.length > 0 && (
-          <p style={{ fontStyle: "italic", color: "#666" }}>
-            Someone is typing...
-          </p>
-        )}
       </div>
 
       {approved && (
         <div style={{ display: "flex", gap: 10 }}>
           <input
-            value={newMessage}
-            onChange={(e) => handleTyping(e.target.value)}
-            style={{ flex: 1, padding: 10 }}
+            type="text"
             placeholder="Type message..."
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            style={{
+              flex: 1,
+              padding: 10,
+              borderRadius: 6,
+              border: "1px solid #ddd",
+            }}
           />
-          <button onClick={sendMessage}>Send</button>
+
+          <input
+            type="file"
+            onChange={(e) =>
+              setSelectedFile(e.target.files?.[0] || null)
+            }
+          />
+
+          <button
+            onClick={sendMessage}
+            style={{
+              padding: "8px 14px",
+              background: "#2563eb",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+            }}
+          >
+            Send
+          </button>
         </div>
       )}
     </div>
