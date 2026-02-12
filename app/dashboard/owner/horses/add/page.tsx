@@ -7,6 +7,18 @@ import { useLoadScript, Autocomplete } from "@react-google-maps/api";
 
 const libraries: ("places")[] = ["places"];
 
+type HorseForm = {
+  name: string;
+  breed: string;
+  age: string;
+  height_hh: string;
+  temperament: string;
+  description: string;
+  location: string;
+  lat: number | null;
+  lng: number | null;
+};
+
 export default function AddHorsePage() {
   const router = useRouter();
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -16,7 +28,7 @@ export default function AddHorsePage() {
     libraries,
   });
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<HorseForm>({
     name: "",
     breed: "",
     age: "",
@@ -24,13 +36,12 @@ export default function AddHorsePage() {
     temperament: "",
     description: "",
     location: "",
-    lat: null as number | null,
-    lng: null as number | null,
+    lat: null,
+    lng: null,
   });
 
   const handlePlaceChanged = () => {
     const place = autocompleteRef.current?.getPlace();
-
     if (!place?.geometry) return;
 
     const lat = place.geometry.location?.lat();
@@ -38,9 +49,9 @@ export default function AddHorsePage() {
 
     setForm((prev) => ({
       ...prev,
-      location: place.formatted_address || "",
-      lat,
-      lng,
+      location: place.formatted_address ?? "",
+      lat: lat ?? null,
+      lng: lng ?? null,
     }));
   };
 
@@ -56,7 +67,7 @@ export default function AddHorsePage() {
       return;
     }
 
-    if (!form.lat || !form.lng) {
+    if (form.lat === null || form.lng === null) {
       alert("Please select a location from suggestions.");
       return;
     }
