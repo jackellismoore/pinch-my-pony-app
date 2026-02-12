@@ -2,83 +2,125 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import Link from "next/link";
+
+type Request = {
+  id: string;
+  status: string;
+  horses: {
+    id: string;
+    name: string;
+    owner_id: string;
+  } | null;
+  profiles: {
+    full_name: string;
+  } | null;
+};
 
 export default function OwnerDashboard() {
-  const [horseCount, setHorseCount] = useState(0);
-  const [pendingRequests, setPendingRequests] = useState(0);
+  const [requests, setRequests] = useState<Request[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadStats();
+    loadRequests();
   }, []);
 
-  const loadStats = async () => {
+  const loadRequests = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) return;
 
-    // Count horses
-    const { count } = await supabase
-      .from("horses")
-      .select("*", { count: "exact", head: true })
-      .eq("owner_id", user.id);
-
-    // Count pending requests
-    const { data: requests } = await supabase
+    const { data, error } = await supabase
       .from("borrow_requests")
-      .select("id, horses!inner(owner_id)")
+      .select(`
+        id,
+        status,
+        horses!inner(id,name,owner_id),
+        profiles!borrow_requests_borrower_id_fkey(full_name)
+      `)
       .eq("horses.owner_id", user.id)
-      .eq("status", "pending");
+      .order("created_at", { ascending: false });
 
-    setHorseCount(count || 0);
-    setPendingRequests(requests?.length || 0);
+    if (!error && data) {
+      setRequests(data as any);
+    }
+
+    setLoading(false);
+  };
+
+  const updateStatus = async (id: string, newStatus: string) => {
+    await supabase
+      .from("borrow_requests")
+      .update({ status: newStatus })
+      .eq("id", id);
+
+    loadRequests();
   };
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>Owner Dashboard</h1>
+      <h1>Owner Requests</h1>
 
-      <div style={{ display: "flex", gap: 20, marginTop: 30 }}>
-        <div style={cardStyle}>
-          <h2>{horseCount}</h2>
-          <p>Total Horses</p>
+      {loading && <p>Loading...</p>}
+
+      {!loading && requests.length === 0 && (
+        <p>No requests yet.</p>
+      )}
+
+      {requests.map((req) => (
+        <div
+          key={req.id}
+          style={{
+            border: "1px solid #ddd",
+            padding: 20,
+            marginBottom: 20,
+            borderRadius: 10,
+            background: "#fff",
+          }}
+        >
+          <h3>{req.horses?.name}</h3>
+
+          <p>
+            <strong>
+              {req.profiles?.full_name || "Unknown Borrower"}
+            </strong>
+          </p>
+
+          <p>Status: {req.status}</p>
+
+          {req.status === "pending" && (
+            <div style={{ marginTop: 10 }}>
+              <button
+                onClick={() => updateStatus(req.id, "approved")}
+                style={{
+                  marginRight: 10,
+                  padding: "8px 14px",
+                  background: "#16a34a",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+              >
+                Approve
+              </button>
+
+              <button
+                onClick={() => updateStatus(req.id, "declined")}
+                style={{
+                  padding: "8px 14px",
+                  background: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+              >
+                Decline
+              </button>
+            </div>
+          )}
         </div>
-
-        <div style={cardStyle}>
-          <h2>{pendingRequests}</h2>
-          <p>Pending Requests</p>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 40 }}>
-        <Link href="/dashboard/owner/horses">
-          <button style={buttonStyle}>Manage My Horses</button>
-        </Link>
-
-        <Link href="/messages" style={{ marginLeft: 15 }}>
-          <button style={buttonStyle}>View Messages</button>
-        </Link>
-      </div>
+      ))}
     </div>
   );
 }
-
-const cardStyle = {
-  padding: 30,
-  border: "1px solid #eee",
-  borderRadius: 12,
-  background: "#fff",
-  minWidth: 200,
-  textAlign: "center" as const,
-};
-
-const buttonStyle = {
-  padding: "10px 18px",
-  borderRadius: 8,
-  background: "#2563eb",
-  color: "white",
-  border: "none",
-  cursor: "pointer",
-};
