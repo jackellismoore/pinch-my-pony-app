@@ -6,13 +6,13 @@ import { supabase } from "@/lib/supabaseClient";
 type Request = {
   id: string;
   status: string;
+  horse_id: string;
+  borrower_id: string;
   horses: {
-    id: string;
     name: string;
-    owner_id: string;
   } | null;
   profiles: {
-    full_name: string;
+    full_name: string | null;
   } | null;
 };
 
@@ -25,25 +25,47 @@ export default function OwnerDashboard() {
   }, []);
 
   const loadRequests = async () => {
+    setLoading(true);
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
+    // Step 1 — get horse IDs owned by this user
+    const { data: horses } = await supabase
+      .from("horses")
+      .select("id")
+      .eq("owner_id", user.id);
+
+    const horseIds = horses?.map((h) => h.id) || [];
+
+    if (horseIds.length === 0) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
+    // Step 2 — get requests for those horses
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
         id,
         status,
-        horses!inner(id,name,owner_id),
-        profiles!borrow_requests_borrower_id_fkey(full_name)
+        horse_id,
+        borrower_id,
+        horses(name),
+        profiles(full_name)
       `)
-      .eq("horses.owner_id", user.id)
+      .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setRequests(data as any);
+    if (!error) {
+      setRequests((data as Request[]) || []);
     }
 
     setLoading(false);
@@ -60,7 +82,7 @@ export default function OwnerDashboard() {
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>Owner Requests</h1>
+      <h1>Owner Dashboard</h1>
 
       {loading && <p>Loading...</p>}
 
@@ -75,15 +97,15 @@ export default function OwnerDashboard() {
             border: "1px solid #ddd",
             padding: 20,
             marginBottom: 20,
-            borderRadius: 10,
+            borderRadius: 8,
             background: "#fff",
           }}
         >
-          <h3>{req.horses?.name}</h3>
+          <h3>{req.horses?.name || "Unknown Horse"}</h3>
 
           <p>
             <strong>
-              {req.profiles?.full_name || "Unknown Borrower"}
+              {req.profiles?.full_name || "Unknown User"}
             </strong>
           </p>
 
