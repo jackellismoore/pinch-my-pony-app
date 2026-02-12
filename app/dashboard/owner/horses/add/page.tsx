@@ -3,11 +3,7 @@
 import { useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import {
-  GoogleMap,
-  LoadScript,
-  Autocomplete,
-} from "@react-google-maps/api";
+import { LoadScript, Autocomplete } from "@react-google-maps/api";
 
 const libraries: ("places")[] = ["places"];
 
@@ -35,12 +31,12 @@ export default function AddHorsePage() {
     const lat = place.geometry.location?.lat();
     const lng = place.geometry.location?.lng();
 
-    setForm({
-      ...form,
+    setForm((prev) => ({
+      ...prev,
       location: place.formatted_address || "",
       lat: lat || null,
       lng: lng || null,
-    });
+    }));
   };
 
   const handleSubmit = async () => {
@@ -48,12 +44,26 @@ export default function AddHorsePage() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return alert("Not logged in");
+    if (!user) {
+      alert("Not logged in");
+      return;
+    }
+
+    if (!form.lat || !form.lng) {
+      alert("Please select a location from suggestions");
+      return;
+    }
 
     const { error } = await supabase.from("horses").insert({
-      ...form,
+      name: form.name,
+      breed: form.breed,
       age: Number(form.age),
       height_hh: Number(form.height_hh),
+      temperament: form.temperament,
+      description: form.description,
+      location: form.location,
+      lat: form.lat,
+      lng: form.lng,
       owner_id: user.id,
       is_active: true,
     });
@@ -70,7 +80,7 @@ export default function AddHorsePage() {
     <div style={{ padding: 40 }}>
       <h1>Add Horse</h1>
 
-      <div style={{ maxWidth: 500 }}>
+      <div style={{ maxWidth: 500, display: "flex", flexDirection: "column", gap: 10 }}>
         <input
           placeholder="Horse Name"
           value={form.name}
@@ -84,19 +94,17 @@ export default function AddHorsePage() {
         />
 
         <input
-          placeholder="Age"
           type="number"
+          placeholder="Age"
           value={form.age}
           onChange={(e) => setForm({ ...form, age: e.target.value })}
         />
 
         <input
-          placeholder="Height (hh)"
           type="number"
+          placeholder="Height (hh)"
           value={form.height_hh}
-          onChange={(e) =>
-            setForm({ ...form, height_hh: e.target.value })
-          }
+          onChange={(e) => setForm({ ...form, height_hh: e.target.value })}
         />
 
         <input
@@ -116,7 +124,9 @@ export default function AddHorsePage() {
         />
 
         <LoadScript
-          googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!}
+          googleMapsApiKey={
+            process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string
+          }
           libraries={libraries}
         >
           <Autocomplete
@@ -129,7 +139,7 @@ export default function AddHorsePage() {
               onChange={(e) =>
                 setForm({ ...form, location: e.target.value })
               }
-              style={{ width: "100%", marginTop: 10 }}
+              style={{ width: "100%" }}
             />
           </Autocomplete>
         </LoadScript>
@@ -137,12 +147,13 @@ export default function AddHorsePage() {
         <button
           onClick={handleSubmit}
           style={{
-            marginTop: 20,
+            marginTop: 10,
             padding: "10px 18px",
             background: "#2563eb",
             color: "white",
             border: "none",
             borderRadius: 6,
+            cursor: "pointer",
           }}
         >
           Add Horse
