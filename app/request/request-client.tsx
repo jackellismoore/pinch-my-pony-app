@@ -1,53 +1,30 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
-type RequestStatus = "pending" | "approved" | "declined" | null;
+export default function RequestClient() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const horseId = searchParams.get("horseId");
 
-export default function RequestClient({ horseId }: { horseId: string }) {
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<RequestStatus>(null);
-  const [isOwner, setIsOwner] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    checkRequestStatus();
-  }, []);
-
-  const checkRequestStatus = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    // Check if user owns the horse
-    const { data: horse } = await supabase
-      .from("horses")
-      .select("owner_id")
-      .eq("id", horseId)
-      .single();
-
-    if (horse?.owner_id === user.id) {
-      setIsOwner(true);
-      return;
+    if (!horseId) {
+      router.push("/browse");
     }
+  }, [horseId, router]);
 
-    // Check existing request
-    const { data } = await supabase
-      .from("borrow_requests")
-      .select("status")
-      .eq("horse_id", horseId)
-      .eq("borrower_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1);
+  const handleSubmit = async () => {
+    if (!horseId) return;
 
-    if (data && data.length > 0) {
-      setStatus(data[0].status);
-    }
-  };
-
-  const sendRequest = async () => {
     setLoading(true);
 
     const {
@@ -55,101 +32,85 @@ export default function RequestClient({ horseId }: { horseId: string }) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      alert("You must be logged in.");
-      setLoading(false);
+      router.push("/login");
       return;
     }
 
     const { error } = await supabase.from("borrow_requests").insert({
       horse_id: horseId,
       borrower_id: user.id,
+      start_date: startDate || null,
+      end_date: endDate || null,
+      message: message || null,
       status: "pending",
     });
 
     if (!error) {
-      setStatus("pending");
+      setSubmitted(true);
     }
 
     setLoading(false);
   };
 
-  const cancelRequest = async () => {
-    setLoading(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    await supabase
-      .from("borrow_requests")
-      .delete()
-      .eq("horse_id", horseId)
-      .eq("borrower_id", user.id)
-      .eq("status", "pending");
-
-    setStatus(null);
-    setLoading(false);
-  };
-
-  if (isOwner) {
+  if (submitted) {
     return (
-      <div style={{ marginTop: 20, fontWeight: 600 }}>
-        This is your horse.
-      </div>
-    );
-  }
-
-  if (status === "approved") {
-    return (
-      <div style={{ marginTop: 20, color: "green", fontWeight: 600 }}>
-        ✔ Request Approved
-      </div>
-    );
-  }
-
-  if (status === "pending") {
-    return (
-      <div style={{ marginTop: 20 }}>
-        <div style={{ color: "#f59e0b", fontWeight: 600 }}>
-          Request Pending
-        </div>
-
-        <button
-          onClick={cancelRequest}
-          disabled={loading}
-          style={{
-            marginTop: 10,
-            padding: "8px 14px",
-            background: "#dc2626",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-          }}
-        >
-          Cancel Request
-        </button>
+      <div style={{ padding: 60, textAlign: "center" }}>
+        <h2 style={{ color: "#16a34a" }}>Request Sent ✔</h2>
+        <p>Your request has been sent to the owner.</p>
       </div>
     );
   }
 
   return (
-    <button
-      onClick={sendRequest}
-      disabled={loading}
-      style={{
-        marginTop: 10,
-        padding: "10px 16px",
-        background: "#2563eb",
-        color: "white",
-        border: "none",
-        borderRadius: 6,
-        cursor: "pointer",
-      }}
-    >
-      {loading ? "Sending..." : "Request to Borrow"}
-    </button>
+    <div style={{ padding: 60, maxWidth: 500, margin: "0 auto" }}>
+      <h1>Request to Borrow</h1>
+
+      <input
+        type="date"
+        value={startDate}
+        onChange={(e) => setStartDate(e.target.value)}
+        style={inputStyle}
+      />
+
+      <input
+        type="date"
+        value={endDate}
+        onChange={(e) => setEndDate(e.target.value)}
+        style={inputStyle}
+      />
+
+      <textarea
+        placeholder="Message to owner..."
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        style={{ ...inputStyle, height: 100 }}
+      />
+
+      <button
+        onClick={handleSubmit}
+        disabled={loading}
+        style={buttonStyle}
+      >
+        {loading ? "Sending..." : "Send Request"}
+      </button>
+    </div>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  padding: 12,
+  marginBottom: 15,
+  borderRadius: 8,
+  border: "1px solid #ddd",
+};
+
+const buttonStyle = {
+  width: "100%",
+  padding: 14,
+  borderRadius: 8,
+  background: "#2563eb",
+  color: "white",
+  border: "none",
+  cursor: "pointer",
+};
