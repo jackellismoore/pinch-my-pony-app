@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import NotificationBell from "./NotificationBell";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<string | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     loadUser();
@@ -29,9 +30,7 @@ export default function Header() {
       .eq("id", currentUser.id)
       .single();
 
-    if (profile) {
-      setRole(profile.role);
-    }
+    if (profile) setRole(profile.role);
   };
 
   const handleLogout = async () => {
@@ -39,6 +38,32 @@ export default function Header() {
     router.push("/login");
     router.refresh();
   };
+
+  const NavItem = ({
+    href,
+    label,
+  }: {
+    href: string;
+    label: string;
+  }) => (
+    <Link href={href} style={{ textDecoration: "none" }}>
+      <span
+        style={{
+          padding: "8px 14px",
+          borderRadius: 8,
+          fontWeight: 500,
+          cursor: "pointer",
+          background:
+            pathname === href ? "#2563eb" : "transparent",
+          color:
+            pathname === href ? "white" : "#1f2937",
+          transition: "0.2s ease",
+        }}
+      >
+        {label}
+      </span>
+    </Link>
+  );
 
   return (
     <header
@@ -51,41 +76,58 @@ export default function Header() {
         background: "#ffffff",
       }}
     >
-      {/* Left */}
-      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-        <Link href="/" style={{ fontWeight: 700, fontSize: 18 }}>
+      {/* LEFT */}
+      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        <Link
+          href="/"
+          style={{
+            fontWeight: 700,
+            fontSize: 18,
+            textDecoration: "none",
+            color: "#111",
+          }}
+        >
           🐴 Pinch My Pony
         </Link>
 
         {user && (
           <>
-            <Link href="/dashboard">Dashboard</Link>
-            <Link href="/browse">Browse</Link>
-            <Link href="/messages">Messages</Link>
+            <NavItem href="/browse" label="Browse" />
 
             {role === "owner" && (
               <>
-                <Link href="/dashboard/owner/horses">My Horses</Link>
-                <Link href="/horse">Add Horse</Link>
+                <NavItem href="/dashboard/owner" label="Dashboard" />
+                <NavItem
+                  href="/dashboard/owner/horses"
+                  label="My Horses"
+                />
               </>
             )}
+
+            {role === "borrower" && (
+              <NavItem href="/dashboard/borrower" label="Dashboard" />
+            )}
+
+            <NavItem href="/messages" label="Messages" />
           </>
         )}
       </div>
 
-      {/* Right */}
-      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+      {/* RIGHT */}
+      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
         {user ? (
           <>
             <NotificationBell />
+
             <button
               onClick={handleLogout}
               style={{
-                padding: "6px 12px",
-                borderRadius: 6,
+                padding: "8px 14px",
+                borderRadius: 8,
                 border: "1px solid #ddd",
                 background: "#fff",
                 cursor: "pointer",
+                fontWeight: 500,
               }}
             >
               Logout
@@ -93,8 +135,8 @@ export default function Header() {
           </>
         ) : (
           <>
-            <Link href="/login">Login</Link>
-            <Link href="/signup">Sign Up</Link>
+            <NavItem href="/login" label="Login" />
+            <NavItem href="/signup" label="Sign Up" />
           </>
         )}
       </div>
