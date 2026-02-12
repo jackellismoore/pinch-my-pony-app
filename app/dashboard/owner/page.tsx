@@ -1,147 +1,84 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import Link from "next/link";
 
-type Horse = {
-  id: string;
-  name: string;
-  breed: string;
-  age: number;
-  height_hh: number;
-  temperament: string;
-  location: string;
-  image_url: string;
-  owner_id: string;
-};
-
-export default function OwnerHorsesPage() {
-  const [horses, setHorses] = useState<Horse[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function OwnerDashboard() {
+  const [horseCount, setHorseCount] = useState(0);
+  const [pendingRequests, setPendingRequests] = useState(0);
 
   useEffect(() => {
-    loadHorses();
+    loadStats();
   }, []);
 
-  const loadHorses = async () => {
+  const loadStats = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) return;
 
-    const { data } = await supabase
+    // Count horses
+    const { count } = await supabase
       .from("horses")
-      .select("*")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: false });
+      .select("*", { count: "exact", head: true })
+      .eq("owner_id", user.id);
 
-    setHorses((data as Horse[]) || []);
-    setLoading(false);
+    // Count pending requests
+    const { data: requests } = await supabase
+      .from("borrow_requests")
+      .select("id, horses!inner(owner_id)")
+      .eq("horses.owner_id", user.id)
+      .eq("status", "pending");
+
+    setHorseCount(count || 0);
+    setPendingRequests(requests?.length || 0);
   };
-
-  const deleteHorse = async (id: string) => {
-    const confirmDelete = confirm("Are you sure you want to delete this horse?");
-    if (!confirmDelete) return;
-
-    const { error } = await supabase
-      .from("horses")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      alert("Delete failed: " + error.message);
-    } else {
-      loadHorses();
-    }
-  };
-
-  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>My Horses</h1>
+      <h1>Owner Dashboard</h1>
 
-      <Link href="/dashboard/owner/horses/add">
-        <button
-          style={{
-            marginBottom: 20,
-            padding: "8px 14px",
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-          }}
-        >
-          Add Horse
-        </button>
-      </Link>
-
-      {horses.length === 0 && <p>No horses yet.</p>}
-
-      {horses.map((horse) => (
-        <div
-          key={horse.id}
-          style={{
-            border: "1px solid #ddd",
-            padding: 20,
-            marginBottom: 20,
-            borderRadius: 8,
-            background: "#fff",
-          }}
-        >
-          {horse.image_url && (
-            <img
-              src={horse.image_url}
-              alt={horse.name}
-              style={{
-                width: "100%",
-                height: 200,
-                objectFit: "cover",
-                borderRadius: 8,
-                marginBottom: 10,
-              }}
-            />
-          )}
-
-          <h3>{horse.name}</h3>
-          <p>{horse.breed}</p>
-          <p>{horse.age} yrs • {horse.height_hh}hh</p>
-          <p>{horse.temperament}</p>
-          <p>{horse.location}</p>
-
-          <div style={{ marginTop: 10 }}>
-            <Link href={`/dashboard/owner/horses/edit/${horse.id}`}>
-              <button
-                style={{
-                  marginRight: 10,
-                  padding: "6px 12px",
-                  background: "#16a34a",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Edit
-              </button>
-            </Link>
-
-            <button
-              onClick={() => deleteHorse(horse.id)}
-              style={{
-                padding: "6px 12px",
-                background: "#dc2626",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-              }}
-            >
-              Delete
-            </button>
-          </div>
+      <div style={{ display: "flex", gap: 20, marginTop: 30 }}>
+        <div style={cardStyle}>
+          <h2>{horseCount}</h2>
+          <p>Total Horses</p>
         </div>
-      ))}
+
+        <div style={cardStyle}>
+          <h2>{pendingRequests}</h2>
+          <p>Pending Requests</p>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 40 }}>
+        <Link href="/dashboard/owner/horses">
+          <button style={buttonStyle}>Manage My Horses</button>
+        </Link>
+
+        <Link href="/messages" style={{ marginLeft: 15 }}>
+          <button style={buttonStyle}>View Messages</button>
+        </Link>
+      </div>
     </div>
   );
 }
+
+const cardStyle = {
+  padding: 30,
+  border: "1px solid #eee",
+  borderRadius: 12,
+  background: "#fff",
+  minWidth: 200,
+  textAlign: "center" as const,
+};
+
+const buttonStyle = {
+  padding: "10px 18px",
+  borderRadius: 8,
+  background: "#2563eb",
+  color: "white",
+  border: "none",
+  cursor: "pointer",
+};
