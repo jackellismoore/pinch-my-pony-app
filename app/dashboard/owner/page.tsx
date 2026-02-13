@@ -8,8 +8,13 @@ type Request = {
   status: string;
   horse_id: string;
   borrower_id: string;
-  horses: { name: string }[] | null;
-  profiles: { full_name: string }[] | null;
+  horses: {
+    name: string;
+    owner_id: string;
+  } | null;
+  profiles: {
+    full_name: string;
+  } | null;
 };
 
 export default function OwnerDashboard() {
@@ -27,10 +32,7 @@ export default function OwnerDashboard() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) return;
 
     const { data, error } = await supabase
       .from("borrow_requests")
@@ -39,39 +41,37 @@ export default function OwnerDashboard() {
         status,
         horse_id,
         borrower_id,
-        horses!inner(name, owner_id),
-        profiles!borrow_requests_borrower_id_fkey(full_name)
+        horses!inner (
+          id,
+          name,
+          owner_id
+        ),
+        profiles!borrow_requests_borrower_id_fkey (
+          id,
+          full_name
+        )
       `)
       .eq("horses.owner_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Load requests error:", error.message);
-      setLoading(false);
-      return;
+      console.error("Owner load error:", error);
     }
 
-    setRequests((data ?? []) as Request[]);
+    setRequests((data as any) || []);
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    const { error } = await supabase
+  const updateStatus = async (id: string, newStatus: string) => {
+    await supabase
       .from("borrow_requests")
-      .update({ status })
+      .update({ status: newStatus })
       .eq("id", id);
-
-    if (error) {
-      console.error("Update error:", error.message);
-      return;
-    }
 
     loadRequests();
   };
 
-  if (loading) {
-    return <div style={{ padding: 40 }}>Loading requests...</div>;
-  }
+  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 40 }}>
@@ -84,17 +84,17 @@ export default function OwnerDashboard() {
           key={req.id}
           style={{
             border: "1px solid #ddd",
-            borderRadius: 10,
             padding: 20,
             marginBottom: 20,
+            borderRadius: 8,
             background: "#fff",
           }}
         >
-          <h3>{req.horses?.[0]?.name ?? "Unknown Horse"}</h3>
+          <h3>{req.horses?.name}</h3>
 
           <p>
             <strong>
-              {req.profiles?.[0]?.full_name ?? "Unknown Borrower"}
+              {req.profiles?.full_name || "Unknown User"}
             </strong>
           </p>
 
