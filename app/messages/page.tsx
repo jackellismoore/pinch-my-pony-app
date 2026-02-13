@@ -9,6 +9,7 @@ type Conversation = {
 };
 
 type RequestData = {
+  id: string; // ← FIXED
   borrower_id: string;
   horse_id: string;
   horses: { name: string; owner_id: string }[];
@@ -31,7 +32,7 @@ export default function MessagesPage() {
 
     setUserId(user.id);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
         id,
@@ -40,7 +41,7 @@ export default function MessagesPage() {
         horses(name, owner_id)
       `);
 
-    if (!data) return;
+    if (error || !data) return;
 
     const filtered: Conversation[] = [];
 
