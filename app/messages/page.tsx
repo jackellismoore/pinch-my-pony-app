@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
 type Conversation = {
   id: string;
@@ -51,58 +51,69 @@ export default function MessagesPage() {
       `);
 
     if (error) {
-      console.error(error);
+      console.error("Conversation load error:", error);
       setLoading(false);
       return;
     }
 
-    const filtered =
-      (data || []).filter((conv: any) => {
-        const request = conv.borrow_requests?.[0];
-        if (!request) return false;
+    if (!data) {
+      setLoading(false);
+      return;
+    }
 
-        const horse = request.horses?.[0];
-        if (!horse) return false;
+    const filtered: Conversation[] = [];
 
-        const isOwner = horse.owner_id === user.id;
-        const isBorrower = request.borrower_id === user.id;
+    for (const convo of data as Conversation[]) {
+      const request = convo.borrow_requests?.[0];
+      if (!request) continue;
 
-        return isOwner || isBorrower;
-      }) || [];
+      const horse = request.horses?.[0];
+      if (!horse) continue;
 
-    setConversations(filtered as Conversation[]);
+      const isOwner = horse.owner_id === user.id;
+      const isBorrower = request.borrower_id === user.id;
+
+      if (isOwner || isBorrower) {
+        filtered.push(convo);
+      }
+    }
+
+    setConversations(filtered);
     setLoading(false);
   };
 
-  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
+  if (loading) {
+    return <div style={{ padding: 40 }}>Loading...</div>;
+  }
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Messages</h1>
+    <div style={{ padding: 40, maxWidth: 900, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 32, marginBottom: 30 }}>Messages</h1>
 
       {conversations.length === 0 && (
         <p>No conversations yet.</p>
       )}
 
-      {conversations.map((conv) => {
-        const request = conv.borrow_requests?.[0];
-        const horse = request?.horses?.[0];
+      {conversations.map((convo) => {
+        const horseName =
+          convo.borrow_requests?.[0]?.horses?.[0]?.name || "Conversation";
 
         return (
           <Link
-            key={conv.id}
-            href={`/messages/${conv.request_id}`}
+            key={convo.id}
+            href={`/messages/${convo.request_id}`}
             style={{
               display: "block",
-              border: "1px solid #ddd",
               padding: 20,
-              borderRadius: 8,
               marginBottom: 15,
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
               textDecoration: "none",
               color: "black",
+              background: "white",
             }}
           >
-            <h3>{horse?.name || "Conversation"}</h3>
+            <h3 style={{ margin: 0 }}>{horseName}</h3>
           </Link>
         );
       })}
