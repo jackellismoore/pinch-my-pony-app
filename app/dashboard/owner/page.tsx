@@ -3,62 +3,136 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+type Request = {
+  id: string;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  horses: { name: string } | null;
+  profiles: { full_name: string | null } | null;
+};
+
 export default function OwnerDashboard() {
-  const [requests, setRequests] = useState<any[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    debugLoad();
+    loadRequests();
   }, []);
 
-  const debugLoad = async () => {
+  const loadRequests = async () => {
     setLoading(true);
 
-    // 1️⃣ Get logged in user
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    console.log("LOGGED IN USER ID:", user?.id);
+    if (!user) return;
 
-    setUserId(user?.id ?? null);
-
-    // 2️⃣ Fetch ALL borrow_requests (no filters)
+    // 🔥 THIS IS THE IMPORTANT QUERY
     const { data, error } = await supabase
       .from("borrow_requests")
-      .select("*");
+      .select(`
+        id,
+        status,
+        start_date,
+        end_date,
+        horses:horse_id (
+          name,
+          owner_id
+        ),
+        profiles:borrower_id (
+          full_name
+        )
+      `)
+      .eq("horses.owner_id", user.id)
+      .order("created_at", { ascending: false });
 
-    console.log("BORROW REQUESTS FROM DB:", data);
-    console.log("ERROR:", error);
+    if (!error && data) {
+      setRequests(data as unknown as Request[]);
+    }
 
-    setRequests(data ?? []);
     setLoading(false);
+  };
+
+  const updateStatus = async (id: string, newStatus: string) => {
+    await supabase
+      .from("borrow_requests")
+      .update({ status: newStatus })
+      .eq("id", id);
+
+    loadRequests();
   };
 
   return (
     <div style={{ padding: 40 }}>
-      <h1>Owner Dashboard Debug</h1>
+      <h1>Owner Dashboard</h1>
 
       {loading && <p>Loading...</p>}
 
-      <div style={{ marginBottom: 20 }}>
-        <strong>Logged in user ID:</strong>
-        <div>{userId}</div>
-      </div>
+      {!loading && requests.length === 0 && (
+        <p>No requests for your horses yet.</p>
+      )}
 
-      <h2>Borrow Requests Raw Data:</h2>
+      {requests.map((req) => (
+        <div
+          key={req.id}
+          style={{
+            border: "1px solid #ddd",
+            padding: 20,
+            marginBottom: 20,
+            borderRadius: 8,
+            background: "#fff",
+          }}
+        >
+          <h3>{req.horses?.name}</h3>
 
-      <pre
-        style={{
-          background: "#f4f4f4",
-          padding: 20,
-          borderRadius: 8,
-          overflowX: "auto",
-        }}
-      >
-        {JSON.stringify(requests, null, 2)}
-      </pre>
+          <p>
+            <strong>
+              {req.profiles?.full_name || "Unknown Borrower"}
+            </strong>
+          </p>
+
+          <p>Status: {req.status}</p>
+
+          <p>
+            {req.start_date && req.end_date
+              ? `${req.start_date} → ${req.end_date}`
+              : "No dates selected"}
+          </p>
+
+          {req.status === "pending" && (
+            <div style={{ marginTop: 10 }}>
+              <button
+                onClick={() => updateStatus(req.id, "approved")}
+                style={{
+                  marginRight: 10,
+                  padding: "8px 14px",
+                  background: "#16a34a",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+              >
+                Approve
+              </button>
+
+              <button
+                onClick={() => updateStatus(req.id, "declined")}
+                style={{
+                  padding: "8px 14px",
+                  background: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                }}
+              >
+                Decline
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
