@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/app/lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 
 type Request = {
   id: string;
@@ -32,29 +32,6 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // STEP 1 — Get owner’s horses
-    const { data: ownerHorses, error: horsesError } = await supabase
-      .from("horses")
-      .select("id")
-      .eq("owner_id", user.id);
-
-    if (horsesError) {
-      console.error("Horse fetch error:", horsesError);
-      setLoading(false);
-      return;
-    }
-
-    const horseIds = ownerHorses?.map((h) => h.id) || [];
-
-    console.log("Owner horse IDs:", horseIds);
-
-    if (horseIds.length === 0) {
-      setRequests([]);
-      setLoading(false);
-      return;
-    }
-
-    // STEP 2 — Get borrow requests for those horses
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
@@ -62,34 +39,39 @@ export default function OwnerDashboard() {
         status,
         horse_id,
         borrower_id,
-        horses(name),
-        profiles(full_name)
+        horses!inner(name, owner_id),
+        profiles!borrow_requests_borrower_id_fkey(full_name)
       `)
-      .in("horse_id", horseIds)
+      .eq("horses.owner_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Request fetch error:", error);
+      console.error("Load requests error:", error.message);
       setLoading(false);
       return;
     }
 
-    console.log("Requests fetched:", data);
-
-    setRequests((data as unknown as Request[]) || []);
+    setRequests((data ?? []) as Request[]);
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, newStatus: string) => {
+  const updateStatus = async (id: string, status: string) => {
     const { error } = await supabase
       .from("borrow_requests")
-      .update({ status: newStatus })
+      .update({ status })
       .eq("id", id);
 
-    if (!error) loadRequests();
+    if (error) {
+      console.error("Update error:", error.message);
+      return;
+    }
+
+    loadRequests();
   };
 
-  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
+  if (loading) {
+    return <div style={{ padding: 40 }}>Loading requests...</div>;
+  }
 
   return (
     <div style={{ padding: 40 }}>
@@ -102,9 +84,9 @@ export default function OwnerDashboard() {
           key={req.id}
           style={{
             border: "1px solid #ddd",
+            borderRadius: 10,
             padding: 20,
             marginBottom: 20,
-            borderRadius: 8,
             background: "#fff",
           }}
         >
@@ -112,7 +94,7 @@ export default function OwnerDashboard() {
 
           <p>
             <strong>
-              {req.profiles?.[0]?.full_name ?? "Unknown User"}
+              {req.profiles?.[0]?.full_name ?? "Unknown Borrower"}
             </strong>
           </p>
 
