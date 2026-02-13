@@ -6,40 +6,39 @@ import { supabase } from "@/lib/supabaseClient";
 type Conversation = {
   id: string;
   request_id: string;
+  horse_name: string;
 };
 
 type RequestData = {
-  id: string; // ← FIXED
+  id: string;
+  status: string;
   borrower_id: string;
-  horse_id: string;
   horses: { name: string; owner_id: string }[];
 };
 
 export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadConversations();
+    loadApprovedRequests();
   }, []);
 
-  const loadConversations = async () => {
+  const loadApprovedRequests = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) return;
 
-    setUserId(user.id);
-
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
         id,
+        status,
         borrower_id,
-        horse_id,
         horses(name, owner_id)
-      `);
+      `)
+      .eq("status", "approved");
 
     if (error || !data) return;
 
@@ -47,7 +46,6 @@ export default function MessagesPage() {
 
     for (const request of data as RequestData[]) {
       const horseOwnerId = request.horses?.[0]?.owner_id;
-
       const isOwner = horseOwnerId === user.id;
       const isBorrower = request.borrower_id === user.id;
 
@@ -56,6 +54,7 @@ export default function MessagesPage() {
       filtered.push({
         id: request.id,
         request_id: request.id,
+        horse_name: request.horses?.[0]?.name || "Horse",
       });
     }
 
@@ -67,7 +66,7 @@ export default function MessagesPage() {
       <h1>Messages</h1>
 
       {conversations.length === 0 && (
-        <p>No conversations yet.</p>
+        <p>No approved conversations yet.</p>
       )}
 
       {conversations.map((conv) => (
@@ -78,9 +77,10 @@ export default function MessagesPage() {
             marginBottom: 12,
             border: "1px solid #ddd",
             borderRadius: 8,
+            background: "white",
           }}
         >
-          Conversation ID: {conv.id}
+          {conv.horse_name}
         </div>
       ))}
     </div>
