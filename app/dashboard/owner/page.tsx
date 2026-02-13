@@ -32,21 +32,6 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // 1️⃣ Get horses owned by user
-    const { data: horses } = await supabase
-      .from("horses")
-      .select("id")
-      .eq("owner_id", user.id);
-
-    const horseIds = horses?.map((h) => h.id) || [];
-
-    if (horseIds.length === 0) {
-      setRequests([]);
-      setLoading(false);
-      return;
-    }
-
-    // 2️⃣ Get borrow requests for those horses
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
@@ -54,16 +39,23 @@ export default function OwnerDashboard() {
         status,
         horse_id,
         borrower_id,
-        horses(name),
+        horses(name, owner_id),
         profiles(full_name)
       `)
-      .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setRequests(data as unknown as Request[]);
+    if (error) {
+      console.error(error);
+      setLoading(false);
+      return;
     }
 
+    // Filter manually instead of relying on join filter
+    const filtered = (data as any[]).filter(
+      (req) => req.horses?.[0]?.owner_id === user.id
+    );
+
+    setRequests(filtered as Request[]);
     setLoading(false);
   };
 
