@@ -89,21 +89,6 @@ export default function OwnerDashboard() {
       .update({ status: "approved" })
       .eq("id", req.id);
 
-    // Create conversation
-    const { data: conversation } = await supabase
-      .from("conversations")
-      .insert({ request_id: req.id })
-      .select()
-      .single();
-
-    if (conversation) {
-      await supabase.from("messages").insert({
-        conversation_id: conversation.id,
-        sender_id: (await supabase.auth.getUser()).data.user?.id,
-        content: "Request approved. You can now chat here.",
-      });
-    }
-
     router.push("/messages");
   };
 
@@ -116,57 +101,99 @@ export default function OwnerDashboard() {
     loadRequests();
   };
 
-  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
+  const statusStyles = (status: string) => {
+    if (status === "approved")
+      return { background: "#dcfce7", color: "#15803d" };
+    if (status === "declined")
+      return { background: "#fee2e2", color: "#b91c1c" };
+    return { background: "#fef9c3", color: "#92400e" };
+  };
+
+  if (loading)
+    return <div style={{ padding: 60 }}>Loading dashboard...</div>;
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1 style={{ marginBottom: 30 }}>Owner Dashboard</h1>
+    <div style={{ padding: "60px 40px", maxWidth: 1100, margin: "0 auto" }}>
+      <div style={{ marginBottom: 50 }}>
+        <h1 style={{ fontSize: 34, marginBottom: 10 }}>
+          🐴 Owner Dashboard
+        </h1>
+        <p style={{ color: "#6b7280" }}>
+          Manage incoming requests for your horses
+        </p>
+      </div>
 
       {requests.length === 0 ? (
-        <p>No requests yet.</p>
+        <div
+          style={{
+            padding: 40,
+            background: "#f9fafb",
+            borderRadius: 12,
+            textAlign: "center",
+            color: "#6b7280",
+          }}
+        >
+          No requests yet.
+        </div>
       ) : (
         requests.map((req) => (
           <div
             key={req.id}
             style={{
-              border: "1px solid #eee",
-              padding: 24,
-              marginBottom: 20,
-              borderRadius: 12,
+              padding: 30,
+              marginBottom: 30,
+              borderRadius: 16,
               background: "#ffffff",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
+              border: "1px solid #f3f4f6",
+              transition: "0.2s ease",
             }}
           >
-            <h3>{req.horse_name}</h3>
-            <p><strong>Borrower:</strong> {req.borrower_name}</p>
+            <div style={{ marginBottom: 20 }}>
+              <h2 style={{ marginBottom: 6, fontSize: 22 }}>
+                {req.horse_name}
+              </h2>
+              <p style={{ color: "#6b7280" }}>
+                Requested by{" "}
+                <strong style={{ color: "#111827" }}>
+                  {req.borrower_name}
+                </strong>
+              </p>
+            </div>
 
-            <p>
-              <strong>Status:</strong>{" "}
+            <div style={{ marginBottom: 20 }}>
               <span
                 style={{
-                  color:
-                    req.status === "approved"
-                      ? "green"
-                      : req.status === "declined"
-                      ? "red"
-                      : "orange",
+                  padding: "6px 14px",
+                  borderRadius: 20,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  ...statusStyles(req.status),
                 }}
               >
-                {req.status}
+                {req.status.toUpperCase()}
               </span>
-            </p>
+            </div>
+
+            {req.start_date && (
+              <div style={{ marginBottom: 20, color: "#4b5563" }}>
+                📅 {req.start_date} → {req.end_date}
+              </div>
+            )}
 
             {req.status === "pending" && (
-              <div style={{ marginTop: 15 }}>
+              <div style={{ display: "flex", gap: 12 }}>
                 <button
                   onClick={() => approveRequest(req)}
                   style={{
+                    flex: 1,
+                    padding: "12px 18px",
+                    borderRadius: 10,
+                    border: "none",
                     background: "#16a34a",
                     color: "white",
-                    border: "none",
-                    padding: "10px 18px",
-                    borderRadius: 8,
-                    marginRight: 10,
+                    fontWeight: 600,
+                    cursor: "pointer",
                   }}
                 >
                   Approve
@@ -175,11 +202,14 @@ export default function OwnerDashboard() {
                 <button
                   onClick={() => declineRequest(req.id)}
                   style={{
-                    background: "#dc2626",
-                    color: "white",
+                    flex: 1,
+                    padding: "12px 18px",
+                    borderRadius: 10,
                     border: "none",
-                    padding: "10px 18px",
-                    borderRadius: 8,
+                    background: "#ef4444",
+                    color: "white",
+                    fontWeight: 600,
+                    cursor: "pointer",
                   }}
                 >
                   Decline
