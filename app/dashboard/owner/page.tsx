@@ -6,11 +6,10 @@ import { supabase } from "@/lib/supabaseClient";
 type Request = {
   id: string;
   status: string;
-  horse_id: string;
-  borrower_id: string;
   start_date: string | null;
   end_date: string | null;
   created_at: string;
+  horses: { name: string } | null;
 };
 
 export default function OwnerDashboard() {
@@ -34,13 +33,13 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // STEP 1 — Get horses owned by logged in user
-    const { data: horses, error: horseError } = await supabase
+    // Get horses owned by this user
+    const { data: horses } = await supabase
       .from("horses")
       .select("id")
       .eq("owner_id", user.id);
 
-    if (horseError || !horses || horses.length === 0) {
+    if (!horses || horses.length === 0) {
       setRequests([]);
       setLoading(false);
       return;
@@ -48,15 +47,22 @@ export default function OwnerDashboard() {
 
     const horseIds = horses.map((h) => h.id);
 
-    // STEP 2 — Get borrow requests for those horses
+    // Get requests with horse name
     const { data, error } = await supabase
       .from("borrow_requests")
-      .select("*")
+      .select(`
+        id,
+        status,
+        start_date,
+        end_date,
+        created_at,
+        horses(name)
+      `)
       .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
 
     if (!error && data) {
-      setRequests(data);
+      setRequests(data as any);
     }
 
     setLoading(false);
@@ -84,9 +90,7 @@ export default function OwnerDashboard() {
               background: "#fff",
             }}
           >
-            <p><strong>Request ID:</strong> {req.id}</p>
-            <p><strong>Horse ID:</strong> {req.horse_id}</p>
-            <p><strong>Borrower ID:</strong> {req.borrower_id}</p>
+            <p><strong>Horse:</strong> {req.horses?.name || "Unknown"}</p>
             <p><strong>Status:</strong> {req.status}</p>
             <p><strong>Start:</strong> {req.start_date}</p>
             <p><strong>End:</strong> {req.end_date}</p>
