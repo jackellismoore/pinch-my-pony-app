@@ -3,89 +3,71 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
-  const [unread, setUnread] = useState(0);
+  const router = useRouter();
 
   useEffect(() => {
     checkUser();
   }, []);
-
-  useEffect(() => {
-    if (user) {
-      fetchUnread();
-      subscribeUnread();
-    }
-  }, [user]);
 
   const checkUser = async () => {
     const { data } = await supabase.auth.getUser();
     setUser(data.user);
   };
 
-  const fetchUnread = async () => {
-    const { count } = await supabase
-      .from("messages")
-      .select("*", { count: "exact", head: true })
-      .eq("read", false)
-      .neq("sender_id", user.id);
-
-    setUnread(count || 0);
-  };
-
-  const subscribeUnread = () => {
-    supabase
-      .channel("unread")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        () => fetchUnread()
-      )
-      .subscribe();
+  const logout = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
   };
 
   return (
     <header
       style={{
-        padding: "20px 40px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+        padding: "14px 30px",
         borderBottom: "1px solid #eee",
         background: "white",
       }}
     >
-      <Link href="/" style={{ fontWeight: 700, fontSize: 20 }}>
+      <Link href="/" style={{ fontWeight: 700, fontSize: 18 }}>
         🐴 Pinch My Pony
       </Link>
 
-      {user && (
-        <div style={{ display: "flex", gap: 25 }}>
-          <Link href="/browse">Browse</Link>
-          <Link href="/dashboard/owner">Dashboard</Link>
+      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+        {user && (
+          <>
+            <Link href="/browse">Browse</Link>
+            <Link href="/messages">Messages</Link>
+            <Link href="/dashboard/owner">Dashboard</Link>
+            <Link href="/dashboard/owner/horses">My Horses</Link>
+            <button
+              onClick={logout}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                border: "1px solid #ddd",
+                background: "#f3f3f3",
+                cursor: "pointer",
+              }}
+            >
+              Logout
+            </button>
+          </>
+        )}
 
-          <Link href="/messages" style={{ position: "relative" }}>
-            Messages
-            {unread > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: -8,
-                  right: -14,
-                  background: "#ef4444",
-                  color: "white",
-                  borderRadius: 50,
-                  padding: "2px 7px",
-                  fontSize: 11,
-                }}
-              >
-                {unread}
-              </span>
-            )}
-          </Link>
-        </div>
-      )}
+        {!user && (
+          <>
+            <Link href="/login">Login</Link>
+            <Link href="/signup">Sign Up</Link>
+          </>
+        )}
+      </div>
     </header>
   );
 }
