@@ -21,6 +21,32 @@ export default function OwnerDashboard() {
   }, []);
 
   const loadRequests = async () => {
+    setLoading(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    // STEP 1 — Get owner's horses
+    const { data: horses } = await supabase
+      .from("horses")
+      .select("id")
+      .eq("owner_id", user.id);
+
+    if (!horses || horses.length === 0) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
+    const horseIds = horses.map((h) => h.id);
+
+    // STEP 2 — Get requests for those horses
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
@@ -31,6 +57,7 @@ export default function OwnerDashboard() {
         horses(name),
         profiles!borrow_requests_borrower_id_fkey(full_name)
       `)
+      .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
 
     if (!error && data) {
