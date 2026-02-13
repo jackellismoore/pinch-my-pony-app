@@ -3,13 +3,20 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type Request = {
+type RawRequest = {
   id: string;
   status: string;
   horse_id: string;
   borrower_id: string;
-  horses: { name: string } | null;
-  profiles: { full_name: string } | null;
+  horses: { name: string }[];
+  profiles: { full_name: string }[];
+};
+
+type Request = {
+  id: string;
+  status: string;
+  horseName: string;
+  borrowerName: string;
 };
 
 export default function OwnerDashboard() {
@@ -23,7 +30,6 @@ export default function OwnerDashboard() {
   const loadRequests = async () => {
     setLoading(true);
 
-    // 1️⃣ Get logged in user
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -33,7 +39,7 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // 2️⃣ Get horses owned by this user
+    // 1️⃣ Get owner horses
     const { data: horses } = await supabase
       .from("horses")
       .select("id")
@@ -47,7 +53,7 @@ export default function OwnerDashboard() {
 
     const horseIds = horses.map((h) => h.id);
 
-    // 3️⃣ Get borrow requests for those horses
+    // 2️⃣ Get requests
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
@@ -62,7 +68,14 @@ export default function OwnerDashboard() {
       .order("created_at", { ascending: false });
 
     if (!error && data) {
-      setRequests(data as Request[]);
+      const formatted = (data as RawRequest[]).map((req) => ({
+        id: req.id,
+        status: req.status,
+        horseName: req.horses?.[0]?.name || "Unknown Horse",
+        borrowerName: req.profiles?.[0]?.full_name || "Unknown User",
+      }));
+
+      setRequests(formatted);
     }
 
     setLoading(false);
@@ -98,12 +111,10 @@ export default function OwnerDashboard() {
             background: "#fff",
           }}
         >
-          <h3>{req.horses?.name || "Unknown Horse"}</h3>
+          <h3>{req.horseName}</h3>
 
           <p>
-            <strong>
-              {req.profiles?.full_name || "Unknown User"}
-            </strong>
+            <strong>{req.borrowerName}</strong>
           </p>
 
           <p>Status: {req.status}</p>
