@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";
 
 type Request = {
   id: string;
   status: string;
-  start_date: string | null;
-  end_date: string | null;
-  horses: { name: string } | null;
-  profiles: { full_name: string | null } | null;
+  horse_id: string;
+  borrower_id: string;
+  horses?: { name: string }[];
+  profiles?: { full_name: string }[];
 };
 
 export default function OwnerDashboard() {
@@ -27,9 +27,12 @@ export default function OwnerDashboard() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-    // 🔹 STEP 1: Get owner's horses
+    // 1️⃣ Get all horses owned by this user
     const { data: horses } = await supabase
       .from("horses")
       .select("id")
@@ -43,49 +46,34 @@ export default function OwnerDashboard() {
 
     const horseIds = horses.map((h) => h.id);
 
-    // 🔹 STEP 2: Get requests for those horses
+    // 2️⃣ Get borrow requests for those horses
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
         id,
         status,
-        start_date,
-        end_date,
-        horses:horse_id (
-          name
-        ),
-        profiles:borrower_id (
-          full_name
-        )
+        horse_id,
+        borrower_id,
+        horses(name),
+        profiles(full_name)
       `)
       .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
 
     if (!error && data) {
-      setRequests(data as unknown as Request[]);
+      setRequests(data as Request[]);
     }
 
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, newStatus: string) => {
-    await supabase
-      .from("borrow_requests")
-      .update({ status: newStatus })
-      .eq("id", id);
-
-    loadRequests();
-  };
+  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 40 }}>
       <h1>Owner Dashboard</h1>
 
-      {loading && <p>Loading...</p>}
-
-      {!loading && requests.length === 0 && (
-        <p>No requests for your horses yet.</p>
-      )}
+      {requests.length === 0 && <p>No requests yet.</p>}
 
       {requests.map((req) => (
         <div
@@ -98,52 +86,15 @@ export default function OwnerDashboard() {
             background: "#fff",
           }}
         >
-          <h3>{req.horses?.name}</h3>
+          <h3>{req.horses?.[0]?.name || "Horse"}</h3>
 
           <p>
             <strong>
-              {req.profiles?.full_name || "Unknown Borrower"}
+              {req.profiles?.[0]?.full_name || "Borrower"}
             </strong>
           </p>
 
           <p>Status: {req.status}</p>
-
-          <p>
-            {req.start_date && req.end_date
-              ? `${req.start_date} → ${req.end_date}`
-              : "No dates selected"}
-          </p>
-
-          {req.status === "pending" && (
-            <div style={{ marginTop: 10 }}>
-              <button
-                onClick={() => updateStatus(req.id, "approved")}
-                style={{
-                  marginRight: 10,
-                  padding: "8px 14px",
-                  background: "#16a34a",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Approve
-              </button>
-
-              <button
-                onClick={() => updateStatus(req.id, "declined")}
-                style={{
-                  padding: "8px 14px",
-                  background: "#dc2626",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                }}
-              >
-                Decline
-              </button>
-            </div>
-          )}
         </div>
       ))}
     </div>
