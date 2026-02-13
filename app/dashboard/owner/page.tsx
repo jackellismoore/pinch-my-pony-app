@@ -6,11 +6,11 @@ import { supabase } from "@/lib/supabaseClient";
 type Request = {
   id: string;
   status: string;
-  horse_id: string;
-  borrower_id: string;
   start_date: string | null;
   end_date: string | null;
   created_at: string;
+  horses: { name: string }[];
+  profiles: { full_name: string }[];
 };
 
 export default function OwnerDashboard() {
@@ -26,17 +26,37 @@ export default function OwnerDashboard() {
 
     const { data, error } = await supabase
       .from("borrow_requests")
-      .select("*")
+      .select(`
+        id,
+        status,
+        start_date,
+        end_date,
+        created_at,
+        horses(name),
+        profiles!borrow_requests_borrower_id_fkey(full_name)
+      `)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error loading requests:", error);
-    } else {
-      console.log("Loaded requests:", data);
-      setRequests(data || []);
+    if (!error && data) {
+      setRequests(data as any);
     }
 
     setLoading(false);
+  };
+
+  const updateStatus = async (id: string, status: string) => {
+    await supabase
+      .from("borrow_requests")
+      .update({ status })
+      .eq("id", id);
+
+    loadRequests();
+  };
+
+  const statusColor = (status: string) => {
+    if (status === "approved") return "#16a34a";
+    if (status === "declined") return "#dc2626";
+    return "#f59e0b";
   };
 
   if (loading) {
@@ -44,32 +64,102 @@ export default function OwnerDashboard() {
   }
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Owner Dashboard</h1>
+    <div style={{ padding: 40, maxWidth: 1000, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 28, marginBottom: 30 }}>
+        🐴 Owner Dashboard
+      </h1>
 
-      {requests.length === 0 ? (
-        <p>No requests yet.</p>
-      ) : (
-        requests.map((req) => (
+      {requests.length === 0 && (
+        <p style={{ color: "#666" }}>No requests yet.</p>
+      )}
+
+      {requests.map((req) => (
+        <div
+          key={req.id}
+          style={{
+            borderRadius: 14,
+            padding: 24,
+            marginBottom: 24,
+            background: "#fff",
+            boxShadow: "0 4px 18px rgba(0,0,0,0.06)",
+            border: "1px solid #eee",
+          }}
+        >
+          {/* Horse + Borrower */}
+          <div style={{ marginBottom: 10 }}>
+            <h2 style={{ margin: 0 }}>
+              {req.horses?.[0]?.name || "Unknown Horse"}
+            </h2>
+            <p style={{ margin: 0, color: "#555" }}>
+              Requested by{" "}
+              <strong>
+                {req.profiles?.[0]?.full_name || "Unknown User"}
+              </strong>
+            </p>
+          </div>
+
+          {/* Dates */}
+          <div style={{ marginBottom: 10 }}>
+            {req.start_date && (
+              <p style={{ margin: 0 }}>
+                📅 {new Date(req.start_date).toLocaleDateString()} —{" "}
+                {req.end_date
+                  ? new Date(req.end_date).toLocaleDateString()
+                  : "Same day"}
+              </p>
+            )}
+          </div>
+
+          {/* Status Badge */}
           <div
-            key={req.id}
             style={{
-              border: "1px solid #ddd",
-              padding: 20,
-              marginBottom: 20,
-              borderRadius: 8,
-              background: "#fff",
+              display: "inline-block",
+              padding: "6px 12px",
+              borderRadius: 20,
+              background: statusColor(req.status),
+              color: "white",
+              fontSize: 14,
+              marginBottom: 15,
             }}
           >
-            <p><strong>Request ID:</strong> {req.id}</p>
-            <p><strong>Horse ID:</strong> {req.horse_id}</p>
-            <p><strong>Borrower ID:</strong> {req.borrower_id}</p>
-            <p><strong>Status:</strong> {req.status}</p>
-            <p><strong>Start:</strong> {req.start_date}</p>
-            <p><strong>End:</strong> {req.end_date}</p>
+            {req.status.toUpperCase()}
           </div>
-        ))
-      )}
+
+          {/* Action Buttons */}
+          {req.status === "pending" && (
+            <div style={{ marginTop: 15 }}>
+              <button
+                onClick={() => updateStatus(req.id, "approved")}
+                style={{
+                  padding: "10px 18px",
+                  marginRight: 10,
+                  background: "#16a34a",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Approve
+              </button>
+
+              <button
+                onClick={() => updateStatus(req.id, "declined")}
+                style={{
+                  padding: "10px 18px",
+                  background: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Decline
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
