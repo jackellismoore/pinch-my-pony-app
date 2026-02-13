@@ -29,7 +29,21 @@ export default function OwnerDashboard() {
 
     if (!user) return;
 
-    // 🔥 THIS IS THE IMPORTANT QUERY
+    // 🔹 STEP 1: Get owner's horses
+    const { data: horses } = await supabase
+      .from("horses")
+      .select("id")
+      .eq("owner_id", user.id);
+
+    if (!horses || horses.length === 0) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
+    const horseIds = horses.map((h) => h.id);
+
+    // 🔹 STEP 2: Get requests for those horses
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
@@ -38,14 +52,13 @@ export default function OwnerDashboard() {
         start_date,
         end_date,
         horses:horse_id (
-          name,
-          owner_id
+          name
         ),
         profiles:borrower_id (
           full_name
         )
       `)
-      .eq("horses.owner_id", user.id)
+      .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
 
     if (!error && data) {
