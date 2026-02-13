@@ -36,7 +36,6 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // 1️⃣ Get owner horses
     const { data: horses } = await supabase
       .from("horses")
       .select("id, name")
@@ -50,7 +49,6 @@ export default function OwnerDashboard() {
 
     const horseIds = horses.map((h) => h.id);
 
-    // 2️⃣ Get requests for those horses
     const { data: requestsData } = await supabase
       .from("borrow_requests")
       .select("*")
@@ -63,7 +61,6 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // 3️⃣ Attach horse name + borrower name manually (SAFE WAY)
     const enriched = await Promise.all(
       requestsData.map(async (req) => {
         const horse = horses.find((h) => h.id === req.horse_id);
@@ -86,16 +83,35 @@ export default function OwnerDashboard() {
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, newStatus: string) => {
+  const approveRequest = async (req: Request) => {
     await supabase
       .from("borrow_requests")
-      .update({ status: newStatus })
-      .eq("id", id);
+      .update({ status: "approved" })
+      .eq("id", req.id);
 
-    // If approved → redirect to messages
-    if (newStatus === "approved") {
-      router.push("/messages");
+    // Create conversation
+    const { data: conversation } = await supabase
+      .from("conversations")
+      .insert({ request_id: req.id })
+      .select()
+      .single();
+
+    if (conversation) {
+      await supabase.from("messages").insert({
+        conversation_id: conversation.id,
+        sender_id: (await supabase.auth.getUser()).data.user?.id,
+        content: "Request approved. You can now chat here.",
+      });
     }
+
+    router.push("/messages");
+  };
+
+  const declineRequest = async (id: string) => {
+    await supabase
+      .from("borrow_requests")
+      .update({ status: "declined" })
+      .eq("id", id);
 
     loadRequests();
   };
@@ -121,13 +137,10 @@ export default function OwnerDashboard() {
               boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
             }}
           >
-            <h3 style={{ marginBottom: 8 }}>{req.horse_name}</h3>
+            <h3>{req.horse_name}</h3>
+            <p><strong>Borrower:</strong> {req.borrower_name}</p>
 
-            <p style={{ marginBottom: 6 }}>
-              <strong>Borrower:</strong> {req.borrower_name}
-            </p>
-
-            <p style={{ marginBottom: 6 }}>
+            <p>
               <strong>Status:</strong>{" "}
               <span
                 style={{
@@ -137,23 +150,16 @@ export default function OwnerDashboard() {
                       : req.status === "declined"
                       ? "red"
                       : "orange",
-                  fontWeight: 600,
                 }}
               >
                 {req.status}
               </span>
             </p>
 
-            {req.start_date && (
-              <p style={{ marginBottom: 6 }}>
-                {req.start_date} → {req.end_date}
-              </p>
-            )}
-
             {req.status === "pending" && (
               <div style={{ marginTop: 15 }}>
                 <button
-                  onClick={() => updateStatus(req.id, "approved")}
+                  onClick={() => approveRequest(req)}
                   style={{
                     background: "#16a34a",
                     color: "white",
@@ -161,21 +167,19 @@ export default function OwnerDashboard() {
                     padding: "10px 18px",
                     borderRadius: 8,
                     marginRight: 10,
-                    cursor: "pointer",
                   }}
                 >
                   Approve
                 </button>
 
                 <button
-                  onClick={() => updateStatus(req.id, "declined")}
+                  onClick={() => declineRequest(req.id)}
                   style={{
                     background: "#dc2626",
                     color: "white",
                     border: "none",
                     padding: "10px 18px",
                     borderRadius: 8,
-                    cursor: "pointer",
                   }}
                 >
                   Decline
