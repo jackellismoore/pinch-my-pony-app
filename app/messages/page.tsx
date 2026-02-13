@@ -12,8 +12,8 @@ type Conversation = {
     horses: {
       name: string;
       owner_id: string;
-    };
-  };
+    }[];
+  }[];
 };
 
 export default function MessagesPage() {
@@ -27,8 +27,14 @@ export default function MessagesPage() {
   const loadConversations = async () => {
     setLoading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const { data, error } = await supabase
       .from("conversations")
@@ -50,17 +56,21 @@ export default function MessagesPage() {
       return;
     }
 
-    const filtered = (data || []).filter((conv: any) => {
-      const request = conv.borrow_requests;
-      if (!request) return false;
+    const filtered =
+      (data || []).filter((conv: any) => {
+        const request = conv.borrow_requests?.[0];
+        if (!request) return false;
 
-      const isOwner = request.horses?.owner_id === user.id;
-      const isBorrower = request.borrower_id === user.id;
+        const horse = request.horses?.[0];
+        if (!horse) return false;
 
-      return isOwner || isBorrower;
-    });
+        const isOwner = horse.owner_id === user.id;
+        const isBorrower = request.borrower_id === user.id;
 
-    setConversations(filtered);
+        return isOwner || isBorrower;
+      }) || [];
+
+    setConversations(filtered as Conversation[]);
     setLoading(false);
   };
 
@@ -74,23 +84,28 @@ export default function MessagesPage() {
         <p>No conversations yet.</p>
       )}
 
-      {conversations.map((conv) => (
-        <Link
-          key={conv.id}
-          href={`/messages/${conv.request_id}`}
-          style={{
-            display: "block",
-            border: "1px solid #ddd",
-            padding: 20,
-            borderRadius: 8,
-            marginBottom: 15,
-            textDecoration: "none",
-            color: "black",
-          }}
-        >
-          <h3>{conv.borrow_requests?.horses?.name}</h3>
-        </Link>
-      ))}
+      {conversations.map((conv) => {
+        const request = conv.borrow_requests?.[0];
+        const horse = request?.horses?.[0];
+
+        return (
+          <Link
+            key={conv.id}
+            href={`/messages/${conv.request_id}`}
+            style={{
+              display: "block",
+              border: "1px solid #ddd",
+              padding: 20,
+              borderRadius: 8,
+              marginBottom: 15,
+              textDecoration: "none",
+              color: "black",
+            }}
+          >
+            <h3>{horse?.name || "Conversation"}</h3>
+          </Link>
+        );
+      })}
     </div>
   );
 }
