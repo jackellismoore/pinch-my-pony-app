@@ -8,8 +8,7 @@ type Request = {
   status: string;
   start_date: string | null;
   end_date: string | null;
-  created_at: string;
-  horses: { name: string } | null;
+  horse_id: string;
 };
 
 export default function OwnerDashboard() {
@@ -33,7 +32,7 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // Get horses owned by this user
+    // 1️⃣ Get horses owned by this user
     const { data: horses } = await supabase
       .from("horses")
       .select("id")
@@ -47,30 +46,21 @@ export default function OwnerDashboard() {
 
     const horseIds = horses.map((h) => h.id);
 
-    // Get requests with horse name
+    // 2️⃣ Get borrow requests for those horses
     const { data, error } = await supabase
       .from("borrow_requests")
-      .select(`
-        id,
-        status,
-        start_date,
-        end_date,
-        created_at,
-        horses(name)
-      `)
+      .select("*")
       .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
 
     if (!error && data) {
-      setRequests(data as any);
+      setRequests(data);
     }
 
     setLoading(false);
   };
 
-  if (loading) {
-    return <div style={{ padding: 40 }}>Loading...</div>;
-  }
+  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
     <div style={{ padding: 40 }}>
@@ -90,7 +80,7 @@ export default function OwnerDashboard() {
               background: "#fff",
             }}
           >
-            <p><strong>Horse:</strong> {req.horses?.name || "Unknown"}</p>
+            <p><strong>Horse ID:</strong> {req.horse_id}</p>
             <p><strong>Status:</strong> {req.status}</p>
             <p><strong>Start:</strong> {req.start_date}</p>
             <p><strong>End:</strong> {req.end_date}</p>
