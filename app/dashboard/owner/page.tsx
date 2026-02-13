@@ -13,6 +13,7 @@ type Request = {
   borrower_id: string;
   horse_name?: string;
   borrower_name?: string;
+  horse_image?: string;
 };
 
 export default function OwnerDashboard() {
@@ -31,14 +32,11 @@ export default function OwnerDashboard() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) return;
 
     const { data: horses } = await supabase
       .from("horses")
-      .select("id, name")
+      .select("id, name, image_url")
       .eq("owner_id", user.id);
 
     if (!horses || horses.length === 0) {
@@ -74,6 +72,7 @@ export default function OwnerDashboard() {
         return {
           ...req,
           horse_name: horse?.name || "Unknown Horse",
+          horse_image: horse?.image_url || "",
           borrower_name: profile?.full_name || "Unknown User",
         };
       })
@@ -101,6 +100,10 @@ export default function OwnerDashboard() {
     loadRequests();
   };
 
+  const pending = requests.filter(r => r.status === "pending").length;
+  const approved = requests.filter(r => r.status === "approved").length;
+  const declined = requests.filter(r => r.status === "declined").length;
+
   const statusStyles = (status: string) => {
     if (status === "approved")
       return { background: "#dcfce7", color: "#15803d" };
@@ -113,22 +116,37 @@ export default function OwnerDashboard() {
     return <div style={{ padding: 60 }}>Loading dashboard...</div>;
 
   return (
-    <div style={{ padding: "60px 40px", maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ marginBottom: 50 }}>
-        <h1 style={{ fontSize: 34, marginBottom: 10 }}>
+    <div style={{ padding: "60px 40px", maxWidth: 1200, margin: "0 auto" }}>
+      {/* HEADER */}
+      <div style={{ marginBottom: 40 }}>
+        <h1 style={{ fontSize: 36, marginBottom: 8 }}>
           🐴 Owner Dashboard
         </h1>
         <p style={{ color: "#6b7280" }}>
-          Manage incoming requests for your horses
+          Manage all incoming borrow requests
         </p>
       </div>
 
+      {/* STATS BAR */}
+      <div
+        style={{
+          display: "flex",
+          gap: 20,
+          marginBottom: 50,
+        }}
+      >
+        <StatCard label="Pending" value={pending} color="#f59e0b" />
+        <StatCard label="Approved" value={approved} color="#16a34a" />
+        <StatCard label="Declined" value={declined} color="#dc2626" />
+      </div>
+
+      {/* REQUEST CARDS */}
       {requests.length === 0 ? (
         <div
           style={{
-            padding: 40,
+            padding: 50,
             background: "#f9fafb",
-            borderRadius: 12,
+            borderRadius: 16,
             textAlign: "center",
             color: "#6b7280",
           }}
@@ -140,85 +158,122 @@ export default function OwnerDashboard() {
           <div
             key={req.id}
             style={{
+              display: "flex",
+              gap: 25,
               padding: 30,
               marginBottom: 30,
-              borderRadius: 16,
+              borderRadius: 20,
               background: "#ffffff",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
+              boxShadow: req.status === "pending"
+                ? "0 15px 40px rgba(245,158,11,0.15)"
+                : "0 10px 30px rgba(0,0,0,0.06)",
               border: "1px solid #f3f4f6",
-              transition: "0.2s ease",
+              transition: "0.3s ease",
             }}
           >
-            <div style={{ marginBottom: 20 }}>
-              <h2 style={{ marginBottom: 6, fontSize: 22 }}>
-                {req.horse_name}
-              </h2>
-              <p style={{ color: "#6b7280" }}>
-                Requested by{" "}
-                <strong style={{ color: "#111827" }}>
-                  {req.borrower_name}
-                </strong>
-              </p>
-            </div>
+            {/* IMAGE */}
+            {req.horse_image && (
+              <img
+                src={req.horse_image}
+                alt={req.horse_name}
+                style={{
+                  width: 140,
+                  height: 140,
+                  objectFit: "cover",
+                  borderRadius: 16,
+                }}
+              />
+            )}
 
-            <div style={{ marginBottom: 20 }}>
+            {/* CONTENT */}
+            <div style={{ flex: 1 }}>
+              <h2 style={{ marginBottom: 6 }}>{req.horse_name}</h2>
+
+              <p style={{ color: "#6b7280", marginBottom: 10 }}>
+                Requested by <strong>{req.borrower_name}</strong>
+              </p>
+
               <span
                 style={{
                   padding: "6px 14px",
                   borderRadius: 20,
-                  fontSize: 13,
-                  fontWeight: 600,
+                  fontSize: 12,
+                  fontWeight: 700,
                   ...statusStyles(req.status),
                 }}
               >
                 {req.status.toUpperCase()}
               </span>
+
+              {req.start_date && (
+                <div style={{ marginTop: 12, color: "#4b5563" }}>
+                  📅 {req.start_date} → {req.end_date}
+                </div>
+              )}
+
+              {req.status === "pending" && (
+                <div style={{ marginTop: 20, display: "flex", gap: 12 }}>
+                  <button
+                    onClick={() => approveRequest(req)}
+                    style={{
+                      padding: "12px 22px",
+                      borderRadius: 12,
+                      border: "none",
+                      background: "#16a34a",
+                      color: "white",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Approve
+                  </button>
+
+                  <button
+                    onClick={() => declineRequest(req.id)}
+                    style={{
+                      padding: "12px 22px",
+                      borderRadius: 12,
+                      border: "none",
+                      background: "#ef4444",
+                      color: "white",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Decline
+                  </button>
+                </div>
+              )}
             </div>
-
-            {req.start_date && (
-              <div style={{ marginBottom: 20, color: "#4b5563" }}>
-                📅 {req.start_date} → {req.end_date}
-              </div>
-            )}
-
-            {req.status === "pending" && (
-              <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  onClick={() => approveRequest(req)}
-                  style={{
-                    flex: 1,
-                    padding: "12px 18px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "#16a34a",
-                    color: "white",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Approve
-                </button>
-
-                <button
-                  onClick={() => declineRequest(req.id)}
-                  style={{
-                    flex: 1,
-                    padding: "12px 18px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "#ef4444",
-                    color: "white",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Decline
-                </button>
-              </div>
-            )}
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <div
+      style={{
+        flex: 1,
+        padding: 25,
+        borderRadius: 16,
+        background: "#ffffff",
+        boxShadow: "0 8px 25px rgba(0,0,0,0.05)",
+        border: "1px solid #f3f4f6",
+      }}
+    >
+      <div style={{ fontSize: 14, color: "#6b7280" }}>{label}</div>
+      <div style={{ fontSize: 32, fontWeight: 700, color }}>{value}</div>
     </div>
   );
 }
