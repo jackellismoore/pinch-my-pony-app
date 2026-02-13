@@ -5,11 +5,14 @@ import { supabase } from "@/lib/supabaseClient";
 
 type Conversation = {
   id: string;
-  horse_name: string;
+  horse_id: string;
+  owner_id: string;
+  borrower_id: string;
 };
 
 type Message = {
   id: string;
+  conversation_id: string;
   sender_id: string;
   content: string;
   created_at: string;
@@ -24,8 +27,13 @@ export default function MessagesPage() {
 
   useEffect(() => {
     loadUser();
-    loadApprovedConversations();
   }, []);
+
+  useEffect(() => {
+    if (userId) {
+      loadConversations();
+    }
+  }, [userId]);
 
   useEffect(() => {
     if (selectedConversation) {
@@ -39,24 +47,13 @@ export default function MessagesPage() {
     setUserId(data.user?.id || null);
   };
 
-  const loadApprovedConversations = async () => {
+  const loadConversations = async () => {
     const { data } = await supabase
       .from("conversations")
-      .select(`
-        id,
-        borrow_requests(
-          horses(name)
-        )
-      `);
+      .select("*")
+      .or(`owner_id.eq.${userId},borrower_id.eq.${userId}`);
 
-    if (!data) return;
-
-    const mapped = data.map((conv: any) => ({
-      id: conv.id,
-      horse_name: conv.borrow_requests?.horses?.[0]?.name || "Horse",
-    }));
-
-    setConversations(mapped);
+    setConversations(data || []);
   };
 
   const loadMessages = async () => {
@@ -71,7 +68,7 @@ export default function MessagesPage() {
 
   const subscribeToMessages = () => {
     supabase
-      .channel("realtime-messages")
+      .channel("messages")
       .on(
         "postgres_changes",
         {
@@ -102,9 +99,12 @@ export default function MessagesPage() {
 
   return (
     <div style={{ display: "flex", height: "80vh", padding: 20 }}>
-      {/* LEFT SIDEBAR */}
+      {/* LEFT PANEL */}
       <div style={{ width: "30%", borderRight: "1px solid #ddd", paddingRight: 10 }}>
         <h2>Conversations</h2>
+
+        {conversations.length === 0 && <p>No conversations yet.</p>}
+
         {conversations.map((conv) => (
           <div
             key={conv.id}
@@ -118,12 +118,12 @@ export default function MessagesPage() {
               borderRadius: 6,
             }}
           >
-            {conv.horse_name}
+            Conversation {conv.id.slice(0, 6)}
           </div>
         ))}
       </div>
 
-      {/* CHAT WINDOW */}
+      {/* CHAT AREA */}
       <div style={{ width: "70%", paddingLeft: 20, display: "flex", flexDirection: "column" }}>
         {selectedConversation ? (
           <>
