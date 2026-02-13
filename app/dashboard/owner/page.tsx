@@ -3,17 +3,17 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type RequestRow = {
+type Request = {
   id: string;
   status: string;
   horse_id: string;
   borrower_id: string;
-  horses: { name: string }[] | null;
-  profiles: { full_name: string }[] | null;
+  horses: { name: string } | null;
+  profiles: { full_name: string } | null;
 };
 
 export default function OwnerDashboard() {
-  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,12 +23,31 @@ export default function OwnerDashboard() {
   const loadRequests = async () => {
     setLoading(true);
 
+    // 1️⃣ Get logged in user
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
+    // 2️⃣ Get horses owned by this user
+    const { data: horses } = await supabase
+      .from("horses")
+      .select("id")
+      .eq("owner_id", user.id);
+
+    if (!horses || horses.length === 0) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
+    const horseIds = horses.map((h) => h.id);
+
+    // 3️⃣ Get borrow requests for those horses
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
@@ -36,57 +55,54 @@ export default function OwnerDashboard() {
         status,
         horse_id,
         borrower_id,
-        horses!inner(name, owner_id),
-        profiles!borrow_requests_borrower_id_fkey(full_name)
+        horses(name),
+        profiles(full_name)
       `)
-      .eq("horses.owner_id", user.id)
+      .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Owner request load error:", error);
-    } else {
-      setRequests(data ?? []);
+    if (!error && data) {
+      setRequests(data as Request[]);
     }
 
     setLoading(false);
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
-    const { error } = await supabase
+    await supabase
       .from("borrow_requests")
       .update({ status: newStatus })
       .eq("id", id);
 
-    if (!error) {
-      loadRequests();
-    }
+    loadRequests();
   };
-
-  if (loading) return <div style={{ padding: 40 }}>Loading requests...</div>;
 
   return (
     <div style={{ padding: 40 }}>
       <h1>Owner Dashboard</h1>
 
-      {requests.length === 0 && <p>No requests yet.</p>}
+      {loading && <p>Loading...</p>}
+
+      {!loading && requests.length === 0 && (
+        <p>No requests yet.</p>
+      )}
 
       {requests.map((req) => (
         <div
           key={req.id}
           style={{
-            border: "1px solid #eee",
+            border: "1px solid #ddd",
             padding: 20,
             marginBottom: 20,
-            borderRadius: 10,
+            borderRadius: 8,
             background: "#fff",
           }}
         >
-          <h3>{req.horses?.[0]?.name}</h3>
+          <h3>{req.horses?.name || "Unknown Horse"}</h3>
 
           <p>
-            Borrower:{" "}
             <strong>
-              {req.profiles?.[0]?.full_name || "Unknown"}
+              {req.profiles?.full_name || "Unknown User"}
             </strong>
           </p>
 
