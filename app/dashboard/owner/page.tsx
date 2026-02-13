@@ -2,19 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 type Request = {
   id: string;
   horse_id: string;
   borrower_id: string;
   status: string;
-  start_date: string | null;
-  end_date: string | null;
 };
 
 export default function OwnerDashboard() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     loadRequests();
@@ -23,25 +23,15 @@ export default function OwnerDashboard() {
   const loadRequests = async () => {
     setLoading(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
     const { data: horses } = await supabase
       .from("horses")
       .select("id")
       .eq("owner_id", user.id);
 
-    if (!horses || horses.length === 0) {
-      setRequests([]);
-      setLoading(false);
-      return;
-    }
+    if (!horses) return;
 
     const horseIds = horses.map((h) => h.id);
 
@@ -55,24 +45,39 @@ export default function OwnerDashboard() {
     setLoading(false);
   };
 
-  const updateStatus = async (request: Request, newStatus: string) => {
+  const approveRequest = async (request: Request) => {
     // 1️⃣ Update status
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from("borrow_requests")
-      .update({ status: newStatus })
+      .update({ status: "approved" })
       .eq("id", request.id);
 
-    if (error) return;
-
-    // 2️⃣ If approved → create conversation
-    if (newStatus === "approved") {
-      await supabase.from("conversations").insert({
-        borrow_request_id: request.id,
-        horse_id: request.horse_id,
-        owner_id: (await supabase.auth.getUser()).data.user?.id,
-        borrower_id: request.borrower_id,
-      });
+    if (updateError) {
+      console.error(updateError);
+      return;
     }
+
+    // 2️⃣ Create conversation linked to request
+    const { error: insertError } = await supabase
+      .from("conversations")
+      .insert({
+        request_id: request.id,
+      });
+
+    if (insertError) {
+      console.error(insertError);
+      return;
+    }
+
+    loadRequests();
+    router.push("/messages");
+  };
+
+  const declineRequest = async (request: Request) => {
+    await supabase
+      .from("borrow_requests")
+      .update({ status: "declined" })
+      .eq("id", request.id);
 
     loadRequests();
   };
@@ -96,13 +101,11 @@ export default function OwnerDashboard() {
           }}
         >
           <p><strong>Status:</strong> {req.status}</p>
-          <p>Horse ID: {req.horse_id}</p>
-          <p>Borrower ID: {req.borrower_id}</p>
 
           {req.status === "pending" && (
             <div style={{ marginTop: 10 }}>
               <button
-                onClick={() => updateStatus(req, "approved")}
+                onClick={() => approveRequest(req)}
                 style={{
                   marginRight: 10,
                   padding: "8px 14px",
@@ -116,7 +119,7 @@ export default function OwnerDashboard() {
               </button>
 
               <button
-                onClick={() => updateStatus(req, "declined")}
+                onClick={() => declineRequest(req)}
                 style={{
                   padding: "8px 14px",
                   background: "#dc2626",
