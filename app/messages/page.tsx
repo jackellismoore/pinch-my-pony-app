@@ -6,6 +6,9 @@ import { supabase } from "@/lib/supabaseClient";
 type Conversation = {
   id: string;
   request_id: string;
+  horse_name: string;
+  other_user_name: string;
+  unread_count: number;
 };
 
 type Message = {
@@ -32,6 +35,7 @@ export default function MessagesPage() {
     if (activeConversation) {
       loadMessages(activeConversation);
       subscribeToMessages(activeConversation);
+      markAsRead(activeConversation);
     }
   }, [activeConversation]);
 
@@ -48,14 +52,63 @@ export default function MessagesPage() {
 
     setUserId(user.id);
 
+    // Get conversations joined through borrow_requests
     const { data } = await supabase
       .from("conversations")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select(`
+        id,
+        request_id,
+        borrow_requests(
+          borrower_id,
+          horse_id,
+          horses(name, owner_id)
+        )
+      `);
 
-    if (data) {
-      setConversations(data);
-      if (data.length > 0) setActiveConversation(data[0].id);
+    if (!data) return;
+
+    const filtered = [];
+
+    for (const conv of data) {
+      const request = conv.borrow_requests;
+      if (!request) continue;
+
+      const isOwner = request.horses.owner_id === user.id;
+      const isBorrower = request.borrower_id === user.id;
+
+      if (!isOwner && !isBorrower) continue;
+
+      // Get other user name
+      const otherUserId = isOwner
+        ? request.borrower_id
+        : request.horses.owner_id;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", otherUserId)
+        .single();
+
+      // Count unread messages
+      const { count } = await supabase
+        .from("messages")
+        .select("*", { count: "exact", head: true })
+        .eq("conversation_id", conv.id)
+        .neq("sender_id", user.id);
+
+      filtered.push({
+        id: conv.id,
+        request_id: conv.request_id,
+        horse_name: request.horses.name,
+        other_user_name: profile?.full_name || "User",
+        unread_count: count || 0,
+      });
+    }
+
+    setConversations(filtered);
+
+    if (filtered.length > 0) {
+      setActiveConversation(filtered[0].id);
     }
   };
 
@@ -87,6 +140,16 @@ export default function MessagesPage() {
       .subscribe();
   };
 
+  const markAsRead = async (conversationId: string) => {
+    if (!userId) return;
+
+    await supabase
+      .from("messages")
+      .update({ read: true })
+      .eq("conversation_id", conversationId)
+      .neq("sender_id", userId);
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !activeConversation || !userId) return;
 
@@ -94,6 +157,7 @@ export default function MessagesPage() {
       conversation_id: activeConversation,
       sender_id: userId,
       content: newMessage,
+      read: false,
     });
 
     setNewMessage("");
@@ -101,39 +165,59 @@ export default function MessagesPage() {
 
   return (
     <div style={{ display: "flex", height: "80vh", margin: 40 }}>
-      {/* LEFT PANEL - CONVERSATIONS */}
+      {/* LEFT PANEL */}
       <div
         style={{
-          width: 300,
+          width: 320,
           borderRight: "1px solid #eee",
           padding: 20,
           background: "#f9fafb",
         }}
       >
-        <h3 style={{ marginBottom: 20 }}>Conversations</h3>
+        <h3 style={{ marginBottom: 20 }}>Messages</h3>
 
         {conversations.map((conv) => (
           <div
             key={conv.id}
             onClick={() => setActiveConversation(conv.id)}
             style={{
-              padding: 12,
-              marginBottom: 10,
-              borderRadius: 10,
+              padding: 15,
+              marginBottom: 12,
+              borderRadius: 12,
               cursor: "pointer",
               background:
-                activeConversation === conv.id ? "#e5f3ff" : "white",
+                activeConversation === conv.id ? "#e0f2fe" : "white",
               border: "1px solid #eee",
             }}
           >
-            Conversation
+            <div style={{ fontWeight: 600 }}>
+              {conv.horse_name}
+            </div>
+            <div style={{ fontSize: 13, color: "#6b7280" }}>
+              {conv.other_user_name}
+            </div>
+
+            {conv.unread_count > 0 && (
+              <div
+                style={{
+                  marginTop: 6,
+                  display: "inline-block",
+                  background: "#ef4444",
+                  color: "white",
+                  padding: "2px 8px",
+                  borderRadius: 12,
+                  fontSize: 12,
+                }}
+              >
+                {conv.unread_count}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* RIGHT PANEL - CHAT */}
+      {/* CHAT PANEL */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* MESSAGES */}
         <div
           style={{
             flex: 1,
@@ -173,7 +257,6 @@ export default function MessagesPage() {
           <div ref={bottomRef} />
         </div>
 
-        {/* INPUT */}
         <div
           style={{
             padding: 20,
