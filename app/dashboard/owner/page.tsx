@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
 
 type Request = {
   id: string;
@@ -16,16 +15,13 @@ type Request = {
 export default function OwnerDashboard() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
     loadRequests();
-    const interval = setInterval(loadRequests, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadRequests = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
         id,
@@ -37,80 +33,54 @@ export default function OwnerDashboard() {
       `)
       .order("created_at", { ascending: false });
 
-    setRequests((data as any) || []);
-    setLoading(false);
-  };
-
-  const approveRequest = async (requestId: string) => {
-    await supabase
-      .from("borrow_requests")
-      .update({ status: "approved" })
-      .eq("id", requestId);
-
-    const { data: existing } = await supabase
-      .from("conversations")
-      .select("*")
-      .eq("request_id", requestId)
-      .single();
-
-    if (!existing) {
-      const { data: conversation } = await supabase
-        .from("conversations")
-        .insert({ request_id: requestId })
-        .select()
-        .single();
-
-      await supabase.from("messages").insert({
-        conversation_id: conversation.id,
-        sender_id: (await supabase.auth.getUser()).data.user?.id,
-        content: "Request approved. You can now chat here.",
-      });
+    if (!error && data) {
+      setRequests(data as any);
     }
 
-    router.push("/messages");
-  };
-
-  const declineRequest = async (requestId: string) => {
-    await supabase
-      .from("borrow_requests")
-      .update({ status: "declined" })
-      .eq("id", requestId);
-
-    loadRequests();
+    setLoading(false);
   };
 
   if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
   return (
-    <div style={{ padding: 40, maxWidth: 1000, margin: "0 auto" }}>
+    <div style={{ padding: 40, maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ marginBottom: 30 }}>🐴 Owner Dashboard</h1>
 
-      {requests.length === 0 && <p>No requests yet.</p>}
+      {requests.length === 0 && (
+        <p style={{ color: "#666" }}>No requests yet.</p>
+      )}
 
       {requests.map((req) => (
         <div
           key={req.id}
           style={{
             padding: 24,
+            marginBottom: 20,
             borderRadius: 14,
             background: "#fff",
-            marginBottom: 20,
-            boxShadow: "0 4px 18px rgba(0,0,0,0.05)",
+            boxShadow: "0 4px 18px rgba(0,0,0,0.06)",
           }}
         >
           <h2>{req.horses?.[0]?.name}</h2>
+
           <p>
             Requested by{" "}
             <strong>
-              {req.profiles?.[0]?.full_name || "Unknown User"}
+              {req.profiles?.[0]?.full_name || "Unknown"}
             </strong>
+          </p>
+
+          <p>
+            {req.start_date
+              ? `${new Date(req.start_date).toLocaleDateString()}`
+              : "No dates"}
           </p>
 
           <div
             style={{
               padding: "6px 12px",
-              display: "inline-block",
               borderRadius: 20,
+              display: "inline-block",
               background:
                 req.status === "approved"
                   ? "#16a34a"
@@ -119,44 +89,10 @@ export default function OwnerDashboard() {
                   : "#f59e0b",
               color: "white",
               fontSize: 14,
-              marginBottom: 15,
             }}
           >
             {req.status.toUpperCase()}
           </div>
-
-          {req.status === "pending" && (
-            <div>
-              <button
-                onClick={() => approveRequest(req.id)}
-                style={{
-                  padding: "10px 18px",
-                  marginRight: 10,
-                  background: "#16a34a",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                }}
-              >
-                Approve
-              </button>
-
-              <button
-                onClick={() => declineRequest(req.id)}
-                style={{
-                  padding: "10px 18px",
-                  background: "#dc2626",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                }}
-              >
-                Decline
-              </button>
-            </div>
-          )}
         </div>
       ))}
     </div>
