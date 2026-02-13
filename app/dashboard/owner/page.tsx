@@ -8,8 +8,8 @@ type Request = {
   status: string;
   horse_id: string;
   borrower_id: string;
-  horses?: { name: string }[];
-  profiles?: { full_name: string }[];
+  horses: { name: string }[];
+  borrower: { full_name: string }[];
 };
 
 export default function OwnerDashboard() {
@@ -32,7 +32,7 @@ export default function OwnerDashboard() {
       return;
     }
 
-    // 1️⃣ Get all horses owned by this user
+    // Get horses owned by logged in user
     const { data: horses } = await supabase
       .from("horses")
       .select("id")
@@ -46,7 +46,7 @@ export default function OwnerDashboard() {
 
     const horseIds = horses.map((h) => h.id);
 
-    // 2️⃣ Get borrow requests for those horses
+    // 🔥 Explicit FK usage here
     const { data, error } = await supabase
       .from("borrow_requests")
       .select(`
@@ -55,7 +55,7 @@ export default function OwnerDashboard() {
         horse_id,
         borrower_id,
         horses(name),
-        profiles(full_name)
+        borrower:profiles!borrow_requests_borrower_id_fkey(full_name)
       `)
       .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
@@ -90,7 +90,7 @@ export default function OwnerDashboard() {
 
           <p>
             <strong>
-              {req.profiles?.[0]?.full_name || "Borrower"}
+              {req.borrower?.[0]?.full_name || "Borrower"}
             </strong>
           </p>
 
