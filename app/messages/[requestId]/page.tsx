@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type MessageRow = {
@@ -11,12 +12,12 @@ type MessageRow = {
   created_at: string;
 };
 
-export default function ConversationPage({
-  params,
-}: {
-  params: { requestId: string };
-}) {
-  const requestId = params.requestId;
+export default function ConversationPage() {
+  const params = useParams<{ requestId?: string; id?: string }>();
+  const router = useRouter();
+
+  // Support either /messages/[requestId] OR /messages/[id]
+  const requestId = (params?.requestId ?? params?.id) as string | undefined;
 
   const [userId, setUserId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
@@ -32,7 +33,6 @@ export default function ConversationPage({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Optional: render "Me" vs "Them"
   const labelForSender = useMemo(() => {
     return (senderId: string) => (senderId === userId ? "Me" : "Them");
   }, [userId]);
@@ -42,6 +42,13 @@ export default function ConversationPage({
       setLoading(true);
       setError(null);
 
+      if (!requestId) {
+        setDebug({ step: "no_param", params });
+        setError("Missing requestId in URL.");
+        setLoading(false);
+        return;
+      }
+
       // 0) Auth
       const { data: authData, error: authErr } = await supabase.auth.getUser();
       if (authErr || !authData?.user) {
@@ -50,36 +57,32 @@ export default function ConversationPage({
         setLoading(false);
         return;
       }
-      setUserId(authData.user.id);
+      const uid = authData.user.id;
+      setUserId(uid);
 
-      // 1) Ensure conversation exists (safe even if already exists)
-      // If you DON'T want this, you can delete this block.
-      {
-        const { data: existing, error: checkErr } = await supabase
+      // 1) Ensure conversation exists (optional)
+      const { data: existing, error: checkErr } = await supabase
+        .from("conversations")
+        .select("id, request_id")
+        .eq("request_id", requestId)
+        .maybeSingle();
+
+      if (checkErr) {
+        setDebug({ step: "check_conversation", requestId, checkErr });
+      }
+
+      if (!existing) {
+        const { error: createErr } = await supabase
           .from("conversations")
-          .select("id, request_id")
-          .eq("request_id", requestId)
-          .maybeSingle();
+          .insert({ request_id: requestId });
 
-        if (checkErr) {
-          setDebug({ step: "check_conversation", requestId, checkErr });
-          // don't hard fail, but helpful to know
-        }
-
-        if (!existing) {
-          const { error: createErr } = await supabase
-            .from("conversations")
-            .insert({ request_id: requestId });
-
-          if (createErr) {
-            // not fatal, but log it
-            setDebug((d: any) => ({
-              ...(d ?? {}),
-              step: "create_conversation_failed",
-              requestId,
-              createErr,
-            }));
-          }
+        if (createErr) {
+          setDebug({
+            step: "create_conversation_failed",
+            requestId,
+            createErr,
+          });
+          // not fatal
         }
       }
 
@@ -100,11 +103,9 @@ export default function ConversationPage({
       setMessages((msgs as MessageRow[]) ?? []);
       setDebug({ step: "loaded", requestId, count: msgs?.length ?? 0 });
       setLoading(false);
-
-      // Scroll after initial load
       setTimeout(scrollToBottom, 50);
 
-      // 3) Realtime subscription (optional but nice)
+      // 3) Realtime subscription (optional)
       const channel = supabase
         .channel(`messages:${requestId}`)
         .on(
@@ -118,7 +119,6 @@ export default function ConversationPage({
           (payload) => {
             const newMsg = payload.new as MessageRow;
             setMessages((prev) => {
-              // avoid duplicates
               if (prev.some((m) => m.id === newMsg.id)) return prev;
               return [...prev, newMsg];
             });
@@ -132,11 +132,7 @@ export default function ConversationPage({
       };
     };
 
-    const cleanupPromise = init();
-    // cleanup handled inside init
-    return () => {
-      // noop
-    };
+    init();
   }, [requestId]);
 
   const send = async () => {
@@ -144,6 +140,11 @@ export default function ConversationPage({
       setError("Not logged in.");
       return;
     }
+    if (!requestId) {
+      setError("Missing requestId in URL.");
+      return;
+    }
+
     const trimmed = text.trim();
     if (!trimmed) return;
 
@@ -167,8 +168,11 @@ export default function ConversationPage({
       return;
     }
 
-    // Add immediately (realtime will also deliver; we guard duplicates)
-    setMessages((prev) => [...prev, inserted as MessageRow]);
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === (inserted as any).id)) return prev;
+      return [...prev, inserted as MessageRow];
+    });
+
     setText("");
     setSending(false);
     setTimeout(scrollToBottom, 50);
@@ -178,7 +182,7 @@ export default function ConversationPage({
     <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ marginBottom: 8 }}>Conversation</h1>
       <div style={{ fontFamily: "monospace", fontSize: 12, marginBottom: 16 }}>
-        request_id: {requestId}
+        request_id: {String(requestId)}
       </div>
 
       <pre
@@ -194,7 +198,7 @@ export default function ConversationPage({
           overflowX: "auto",
         }}
       >
-        {JSON.stringify(debug, null, 2)}
+        {JSON.stringify({ params, requestId, debug }, null, 2)}
       </pre>
 
       <div
@@ -222,47 +226,4 @@ export default function ConversationPage({
             </div>
           ))
         )}
-        <div ref={bottomRef} />
-      </div>
-
-      {error && (
-        <div style={{ marginTop: 12, color: "crimson" }}>
-          <b>Error:</b> {error}
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Type a message…"
-          style={{
-            flex: 1,
-            padding: 12,
-            borderRadius: 10,
-            border: "1px solid #ddd",
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          disabled={sending}
-        />
-        <button
-          onClick={send}
-          disabled={sending || text.trim().length === 0}
-          style={{
-            padding: "12px 16px",
-            borderRadius: 10,
-            border: "1px solid #ddd",
-            cursor: sending ? "not-allowed" : "pointer",
-          }}
-        >
-          {sending ? "Sending…" : "Send"}
-        </button>
-      </div>
-    </div>
-  );
-}
+        <div re
