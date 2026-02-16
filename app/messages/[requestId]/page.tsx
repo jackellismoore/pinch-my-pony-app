@@ -12,12 +12,14 @@ type Profile = {
   display_name: string | null
   full_name: string | null
   avatar_url: string | null
+  last_seen_at: string | null
 }
 
 type OtherUser = {
   id: string
   display_name: string
   avatar_url: string | null
+  last_seen_at: string | null
 }
 
 type ThreadHeader = {
@@ -54,6 +56,18 @@ function groupPos(prev: AnyMsg | null, cur: AnyMsg, next: AnyMsg | null) {
   if (!prevSame && nextSame) return "start" as const
   if (prevSame && nextSame) return "middle" as const
   return "end" as const
+}
+
+function timeAgo(iso: string) {
+  const t = new Date(iso).getTime()
+  const now = Date.now()
+  const sec = Math.max(1, Math.floor((now - t) / 1000))
+  if (sec < 60) return `${sec}s ago`
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  return new Date(iso).toLocaleString()
 }
 
 export default function MessageThreadPage() {
@@ -94,6 +108,9 @@ export default function MessageThreadPage() {
 
   // Track near-bottom so we don’t yank user while reading older messages
   const [isNearBottom, setIsNearBottom] = useState(true)
+
+  // last seen polling for other user
+  const [otherLastSeenAt, setOtherLastSeenAt] = useState<string | null>(null)
 
   // ----- Auth load -----
   useEffect(() => {
@@ -155,7 +172,7 @@ export default function MessageThreadPage() {
 
       const { data: prof, error: profErr } = await supabase
         .from("profiles")
-        .select("id, display_name, full_name, avatar_url")
+        .select("id, display_name, full_name, avatar_url, last_seen_at")
         .eq("id", otherId)
         .maybeSingle()
 
@@ -167,9 +184,17 @@ export default function MessageThreadPage() {
         cleanName((prof as Profile | null)?.full_name) ||
         "User"
 
+      const lastSeen = (prof as Profile | null)?.last_seen_at ?? null
+      setOtherLastSeenAt(lastSeen)
+
       setHeader({
         horse_name: horse.name,
-        other_user: { id: otherId, display_name: display, avatar_url: (prof as Profile | null)?.avatar_url ?? null },
+        other_user: {
+          id: otherId,
+          display_name: display,
+          avatar_url: (prof as Profile | null)?.avatar_url ?? null,
+          last_seen_at: lastSeen,
+        },
       })
 
       setHeaderLoading(false)
@@ -179,6 +204,65 @@ export default function MessageThreadPage() {
       cancelled = true
     }
   }, [requestId, myUserId])
+
+  const otherUserId = header?.other_user?.id ?? null
+
+  // ----- Update my last_seen_at periodically while on this page -----
+  useEffect(() => {
+    if (!myUserId) return
+
+    const ping = async () => {
+      await supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", myUserId)
+    }
+
+    ping()
+    const id = window.setInterval(ping, 25000)
+
+    const onVis = () => {
+      if (document.visibilityState === "visible") ping()
+    }
+    window.addEventListener("visibilitychange", onVis)
+
+    const onBeforeUnload = () => {
+      // best-effort
+      navigator.sendBeacon?.(
+        "/api/last-seen",
+        JSON.stringify({ ts: new Date().toISOString() })
+      )
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener("visibilitychange", onVis)
+      window.removeEventListener("beforeunload", onBeforeUnload)
+    }
+  }, [myUserId])
+
+  // ----- Poll other user's last_seen_at while offline (lightweight) -----
+  useEffect(() => {
+    if (!otherUserId) return
+
+    let cancelled = false
+
+    const fetchLastSeen = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("last_seen_at")
+        .eq("id", otherUserId)
+        .maybeSingle()
+      if (cancelled) return
+      setOtherLastSeenAt((data as any)?.last_seen_at ?? null)
+    }
+
+    fetchLastSeen()
+    const id = window.setInterval(fetchLastSeen, 30000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [otherUserId])
 
   // ----- Presence (online indicator) -----
   useEffect(() => {
@@ -424,6 +508,12 @@ export default function MessageThreadPage() {
   const horseName = header?.horse_name ?? ""
   const avatarUrl = header?.other_user?.avatar_url ?? ""
 
+  const statusText = otherOnline
+    ? "Online"
+    : otherLastSeenAt
+      ? `Last seen ${timeAgo(otherLastSeenAt)}`
+      : "Offline"
+
   return (
     <div style={{ height: "calc(100vh - 60px)", display: "flex", flexDirection: "column", background: "#f6f7fb" }}>
       {/* Header */}
@@ -490,7 +580,7 @@ export default function MessageThreadPage() {
                   display: "inline-block",
                 }}
               />
-              {otherOnline ? "Online" : "Offline"}
+              {statusText}
             </div>
           </div>
         </div>
