@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type MessageRow = {
@@ -14,9 +14,8 @@ type MessageRow = {
 
 export default function ConversationPage() {
   const params = useParams<{ requestId?: string; id?: string }>();
-  const router = useRouter();
 
-  // Support either /messages/[requestId] OR /messages/[id]
+  // supports /messages/[requestId] OR /messages/[id]
   const requestId = (params?.requestId ?? params?.id) as string | undefined;
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -60,33 +59,7 @@ export default function ConversationPage() {
       const uid = authData.user.id;
       setUserId(uid);
 
-      // 1) Ensure conversation exists (optional)
-      const { data: existing, error: checkErr } = await supabase
-        .from("conversations")
-        .select("id, request_id")
-        .eq("request_id", requestId)
-        .maybeSingle();
-
-      if (checkErr) {
-        setDebug({ step: "check_conversation", requestId, checkErr });
-      }
-
-      if (!existing) {
-        const { error: createErr } = await supabase
-          .from("conversations")
-          .insert({ request_id: requestId });
-
-        if (createErr) {
-          setDebug({
-            step: "create_conversation_failed",
-            requestId,
-            createErr,
-          });
-          // not fatal
-        }
-      }
-
-      // 2) Load messages
+      // 1) Load messages
       const { data: msgs, error: msgErr } = await supabase
         .from("messages")
         .select("id, request_id, sender_id, content, created_at")
@@ -105,7 +78,7 @@ export default function ConversationPage() {
       setLoading(false);
       setTimeout(scrollToBottom, 50);
 
-      // 3) Realtime subscription (optional)
+      // 2) Realtime subscribe (optional)
       const channel = supabase
         .channel(`messages:${requestId}`)
         .on(
@@ -132,6 +105,7 @@ export default function ConversationPage() {
       };
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     init();
   }, [requestId]);
 
@@ -181,6 +155,7 @@ export default function ConversationPage() {
   return (
     <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ marginBottom: 8 }}>Conversation</h1>
+
       <div style={{ fontFamily: "monospace", fontSize: 12, marginBottom: 16 }}>
         request_id: {String(requestId)}
       </div>
@@ -226,4 +201,51 @@ export default function ConversationPage() {
             </div>
           ))
         )}
-        <div re
+        <div ref={bottomRef} />
+      </div>
+
+      {error && (
+        <div style={{ marginTop: 12, color: "crimson" }}>
+          <b>Error:</b> {error}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type a message…"
+          style={{
+            flex: 1,
+            padding: 12,
+            borderRadius: 10,
+            border: "1px solid #ddd",
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+              send();
+            }
+          }}
+          disabled={sending}
+        />
+        <button
+          onClick={() => {
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            send();
+          }}
+          disabled={sending || text.trim().length === 0}
+          style={{
+            padding: "12px 16px",
+            borderRadius: 10,
+            border: "1px solid #ddd",
+            cursor: sending ? "not-allowed" : "pointer",
+          }}
+        >
+          {sending ? "Sending…" : "Send"}
+        </button>
+      </div>
+    </div>
+  );
+}
