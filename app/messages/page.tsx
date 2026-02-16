@@ -139,7 +139,6 @@ export default function MessagesPage() {
       maxWidth: 660,
       opacity: 0.92,
     } as React.CSSProperties,
-    meta: { marginTop: 4, fontSize: 12, color: "#6b7280" } as React.CSSProperties,
     right: { display: "flex", alignItems: "center", gap: 10 } as React.CSSProperties,
     badge: {
       background: "linear-gradient(135deg, #ef4444, #f43f5e)",
@@ -172,21 +171,11 @@ export default function MessagesPage() {
       backgroundSize: "200% 100%",
       animation: "shimmer 1.2s infinite",
     } as React.CSSProperties,
-    empty: {
-      borderRadius: 18,
-      border: "1px dashed rgba(15,23,42,0.18)",
-      padding: 22,
-      color: "#374151",
-      background: "rgba(255,255,255,0.7)",
-      fontWeight: 700,
-    } as React.CSSProperties,
   };
 
   return (
     <div style={styles.page}>
-      <style>{`
-        @keyframes shimmer { 0% { background-position: 0% 0; } 100% { background-position: 200% 0; } }
-      `}</style>
+      <style>{`@keyframes shimmer { 0% { background-position: 0% 0; } 100% { background-position: 200% 0; } }`}</style>
 
       <div style={styles.shell}>
         <div style={styles.headerRow}>
@@ -194,14 +183,13 @@ export default function MessagesPage() {
             <h1 style={styles.title}>Messages</h1>
             <p style={styles.subtitle}>Chats with borrowers and owners.</p>
           </div>
-
           <div style={styles.pill}>
             <span style={{ opacity: 0.7 }}>Unread</span>
             <span style={{ fontWeight: 950 }}>{totalUnread}</span>
           </div>
         </div>
 
-        {/* Keep debug for now; delete later */}
+        {/* keep for now */}
         <pre
           style={{
             background: "rgba(17,24,39,0.92)",
@@ -213,7 +201,6 @@ export default function MessagesPage() {
             marginBottom: 16,
             whiteSpace: "pre-wrap",
             border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow: "0 10px 30px rgba(15,23,42,0.12)",
           }}
         >
           {JSON.stringify(debug, null, 2)}
@@ -225,8 +212,6 @@ export default function MessagesPage() {
             <div style={styles.skeleton} />
             <div style={styles.skeleton} />
           </div>
-        ) : threads.length === 0 ? (
-          <div style={styles.empty}>No conversations yet.</div>
         ) : (
           <div style={styles.list}>
             {threads.map((t) => {
@@ -244,7 +229,6 @@ export default function MessagesPage() {
                         <img src={t.other_avatar_url} alt={name} style={styles.avatarImg} />
                       ) : null}
                     </div>
-
                     <div style={styles.textBlock}>
                       <div style={styles.topLine}>
                         <span style={styles.name}>{name}</span>
@@ -259,9 +243,7 @@ export default function MessagesPage() {
                           </>
                         ) : null}
                       </div>
-
                       <div style={styles.preview}>{preview}</div>
-                      <div style={styles.meta}>Tap to open the chat</div>
                     </div>
                   </div>
 
