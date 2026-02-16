@@ -10,12 +10,11 @@ type MessageRow = {
   sender_id: string;
   content: string;
   created_at: string;
+  read_at: string | null;
 };
 
 export default function ConversationPage() {
   const params = useParams<{ requestId?: string; id?: string }>();
-
-  // supports /messages/[requestId] OR /messages/[id]
   const requestId = (params?.requestId ?? params?.id) as string | undefined;
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -27,14 +26,34 @@ export default function ConversationPage() {
   const [debug, setDebug] = useState<any>(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
-
-  const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const scrollToBottom = () => bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 
   const labelForSender = useMemo(() => {
     return (senderId: string) => (senderId === userId ? "Me" : "Them");
   }, [userId]);
+
+  const markRead = async (uid: string, rid: string) => {
+    // Mark all messages in this request as read WHERE:
+    // - not sent by me
+    // - unread
+    const { error: updErr } = await supabase
+      .from("messages")
+      .update({ read_at: new Date().toISOString() })
+      .eq("request_id", rid)
+      .neq("sender_id", uid)
+      .is("read_at", null);
+
+    if (updErr) {
+      setDebug((d: any) => ({ ...(d ?? {}), step: "mark_read_failed", updErr }));
+    } else {
+      // Update local state too (nice UX)
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.sender_id !== uid && m.read_at == null ? { ...m, read_at: new Date().toISOString() } : m
+        )
+      );
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -48,7 +67,6 @@ export default function ConversationPage() {
         return;
       }
 
-      // 0) Auth
       const { data: authData, error: authErr } = await supabase.auth.getUser();
       if (authErr || !authData?.user) {
         setError("Not logged in.");
@@ -56,13 +74,13 @@ export default function ConversationPage() {
         setLoading(false);
         return;
       }
+
       const uid = authData.user.id;
       setUserId(uid);
 
-      // 1) Load messages
       const { data: msgs, error: msgErr } = await supabase
         .from("messages")
-        .select("id, request_id, sender_id, content, created_at")
+        .select("id, request_id, sender_id, content, created_at, read_at")
         .eq("request_id", requestId)
         .order("created_at", { ascending: true });
 
@@ -78,7 +96,10 @@ export default function ConversationPage() {
       setLoading(false);
       setTimeout(scrollToBottom, 50);
 
-      // 2) Realtime subscribe (optional)
+      // ✅ Mark as read when opening the convo
+      await markRead(uid, requestId);
+
+      // Realtime: if new message arrives, add it; if it’s from them and we’re viewing, mark read immediately
       const channel = supabase
         .channel(`messages:${requestId}`)
         .on(
@@ -89,13 +110,19 @@ export default function ConversationPage() {
             table: "messages",
             filter: `request_id=eq.${requestId}`,
           },
-          (payload) => {
+          async (payload) => {
             const newMsg = payload.new as MessageRow;
+
             setMessages((prev) => {
               if (prev.some((m) => m.id === newMsg.id)) return prev;
               return [...prev, newMsg];
             });
+
             setTimeout(scrollToBottom, 50);
+
+            if (newMsg.sender_id !== uid) {
+              await markRead(uid, requestId);
+            }
           }
         )
         .subscribe();
@@ -110,14 +137,8 @@ export default function ConversationPage() {
   }, [requestId]);
 
   const send = async () => {
-    if (!userId) {
-      setError("Not logged in.");
-      return;
-    }
-    if (!requestId) {
-      setError("Missing requestId in URL.");
-      return;
-    }
+    if (!userId) return setError("Not logged in.");
+    if (!requestId) return setError("Missing requestId in URL.");
 
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -132,7 +153,7 @@ export default function ConversationPage() {
         sender_id: userId,
         content: trimmed,
       })
-      .select("id, request_id, sender_id, content, created_at")
+      .select("id, request_id, sender_id, content, created_at, read_at")
       .single();
 
     if (insertErr) {
@@ -194,8 +215,8 @@ export default function ConversationPage() {
           messages.map((m) => (
             <div key={m.id} style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 12, opacity: 0.7 }}>
-                {labelForSender(m.sender_id)} •{" "}
-                {new Date(m.created_at).toLocaleString()}
+                {labelForSender(m.sender_id)} • {new Date(m.created_at).toLocaleString()}
+                {m.sender_id !== userId && m.read_at ? " • read" : ""}
               </div>
               <div style={{ padding: "6px 0" }}>{m.content}</div>
             </div>
@@ -215,12 +236,7 @@ export default function ConversationPage() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Type a message…"
-          style={{
-            flex: 1,
-            padding: 12,
-            borderRadius: 10,
-            border: "1px solid #ddd",
-          }}
+          style={{ flex: 1, padding: 12, borderRadius: 10, border: "1px solid #ddd" }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
