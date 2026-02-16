@@ -30,7 +30,6 @@ function timeAgo(iso: string) {
 export default function MessagesPage() {
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [debug, setDebug] = useState<any>(null);
 
   const totalUnread = useMemo(
     () => threads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0),
@@ -43,7 +42,7 @@ export default function MessagesPage() {
 
       const { data: authData, error: authErr } = await supabase.auth.getUser();
       if (authErr || !authData?.user) {
-        setDebug({ step: "auth", authErr });
+        setThreads([]);
         setLoading(false);
         return;
       }
@@ -56,13 +55,12 @@ export default function MessagesPage() {
         .order("last_message_at", { ascending: false });
 
       if (error) {
-        setDebug({ step: "load_threads", error });
+        setThreads([]);
         setLoading(false);
         return;
       }
 
       setThreads((data as ThreadRow[]) ?? []);
-      setDebug({ step: "done", count: data?.length ?? 0 });
       setLoading(false);
     };
 
@@ -85,7 +83,7 @@ export default function MessagesPage() {
       marginBottom: 18,
     } as React.CSSProperties,
     title: { fontSize: 28, fontWeight: 900, letterSpacing: -0.6, margin: 0 } as React.CSSProperties,
-    subtitle: { margin: "6px 0 0", color: "#4b5563", fontSize: 14 } as React.CSSProperties,
+    subtitle: { margin: "6px 0 0", color: "#4b5563", fontSize: 14, fontWeight: 650 } as React.CSSProperties,
     pill: {
       display: "inline-flex",
       alignItems: "center",
@@ -97,7 +95,7 @@ export default function MessagesPage() {
       boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
       fontSize: 13,
       color: "#111827",
-      fontWeight: 750,
+      fontWeight: 800,
       whiteSpace: "nowrap",
     } as React.CSSProperties,
     list: { display: "flex", flexDirection: "column", gap: 10 } as React.CSSProperties,
@@ -171,6 +169,13 @@ export default function MessagesPage() {
       backgroundSize: "200% 100%",
       animation: "shimmer 1.2s infinite",
     } as React.CSSProperties,
+    empty: {
+      borderRadius: 18,
+      border: "1px dashed rgba(15,23,42,0.18)",
+      padding: 26,
+      background: "rgba(255,255,255,0.72)",
+      boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
+    } as React.CSSProperties,
   };
 
   return (
@@ -189,28 +194,20 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {/* keep for now */}
-        <pre
-          style={{
-            background: "rgba(17,24,39,0.92)",
-            color: "#86efac",
-            padding: 14,
-            borderRadius: 14,
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-            fontSize: 12,
-            marginBottom: 16,
-            whiteSpace: "pre-wrap",
-            border: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          {JSON.stringify(debug, null, 2)}
-        </pre>
-
         {loading ? (
           <div style={{ display: "grid", gap: 10 }}>
             <div style={styles.skeleton} />
             <div style={styles.skeleton} />
             <div style={styles.skeleton} />
+          </div>
+        ) : threads.length === 0 ? (
+          <div style={styles.empty}>
+            <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 6, color: "#111827" }}>
+              No messages yet
+            </div>
+            <div style={{ color: "#4b5563", fontSize: 14, fontWeight: 650, lineHeight: 1.4 }}>
+              When you chat with a borrower or owner, conversations will show up here.
+            </div>
           </div>
         ) : (
           <div style={styles.list}>
@@ -229,6 +226,7 @@ export default function MessagesPage() {
                         <img src={t.other_avatar_url} alt={name} style={styles.avatarImg} />
                       ) : null}
                     </div>
+
                     <div style={styles.textBlock}>
                       <div style={styles.topLine}>
                         <span style={styles.name}>{name}</span>
@@ -243,6 +241,7 @@ export default function MessagesPage() {
                           </>
                         ) : null}
                       </div>
+
                       <div style={styles.preview}>{preview}</div>
                     </div>
                   </div>
