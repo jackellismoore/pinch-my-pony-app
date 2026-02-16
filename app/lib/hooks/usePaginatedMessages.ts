@@ -1,7 +1,16 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
+import { supabase } from "@/app/lib/supabaseClient" // ✅ matches your repo tree
+
+export type Message = {
+  id: string
+  request_id: string
+  sender_id: string
+  content: string
+  created_at: string
+  read_at: string | null
+}
 
 const PAGE_SIZE = 40
 
@@ -32,21 +41,24 @@ export function usePaginatedMessages(requestId: string) {
 
   const mergeMessages = useCallback((msgs: Message[]) => {
     let changed = false
+
     for (const m of msgs) {
-      if (!mapRef.current.has(m.id)) {
+      const existing = mapRef.current.get(m.id)
+
+      if (!existing) {
         mapRef.current.set(m.id, m)
         changed = true
-      } else {
-        // optional: update existing message (e.g. read_at changes)
-        const existing = mapRef.current.get(m.id)!
-        // minimal merge:
-        if (existing.read_at !== m.read_at) {
-          mapRef.current.set(m.id, { ...existing, read_at: m.read_at })
-          changed = true
-        }
+        continue
+      }
+
+      // Minimal merge for fields that can change (ex: read_at)
+      if (existing.read_at !== m.read_at) {
+        mapRef.current.set(m.id, { ...existing, read_at: m.read_at })
+        changed = true
       }
     }
-    if (changed) setVersion(v => v + 1)
+
+    if (changed) setVersion((v) => v + 1)
   }, [])
 
   const setOldestCursorFromCurrent = useCallback(() => {
@@ -63,7 +75,6 @@ export function usePaginatedMessages(requestId: string) {
   const loadInitial = useCallback(async () => {
     setLoadingInitial(true)
 
-    // Newest first, limit, then merge
     const { data, error } = await supabase
       .from("messages")
       .select("id, request_id, sender_id, content, created_at, read_at")
@@ -72,16 +83,16 @@ export function usePaginatedMessages(requestId: string) {
       .order("id", { ascending: false })
       .limit(PAGE_SIZE)
 
-    if (!error && data) {
-      mergeMessages(data)
-      setHasMore(data.length === PAGE_SIZE)
-
-      // oldest cursor needs to reflect *after* merge
-      setOldestCursorFromCurrent()
-    } else {
-      // handle error (toast/log)
+    if (error) {
+      console.error("loadInitial messages error:", error)
       setHasMore(false)
+      setLoadingInitial(false)
+      return
     }
+
+    mergeMessages((data ?? []) as Message[])
+    setHasMore((data ?? []).length === PAGE_SIZE)
+    setOldestCursorFromCurrent()
 
     setLoadingInitial(false)
   }, [mergeMessages, requestId, setOldestCursorFromCurrent])
@@ -93,30 +104,39 @@ export function usePaginatedMessages(requestId: string) {
 
     setLoadingMore(true)
 
-    // "Good enough" version: created_at < cursor.created_at
-    // plus dedupe. If you want perfect tie-break handling, use RPC below.
     const { data, error } = await supabase
       .from("messages")
       .select("id, request_id, sender_id, content, created_at, read_at")
       .eq("request_id", requestId)
-      .lt("created_at", cursor.created_at)
+      .lt("created_at", cursor.created_at) // (good enough) + dedupe
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(PAGE_SIZE)
 
-    if (!error && data) {
-      mergeMessages(data)
-      setHasMore(data.length === PAGE_SIZE)
-      setOldestCursorFromCurrent()
-    } else {
+    if (error) {
+      console.error("loadMore messages error:", error)
       setHasMore(false)
+      setLoadingMore(false)
+      return
     }
+
+    mergeMessages((data ?? []) as Message[])
+    setHasMore((data ?? []).length === PAGE_SIZE)
+    setOldestCursorFromCurrent()
 
     setLoadingMore(false)
   }, [hasMore, loadingMore, mergeMessages, requestId, setOldestCursorFromCurrent])
 
   // Realtime INSERT merge
   useEffect(() => {
+    if (!requestId) return
+
+    // reset local state when requestId changes
+    mapRef.current = new Map()
+    oldestCursorRef.current = null
+    setHasMore(true)
+    setVersion((v) => v + 1)
+
     loadInitial()
 
     const channel = supabase
@@ -137,9 +157,6 @@ export function usePaginatedMessages(requestId: string) {
 
     return () => {
       supabase.removeChannel(channel)
-      mapRef.current.clear()
-      oldestCursorRef.current = null
-      setVersion(v => v + 1)
     }
   }, [requestId, loadInitial, mergeMessages])
 
