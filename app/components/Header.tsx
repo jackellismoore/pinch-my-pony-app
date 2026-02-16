@@ -1,32 +1,47 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
+import Link from "next/link"
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabaseClient"
+import { useRouter } from "next/navigation"
 
 export default function Header() {
-  const [user, setUser] = useState<any>(null);
-  const router = useRouter();
+  const [user, setUser] = useState<any>(null)
+  const router = useRouter()
 
   useEffect(() => {
-    checkUser();
-  }, []);
+    let mounted = true
 
-  const checkUser = async () => {
-    const { data } = await supabase.auth.getUser();
-    setUser(data.user);
-  };
+    const init = async () => {
+      const { data } = await supabase.auth.getUser()
+      if (!mounted) return
+      setUser(data.user ?? null)
+    }
+
+    init()
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => {
+      mounted = false
+      sub.subscription.unsubscribe()
+    }
+  }, [])
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    router.push("/");
-    router.refresh();
-  };
+    await supabase.auth.signOut()
+    router.push("/")
+    router.refresh()
+  }
 
   return (
     <header
       style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -35,12 +50,20 @@ export default function Header() {
         background: "white",
       }}
     >
-      <Link href="/" style={{ fontWeight: 700, fontSize: 18 }}>
+      <Link
+        href="/"
+        style={{
+          fontWeight: 700,
+          fontSize: 18,
+          textDecoration: "none",
+          color: "#0f172a",
+        }}
+      >
         🐴 Pinch My Pony
       </Link>
 
       <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-        {user && (
+        {user ? (
           <>
             <Link href="/browse">Browse</Link>
             <Link href="/messages">Messages</Link>
@@ -59,9 +82,7 @@ export default function Header() {
               Logout
             </button>
           </>
-        )}
-
-        {!user && (
+        ) : (
           <>
             <Link href="/login">Login</Link>
             <Link href="/signup">Sign Up</Link>
@@ -69,5 +90,5 @@ export default function Header() {
         )}
       </div>
     </header>
-  );
+  )
 }
