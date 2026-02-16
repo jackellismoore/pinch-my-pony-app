@@ -1,64 +1,69 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import Link from "next/link";
+
+type Conversation = {
+  id: string;
+  request_id: string;
+};
 
 export default function MessagesPage() {
-  const [rawData, setRawData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [debug, setDebug] = useState<any>(null);
 
   useEffect(() => {
     loadConversations();
   }, []);
 
   const loadConversations = async () => {
-    setLoading(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    console.log("Logged in user:", user);
-
     const { data, error } = await supabase
       .from("conversations")
-      .select(`
-        *,
-        borrow_requests (
-          *,
-          horses (
-            *
-          )
-        )
-      `);
+      .select("*");
 
-    console.log("Conversations RAW:", data);
-    console.log("Error:", error);
+    if (error) {
+      console.error(error);
+      return;
+    }
 
-    setRawData(data || []);
-    setLoading(false);
+    setDebug(data);
+    setConversations(data || []);
   };
-
-  if (loading) {
-    return <div style={{ padding: 40 }}>Loading...</div>;
-  }
 
   return (
     <div style={{ padding: 40 }}>
       <h1>Messages Debug</h1>
 
-      <pre
+      <div
         style={{
-          background: "#111",
-          color: "#0f0",
+          background: "#000",
+          color: "#00ff00",
           padding: 20,
           borderRadius: 10,
-          overflowX: "auto",
+          marginBottom: 30,
+          fontFamily: "monospace",
+          fontSize: 14,
         }}
       >
-        {JSON.stringify(rawData, null, 2)}
-      </pre>
+        {JSON.stringify(debug, null, 2)}
+      </div>
+
+      {conversations.map((conv) => (
+        <div
+          key={conv.id}
+          style={{
+            border: "1px solid #ddd",
+            padding: 15,
+            borderRadius: 8,
+            marginBottom: 15,
+          }}
+        >
+          <Link href={`/messages/${conv.request_id}`}>
+            Open Conversation
+          </Link>
+        </div>
+      ))}
     </div>
   );
 }
