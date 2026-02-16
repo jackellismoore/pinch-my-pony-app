@@ -1,13 +1,16 @@
 "use client"
 
-import type { Message } from "@/lib/hooks/usePaginatedMessages"
-
-type GroupPos = "single" | "start" | "middle" | "end"
-
-// allow optional optimistic state without forcing hook types
-type BubbleMessage = Message & {
+type BubbleMessage = {
+  id: string
+  request_id: string
+  sender_id: string
+  content: string
+  created_at: string
+  read_at: string | null
   client_status?: "pending" | "sent" | "error"
 }
+
+type GroupPos = "single" | "start" | "middle" | "end"
 
 function formatTime(iso: string) {
   const d = new Date(iso)
@@ -88,7 +91,7 @@ export default function MessageBubble({
       ? "rgba(239,68,68,0.18)"
       : mine
         ? "rgba(37,99,235,0.92)"
-        : "rgba(255,255,255,0.78)"
+        : "rgba(255,255,255,0.85)"
 
   const fg = mine ? "white" : "#0f172a"
   const status = checks(message, mine)
@@ -103,12 +106,16 @@ export default function MessageBubble({
           background: bg,
           color: fg,
           boxShadow: "0 10px 20px rgba(0,0,0,0.08)",
-          border: mine ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(15,23,42,0.08)",
+          border: mine
+            ? "1px solid rgba(255,255,255,0.18)"
+            : "1px solid rgba(15,23,42,0.08)",
           wordBreak: "break-word",
           opacity: message.client_status === "pending" ? 0.82 : 1,
         }}
       >
-        <div style={{ fontSize: 14, lineHeight: 1.45 }}>{message.content}</div>
+        <div style={{ fontSize: 14, lineHeight: 1.45 }}>
+          {message.content}
+        </div>
 
         <div
           style={{
@@ -125,11 +132,11 @@ export default function MessageBubble({
           {mine ? <span style={{ letterSpacing: 0.5 }}>{status}</span> : null}
         </div>
 
-        {message.client_status === "error" ? (
+        {message.client_status === "error" && (
           <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>
-            Failed to send — tap Send again
+            Failed to send
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   )
