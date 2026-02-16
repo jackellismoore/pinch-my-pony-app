@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
-import { usePaginatedMessages } from "@/lib/hooks/usePaginatedMessages"
+import { usePaginatedMessages, type UIMessage } from "@/lib/hooks/usePaginatedMessages"
 import MessageBubble from "@/components/MessageBubble"
 import TypingBubbleInline from "@/components/TypingBubbleInline"
 
@@ -27,16 +27,6 @@ type ThreadHeader = {
   other_user: OtherUser | null
 }
 
-type AnyMsg = {
-  id: string
-  request_id: string
-  sender_id: string
-  content: string
-  created_at: string
-  read_at: string | null
-  client_status?: "pending" | "sent" | "error"
-}
-
 function cleanName(v: string | null | undefined) {
   const s = (v ?? "").trim()
   return s.length ? s : null
@@ -55,13 +45,13 @@ function timeAgo(iso: string) {
 }
 
 // grouping: same sender within 5 minutes
-function sameGroup(a: AnyMsg, b: AnyMsg) {
+function sameGroup(a: UIMessage, b: UIMessage) {
   if (a.sender_id !== b.sender_id) return false
   const dt = Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   return dt <= 5 * 60 * 1000
 }
 
-function groupPos(prev: AnyMsg | null, cur: AnyMsg, next: AnyMsg | null) {
+function groupPos(prev: UIMessage | null, cur: UIMessage, next: UIMessage | null) {
   const prevSame = prev ? sameGroup(prev, cur) : false
   const nextSame = next ? sameGroup(cur, next) : false
   if (!prevSame && !nextSame) return "single" as const
@@ -85,11 +75,12 @@ export default function MessageThreadPage() {
 
   const [otherOnline, setOtherOnline] = useState(false)
   const [otherTyping, setOtherTyping] = useState(false)
+  const [otherLastSeenAt, setOtherLastSeenAt] = useState<string | null>(null)
 
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
-  const typingGlobalRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const typingStopTimerRef = useRef<number | null>(null)
 
   const scrollerRef = useRef<HTMLDivElement | null>(null)
@@ -97,21 +88,10 @@ export default function MessageThreadPage() {
   const didAutoScrollRef = useRef(false)
   const [isNearBottom, setIsNearBottom] = useState(true)
 
-  const [otherLastSeenAt, setOtherLastSeenAt] = useState<string | null>(null)
+  const { messages, loadMore, hasMore, loadingMore, loadingInitial, sendOptimistic, retryOptimistic } =
+    usePaginatedMessages(requestId)
 
-  const {
-    messages,
-    loadMore,
-    hasMore,
-    loadingMore,
-    loadingInitial,
-    sendOptimistic,
-    retryOptimistic,
-  } = usePaginatedMessages(requestId)
-
-  const msgs = messages as AnyMsg[]
-
-  // ----- Auth -----
+  // ---- Auth ----
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -131,7 +111,7 @@ export default function MessageThreadPage() {
     }
   }, [])
 
-  // ----- Header (horse + other profile) -----
+  // ---- Header (horse + other profile) ----
   useEffect(() => {
     if (!requestId || !myUserId) return
     let cancelled = false
@@ -139,21 +119,33 @@ export default function MessageThreadPage() {
     ;(async () => {
       setHeaderLoading(true)
 
-      const { data: req } = await supabase
+      const { data: req, error: reqErr } = await supabase
         .from("borrow_requests")
         .select("id, horse_id, borrower_id")
         .eq("id", requestId)
         .single()
 
-      if (cancelled || !req) return
+      if (cancelled) return
+      if (reqErr || !req) {
+        console.error("Header: borrow_requests error", reqErr)
+        setHeader(null)
+        setHeaderLoading(false)
+        return
+      }
 
-      const { data: horse } = await supabase
+      const { data: horse, error: horseErr } = await supabase
         .from("horses")
         .select("id, name, owner_id")
         .eq("id", req.horse_id)
         .single()
 
-      if (cancelled || !horse) return
+      if (cancelled) return
+      if (horseErr || !horse) {
+        console.error("Header: horses error", horseErr)
+        setHeader(null)
+        setHeaderLoading(false)
+        return
+      }
 
       const otherId: string = horse.owner_id === myUserId ? req.borrower_id : horse.owner_id
 
@@ -165,21 +157,18 @@ export default function MessageThreadPage() {
 
       if (cancelled) return
 
-      const display =
-        cleanName((prof as Profile | null)?.display_name) ||
-        cleanName((prof as Profile | null)?.full_name) ||
-        "User"
+      const p = prof as Profile | null
+      const display = cleanName(p?.display_name) || cleanName(p?.full_name) || "User"
 
-      const lastSeen = (prof as Profile | null)?.last_seen_at ?? null
-      setOtherLastSeenAt(lastSeen)
+      setOtherLastSeenAt(p?.last_seen_at ?? null)
 
       setHeader({
         horse_name: horse.name,
         other_user: {
           id: otherId,
           display_name: display,
-          avatar_url: (prof as Profile | null)?.avatar_url ?? null,
-          last_seen_at: lastSeen,
+          avatar_url: p?.avatar_url ?? null,
+          last_seen_at: p?.last_seen_at ?? null,
         },
       })
 
@@ -193,40 +182,7 @@ export default function MessageThreadPage() {
 
   const otherUserId = header?.other_user?.id ?? null
 
-  // ----- Update my last_seen_at while on page -----
-  useEffect(() => {
-    if (!myUserId) return
-    const ping = async () => {
-      await supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", myUserId)
-    }
-    ping()
-    const id = window.setInterval(ping, 25000)
-    const onVis = () => document.visibilityState === "visible" && ping()
-    window.addEventListener("visibilitychange", onVis)
-    return () => {
-      window.clearInterval(id)
-      window.removeEventListener("visibilitychange", onVis)
-    }
-  }, [myUserId])
-
-  // ----- Poll other last seen when offline -----
-  useEffect(() => {
-    if (!otherUserId) return
-    let cancelled = false
-    const fetchLastSeen = async () => {
-      const { data } = await supabase.from("profiles").select("last_seen_at").eq("id", otherUserId).maybeSingle()
-      if (cancelled) return
-      setOtherLastSeenAt((data as any)?.last_seen_at ?? null)
-    }
-    fetchLastSeen()
-    const id = window.setInterval(fetchLastSeen, 30000)
-    return () => {
-      cancelled = true
-      window.clearInterval(id)
-    }
-  }, [otherUserId])
-
-  // ----- Presence -----
+  // ---- Presence online indicator ----
   useEffect(() => {
     if (!requestId || !myUserId) return
 
@@ -256,7 +212,7 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // ----- Global typing channel -----
+  // ---- Typing broadcast (single global channel; filtered by requestId) ----
   useEffect(() => {
     if (!myUserId) return
 
@@ -268,24 +224,22 @@ export default function MessageThreadPage() {
           user_id?: string
           typing?: boolean
         }
-
         if (!request_id || request_id !== requestId) return
         if (!user_id || user_id === myUserId) return
-
         setOtherTyping(Boolean(typing))
       })
       .subscribe()
 
-    typingGlobalRef.current = ch
+    typingChannelRef.current = ch
 
     return () => {
-      typingGlobalRef.current = null
+      typingChannelRef.current = null
       supabase.removeChannel(ch)
     }
   }, [myUserId, requestId])
 
   const broadcastTyping = (typing: boolean) => {
-    const ch = typingGlobalRef.current
+    const ch = typingChannelRef.current
     if (!ch || !myUserId || !requestId) return
     ch.send({
       type: "broadcast",
@@ -309,7 +263,7 @@ export default function MessageThreadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ----- Infinite scroll anchor -----
+  // ---- Infinite scroll (older messages) ----
   useEffect(() => {
     const sentinel = topSentinelRef.current
     const scroller = scrollerRef.current
@@ -337,20 +291,20 @@ export default function MessageThreadPage() {
     return () => obs.disconnect()
   }, [hasMore, loadingMore, loadMore])
 
-  // ----- near-bottom detection -----
+  // ---- near-bottom detection ----
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
     const onScroll = () => {
-      const distanceFromBottom = scroller.scrollHeight - (scroller.scrollTop + scroller.clientHeight)
-      setIsNearBottom(distanceFromBottom < 120)
+      const dist = scroller.scrollHeight - (scroller.scrollTop + scroller.clientHeight)
+      setIsNearBottom(dist < 120)
     }
     onScroll()
     scroller.addEventListener("scroll", onScroll, { passive: true })
     return () => scroller.removeEventListener("scroll", onScroll)
   }, [])
 
-  // ----- initial autoscroll -----
+  // ---- initial autoscroll ----
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
@@ -362,8 +316,8 @@ export default function MessageThreadPage() {
     })
   }, [loadingInitial])
 
-  // ----- autoscroll on new messages if near bottom -----
-  const lastMsgKey = msgs.length ? `${msgs[msgs.length - 1]!.id}:${msgs[msgs.length - 1]!.created_at}` : ""
+  // ---- autoscroll on new messages if near bottom ----
+  const lastMsgKey = messages.length ? `${messages[messages.length - 1]!.id}:${messages[messages.length - 1]!.created_at}` : ""
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
@@ -374,43 +328,47 @@ export default function MessageThreadPage() {
     })
   }, [lastMsgKey, isNearBottom])
 
-  // ----- autofocus -----
+  // ---- autofocus input ----
   useEffect(() => {
     if (!myUserId) return
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // ----- read receipts -----
+  // ---- Read receipts (mark unread as read) ----
   useEffect(() => {
     if (!requestId || !myUserId) return
-    if (msgs.length === 0) return
+    if (messages.length === 0) return
 
-    const unreadIds = msgs
+    const unreadIds = messages
       .filter((m) => m.sender_id !== myUserId && !m.read_at && !String(m.id).startsWith("temp-"))
       .map((m) => m.id)
 
     if (unreadIds.length === 0) return
 
     supabase.from("messages").update({ read_at: new Date().toISOString() }).in("id", unreadIds)
-  }, [msgs, myUserId, requestId])
+  }, [messages, myUserId, requestId])
 
-  // ----- grouped rendering -----
+  // ---- Group rendering ----
   const grouped = useMemo(() => {
-    return msgs.map((m, i) => {
-      const prev = i > 0 ? msgs[i - 1] : null
-      const next = i < msgs.length - 1 ? msgs[i + 1] : null
+    return messages.map((m, i) => {
+      const prev = i > 0 ? messages[i - 1] : null
+      const next = i < messages.length - 1 ? messages[i + 1] : null
       return { m, pos: groupPos(prev, m, next) }
     })
-  }, [msgs])
+  }, [messages])
 
-  // WhatsApp-style: status only on latest outgoing
+  // ---- show status only on latest outgoing ----
   const lastOutgoingId = useMemo(() => {
     if (!myUserId) return null
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      if (msgs[i]!.sender_id === myUserId) return msgs[i]!.id
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.sender_id === myUserId) return messages[i]!.id
     }
     return null
-  }, [msgs, myUserId])
+  }, [messages, myUserId])
+
+  const retry = async (tempId: string) => {
+    await retryOptimistic(tempId)
+  }
 
   const send = async () => {
     if (!myUserId || !requestId) return
@@ -420,38 +378,36 @@ export default function MessageThreadPage() {
     setDraft("")
     broadcastTyping(false)
 
-    await sendOptimistic(myUserId, text)
+    const result = await sendOptimistic(myUserId, text)
+
+    // 🔔 Best-effort push while sender is online
+    if (result.ok && otherUserId) {
+      fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: otherUserId,
+          title: "New message",
+          body: text,
+          url: `/messages/${requestId}`,
+        }),
+      }).catch(() => {})
+    }
 
     const scroller = scrollerRef.current
     if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight))
   }
 
-  const retry = async (tempId: string) => {
-    await retryOptimistic(tempId)
-  }
-
   if (!requestId) return <div style={{ padding: 20 }}>Missing requestId in URL</div>
   if (authLoading) return <div style={{ padding: 20, opacity: 0.75 }}>Loading session…</div>
-  if (!myUserId) {
-    return (
-      <div style={{ padding: 20 }}>
-        <div style={{ fontWeight: 900, marginBottom: 8 }}>You’re not logged in</div>
-        <a href="/login" style={{ color: "#2563eb", fontWeight: 900 }}>
-          Go to Login
-        </a>
-      </div>
-    )
-  }
+  if (!myUserId) return <div style={{ padding: 20 }}>You’re not logged in.</div>
 
   const otherName = header?.other_user?.display_name ?? "User"
   const horseName = header?.horse_name ?? ""
   const avatarUrl = header?.other_user?.avatar_url ?? ""
 
-  const statusText = otherOnline
-    ? "Online"
-    : otherLastSeenAt
-      ? `Last seen ${timeAgo(otherLastSeenAt)}`
-      : "Offline"
+  const statusText =
+    otherOnline ? "Online" : otherLastSeenAt ? `Last seen ${timeAgo(otherLastSeenAt)}` : "Offline"
 
   return (
     <div style={{ height: "calc(100vh - 60px)", display: "flex", flexDirection: "column", background: "#f6f7fb" }}>
@@ -468,10 +424,7 @@ export default function MessageThreadPage() {
         }}
       >
         <button
-          onClick={() => {
-            if (window.history.length > 1) router.back()
-            else router.push("/messages")
-          }}
+          onClick={() => router.push("/messages")}
           style={{
             border: "none",
             background: "transparent",
@@ -486,16 +439,7 @@ export default function MessageThreadPage() {
           ← Back
         </button>
 
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 999,
-            overflow: "hidden",
-            background: "rgba(15,23,42,0.06)",
-            flexShrink: 0,
-          }}
-        >
+        <div style={{ width: 40, height: 40, borderRadius: 999, overflow: "hidden", background: "rgba(15,23,42,0.06)" }}>
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt={otherName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />

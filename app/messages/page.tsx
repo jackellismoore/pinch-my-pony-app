@@ -22,9 +22,7 @@ export default function MessagesPage() {
 
     const { data, error } = await supabase
       .from("message_threads")
-      .select(
-        "request_id, horse_name, other_display_name, unread_count, last_message, last_message_at"
-      )
+      .select("request_id, horse_name, other_display_name, unread_count, last_message, last_message_at")
       .order("last_message_at", { ascending: false })
 
     if (error) {
@@ -41,19 +39,11 @@ export default function MessagesPage() {
   useEffect(() => {
     load()
 
-    // realtime refresh when messages change
+    // Refresh list when messages insert/update (keeps unread + last message fresh)
     const channel = supabase
       .channel("threads:refresh")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        () => load()
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
-        () => load()
-      )
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, load)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, load)
       .subscribe()
 
     return () => {
@@ -63,49 +53,39 @@ export default function MessagesPage() {
   }, [])
 
   return (
-    <div style={{ padding: 24, maxWidth: 760, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 20, fontWeight: 900, marginBottom: 16 }}>
-        Messages
-      </h1>
+    <div style={{ padding: 18, maxWidth: 760, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>Messages</h1>
 
       {loading ? (
         <div style={{ opacity: 0.7 }}>Loading…</div>
       ) : threads.length === 0 ? (
         <div style={{ opacity: 0.7 }}>No conversations yet.</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {threads.map((t) => (
             <Link
               key={t.request_id}
               href={`/messages/${t.request_id}`}
+              prefetch={false}
               style={{ textDecoration: "none" }}
             >
               <div
                 style={{
                   border: "1px solid rgba(15,23,42,0.10)",
                   borderRadius: 14,
-                  padding: 16,
+                  padding: 14,
                   background: "white",
                   cursor: "pointer",
-                  boxShadow: "0 6px 18px rgba(0,0,0,0.04)",
-                  transition: "all 0.15s ease",
+                  boxShadow: "0 10px 20px rgba(0,0,0,0.04)",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div style={{ fontWeight: 900, color: "#0f172a" }}>
-                    {t.other_display_name}
-                  </div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <div style={{ fontWeight: 900, color: "#0f172a" }}>{t.other_display_name}</div>
 
-                  {t.unread_count > 0 && (
+                  {t.unread_count > 0 ? (
                     <div
                       style={{
-                        minWidth: 26,
+                        minWidth: 28,
                         height: 22,
                         borderRadius: 999,
                         padding: "0 8px",
@@ -120,42 +100,19 @@ export default function MessagesPage() {
                     >
                       {t.unread_count}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
-                <div
-                  style={{
-                    fontSize: 12,
-                    opacity: 0.7,
-                    marginTop: 4,
-                    color: "#0f172a",
-                  }}
-                >
+                <div style={{ opacity: 0.75, fontSize: 12, marginTop: 4, color: "#0f172a" }}>
                   {t.horse_name}
                 </div>
 
-                <div
-                  style={{
-                    fontSize: 13,
-                    marginTop: 8,
-                    opacity: 0.9,
-                    color: "#0f172a",
-                  }}
-                >
+                <div style={{ marginTop: 8, fontSize: 13, opacity: 0.9, color: "#0f172a" }}>
                   {t.last_message ?? ""}
                 </div>
 
-                <div
-                  style={{
-                    fontSize: 11,
-                    marginTop: 6,
-                    opacity: 0.6,
-                    color: "#0f172a",
-                  }}
-                >
-                  {t.last_message_at
-                    ? new Date(t.last_message_at).toLocaleString()
-                    : ""}
+                <div style={{ marginTop: 6, fontSize: 11, opacity: 0.6, color: "#0f172a" }}>
+                  {t.last_message_at ? new Date(t.last_message_at).toLocaleString() : ""}
                 </div>
               </div>
             </Link>

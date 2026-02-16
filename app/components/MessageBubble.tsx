@@ -1,6 +1,6 @@
 "use client"
 
-type BubbleMessage = {
+type UIMessage = {
   id: string
   request_id: string
   sender_id: string
@@ -8,6 +8,7 @@ type BubbleMessage = {
   created_at: string
   read_at: string | null
   client_status?: "pending" | "sent" | "error"
+  delivered_at?: string | null
 }
 
 type GroupPos = "single" | "start" | "middle" | "end"
@@ -25,53 +26,26 @@ function radius(isMine: boolean, pos: GroupPos) {
 
   if (isMine) {
     if (pos === "start")
-      return {
-        borderTopLeftRadius: r,
-        borderTopRightRadius: r,
-        borderBottomRightRadius: tight,
-        borderBottomLeftRadius: r,
-      }
+      return { borderTopLeftRadius: r, borderTopRightRadius: r, borderBottomRightRadius: tight, borderBottomLeftRadius: r }
     if (pos === "middle")
-      return {
-        borderTopLeftRadius: r,
-        borderTopRightRadius: tight,
-        borderBottomRightRadius: tight,
-        borderBottomLeftRadius: r,
-      }
-    return {
-      borderTopLeftRadius: r,
-      borderTopRightRadius: tight,
-      borderBottomRightRadius: r,
-      borderBottomLeftRadius: r,
-    }
+      return { borderTopLeftRadius: r, borderTopRightRadius: tight, borderBottomRightRadius: tight, borderBottomLeftRadius: r }
+    return { borderTopLeftRadius: r, borderTopRightRadius: tight, borderBottomRightRadius: r, borderBottomLeftRadius: r }
   } else {
     if (pos === "start")
-      return {
-        borderTopLeftRadius: r,
-        borderTopRightRadius: r,
-        borderBottomRightRadius: r,
-        borderBottomLeftRadius: tight,
-      }
+      return { borderTopLeftRadius: r, borderTopRightRadius: r, borderBottomRightRadius: r, borderBottomLeftRadius: tight }
     if (pos === "middle")
-      return {
-        borderTopLeftRadius: tight,
-        borderTopRightRadius: r,
-        borderBottomRightRadius: r,
-        borderBottomLeftRadius: tight,
-      }
-    return {
-      borderTopLeftRadius: tight,
-      borderTopRightRadius: r,
-      borderBottomRightRadius: r,
-      borderBottomLeftRadius: r,
-    }
+      return { borderTopLeftRadius: tight, borderTopRightRadius: r, borderBottomRightRadius: r, borderBottomLeftRadius: tight }
+    return { borderTopLeftRadius: tight, borderTopRightRadius: r, borderBottomRightRadius: r, borderBottomLeftRadius: r }
   }
 }
 
-function checks(m: BubbleMessage) {
+function statusText(m: UIMessage) {
   if (m.client_status === "pending") return "⏳"
   if (m.client_status === "error") return "⚠"
-  return m.read_at ? "✓✓" : "✓"
+  // read has priority
+  if (m.read_at) return "✓✓"
+  if (m.delivered_at) return "✓✓"
+  return "✓"
 }
 
 export default function MessageBubble({
@@ -81,14 +55,13 @@ export default function MessageBubble({
   showStatus = false,
   onRetry,
 }: {
-  message: BubbleMessage
+  message: UIMessage
   isMine: boolean
   groupPos?: GroupPos
   showStatus?: boolean
   onRetry?: (tempId: string) => void
 }) {
   const mine = Boolean(isMine)
-  const status = checks(message)
 
   const bg =
     message.client_status === "error"
@@ -100,13 +73,7 @@ export default function MessageBubble({
   const fg = mine ? "white" : "#0f172a"
 
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: mine ? "flex-end" : "flex-start",
-        animation: "pmpFadeInUp 140ms ease",
-      }}
-    >
+    <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
       <div
         style={{
           maxWidth: 560,
@@ -114,8 +81,8 @@ export default function MessageBubble({
           ...radius(mine, groupPos),
           background: bg,
           color: fg,
-          boxShadow: "0 10px 20px rgba(0,0,0,0.08)",
           border: mine ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(15,23,42,0.08)",
+          boxShadow: "0 10px 20px rgba(0,0,0,0.08)",
           wordBreak: "break-word",
           opacity: message.client_status === "pending" ? 0.82 : 1,
         }}
@@ -134,7 +101,7 @@ export default function MessageBubble({
           }}
         >
           <span>{formatTime(message.created_at)}</span>
-          {mine && showStatus ? <span style={{ letterSpacing: 0.5 }}>{status}</span> : null}
+          {mine && showStatus ? <span style={{ letterSpacing: 0.5 }}>{statusText(message)}</span> : null}
         </div>
 
         {message.client_status === "error" && mine ? (
