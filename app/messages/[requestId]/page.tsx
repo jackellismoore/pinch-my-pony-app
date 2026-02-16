@@ -59,7 +59,6 @@ function groupPos(prev: AnyMsg | null, cur: AnyMsg, next: AnyMsg | null) {
 export default function MessageThreadPage() {
   const router = useRouter()
 
-  // supports requestId (correct) and requestid (in case anything passes it wrong)
   const params = useParams() as Record<string, string | string[] | undefined>
   const requestIdRaw = params.requestId ?? params.requestid
   const requestId = Array.isArray(requestIdRaw) ? requestIdRaw[0] : (requestIdRaw ?? "")
@@ -79,7 +78,9 @@ export default function MessageThreadPage() {
   // Composer
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
-  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+
+  // Global typing channel (for list + thread)
+  const typingGlobalRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const typingStopTimerRef = useRef<number | null>(null)
 
   // Scroll + infinite load
@@ -91,10 +92,10 @@ export default function MessageThreadPage() {
   const { messages, loadMore, hasMore, loadingMore, loadingInitial } = usePaginatedMessages(requestId)
   const msgs = messages as AnyMsg[]
 
-  // Track “am I near bottom?” so we only autoscroll when user is at bottom
+  // Track near-bottom so we don’t yank user while reading older messages
   const [isNearBottom, setIsNearBottom] = useState(true)
 
-  // ----- Auth load (no silent redirect) -----
+  // ----- Auth load -----
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -209,31 +210,42 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // ----- Typing broadcast (works reliably) -----
+  // ----- Global typing channel subscription -----
   useEffect(() => {
-    if (!requestId || !myUserId) return
+    if (!myUserId) return
 
-    const typingChannel = supabase
-      .channel(`typing:thread:${requestId}`, { config: { broadcast: { self: false } } })
+    const ch = supabase
+      .channel("typing:threads", { config: { broadcast: { self: false } } })
       .on("broadcast", { event: "typing" }, (event) => {
-        const { user_id, typing } = (event.payload ?? {}) as { user_id?: string; typing?: boolean }
+        const { request_id, user_id, typing } = (event.payload ?? {}) as {
+          request_id?: string
+          user_id?: string
+          typing?: boolean
+        }
+
+        if (!request_id || request_id !== requestId) return
         if (!user_id || user_id === myUserId) return
+
         setOtherTyping(Boolean(typing))
       })
       .subscribe()
 
-    typingChannelRef.current = typingChannel
+    typingGlobalRef.current = ch
 
     return () => {
-      typingChannelRef.current = null
-      supabase.removeChannel(typingChannel)
+      typingGlobalRef.current = null
+      supabase.removeChannel(ch)
     }
-  }, [requestId, myUserId])
+  }, [myUserId, requestId])
 
   const broadcastTyping = (typing: boolean) => {
-    const ch = typingChannelRef.current
-    if (!ch || !myUserId) return
-    ch.send({ type: "broadcast", event: "typing", payload: { user_id: myUserId, typing } })
+    const ch = typingGlobalRef.current
+    if (!ch || !myUserId || !requestId) return
+    ch.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { request_id: requestId, user_id: myUserId, typing },
+    })
   }
 
   const onDraftChange = (val: string) => {
@@ -321,7 +333,7 @@ export default function MessageThreadPage() {
     })
   }, [lastMsgKey, isNearBottom])
 
-  // ----- Autofocus composer once auth + thread ready -----
+  // ----- Autofocus composer -----
   useEffect(() => {
     if (!myUserId) return
     requestAnimationFrame(() => inputRef.current?.focus())
@@ -356,6 +368,15 @@ export default function MessageThreadPage() {
     })
   }, [msgs])
 
+  // ✅ WhatsApp-style “Seen”: only on latest outgoing message
+  const lastOutgoingId = useMemo(() => {
+    if (!myUserId) return null
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i]!.sender_id === myUserId) return msgs[i]!.id
+    }
+    return null
+  }, [msgs, myUserId])
+
   // ----- Send message -----
   const [sending, setSending] = useState(false)
 
@@ -382,20 +403,12 @@ export default function MessageThreadPage() {
       return
     }
 
-    // keep it snappy after send
     const scroller = scrollerRef.current
     if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight))
   }
 
-  // ----- Render guards -----
-  if (!requestId) {
-    return <div style={{ padding: 20 }}>Missing requestId in URL</div>
-  }
-
-  if (authLoading) {
-    return <div style={{ padding: 20, opacity: 0.75 }}>Loading session…</div>
-  }
-
+  if (!requestId) return <div style={{ padding: 20 }}>Missing requestId in URL</div>
+  if (authLoading) return <div style={{ padding: 20, opacity: 0.75 }}>Loading session…</div>
   if (!myUserId) {
     return (
       <div style={{ padding: 20 }}>
@@ -425,7 +438,6 @@ export default function MessageThreadPage() {
           color: "#0f172a",
         }}
       >
-        {/* Back button */}
         <button
           onClick={() => {
             if (window.history.length > 1) router.back()
@@ -513,7 +525,13 @@ export default function MessageThreadPage() {
         )}
 
         {grouped.map(({ m, pos }) => (
-          <MessageBubble key={m.id} message={m} isMine={m.sender_id === myUserId} groupPos={pos} />
+          <MessageBubble
+            key={m.id}
+            message={m}
+            isMine={m.sender_id === myUserId}
+            groupPos={pos}
+            showStatus={m.sender_id === myUserId && m.id === lastOutgoingId}
+          />
         ))}
 
         <TypingBubbleInline show={otherTyping} />

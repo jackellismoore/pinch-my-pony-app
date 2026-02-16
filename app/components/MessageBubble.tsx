@@ -68,8 +68,7 @@ function radius(isMine: boolean, pos: GroupPos) {
   }
 }
 
-function checks(m: BubbleMessage, isMine: boolean) {
-  if (!isMine) return ""
+function checks(m: BubbleMessage) {
   if (m.client_status === "pending") return "⏳"
   if (m.client_status === "error") return "⚠"
   return m.read_at ? "✓✓" : "✓"
@@ -79,10 +78,12 @@ export default function MessageBubble({
   message,
   isMine,
   groupPos = "single",
+  showStatus = false,
 }: {
   message: BubbleMessage
   isMine: boolean
   groupPos?: GroupPos
+  showStatus?: boolean
 }) {
   const mine = Boolean(isMine)
 
@@ -94,7 +95,7 @@ export default function MessageBubble({
         : "rgba(255,255,255,0.86)"
 
   const fg = mine ? "white" : "#0f172a"
-  const status = checks(message, mine)
+  const status = checks(message)
 
   return (
     <div
@@ -131,7 +132,9 @@ export default function MessageBubble({
           }}
         >
           <span>{formatTime(message.created_at)}</span>
-          {mine ? <span style={{ letterSpacing: 0.5 }}>{status}</span> : null}
+
+          {/* ✅ WhatsApp style: status only on latest outgoing message */}
+          {mine && showStatus ? <span style={{ letterSpacing: 0.5 }}>{status}</span> : null}
         </div>
 
         {message.client_status === "error" ? (
