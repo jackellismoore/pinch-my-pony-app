@@ -28,15 +28,15 @@ export default function TypingBubbleInline({ show }: { show: boolean }) {
           gap: 6,
           padding: "10px 12px",
           borderRadius: 16,
-          background: "rgba(255,255,255,0.10)",
-          border: "1px solid rgba(255,255,255,0.10)",
-          boxShadow: "0 10px 20px rgba(0,0,0,0.15)",
+          background: "rgba(0,0,0,0.06)",
+          border: "1px solid rgba(0,0,0,0.08)",
+          boxShadow: "0 10px 20px rgba(0,0,0,0.08)",
         }}
         aria-label="Typing…"
       >
-        <span style={{ width: 6, height: 6, borderRadius: 999, background: "rgba(255,255,255,0.95)", animation: "pinchTypingBounce 1.2s infinite" }} />
-        <span style={{ width: 6, height: 6, borderRadius: 999, background: "rgba(255,255,255,0.95)", animation: "pinchTypingBounce 1.2s infinite", animationDelay: "0.15s" }} />
-        <span style={{ width: 6, height: 6, borderRadius: 999, background: "rgba(255,255,255,0.95)", animation: "pinchTypingBounce 1.2s infinite", animationDelay: "0.3s" }} />
+        <span style={{ width: 6, height: 6, borderRadius: 999, background: "rgba(0,0,0,0.65)", animation: "pinchTypingBounce 1.2s infinite" }} />
+        <span style={{ width: 6, height: 6, borderRadius: 999, background: "rgba(0,0,0,0.65)", animation: "pinchTypingBounce 1.2s infinite", animationDelay: "0.15s" }} />
+        <span style={{ width: 6, height: 6, borderRadius: 999, background: "rgba(0,0,0,0.65)", animation: "pinchTypingBounce 1.2s infinite", animationDelay: "0.3s" }} />
       </div>
     </div>
   )
