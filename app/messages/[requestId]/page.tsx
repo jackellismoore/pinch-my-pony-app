@@ -15,7 +15,8 @@ export default function MessageThreadPage() {
   const params = useParams() as { requestId?: string }
   const requestId = params?.requestId ?? ""
 
-  const { messages, loadMore, hasMore, loadingMore, loadingInitial } = usePaginatedMessages(requestId)
+  const { messages, loadMore, hasMore, loadingMore, loadingInitial } =
+    usePaginatedMessages(requestId)
 
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
@@ -27,7 +28,12 @@ export default function MessageThreadPage() {
   const [otherOnline, setOtherOnline] = useState(false)
   const [otherTyping, setOtherTyping] = useState(false)
 
-  // Auth
+  // Composer
+  const [draft, setDraft] = useState("")
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const typingStopTimerRef = useRef<number | null>(null)
+
+  // --- Auth ---
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -44,7 +50,7 @@ export default function MessageThreadPage() {
     }
   }, [router])
 
-  // Header (horse + other profile)
+  // --- Header (horse + other profile) ---
   useEffect(() => {
     if (!requestId || !myUserId) return
     let cancelled = false
@@ -91,7 +97,6 @@ export default function MessageThreadPage() {
       if (cancelled) return
 
       if (profErr || !prof) {
-        // If this hits, it's almost certainly profiles RLS (see policy below)
         console.error("Header: profiles error", profErr)
         setHeader({
           horse_name: horse.name,
@@ -103,7 +108,11 @@ export default function MessageThreadPage() {
 
       setHeader({
         horse_name: horse.name,
-        other_user: { id: prof.id, display_name: prof.display_name ?? "User", avatar_url: prof.avatar_url },
+        other_user: {
+          id: prof.id,
+          display_name: prof.display_name ?? "User",
+          avatar_url: prof.avatar_url,
+        },
       })
       setHeaderLoading(false)
     })()
@@ -113,7 +122,7 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // Presence (online indicator)
+  // --- Presence online indicator ---
   useEffect(() => {
     if (!requestId || !myUserId) return
 
@@ -144,11 +153,11 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // Typing (broadcast channel — reliable)
+  // --- Typing channel: listen + keep a ref so we can send broadcasts ---
   useEffect(() => {
     if (!requestId || !myUserId) return
 
-    const typing = supabase
+    const typingChannel = supabase
       .channel(`typing:thread:${requestId}`)
       .on("broadcast", { event: "typing" }, (payload) => {
         const { user_id, typing } = (payload.payload ?? {}) as { user_id?: string; typing?: boolean }
@@ -157,12 +166,39 @@ export default function MessageThreadPage() {
       })
       .subscribe()
 
+    typingChannelRef.current = typingChannel
+
     return () => {
-      supabase.removeChannel(typing)
+      typingChannelRef.current = null
+      supabase.removeChannel(typingChannel)
     }
   }, [requestId, myUserId])
 
-  // Infinite scroll + anchor
+  // --- Broadcast typing helpers ---
+  const broadcastTyping = (typing: boolean) => {
+    const ch = typingChannelRef.current
+    if (!ch || !myUserId) return
+    ch.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { user_id: myUserId, typing },
+    })
+  }
+
+  const onDraftChange = (val: string) => {
+    setDraft(val)
+
+    // start typing immediately
+    broadcastTyping(true)
+
+    // stop typing after user pauses
+    if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current)
+    typingStopTimerRef.current = window.setTimeout(() => {
+      broadcastTyping(false)
+    }, 650)
+  }
+
+  // --- Infinite scroll + anchor ---
   useEffect(() => {
     const sentinel = topSentinelRef.current
     const scroller = scrollerRef.current
@@ -191,7 +227,7 @@ export default function MessageThreadPage() {
     return () => obs.disconnect()
   }, [hasMore, loadingMore, loadMore])
 
-  // Auto-scroll once after initial load
+  // --- Auto-scroll once after initial load ---
   const didAutoScrollRef = useRef(false)
   useEffect(() => {
     const scroller = scrollerRef.current
@@ -204,7 +240,7 @@ export default function MessageThreadPage() {
     })
   }, [loadingInitial])
 
-  // Mark unread read (recipient) — triggers UPDATE, which now streams to sender
+  // --- Mark unread as read (recipient) ---
   useEffect(() => {
     if (!requestId || !myUserId) return
     if (messages.length === 0) return
@@ -224,7 +260,34 @@ export default function MessageThreadPage() {
       })
   }, [messages, myUserId, requestId])
 
-  // Light theme values
+  // --- Send message (simple, non-optimistic) ---
+  // If you later want optimistic, we can swap to sendMessage() from the hook.
+  const send = async () => {
+    if (!myUserId || !requestId) return
+    const text = draft.trim()
+    if (!text) return
+
+    setDraft("")
+    broadcastTyping(false)
+
+    const { error } = await supabase.from("messages").insert({
+      request_id: requestId,
+      sender_id: myUserId,
+      content: text,
+    })
+
+    if (error) {
+      console.error("send error:", error)
+      // restore draft if you want
+      setDraft(text)
+      return
+    }
+
+    // scroll to bottom after send
+    const scroller = scrollerRef.current
+    if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight))
+  }
+
   const otherName = header?.other_user?.display_name ?? "User"
   const horseName = header?.horse_name ?? ""
   const avatarUrl = header?.other_user?.avatar_url ?? ""
@@ -314,6 +377,54 @@ export default function MessageThreadPage() {
         ))}
 
         <TypingBubbleInline show={otherTyping} />
+      </div>
+
+      {/* Composer */}
+      <div
+        style={{
+          padding: 12,
+          borderTop: "1px solid rgba(15,23,42,0.10)",
+          background: "white",
+        }}
+      >
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <textarea
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onBlur={() => broadcastTyping(false)}
+            placeholder="Message…"
+            rows={1}
+            style={{
+              flex: 1,
+              resize: "none",
+              padding: "12px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(15,23,42,0.12)",
+              background: "rgba(15,23,42,0.03)",
+              color: "#0f172a",
+              outline: "none",
+              lineHeight: 1.35,
+              minHeight: 44,
+            }}
+          />
+
+          <button
+            onClick={send}
+            disabled={!draft.trim()}
+            style={{
+              height: 44,
+              padding: "0 14px",
+              borderRadius: 12,
+              border: "none",
+              fontWeight: 800,
+              cursor: !draft.trim() ? "not-allowed" : "pointer",
+              background: !draft.trim() ? "rgba(37,99,235,0.35)" : "rgba(37,99,235,0.95)",
+              color: "white",
+            }}
+          >
+            Send
+          </button>
+        </div>
       </div>
     </div>
   )
