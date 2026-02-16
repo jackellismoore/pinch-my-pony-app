@@ -1,4 +1,5 @@
 import webpush from "web-push"
+import { createClient } from "@supabase/supabase-js"
 
 export const runtime = "nodejs"
 
@@ -13,48 +14,50 @@ export async function POST(req: Request) {
   try {
     const { userId, title, body, url } = (await req.json()) as Payload
 
-    const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY
-    const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
     const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY
+    const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY
 
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !SUPABASE_URL || !SERVICE_ROLE) {
+    if (!SUPABASE_URL || !SERVICE_ROLE || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
       return new Response("Missing env vars", { status: 500 })
+    }
+
+    // Server-only Supabase client (service role)
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+
+    const { data: subs, error } = await admin
+      .from("push_subscriptions")
+      .select("endpoint, p256dh, auth")
+      .eq("user_id", userId)
+
+    if (error) {
+      console.error("push_subscriptions select error:", error)
+      return new Response("Failed to fetch subscriptions", { status: 500 })
     }
 
     webpush.setVapidDetails("mailto:admin@pinchmypony.com", VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions?user_id=eq.${userId}`, {
-      headers: {
-        apikey: SERVICE_ROLE,
-        Authorization: `Bearer ${SERVICE_ROLE}`,
-      },
-    })
-
-    if (!res.ok) {
-      const txt = await res.text()
-      console.error("Supabase REST error:", txt)
-      return new Response("Failed to fetch subscriptions", { status: 500 })
-    }
-
-    const subs = (await res.json()) as Array<{ endpoint: string; p256dh: string; auth: string }>
     const payload = JSON.stringify({ title, body, url })
 
-    await Promise.all(
-      subs.map(async (s) => {
-        try {
-          await webpush.sendNotification(
-            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-            payload
-          )
-        } catch (e) {
-          // ignore dead endpoints
-        }
-      })
+    // Send to all subscriptions (ignore individual failures)
+    const results = await Promise.allSettled(
+      (subs ?? []).map((s) =>
+        webpush.sendNotification(
+          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+          payload
+        )
+      )
     )
 
-    return Response.json({ ok: true, sent: subs.length })
+    const ok = results.filter((r) => r.status === "fulfilled").length
+    const fail = results.length - ok
+
+    return Response.json({ ok: true, sent: ok, failed: fail })
   } catch (e: any) {
+    console.error("push send route error:", e)
     return new Response(e?.message ?? "Error", { status: 500 })
   }
 }
