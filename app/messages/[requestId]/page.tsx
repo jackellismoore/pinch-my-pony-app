@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
-import { usePaginatedMessages, type Message } from "@/lib/hooks/usePaginatedMessages"
+import { usePaginatedMessages, type UIMessage } from "@/lib/hooks/usePaginatedMessages"
 import MessageBubble from "@/components/MessageBubble"
 import TypingBubbleInline from "@/components/TypingBubbleInline"
 
@@ -18,42 +18,44 @@ type ThreadHeader = {
   other_user: OtherUser | null
 }
 
+function isSameBlock(a: UIMessage, b: UIMessage) {
+  if (a.sender_id !== b.sender_id) return false
+  // group within 5 minutes
+  const dt = Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  return dt <= 5 * 60 * 1000
+}
+
+function groupPos(prev: UIMessage | null, cur: UIMessage, next: UIMessage | null) {
+  const prevSame = prev ? isSameBlock(prev, cur) : false
+  const nextSame = next ? isSameBlock(cur, next) : false
+  if (!prevSame && !nextSame) return "single" as const
+  if (!prevSame && nextSame) return "start" as const
+  if (prevSame && nextSame) return "middle" as const
+  return "end" as const
+}
+
 export default function MessageThreadPage() {
   const router = useRouter()
   const params = useParams() as { requestId?: string }
   const requestId = params?.requestId ?? ""
 
-  // Messages + pagination
-  const { messages, loadMore, hasMore, loadingMore, loadingInitial } =
+  const { messages, loadMore, hasMore, loadingMore, loadingInitial, sendMessage } =
     usePaginatedMessages(requestId)
 
-  // Scroll container + sentinel
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
 
-  // Auth + header state
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [header, setHeader] = useState<ThreadHeader | null>(null)
   const [headerLoading, setHeaderLoading] = useState(true)
 
-  // Presence/typing state (kept here — hook is messages only)
   const [otherOnline, setOtherOnline] = useState(false)
   const [otherTyping, setOtherTyping] = useState(false)
 
-  // ---- Derived: other user id ----
-  const otherUserId = useMemo(() => {
-    if (!myUserId) return null
-    // Find the first message not from me to infer other participant
-    const m = messages.find((x) => x.sender_id !== myUserId)
-    return m?.sender_id ?? header?.other_user?.id ?? null
-  }, [messages, myUserId, header?.other_user?.id])
+  const [draft, setDraft] = useState("")
+  const [sending, setSending] = useState(false)
 
-  // ---- Basic guard ----
-  useEffect(() => {
-    if (!requestId) return
-  }, [requestId])
-
-  // ---- Load my auth user id ----
+  // Auth
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -70,12 +72,7 @@ export default function MessageThreadPage() {
     }
   }, [router])
 
-  // ---- Load thread header (horse name + other user profile) ----
-  // This is intentionally lightweight and safe:
-  // - fetch request (horse_id, borrower_id)
-  // - fetch horse name (horses.name)
-  // - decide other user as owner or borrower (whichever isn't me)
-  // - fetch other user's profile display_name/avatar_url
+  // Header: horse + other profile
   useEffect(() => {
     if (!requestId || !myUserId) return
     let cancelled = false
@@ -83,7 +80,6 @@ export default function MessageThreadPage() {
     ;(async () => {
       setHeaderLoading(true)
 
-      // 1) borrow_requests row
       const { data: req, error: reqErr } = await supabase
         .from("borrow_requests")
         .select("id, horse_id, borrower_id")
@@ -98,7 +94,6 @@ export default function MessageThreadPage() {
         return
       }
 
-      // 2) horse name + owner_id
       const { data: horse, error: horseErr } = await supabase
         .from("horses")
         .select("id, name, owner_id")
@@ -115,7 +110,6 @@ export default function MessageThreadPage() {
 
       const otherId = horse.owner_id === myUserId ? req.borrower_id : horse.owner_id
 
-      // 3) other profile
       const { data: prof, error: profErr } = await supabase
         .from("profiles")
         .select("id, display_name, avatar_url")
@@ -135,7 +129,11 @@ export default function MessageThreadPage() {
 
       setHeader({
         horse_name: horse.name,
-        other_user: { id: prof.id, display_name: prof.display_name ?? "User", avatar_url: prof.avatar_url },
+        other_user: {
+          id: prof.id,
+          display_name: prof.display_name ?? "User",
+          avatar_url: prof.avatar_url,
+        },
       })
       setHeaderLoading(false)
     })()
@@ -145,9 +143,7 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // ---- Presence + typing channel ----
-  // Assumes you already have a working presence:thread:<requestId> pattern.
-  // This keeps it on this page, not inside the pagination hook.
+  // Presence + typing (sync-based)
   useEffect(() => {
     if (!requestId || !myUserId) return
 
@@ -157,17 +153,12 @@ export default function MessageThreadPage() {
 
     channel
       .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState() as Record<
-          string,
-          Array<{ user_id?: string; typing?: boolean }>
-        >
+        const state = channel.presenceState() as Record<string, Array<{ user_id?: string; typing?: boolean }>>
 
-        // Find if the other user is present + typing
         let online = false
         let typing = false
 
         for (const key of Object.keys(state)) {
-          // key is presence key; payload may include fields
           const metas = state[key] ?? []
           for (const meta of metas) {
             const uid = meta.user_id ?? key
@@ -183,7 +174,6 @@ export default function MessageThreadPage() {
       })
       .subscribe(async (status) => {
         if (status !== "SUBSCRIBED") return
-        // Track ourselves so others can detect online + typing
         await channel.track({ user_id: myUserId, typing: false })
       })
 
@@ -192,7 +182,21 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // ---- Infinite scroll (load older when top sentinel visible) + scroll anchoring ----
+  // Send typing state (debounced-ish)
+  const typingTimeoutRef = useRef<number | null>(null)
+  const setTyping = useMemo(() => {
+    return async (typing: boolean) => {
+      if (!requestId || !myUserId) return
+      const channel = supabase.getChannels().find((c) => c.topic === `realtime:presence:thread:${requestId}`)
+      // The above is not reliable across versions; instead we just re-use the track call pattern:
+      // If you already have a dedicated presence channel manager, swap this out.
+      // We'll do a lightweight direct track on the existing channel by re-creating it if needed.
+      // Simpler approach: do nothing here if not subscribed.
+      void channel
+    }
+  }, [requestId, myUserId])
+
+  // Infinite scroll + anchor
   useEffect(() => {
     const sentinel = topSentinelRef.current
     const scroller = scrollerRef.current
@@ -221,35 +225,31 @@ export default function MessageThreadPage() {
     return () => obs.disconnect()
   }, [hasMore, loadingMore, loadMore])
 
-  // ---- Auto-scroll to bottom on first load only (safer) ----
+  // Auto-scroll once after initial load
   const didAutoScrollRef = useRef(false)
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
     if (loadingInitial) return
     if (didAutoScrollRef.current) return
-
-    // Auto-scroll to bottom once after initial messages render
     didAutoScrollRef.current = true
     requestAnimationFrame(() => {
       scroller.scrollTop = scroller.scrollHeight
     })
   }, [loadingInitial])
 
-  // ---- Optional: mark visible messages as read for recipient ----
-  // This is conservative and avoids hammering:
-  // - when messages change and we know other user id, mark unread messages not sent by me.
+  // Mark unread as read (recipient-side)
   useEffect(() => {
     if (!requestId || !myUserId) return
     if (messages.length === 0) return
 
     const unreadIds = messages
-      .filter((m) => m.sender_id !== myUserId && !m.read_at)
+      .filter((m) => m.sender_id !== myUserId && !m.read_at && m.client_status !== "pending")
       .map((m) => m.id)
+      .filter((id) => !id.startsWith("temp-"))
 
     if (unreadIds.length === 0) return
 
-    // Fire-and-forget (don’t block UI)
     supabase
       .from("messages")
       .update({ read_at: new Date().toISOString() })
@@ -259,10 +259,37 @@ export default function MessageThreadPage() {
       })
   }, [messages, myUserId, requestId])
 
-  // ---- Simple inline header (avatar, names, online status) ----
+  // Grouping metadata
+  const grouped = useMemo(() => {
+    const arr = messages
+    return arr.map((m, i) => {
+      const prev = i > 0 ? arr[i - 1] : null
+      const next = i < arr.length - 1 ? arr[i + 1] : null
+      return {
+        message: m,
+        pos: groupPos(prev, m, next),
+      }
+    })
+  }, [messages])
+
   const otherName = header?.other_user?.display_name ?? "User"
   const horseName = header?.horse_name ?? ""
   const avatarUrl = header?.other_user?.avatar_url ?? ""
+
+  const onSend = async () => {
+    if (!myUserId || !requestId) return
+    const text = draft.trim()
+    if (!text) return
+
+    setDraft("")
+    setSending(true)
+    await sendMessage(myUserId, text)
+    setSending(false)
+
+    // keep user pinned to bottom after sending
+    const scroller = scrollerRef.current
+    if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight))
+  }
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -304,9 +331,7 @@ export default function MessageThreadPage() {
             {headerLoading ? "Loading..." : otherName}
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <div style={{ opacity: 0.8, fontSize: 12, whiteSpace: "nowrap" }}>
-              {horseName}
-            </div>
+            <div style={{ opacity: 0.8, fontSize: 12, whiteSpace: "nowrap" }}>{horseName}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.9 }}>
               <span
                 style={{
@@ -332,7 +357,7 @@ export default function MessageThreadPage() {
           padding: 16,
           display: "flex",
           flexDirection: "column",
-          gap: 10,
+          gap: 6,
           background:
             "radial-gradient(1200px 800px at 20% 10%, rgba(99,102,241,0.25), transparent 55%), radial-gradient(900px 700px at 90% 30%, rgba(56,189,248,0.18), transparent 55%), linear-gradient(180deg, #020617 0%, #0b1225 100%)",
         }}
@@ -351,20 +376,74 @@ export default function MessageThreadPage() {
           </div>
         )}
 
-        {messages.map((m: Message) => (
-          <MessageBubble key={m.id} message={m} />
+        {grouped.map(({ message, pos }) => (
+          <MessageBubble
+            key={message.id}
+            message={message}
+            isMine={message.sender_id === myUserId}
+            groupPos={pos}
+          />
         ))}
 
-        {/* Typing bubble stays in-stream, as you wanted */}
-        {/* If your TypingBubbleInline expects a prop, pass it here. */}
-        <TypingBubbleInline />
+        {/* Typing bubble in stream */}
+        <TypingBubbleInline show={otherTyping} />
+      </div>
 
-        {/* If you want your existing "otherTyping" state to control TypingBubbleInline,
-            either pass it as a prop (recommended), or let TypingBubbleInline handle its own presence subscription.
-            Example prop usage (if supported):
-            <TypingBubbleInline isTyping={otherTyping} />
-        */}
-        {false && otherTyping}
+      {/* Composer */}
+      <div
+        style={{
+          padding: 12,
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(2,6,23,0.92)",
+        }}
+      >
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <textarea
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value)
+
+              // (Optional) local typing indicator UI exists already (otherTyping).
+              // If you already have a working typing broadcast mechanism, wire it here.
+              // If not, leave it — your existing system can still drive otherTyping.
+              if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current)
+              // placeholder no-op; keep the structure for later
+              typingTimeoutRef.current = window.setTimeout(() => void setTyping(false), 700)
+              void setTyping(true)
+            }}
+            placeholder="Message…"
+            rows={1}
+            style={{
+              flex: 1,
+              resize: "none",
+              padding: "12px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              color: "white",
+              outline: "none",
+              lineHeight: 1.35,
+              minHeight: 44,
+            }}
+          />
+
+          <button
+            onClick={onSend}
+            disabled={sending || !draft.trim()}
+            style={{
+              height: 44,
+              padding: "0 14px",
+              borderRadius: 12,
+              border: "none",
+              fontWeight: 700,
+              cursor: sending || !draft.trim() ? "not-allowed" : "pointer",
+              background: sending || !draft.trim() ? "rgba(37,99,235,0.35)" : "rgba(37,99,235,0.95)",
+              color: "white",
+            }}
+          >
+            {sending ? "Sending…" : "Send"}
+          </button>
+        </div>
       </div>
     </div>
   )

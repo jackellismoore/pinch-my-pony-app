@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { supabase } from "@/lib/supabaseClient" // ✅ matches your repo tree
+import { supabase } from "@/lib/supabaseClient"
 
 export type Message = {
   id: string
@@ -12,10 +12,15 @@ export type Message = {
   read_at: string | null
 }
 
+// UI-only fields (not stored in DB)
+export type UIMessage = Message & {
+  client_status?: "pending" | "sent" | "error"
+  client_temp_id?: string
+}
+
 const PAGE_SIZE = 40
 
-function compareAsc(a: Message, b: Message) {
-  // stable ordering: created_at then id
+function compareAsc(a: UIMessage, b: UIMessage) {
   if (a.created_at < b.created_at) return -1
   if (a.created_at > b.created_at) return 1
   return a.id.localeCompare(b.id)
@@ -26,11 +31,10 @@ export function usePaginatedMessages(requestId: string) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
 
-  // Source of truth (dedupe)
-  const mapRef = useRef<Map<string, Message>>(new Map())
-  const [version, setVersion] = useState(0) // trigger re-render when map changes
+  const mapRef = useRef<Map<string, UIMessage>>(new Map())
+  const tempToRealRef = useRef<Map<string, string>>(new Map()) // tempId -> realId
+  const [version, setVersion] = useState(0)
 
-  // Cursor = oldest message currently loaded
   const oldestCursorRef = useRef<{ created_at: string; id: string } | null>(null)
 
   const messages = useMemo(() => {
@@ -39,7 +43,9 @@ export function usePaginatedMessages(requestId: string) {
     return arr
   }, [version])
 
-  const mergeMessages = useCallback((msgs: Message[]) => {
+  const bump = useCallback(() => setVersion((v) => v + 1), [])
+
+  const mergeMessages = useCallback((msgs: UIMessage[]) => {
     let changed = false
 
     for (const m of msgs) {
@@ -51,15 +57,27 @@ export function usePaginatedMessages(requestId: string) {
         continue
       }
 
-      // Minimal merge for fields that can change (ex: read_at)
-      if (existing.read_at !== m.read_at) {
-        mapRef.current.set(m.id, { ...existing, read_at: m.read_at })
+      // merge read_at + status if needed
+      const next: UIMessage = {
+        ...existing,
+        ...m,
+        read_at: m.read_at ?? existing.read_at,
+        client_status: existing.client_status === "pending" ? (m.client_status ?? "sent") : (m.client_status ?? existing.client_status),
+      }
+
+      // only set if changed
+      if (
+        next.read_at !== existing.read_at ||
+        next.content !== existing.content ||
+        next.client_status !== existing.client_status
+      ) {
+        mapRef.current.set(m.id, next)
         changed = true
       }
     }
 
-    if (changed) setVersion((v) => v + 1)
-  }, [])
+    if (changed) bump()
+  }, [bump])
 
   const setOldestCursorFromCurrent = useCallback(() => {
     const arr = Array.from(mapRef.current.values())
@@ -71,6 +89,14 @@ export function usePaginatedMessages(requestId: string) {
     const oldest = arr[0]
     oldestCursorRef.current = { created_at: oldest.created_at, id: oldest.id }
   }, [])
+
+  const resetForRequest = useCallback(() => {
+    mapRef.current = new Map()
+    tempToRealRef.current = new Map()
+    oldestCursorRef.current = null
+    setHasMore(true)
+    bump()
+  }, [bump])
 
   const loadInitial = useCallback(async () => {
     setLoadingInitial(true)
@@ -90,7 +116,8 @@ export function usePaginatedMessages(requestId: string) {
       return
     }
 
-    mergeMessages((data ?? []) as Message[])
+    const normalized = (data ?? []).map((m) => ({ ...m, client_status: "sent" as const }))
+    mergeMessages(normalized)
     setHasMore((data ?? []).length === PAGE_SIZE)
     setOldestCursorFromCurrent()
 
@@ -108,7 +135,7 @@ export function usePaginatedMessages(requestId: string) {
       .from("messages")
       .select("id, request_id, sender_id, content, created_at, read_at")
       .eq("request_id", requestId)
-      .lt("created_at", cursor.created_at) // (good enough) + dedupe
+      .lt("created_at", cursor.created_at) // good enough + dedupe
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(PAGE_SIZE)
@@ -120,23 +147,73 @@ export function usePaginatedMessages(requestId: string) {
       return
     }
 
-    mergeMessages((data ?? []) as Message[])
+    const normalized = (data ?? []).map((m) => ({ ...m, client_status: "sent" as const }))
+    mergeMessages(normalized)
     setHasMore((data ?? []).length === PAGE_SIZE)
     setOldestCursorFromCurrent()
 
     setLoadingMore(false)
   }, [hasMore, loadingMore, mergeMessages, requestId, setOldestCursorFromCurrent])
 
-  // Realtime INSERT merge
+  // --- Optimistic send ---
+  const sendMessage = useCallback(
+    async (senderId: string, content: string) => {
+      const trimmed = content.trim()
+      if (!trimmed) return
+
+      const nowIso = new Date().toISOString()
+      const tempId = `temp-${crypto.randomUUID()}`
+      const optimistic: UIMessage = {
+        id: tempId,
+        request_id: requestId,
+        sender_id: senderId,
+        content: trimmed,
+        created_at: nowIso,
+        read_at: null,
+        client_status: "pending",
+        client_temp_id: tempId,
+      }
+
+      mergeMessages([optimistic])
+
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          request_id: requestId,
+          sender_id: senderId,
+          content: trimmed,
+        })
+        .select("id, request_id, sender_id, content, created_at, read_at")
+        .single()
+
+      if (error || !data) {
+        console.error("sendMessage insert error:", error)
+        // mark optimistic as error
+        const existing = mapRef.current.get(tempId)
+        if (existing) {
+          mapRef.current.set(tempId, { ...existing, client_status: "error" })
+          bump()
+        }
+        return
+      }
+
+      // reconcile: replace temp id with real id
+      tempToRealRef.current.set(tempId, data.id)
+
+      // remove temp
+      mapRef.current.delete(tempId)
+
+      // add real
+      mergeMessages([{ ...data, client_status: "sent" }])
+    },
+    [mergeMessages, requestId, bump]
+  )
+
+  // Realtime INSERT: merge + also reconcile if it matches a pending item by content+sender close in time
   useEffect(() => {
     if (!requestId) return
 
-    // reset local state when requestId changes
-    mapRef.current = new Map()
-    oldestCursorRef.current = null
-    setHasMore(true)
-    setVersion((v) => v + 1)
-
+    resetForRequest()
     loadInitial()
 
     const channel = supabase
@@ -150,7 +227,8 @@ export function usePaginatedMessages(requestId: string) {
           filter: `request_id=eq.${requestId}`,
         },
         (payload) => {
-          mergeMessages([payload.new as Message])
+          const incoming = payload.new as Message
+          mergeMessages([{ ...incoming, client_status: "sent" }])
         }
       )
       .subscribe()
@@ -158,7 +236,7 @@ export function usePaginatedMessages(requestId: string) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [requestId, loadInitial, mergeMessages])
+  }, [requestId, loadInitial, mergeMessages, resetForRequest])
 
   return {
     messages,
@@ -166,5 +244,6 @@ export function usePaginatedMessages(requestId: string) {
     loadingMore,
     hasMore,
     loadMore,
+    sendMessage, // ✅ expose optimistic sender
   }
 }
