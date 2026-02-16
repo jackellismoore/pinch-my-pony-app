@@ -1,170 +1,266 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type Message = {
+type MessageRow = {
   id: string;
-  content: string;
+  request_id: string;
   sender_id: string;
+  content: string;
   created_at: string;
-  read: boolean;
 };
 
-export default function MessagePage() {
-  const { requestId } = useParams();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
+export default function ConversationPage({
+  params,
+}: {
+  params: { requestId: string };
+}) {
+  const requestId = params.requestId;
+
   const [userId, setUserId] = useState<string | null>(null);
-  const [approved, setApproved] = useState(false);
+  const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [debug, setDebug] = useState<any>(null);
 
-  useEffect(() => {
-    initialize();
-  }, []);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (approved) {
-      const interval = setInterval(loadMessages, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [approved]);
-
-  const initialize = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    setUserId(user.id);
-
-    const { data: request } = await supabase
-      .from("borrow_requests")
-      .select("status")
-      .eq("id", requestId)
-      .single();
-
-    if (request?.status === "approved") {
-      setApproved(true);
-      loadMessages();
-    }
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const loadMessages = async () => {
-    const { data } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("request_id", requestId)
-      .order("created_at", { ascending: true });
+  // Optional: render "Me" vs "Them"
+  const labelForSender = useMemo(() => {
+    return (senderId: string) => (senderId === userId ? "Me" : "Them");
+  }, [userId]);
 
-    setMessages(data || []);
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      setError(null);
 
-    // mark unread messages as read
-    if (userId) {
-      await supabase
-        .from("messages")
-        .update({ read: true })
-        .neq("sender_id", userId)
-        .eq("request_id", requestId);
-    }
-  };
+      // 0) Auth
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      if (authErr || !authData?.user) {
+        setError("Not logged in.");
+        setDebug({ step: "auth", authErr });
+        setLoading(false);
+        return;
+      }
+      setUserId(authData.user.id);
 
-  const sendMessage = async () => {
-    if (!newMessage.trim()) return;
-
-    await supabase.from("messages").insert([
+      // 1) Ensure conversation exists (safe even if already exists)
+      // If you DON'T want this, you can delete this block.
       {
+        const { data: existing, error: checkErr } = await supabase
+          .from("conversations")
+          .select("id, request_id")
+          .eq("request_id", requestId)
+          .maybeSingle();
+
+        if (checkErr) {
+          setDebug({ step: "check_conversation", requestId, checkErr });
+          // don't hard fail, but helpful to know
+        }
+
+        if (!existing) {
+          const { error: createErr } = await supabase
+            .from("conversations")
+            .insert({ request_id: requestId });
+
+          if (createErr) {
+            // not fatal, but log it
+            setDebug((d: any) => ({
+              ...(d ?? {}),
+              step: "create_conversation_failed",
+              requestId,
+              createErr,
+            }));
+          }
+        }
+      }
+
+      // 2) Load messages
+      const { data: msgs, error: msgErr } = await supabase
+        .from("messages")
+        .select("id, request_id, sender_id, content, created_at")
+        .eq("request_id", requestId)
+        .order("created_at", { ascending: true });
+
+      if (msgErr) {
+        setError(msgErr.message);
+        setDebug({ step: "load_messages", requestId, msgErr });
+        setLoading(false);
+        return;
+      }
+
+      setMessages((msgs as MessageRow[]) ?? []);
+      setDebug({ step: "loaded", requestId, count: msgs?.length ?? 0 });
+      setLoading(false);
+
+      // Scroll after initial load
+      setTimeout(scrollToBottom, 50);
+
+      // 3) Realtime subscription (optional but nice)
+      const channel = supabase
+        .channel(`messages:${requestId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `request_id=eq.${requestId}`,
+          },
+          (payload) => {
+            const newMsg = payload.new as MessageRow;
+            setMessages((prev) => {
+              // avoid duplicates
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+            setTimeout(scrollToBottom, 50);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+
+    const cleanupPromise = init();
+    // cleanup handled inside init
+    return () => {
+      // noop
+    };
+  }, [requestId]);
+
+  const send = async () => {
+    if (!userId) {
+      setError("Not logged in.");
+      return;
+    }
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    setSending(true);
+    setError(null);
+
+    const { data: inserted, error: insertErr } = await supabase
+      .from("messages")
+      .insert({
         request_id: requestId,
         sender_id: userId,
-        content: newMessage,
-      },
-    ]);
+        content: trimmed,
+      })
+      .select("id, request_id, sender_id, content, created_at")
+      .single();
 
-    setNewMessage("");
-    loadMessages();
+    if (insertErr) {
+      setError(insertErr.message);
+      setDebug({ step: "send_failed", requestId, insertErr });
+      setSending(false);
+      return;
+    }
+
+    // Add immediately (realtime will also deliver; we guard duplicates)
+    setMessages((prev) => [...prev, inserted as MessageRow]);
+    setText("");
+    setSending(false);
+    setTimeout(scrollToBottom, 50);
   };
 
-  if (!approved) {
-    return (
-      <div style={{ padding: 40 }}>
-        <h2>Chat locked</h2>
-        <p>Conversation becomes available once the request is approved.</p>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ padding: 40, maxWidth: 800, margin: "auto" }}>
-      <h1>Conversation</h1>
+    <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
+      <h1 style={{ marginBottom: 8 }}>Conversation</h1>
+      <div style={{ fontFamily: "monospace", fontSize: 12, marginBottom: 16 }}>
+        request_id: {requestId}
+      </div>
+
+      <pre
+        style={{
+          background: "#111",
+          color: "#0f0",
+          padding: 12,
+          borderRadius: 10,
+          fontFamily: "monospace",
+          fontSize: 12,
+          marginBottom: 16,
+          whiteSpace: "pre-wrap",
+          overflowX: "auto",
+        }}
+      >
+        {JSON.stringify(debug, null, 2)}
+      </pre>
 
       <div
         style={{
           border: "1px solid #ddd",
-          borderRadius: 10,
-          padding: 20,
-          height: 400,
+          borderRadius: 12,
+          padding: 16,
+          height: 420,
           overflowY: "auto",
-          marginBottom: 20,
-          background: "#f9fafb",
+          background: "#fff",
         }}
       >
-        {messages.map((msg) => {
-          const isMine = msg.sender_id === userId;
-
-          return (
-            <div
-              key={msg.id}
-              style={{
-                textAlign: isMine ? "right" : "left",
-                marginBottom: 15,
-              }}
-            >
-              <div
-                style={{
-                  display: "inline-block",
-                  padding: "10px 14px",
-                  borderRadius: 12,
-                  background: isMine ? "#2563eb" : "#e5e7eb",
-                  color: isMine ? "white" : "black",
-                  maxWidth: "70%",
-                }}
-              >
-                {msg.content}
+        {loading ? (
+          <p>Loading…</p>
+        ) : messages.length === 0 ? (
+          <p>No messages yet.</p>
+        ) : (
+          messages.map((m) => (
+            <div key={m.id} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, opacity: 0.7 }}>
+                {labelForSender(m.sender_id)} •{" "}
+                {new Date(m.created_at).toLocaleString()}
               </div>
-
-              <div style={{ fontSize: 12, marginTop: 4, opacity: 0.6 }}>
-                {new Date(msg.created_at).toLocaleString()}
-                {isMine && msg.read && " ✓✓"}
-              </div>
+              <div style={{ padding: "6px 0" }}>{m.content}</div>
             </div>
-          );
-        })}
+          ))
+        )}
+        <div ref={bottomRef} />
       </div>
 
-      <div style={{ display: "flex", gap: 10 }}>
+      {error && (
+        <div style={{ marginTop: 12, color: "crimson" }}>
+          <b>Error:</b> {error}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
         <input
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type a message..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type a message…"
           style={{
             flex: 1,
-            padding: 10,
-            borderRadius: 8,
-            border: "1px solid #ccc",
+            padding: 12,
+            borderRadius: 10,
+            border: "1px solid #ddd",
           }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          disabled={sending}
         />
         <button
-          onClick={sendMessage}
+          onClick={send}
+          disabled={sending || text.trim().length === 0}
           style={{
-            padding: "10px 16px",
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: 8,
+            padding: "12px 16px",
+            borderRadius: 10,
+            border: "1px solid #ddd",
+            cursor: sending ? "not-allowed" : "pointer",
           }}
         >
-          Send
+          {sending ? "Sending…" : "Send"}
         </button>
       </div>
     </div>
