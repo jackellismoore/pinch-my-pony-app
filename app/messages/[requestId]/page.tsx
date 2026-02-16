@@ -7,8 +7,20 @@ import { usePaginatedMessages, type Message } from "@/lib/hooks/usePaginatedMess
 import MessageBubble from "@/components/MessageBubble"
 import TypingBubbleInline from "@/components/TypingBubbleInline"
 
+type Profile = {
+  id: string
+  display_name: string | null
+  full_name: string | null
+  avatar_url: string | null
+}
+
 type OtherUser = { id: string; display_name: string; avatar_url: string | null }
 type ThreadHeader = { horse_name: string; other_user: OtherUser | null }
+
+function cleanName(v: string | null | undefined) {
+  const s = (v ?? "").trim()
+  return s.length ? s : null
+}
 
 export default function MessageThreadPage() {
   const router = useRouter()
@@ -86,34 +98,42 @@ export default function MessageThreadPage() {
         return
       }
 
-      const otherId = horse.owner_id === myUserId ? req.borrower_id : horse.owner_id
+      const otherId: string =
+        horse.owner_id === myUserId ? req.borrower_id : horse.owner_id
 
       const { data: prof, error: profErr } = await supabase
         .from("profiles")
-        .select("id, display_name, avatar_url")
+        .select("id, display_name, full_name, avatar_url")
         .eq("id", otherId)
-        .single()
+        .maybeSingle()
 
       if (cancelled) return
 
-      if (profErr || !prof) {
-        console.error("Header: profiles error", profErr)
-        setHeader({
-          horse_name: horse.name,
-          other_user: { id: otherId, display_name: "User", avatar_url: null },
+      if (profErr) {
+        console.error("Header: profiles SELECT blocked/error", {
+          code: (profErr as any)?.code,
+          message: (profErr as any)?.message,
+          details: (profErr as any)?.details,
+          hint: (profErr as any)?.hint,
+          otherId,
         })
-        setHeaderLoading(false)
-        return
       }
+
+      // ✅ Strong fallback: display_name -> full_name -> "User"
+      const display =
+        cleanName((prof as Profile | null)?.display_name) ||
+        cleanName((prof as Profile | null)?.full_name) ||
+        "User"
 
       setHeader({
         horse_name: horse.name,
         other_user: {
-          id: prof.id,
-          display_name: prof.display_name ?? "User",
-          avatar_url: prof.avatar_url,
+          id: otherId,
+          display_name: display,
+          avatar_url: (prof as Profile | null)?.avatar_url ?? null,
         },
       })
+
       setHeaderLoading(false)
     })()
 
@@ -132,7 +152,10 @@ export default function MessageThreadPage() {
 
     channel
       .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState() as Record<string, Array<{ user_id?: string }>>
+        const state = channel.presenceState() as Record<
+          string,
+          Array<{ user_id?: string }>
+        >
         let online = false
         for (const key of Object.keys(state)) {
           const metas = state[key] ?? []
@@ -153,7 +176,7 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // --- Typing channel: listen + keep a ref so we can send broadcasts ---
+  // --- Typing channel (FIXED: event.payload) ---
   useEffect(() => {
     if (!requestId || !myUserId) return
 
@@ -162,7 +185,6 @@ export default function MessageThreadPage() {
         config: { broadcast: { self: false } },
       })
       .on("broadcast", { event: "typing" }, (event) => {
-        // ✅ IMPORTANT: event.payload is where the broadcast payload lives
         const { user_id, typing } = (event.payload ?? {}) as {
           user_id?: string
           typing?: boolean
@@ -180,7 +202,6 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // --- Broadcast typing helpers ---
   const broadcastTyping = (typing: boolean) => {
     const ch = typingChannelRef.current
     if (!ch || !myUserId) return
@@ -229,7 +250,8 @@ export default function MessageThreadPage() {
 
         requestAnimationFrame(() => {
           const newScrollHeight = scroller.scrollHeight
-          scroller.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight)
+          scroller.scrollTop =
+            prevScrollTop + (newScrollHeight - prevScrollHeight)
         })
       },
       { root: scroller, threshold: 0.1 }
@@ -252,7 +274,7 @@ export default function MessageThreadPage() {
     })
   }, [loadingInitial])
 
-  // --- Mark unread as read (recipient) ---
+  // --- Mark unread as read ---
   useEffect(() => {
     if (!requestId || !myUserId) return
     if (messages.length === 0) return
@@ -303,6 +325,7 @@ export default function MessageThreadPage() {
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#f6f7fb" }}>
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -352,6 +375,7 @@ export default function MessageThreadPage() {
         </div>
       </div>
 
+      {/* Messages */}
       <div
         ref={scrollerRef}
         style={{
@@ -386,6 +410,7 @@ export default function MessageThreadPage() {
         <TypingBubbleInline show={otherTyping} />
       </div>
 
+      {/* Composer */}
       <div style={{ padding: 12, borderTop: "1px solid rgba(15,23,42,0.10)", background: "white" }}>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
           <textarea
