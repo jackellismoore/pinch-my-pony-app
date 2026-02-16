@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type LatestMessageRow = {
+type Thread = {
   request_id: string;
   created_at: string;
   content: string;
 };
 
 export default function MessagesPage() {
-  const [threads, setThreads] = useState<LatestMessageRow[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
   const [debug, setDebug] = useState<any>(null);
 
   useEffect(() => {
@@ -21,48 +21,35 @@ export default function MessagesPage() {
         setDebug({ step: "auth", authErr });
         return;
       }
+
       const userId = authData.user.id;
 
       // Requests where I'm borrower
-      const { data: borrowerReqs, error: borrowerReqErr } = await supabase
+      const { data: borrowerReqs } = await supabase
         .from("borrow_requests")
         .select("id")
         .eq("borrower_id", userId);
 
-      if (borrowerReqErr) {
-        setDebug({ step: "borrower_requests", userId, borrowerReqErr });
-        return;
-      }
-
       // Horses I own
-      const { data: myHorses, error: horsesErr } = await supabase
+      const { data: myHorses } = await supabase
         .from("horses")
         .select("id")
         .eq("owner_id", userId);
-
-      if (horsesErr) {
-        setDebug({ step: "my_horses", userId, horsesErr });
-        return;
-      }
 
       const myHorseIds = (myHorses ?? []).map((h: any) => h.id);
 
       // Requests for my horses
       let ownerReqs: any[] = [];
       if (myHorseIds.length > 0) {
-        const { data: ownerReqsData, error: ownerReqErr } = await supabase
+        const { data } = await supabase
           .from("borrow_requests")
           .select("id")
           .in("horse_id", myHorseIds);
 
-        if (ownerReqErr) {
-          setDebug({ step: "owner_requests", userId, myHorseIds, ownerReqErr });
-          return;
-        }
-        ownerReqs = ownerReqsData ?? [];
+        ownerReqs = data ?? [];
       }
 
-      // Unique request ids
+      // Unique request IDs
       const requestIdSet = new Set<string>();
       (borrowerReqs ?? []).forEach((r: any) => requestIdSet.add(r.id));
       (ownerReqs ?? []).forEach((r: any) => requestIdSet.add(r.id));
@@ -70,38 +57,30 @@ export default function MessagesPage() {
 
       if (requestIds.length === 0) {
         setThreads([]);
-        setDebug({ step: "no_requests", userId });
+        setDebug({ step: "no_requests" });
         return;
       }
 
-      // Load messages for those requests (we’ll pick latest per request_id in JS)
-      const { data: msgs, error: msgErr } = await supabase
+      // Load messages for those requests
+      const { data: msgs } = await supabase
         .from("messages")
         .select("request_id, created_at, content")
         .in("request_id", requestIds)
         .order("created_at", { ascending: false });
 
-      if (msgErr) {
-        setDebug({ step: "messages", userId, requestIds, msgErr });
-        return;
-      }
+      const latestMap = new Map<string, Thread>();
 
-      // Take latest per request_id
-      const latestByRequest = new Map<string, LatestMessageRow>();
       (msgs ?? []).forEach((m: any) => {
-        if (!latestByRequest.has(m.request_id)) {
-          latestByRequest.set(m.request_id, m);
+        if (!latestMap.has(m.request_id)) {
+          latestMap.set(m.request_id, m);
         }
       });
 
-      const latestThreads = Array.from(latestByRequest.values()).sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+      const latestThreads = Array.from(latestMap.values());
 
       setThreads(latestThreads);
       setDebug({
         step: "done",
-        userId,
         requestIdsCount: requestIds.length,
         threadsCount: latestThreads.length,
       });
@@ -124,7 +103,6 @@ export default function MessagesPage() {
           fontSize: 13,
           marginBottom: 20,
           whiteSpace: "pre-wrap",
-          overflowX: "auto",
         }}
       >
         {JSON.stringify(debug, null, 2)}
@@ -136,4 +114,29 @@ export default function MessagesPage() {
         threads.map((t) => (
           <div
             key={t.request_id}
-            sty
+            style={{
+              border: "1px solid #ddd",
+              padding: 12,
+              borderRadius: 8,
+              marginBottom: 10,
+            }}
+          >
+            <div style={{ fontFamily: "monospace", fontSize: 12 }}>
+              request_id: {t.request_id}
+            </div>
+
+            <div style={{ marginTop: 6, fontSize: 14 }}>
+              {t.content}
+            </div>
+
+            <div style={{ marginTop: 8 }}>
+              <Link href={`/messages/${t.request_id}`}>
+                Open Conversation
+              </Link>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
