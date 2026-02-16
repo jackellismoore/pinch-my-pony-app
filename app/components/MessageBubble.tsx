@@ -91,13 +91,19 @@ export default function MessageBubble({
       ? "rgba(239,68,68,0.18)"
       : mine
         ? "rgba(37,99,235,0.92)"
-        : "rgba(255,255,255,0.85)"
+        : "rgba(255,255,255,0.86)"
 
   const fg = mine ? "white" : "#0f172a"
   const status = checks(message, mine)
 
   return (
-    <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: mine ? "flex-end" : "flex-start",
+        animation: "pmpFadeInUp 140ms ease",
+      }}
+    >
       <div
         style={{
           maxWidth: 560,
@@ -106,16 +112,12 @@ export default function MessageBubble({
           background: bg,
           color: fg,
           boxShadow: "0 10px 20px rgba(0,0,0,0.08)",
-          border: mine
-            ? "1px solid rgba(255,255,255,0.18)"
-            : "1px solid rgba(15,23,42,0.08)",
+          border: mine ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(15,23,42,0.08)",
           wordBreak: "break-word",
           opacity: message.client_status === "pending" ? 0.82 : 1,
         }}
       >
-        <div style={{ fontSize: 14, lineHeight: 1.45 }}>
-          {message.content}
-        </div>
+        <div style={{ fontSize: 14, lineHeight: 1.45 }}>{message.content}</div>
 
         <div
           style={{
@@ -132,11 +134,9 @@ export default function MessageBubble({
           {mine ? <span style={{ letterSpacing: 0.5 }}>{status}</span> : null}
         </div>
 
-        {message.client_status === "error" && (
-          <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>
-            Failed to send
-          </div>
-        )}
+        {message.client_status === "error" ? (
+          <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>Failed to send</div>
+        ) : null}
       </div>
     </div>
   )
