@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { useRouter } from "next/navigation"
+import { registerPushForCurrentUser } from "@/lib/push/registerPush"
 
 export default function Header() {
   const [user, setUser] = useState<any>(null)
@@ -16,12 +17,14 @@ export default function Header() {
       const { data } = await supabase.auth.getUser()
       if (!mounted) return
       setUser(data.user ?? null)
+      if (data.user) registerPushForCurrentUser()
     }
 
     init()
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
+      if (session?.user) registerPushForCurrentUser()
     })
 
     return () => {
@@ -39,9 +42,6 @@ export default function Header() {
   return (
     <header
       style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 50,
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -50,15 +50,7 @@ export default function Header() {
         background: "white",
       }}
     >
-      <Link
-        href="/"
-        style={{
-          fontWeight: 700,
-          fontSize: 18,
-          textDecoration: "none",
-          color: "#0f172a",
-        }}
-      >
+      <Link href="/" style={{ fontWeight: 700, fontSize: 18 }}>
         🐴 Pinch My Pony
       </Link>
 
