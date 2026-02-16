@@ -45,13 +45,14 @@ export default function ConversationPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Presence + typing UI
   const [otherTyping, setOtherTyping] = useState(false);
   const [otherOnlineCount, setOtherOnlineCount] = useState(0);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const typingStopTimerRef = useRef<number | null>(null);
+
+  const presenceChannelRef = useRef<any>(null);
 
   const scrollToBottom = () => bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 
@@ -82,7 +83,19 @@ export default function ConversationPage() {
     }
   };
 
+  const sendTyping = async (isTyping: boolean) => {
+    if (!presenceChannelRef.current || !userId) return;
+    await presenceChannelRef.current.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { userId, isTyping },
+    });
+  };
+
   useEffect(() => {
+    let msgChannel: any = null;
+    let presenceChannel: any = null;
+
     const init = async () => {
       setLoading(true);
       setError(null);
@@ -93,26 +106,24 @@ export default function ConversationPage() {
         return;
       }
 
-      // Auth
       const { data: authData, error: authErr } = await supabase.auth.getUser();
       if (authErr || !authData?.user) {
         setError("Not logged in.");
         setLoading(false);
         return;
       }
+
       const uid = authData.user.id;
       setUserId(uid);
 
-      // Header info from view (horse + other person)
-      const { data: ti, error: tiErr } = await supabase
+      const { data: ti } = await supabase
         .from("message_threads")
         .select("horse_name, other_display_name, other_avatar_url")
         .eq("request_id", requestId)
         .maybeSingle();
 
-      if (!tiErr) setThreadInfo((ti as ThreadInfo) ?? null);
+      setThreadInfo((ti as ThreadInfo) ?? null);
 
-      // Load messages
       const { data: msgs, error: msgErr } = await supabase
         .from("messages")
         .select("id, request_id, sender_id, content, created_at, read_at")
@@ -129,11 +140,10 @@ export default function ConversationPage() {
       setLoading(false);
       setTimeout(scrollToBottom, 30);
 
-      // Mark read on open
       await markRead(uid, requestId);
 
-      // Realtime: new messages
-      const msgChannel = supabase
+      // Realtime messages
+      msgChannel = supabase
         .channel(`messages:${requestId}`)
         .on(
           "postgres_changes",
@@ -157,10 +167,12 @@ export default function ConversationPage() {
         )
         .subscribe();
 
-      // Presence + typing channel
-      const presenceChannel = supabase.channel(`presence:thread:${requestId}`, {
+      // Presence + typing
+      presenceChannel = supabase.channel(`presence:thread:${requestId}`, {
         config: { presence: { key: uid } },
       });
+
+      presenceChannelRef.current = presenceChannel;
 
       presenceChannel.on("presence", { event: "sync" }, () => {
         const state = presenceChannel.presenceState();
@@ -169,57 +181,42 @@ export default function ConversationPage() {
         setOtherOnlineCount(others.length);
       });
 
-      presenceChannel.on("broadcast", { event: "typing" }, (evt) => {
-        const from = (evt as any)?.payload?.userId as string | undefined;
-        const isTyping = (evt as any)?.payload?.isTyping as boolean | undefined;
+      presenceChannel.on("broadcast", { event: "typing" }, (evt: any) => {
+        const from = evt?.payload?.userId as string | undefined;
+        const isTyping = evt?.payload?.isTyping as boolean | undefined;
 
         if (!from || from === uid) return;
         setOtherTyping(Boolean(isTyping));
 
-        // auto-clear typing after a short delay (in case their "stop" never arrives)
         if (Boolean(isTyping)) {
           window.clearTimeout((typingStopTimerRef.current ?? undefined) as any);
           typingStopTimerRef.current = window.setTimeout(() => setOtherTyping(false), 2000);
         }
       });
 
-      await presenceChannel.subscribe(async (status) => {
+      await presenceChannel.subscribe(async (status: string) => {
         if (status === "SUBSCRIBED") {
           await presenceChannel.track({ at: new Date().toISOString() });
         }
       });
-
-      return () => {
-        supabase.removeChannel(msgChannel);
-        supabase.removeChannel(presenceChannel);
-      };
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     init();
+
+    return () => {
+      if (msgChannel) supabase.removeChannel(msgChannel);
+      if (presenceChannel) supabase.removeChannel(presenceChannel);
+      presenceChannelRef.current = null;
+    };
   }, [requestId]);
 
-  const sendTyping = async (isTyping: boolean) => {
-    if (!requestId || !userId) return;
-    const channel = supabase.getChannels().find((c) => c.topic === `presence:thread:${requestId}`);
-    if (!channel) return;
-
-    // @ts-ignore broadcast exists on channel type at runtime
-    await channel.send({
-      type: "broadcast",
-      event: "typing",
-      payload: { userId, isTyping },
-    });
-  };
-
-  const handleChange = async (val: string) => {
+  const handleChange = (val: string) => {
     setText(val);
 
-    // typing start
     if (val.trim().length > 0) {
+      // typing start
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       sendTyping(true);
-      // send "stop typing" after inactivity
       window.clearTimeout((typingStopTimerRef.current ?? undefined) as any);
       typingStopTimerRef.current = window.setTimeout(() => {
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -253,7 +250,6 @@ export default function ConversationPage() {
       return;
     }
 
-    // stop typing
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     sendTyping(false);
 
@@ -271,8 +267,7 @@ export default function ConversationPage() {
   const horseName = threadInfo?.horse_name ?? "Horse";
   const otherAvatar = threadInfo?.other_avatar_url ?? null;
 
-  const statusText =
-    otherTyping ? "Typing…" : otherOnlineCount > 0 ? "Online" : "Offline";
+  const statusText = otherTyping ? "Typing…" : otherOnlineCount > 0 ? "Online" : "Offline";
 
   const styles = {
     page: {
@@ -305,7 +300,6 @@ export default function ConversationPage() {
       flex: "0 0 auto",
     } as React.CSSProperties,
     avatarImg: { width: "100%", height: "100%", objectFit: "cover" } as React.CSSProperties,
-    titleWrap: { minWidth: 0 } as React.CSSProperties,
     title: { margin: 0, fontSize: 16, fontWeight: 950, letterSpacing: -0.2, color: "#111827" } as React.CSSProperties,
     sub: { marginTop: 3, fontSize: 13, color: "#6b7280", fontWeight: 750 } as React.CSSProperties,
     status: {
@@ -420,7 +414,7 @@ export default function ConversationPage() {
             <div style={styles.avatar}>
               {otherAvatar ? <img src={otherAvatar} alt={otherName} style={styles.avatarImg} /> : null}
             </div>
-            <div style={styles.titleWrap}>
+            <div style={{ minWidth: 0 }}>
               <div style={styles.title}>
                 {otherName} <span style={{ color: "#d1d5db" }}>•</span> {horseName}
               </div>
@@ -465,10 +459,7 @@ export default function ConversationPage() {
         <div style={styles.composerWrap}>
           <input
             value={text}
-            onChange={(e) => {
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
-              handleChange(e.target.value);
-            }}
+            onChange={(e) => handleChange(e.target.value)}
             placeholder="Write a message…"
             style={styles.input}
             disabled={sending}
