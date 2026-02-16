@@ -1,8 +1,13 @@
 "use client"
 
-import type { UIMessage } from "@/lib/hooks/usePaginatedMessages"
+import type { Message } from "@/lib/hooks/usePaginatedMessages"
 
 type GroupPos = "single" | "start" | "middle" | "end"
+
+// allow optional optimistic state without forcing hook types
+type BubbleMessage = Message & {
+  client_status?: "pending" | "sent" | "error"
+}
 
 function formatTime(iso: string) {
   const d = new Date(iso)
@@ -16,17 +21,51 @@ function radius(isMine: boolean, pos: GroupPos) {
   if (pos === "single") return { borderRadius: r }
 
   if (isMine) {
-    if (pos === "start") return { borderTopLeftRadius: r, borderTopRightRadius: r, borderBottomRightRadius: tight, borderBottomLeftRadius: r }
-    if (pos === "middle") return { borderTopLeftRadius: r, borderTopRightRadius: tight, borderBottomRightRadius: tight, borderBottomLeftRadius: r }
-    return { borderTopLeftRadius: r, borderTopRightRadius: tight, borderBottomRightRadius: r, borderBottomLeftRadius: r }
+    if (pos === "start")
+      return {
+        borderTopLeftRadius: r,
+        borderTopRightRadius: r,
+        borderBottomRightRadius: tight,
+        borderBottomLeftRadius: r,
+      }
+    if (pos === "middle")
+      return {
+        borderTopLeftRadius: r,
+        borderTopRightRadius: tight,
+        borderBottomRightRadius: tight,
+        borderBottomLeftRadius: r,
+      }
+    return {
+      borderTopLeftRadius: r,
+      borderTopRightRadius: tight,
+      borderBottomRightRadius: r,
+      borderBottomLeftRadius: r,
+    }
   } else {
-    if (pos === "start") return { borderTopLeftRadius: r, borderTopRightRadius: r, borderBottomRightRadius: r, borderBottomLeftRadius: tight }
-    if (pos === "middle") return { borderTopLeftRadius: tight, borderTopRightRadius: r, borderBottomRightRadius: r, borderBottomLeftRadius: tight }
-    return { borderTopLeftRadius: tight, borderTopRightRadius: r, borderBottomRightRadius: r, borderBottomLeftRadius: r }
+    if (pos === "start")
+      return {
+        borderTopLeftRadius: r,
+        borderTopRightRadius: r,
+        borderBottomRightRadius: r,
+        borderBottomLeftRadius: tight,
+      }
+    if (pos === "middle")
+      return {
+        borderTopLeftRadius: tight,
+        borderTopRightRadius: r,
+        borderBottomRightRadius: r,
+        borderBottomLeftRadius: tight,
+      }
+    return {
+      borderTopLeftRadius: tight,
+      borderTopRightRadius: r,
+      borderBottomRightRadius: r,
+      borderBottomLeftRadius: r,
+    }
   }
 }
 
-function checks(m: UIMessage, isMine: boolean) {
+function checks(m: BubbleMessage, isMine: boolean) {
   if (!isMine) return ""
   if (m.client_status === "pending") return "⏳"
   if (m.client_status === "error") return "⚠"
@@ -38,12 +77,11 @@ export default function MessageBubble({
   isMine,
   groupPos = "single",
 }: {
-  message: UIMessage
+  message: BubbleMessage
   isMine: boolean
   groupPos?: GroupPos
 }) {
   const mine = Boolean(isMine)
-  const status = checks(message, mine)
 
   const bg =
     message.client_status === "error"
@@ -53,6 +91,7 @@ export default function MessageBubble({
         : "rgba(255,255,255,0.78)"
 
   const fg = mine ? "white" : "#0f172a"
+  const status = checks(message, mine)
 
   return (
     <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
@@ -71,7 +110,17 @@ export default function MessageBubble({
       >
         <div style={{ fontSize: 14, lineHeight: 1.45 }}>{message.content}</div>
 
-        <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end", gap: 8, fontSize: 11, opacity: 0.72, alignItems: "center" }}>
+        <div
+          style={{
+            marginTop: 6,
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            fontSize: 11,
+            opacity: 0.72,
+            alignItems: "center",
+          }}
+        >
           <span>{formatTime(message.created_at)}</span>
           {mine ? <span style={{ letterSpacing: 0.5 }}>{status}</span> : null}
         </div>
