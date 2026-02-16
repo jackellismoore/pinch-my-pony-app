@@ -10,11 +10,13 @@ export type Message = {
   content: string
   created_at: string
   read_at: string | null
+  client_temp_id?: string | null
 }
 
 export type UIMessage = Message & {
   client_status?: "pending" | "sent" | "error"
-  client_temp_id?: string // temp id to map optimistic -> real insert
+  delivered_at?: string | null
+  client_temp_id?: string // optimistic correlation id
 }
 
 const PAGE_SIZE = 40
@@ -34,12 +36,11 @@ export function usePaginatedMessages(requestId: string) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
 
-  // source of truth
   const mapRef = useRef<Map<string, UIMessage>>(new Map())
   const [version, setVersion] = useState(0)
   const oldestCursorRef = useRef<{ created_at: string; id: string } | null>(null)
 
-  // Map: client_temp_id -> temp message id (our map key)
+  // client_temp_id -> temp message key
   const tempKeyByClientTempRef = useRef<Map<string, string>>(new Map())
 
   const bump = useCallback(() => setVersion((v) => v + 1), [])
@@ -69,13 +70,11 @@ export function usePaginatedMessages(requestId: string) {
     bump()
   }, [bump])
 
-  // merge from server and reconcile optimistic messages
   const mergeServerMessages = useCallback(
     (msgs: UIMessage[]) => {
       let changed = false
 
       for (const m of msgs) {
-        // ✅ If server message has client_temp_id, try to replace the temp bubble
         const clientTemp = m.client_temp_id
         if (clientTemp) {
           const tempKey = tempKeyByClientTempRef.current.get(clientTemp)
@@ -116,6 +115,17 @@ export function usePaginatedMessages(requestId: string) {
       }
     },
     [bump, setOldestCursorFromCurrent]
+  )
+
+  const markDeliveredLocal = useCallback(
+    (messageId: string, deliveredAtIso?: string) => {
+      const existing = mapRef.current.get(messageId)
+      if (!existing) return
+      if (existing.delivered_at) return
+      mapRef.current.set(messageId, { ...existing, delivered_at: deliveredAtIso ?? new Date().toISOString() })
+      bump()
+    },
+    [bump]
   )
 
   const loadInitial = useCallback(async () => {
@@ -173,14 +183,13 @@ export function usePaginatedMessages(requestId: string) {
     setLoadingMore(false)
   }, [hasMore, loadingMore, mergeServerMessages, requestId, setOldestCursorFromCurrent])
 
-  // ✅ Optimistic send API
+  // Optimistic send
   const sendOptimistic = useCallback(
     async (sender_id: string, content: string) => {
       if (!requestId) return { ok: false as const }
 
       const tempId = makeTempId()
-      const client_temp_id = makeTempId() // separate correlation id
-
+      const client_temp_id = makeTempId()
       const nowIso = new Date().toISOString()
 
       const optimistic: UIMessage = {
@@ -203,11 +212,10 @@ export function usePaginatedMessages(requestId: string) {
         request_id: requestId,
         sender_id,
         content,
-        client_temp_id, // ✅ important for reconciliation
+        client_temp_id,
       })
 
       if (error) {
-        // mark as error
         const existing = mapRef.current.get(tempId)
         if (existing) {
           mapRef.current.set(tempId, { ...existing, client_status: "error" })
@@ -216,8 +224,6 @@ export function usePaginatedMessages(requestId: string) {
         return { ok: false as const, tempId, client_temp_id, error }
       }
 
-      // Keep pending until server INSERT arrives via realtime, then it'll replace it.
-      // Fallback: mark as sent after short delay if realtime is slow
       window.setTimeout(() => {
         const still = mapRef.current.get(tempId)
         if (still && still.client_status === "pending") {
@@ -236,7 +242,6 @@ export function usePaginatedMessages(requestId: string) {
       const existing = mapRef.current.get(tempId)
       if (!existing) return { ok: false as const }
 
-      // revert to pending
       mapRef.current.set(tempId, { ...existing, client_status: "pending" })
       bump()
 
@@ -256,7 +261,6 @@ export function usePaginatedMessages(requestId: string) {
         return { ok: false as const, error }
       }
 
-      // wait for realtime to reconcile
       return { ok: true as const }
     },
     [bump]
@@ -272,27 +276,13 @@ export function usePaginatedMessages(requestId: string) {
       .channel(`messages:${requestId}`)
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `request_id=eq.${requestId}`,
-        },
-        (payload) => {
-          mergeServerMessages([payload.new as any])
-        }
+        { event: "INSERT", schema: "public", table: "messages", filter: `request_id=eq.${requestId}` },
+        (payload) => mergeServerMessages([payload.new as any])
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "messages",
-          filter: `request_id=eq.${requestId}`,
-        },
-        (payload) => {
-          mergeServerMessages([payload.new as any])
-        }
+        { event: "UPDATE", schema: "public", table: "messages", filter: `request_id=eq.${requestId}` },
+        (payload) => mergeServerMessages([payload.new as any])
       )
       .subscribe()
 
@@ -309,5 +299,6 @@ export function usePaginatedMessages(requestId: string) {
     loadMore,
     sendOptimistic,
     retryOptimistic,
+    markDeliveredLocal,
   }
 }
