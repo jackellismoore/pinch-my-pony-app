@@ -79,23 +79,25 @@ export default function MessageBubble({
   isMine,
   groupPos = "single",
   showStatus = false,
+  onRetry,
 }: {
   message: BubbleMessage
   isMine: boolean
   groupPos?: GroupPos
   showStatus?: boolean
+  onRetry?: (tempId: string) => void
 }) {
   const mine = Boolean(isMine)
+  const status = checks(message)
 
   const bg =
     message.client_status === "error"
-      ? "rgba(239,68,68,0.18)"
+      ? "rgba(239,68,68,0.12)"
       : mine
         ? "rgba(37,99,235,0.92)"
         : "rgba(255,255,255,0.86)"
 
   const fg = mine ? "white" : "#0f172a"
-  const status = checks(message)
 
   return (
     <div
@@ -132,13 +134,27 @@ export default function MessageBubble({
           }}
         >
           <span>{formatTime(message.created_at)}</span>
-
-          {/* ✅ WhatsApp style: status only on latest outgoing message */}
           {mine && showStatus ? <span style={{ letterSpacing: 0.5 }}>{status}</span> : null}
         </div>
 
-        {message.client_status === "error" ? (
-          <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>Failed to send</div>
+        {message.client_status === "error" && mine ? (
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={() => onRetry?.(message.id)}
+              style={{
+                border: "none",
+                background: "rgba(239,68,68,0.14)",
+                color: fg,
+                fontWeight: 900,
+                fontSize: 12,
+                padding: "6px 10px",
+                borderRadius: 10,
+                cursor: "pointer",
+              }}
+            >
+              Retry
+            </button>
+          </div>
         ) : null}
       </div>
     </div>

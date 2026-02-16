@@ -42,6 +42,18 @@ function cleanName(v: string | null | undefined) {
   return s.length ? s : null
 }
 
+function timeAgo(iso: string) {
+  const t = new Date(iso).getTime()
+  const now = Date.now()
+  const sec = Math.max(1, Math.floor((now - t) / 1000))
+  if (sec < 60) return `${sec}s ago`
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  return new Date(iso).toLocaleString()
+}
+
 // grouping: same sender within 5 minutes
 function sameGroup(a: AnyMsg, b: AnyMsg) {
   if (a.sender_id !== b.sender_id) return false
@@ -58,18 +70,6 @@ function groupPos(prev: AnyMsg | null, cur: AnyMsg, next: AnyMsg | null) {
   return "end" as const
 }
 
-function timeAgo(iso: string) {
-  const t = new Date(iso).getTime()
-  const now = Date.now()
-  const sec = Math.max(1, Math.floor((now - t) / 1000))
-  if (sec < 60) return `${sec}s ago`
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}m ago`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}h ago`
-  return new Date(iso).toLocaleString()
-}
-
 export default function MessageThreadPage() {
   const router = useRouter()
 
@@ -77,42 +77,41 @@ export default function MessageThreadPage() {
   const requestIdRaw = params.requestId ?? params.requestid
   const requestId = Array.isArray(requestIdRaw) ? requestIdRaw[0] : (requestIdRaw ?? "")
 
-  // Auth/session
   const [authLoading, setAuthLoading] = useState(true)
   const [myUserId, setMyUserId] = useState<string | null>(null)
 
-  // Header data
   const [header, setHeader] = useState<ThreadHeader | null>(null)
   const [headerLoading, setHeaderLoading] = useState(true)
 
-  // Presence + typing
   const [otherOnline, setOtherOnline] = useState(false)
   const [otherTyping, setOtherTyping] = useState(false)
 
-  // Composer
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Global typing channel (for list + thread)
   const typingGlobalRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const typingStopTimerRef = useRef<number | null>(null)
 
-  // Scroll + infinite load
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const topSentinelRef = useRef<HTMLDivElement | null>(null)
   const didAutoScrollRef = useRef(false)
-
-  // Messages hook
-  const { messages, loadMore, hasMore, loadingMore, loadingInitial } = usePaginatedMessages(requestId)
-  const msgs = messages as AnyMsg[]
-
-  // Track near-bottom so we don’t yank user while reading older messages
   const [isNearBottom, setIsNearBottom] = useState(true)
 
-  // last seen polling for other user
   const [otherLastSeenAt, setOtherLastSeenAt] = useState<string | null>(null)
 
-  // ----- Auth load -----
+  const {
+    messages,
+    loadMore,
+    hasMore,
+    loadingMore,
+    loadingInitial,
+    sendOptimistic,
+    retryOptimistic,
+  } = usePaginatedMessages(requestId)
+
+  const msgs = messages as AnyMsg[]
+
+  // ----- Auth -----
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -132,7 +131,7 @@ export default function MessageThreadPage() {
     }
   }, [])
 
-  // ----- Header fetch (horse + other profile) -----
+  // ----- Header (horse + other profile) -----
   useEffect(() => {
     if (!requestId || !myUserId) return
     let cancelled = false
@@ -140,44 +139,31 @@ export default function MessageThreadPage() {
     ;(async () => {
       setHeaderLoading(true)
 
-      const { data: req, error: reqErr } = await supabase
+      const { data: req } = await supabase
         .from("borrow_requests")
         .select("id, horse_id, borrower_id")
         .eq("id", requestId)
         .single()
 
-      if (cancelled) return
-      if (reqErr || !req) {
-        console.error("Header: borrow_requests error", reqErr)
-        setHeader(null)
-        setHeaderLoading(false)
-        return
-      }
+      if (cancelled || !req) return
 
-      const { data: horse, error: horseErr } = await supabase
+      const { data: horse } = await supabase
         .from("horses")
         .select("id, name, owner_id")
         .eq("id", req.horse_id)
         .single()
 
-      if (cancelled) return
-      if (horseErr || !horse) {
-        console.error("Header: horses error", horseErr)
-        setHeader(null)
-        setHeaderLoading(false)
-        return
-      }
+      if (cancelled || !horse) return
 
       const otherId: string = horse.owner_id === myUserId ? req.borrower_id : horse.owner_id
 
-      const { data: prof, error: profErr } = await supabase
+      const { data: prof } = await supabase
         .from("profiles")
         .select("id, display_name, full_name, avatar_url, last_seen_at")
         .eq("id", otherId)
         .maybeSingle()
 
       if (cancelled) return
-      if (profErr) console.error("Header: profiles error", profErr)
 
       const display =
         cleanName((prof as Profile | null)?.display_name) ||
@@ -207,64 +193,40 @@ export default function MessageThreadPage() {
 
   const otherUserId = header?.other_user?.id ?? null
 
-  // ----- Update my last_seen_at periodically while on this page -----
+  // ----- Update my last_seen_at while on page -----
   useEffect(() => {
     if (!myUserId) return
-
     const ping = async () => {
       await supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", myUserId)
     }
-
     ping()
     const id = window.setInterval(ping, 25000)
-
-    const onVis = () => {
-      if (document.visibilityState === "visible") ping()
-    }
+    const onVis = () => document.visibilityState === "visible" && ping()
     window.addEventListener("visibilitychange", onVis)
-
-    const onBeforeUnload = () => {
-      // best-effort
-      navigator.sendBeacon?.(
-        "/api/last-seen",
-        JSON.stringify({ ts: new Date().toISOString() })
-      )
-    }
-    window.addEventListener("beforeunload", onBeforeUnload)
-
     return () => {
       window.clearInterval(id)
       window.removeEventListener("visibilitychange", onVis)
-      window.removeEventListener("beforeunload", onBeforeUnload)
     }
   }, [myUserId])
 
-  // ----- Poll other user's last_seen_at while offline (lightweight) -----
+  // ----- Poll other last seen when offline -----
   useEffect(() => {
     if (!otherUserId) return
-
     let cancelled = false
-
     const fetchLastSeen = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("last_seen_at")
-        .eq("id", otherUserId)
-        .maybeSingle()
+      const { data } = await supabase.from("profiles").select("last_seen_at").eq("id", otherUserId).maybeSingle()
       if (cancelled) return
       setOtherLastSeenAt((data as any)?.last_seen_at ?? null)
     }
-
     fetchLastSeen()
     const id = window.setInterval(fetchLastSeen, 30000)
-
     return () => {
       cancelled = true
       window.clearInterval(id)
     }
   }, [otherUserId])
 
-  // ----- Presence (online indicator) -----
+  // ----- Presence -----
   useEffect(() => {
     if (!requestId || !myUserId) return
 
@@ -294,7 +256,7 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // ----- Global typing channel subscription -----
+  // ----- Global typing channel -----
   useEffect(() => {
     if (!myUserId) return
 
@@ -334,7 +296,6 @@ export default function MessageThreadPage() {
 
   const onDraftChange = (val: string) => {
     setDraft(val)
-
     broadcastTyping(true)
     if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current)
     typingStopTimerRef.current = window.setTimeout(() => broadcastTyping(false), 650)
@@ -348,7 +309,7 @@ export default function MessageThreadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ----- Infinite scroll older with anchor -----
+  // ----- Infinite scroll anchor -----
   useEffect(() => {
     const sentinel = topSentinelRef.current
     const scroller = scrollerRef.current
@@ -376,54 +337,50 @@ export default function MessageThreadPage() {
     return () => obs.disconnect()
   }, [hasMore, loadingMore, loadMore])
 
-  // ----- Track near-bottom -----
+  // ----- near-bottom detection -----
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
-
     const onScroll = () => {
       const distanceFromBottom = scroller.scrollHeight - (scroller.scrollTop + scroller.clientHeight)
       setIsNearBottom(distanceFromBottom < 120)
     }
-
     onScroll()
     scroller.addEventListener("scroll", onScroll, { passive: true })
     return () => scroller.removeEventListener("scroll", onScroll)
   }, [])
 
-  // ----- Auto-scroll once after initial load -----
+  // ----- initial autoscroll -----
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
     if (loadingInitial) return
     if (didAutoScrollRef.current) return
-
     didAutoScrollRef.current = true
     requestAnimationFrame(() => {
       scroller.scrollTop = scroller.scrollHeight
     })
   }, [loadingInitial])
 
-  // ----- Auto-scroll on new messages only if user is near bottom -----
+  // ----- autoscroll on new messages if near bottom -----
   const lastMsgKey = msgs.length ? `${msgs[msgs.length - 1]!.id}:${msgs[msgs.length - 1]!.created_at}` : ""
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
     if (!didAutoScrollRef.current) return
     if (!isNearBottom) return
-
     requestAnimationFrame(() => {
       scroller.scrollTop = scroller.scrollHeight
     })
   }, [lastMsgKey, isNearBottom])
 
-  // ----- Autofocus composer -----
+  // ----- autofocus -----
   useEffect(() => {
     if (!myUserId) return
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // ----- Mark unread as read -----
+  // ----- read receipts -----
   useEffect(() => {
     if (!requestId || !myUserId) return
     if (msgs.length === 0) return
@@ -434,16 +391,10 @@ export default function MessageThreadPage() {
 
     if (unreadIds.length === 0) return
 
-    supabase
-      .from("messages")
-      .update({ read_at: new Date().toISOString() })
-      .in("id", unreadIds)
-      .then(({ error }) => {
-        if (error) console.error("mark read error:", error)
-      })
+    supabase.from("messages").update({ read_at: new Date().toISOString() }).in("id", unreadIds)
   }, [msgs, myUserId, requestId])
 
-  // ----- Grouped rendering -----
+  // ----- grouped rendering -----
   const grouped = useMemo(() => {
     return msgs.map((m, i) => {
       const prev = i > 0 ? msgs[i - 1] : null
@@ -452,7 +403,7 @@ export default function MessageThreadPage() {
     })
   }, [msgs])
 
-  // ✅ WhatsApp-style “Seen”: only on latest outgoing message
+  // WhatsApp-style: status only on latest outgoing
   const lastOutgoingId = useMemo(() => {
     if (!myUserId) return null
     for (let i = msgs.length - 1; i >= 0; i--) {
@@ -461,34 +412,22 @@ export default function MessageThreadPage() {
     return null
   }, [msgs, myUserId])
 
-  // ----- Send message -----
-  const [sending, setSending] = useState(false)
-
   const send = async () => {
     if (!myUserId || !requestId) return
     const text = draft.trim()
-    if (!text || sending) return
+    if (!text) return
 
-    setSending(true)
     setDraft("")
     broadcastTyping(false)
 
-    const { error } = await supabase.from("messages").insert({
-      request_id: requestId,
-      sender_id: myUserId,
-      content: text,
-    })
-
-    setSending(false)
-
-    if (error) {
-      console.error("send error:", error)
-      setDraft(text)
-      return
-    }
+    await sendOptimistic(myUserId, text)
 
     const scroller = scrollerRef.current
     if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight))
+  }
+
+  const retry = async (tempId: string) => {
+    await retryOptimistic(tempId)
   }
 
   if (!requestId) return <div style={{ padding: 20 }}>Missing requestId in URL</div>
@@ -543,7 +482,6 @@ export default function MessageThreadPage() {
             padding: "6px 8px",
             borderRadius: 10,
           }}
-          aria-label="Back to messages"
         >
           ← Back
         </button>
@@ -621,6 +559,7 @@ export default function MessageThreadPage() {
             isMine={m.sender_id === myUserId}
             groupPos={pos}
             showStatus={m.sender_id === myUserId && m.id === lastOutgoingId}
+            onRetry={(id) => retry(id)}
           />
         ))}
 
@@ -659,19 +598,19 @@ export default function MessageThreadPage() {
 
           <button
             onClick={send}
-            disabled={!draft.trim() || sending}
+            disabled={!draft.trim()}
             style={{
               height: 44,
               padding: "0 14px",
               borderRadius: 12,
               border: "none",
               fontWeight: 900,
-              cursor: !draft.trim() || sending ? "not-allowed" : "pointer",
-              background: !draft.trim() || sending ? "rgba(37,99,235,0.35)" : "rgba(37,99,235,0.95)",
+              cursor: !draft.trim() ? "not-allowed" : "pointer",
+              background: !draft.trim() ? "rgba(37,99,235,0.35)" : "rgba(37,99,235,0.95)",
               color: "white",
             }}
           >
-            {sending ? "Sending…" : "Send"}
+            Send
           </button>
         </div>
       </div>
