@@ -24,37 +24,65 @@ export default function MessagesPage() {
       }
       const userId = authData.user.id;
 
-      // 1) Find borrow_requests where:
-      // - I'm the borrower, OR
-      // - I'm the owner of the horse on that request
-      //
-      // IMPORTANT: Use "horses" relationship name in the OR filter (not an alias),
-      // and use !inner to allow filtering across the join.
-      const { data: reqs, error: reqErr } = await supabase
+      // 1) Requests where I'm the borrower
+      const { data: borrowerReqs, error: borrowerReqErr } = await supabase
         .from("borrow_requests")
-        .select("id, borrower_id, horse_id, horses!inner(owner_id)")
-        .or(`borrower_id.eq.${userId},horses.owner_id.eq.${userId}`);
+        .select("id")
+        .eq("borrower_id", userId);
 
-      if (reqErr) {
-        setDebug({ step: "borrow_requests", userId, reqErr });
+      if (borrowerReqErr) {
+        setDebug({ step: "borrower_requests", userId, borrowerReqErr });
         return;
       }
 
-      const requestIds = (reqs ?? []).map((r: any) => r.id);
+      // 2) Horses I own
+      const { data: myHorses, error: horsesErr } = await supabase
+        .from("horses")
+        .select("id")
+        .eq("owner_id", userId);
+
+      if (horsesErr) {
+        setDebug({ step: "my_horses", userId, horsesErr });
+        return;
+      }
+
+      const myHorseIds = (myHorses ?? []).map((h: any) => h.id);
+
+      // 3) Requests where I'm the owner (requests for my horses)
+      let ownerReqs: any[] = [];
+      if (myHorseIds.length > 0) {
+        const { data: ownerReqsData, error: ownerReqErr } = await supabase
+          .from("borrow_requests")
+          .select("id")
+          .in("horse_id", myHorseIds);
+
+        if (ownerReqErr) {
+          setDebug({ step: "owner_requests", userId, myHorseIds, ownerReqErr });
+          return;
+        }
+        ownerReqs = ownerReqsData ?? [];
+      }
+
+      // 4) Combine request ids (unique)
+      const requestIdSet = new Set<string>();
+      (borrowerReqs ?? []).forEach((r: any) => requestIdSet.add(r.id));
+      (ownerReqs ?? []).forEach((r: any) => requestIdSet.add(r.id));
+      const requestIds = Array.from(requestIdSet);
 
       if (requestIds.length === 0) {
         setConversations([]);
         setDebug({
-          step: "borrow_requests",
+          step: "no_requests",
           userId,
+          borrowerReqsCount: borrowerReqs?.length ?? 0,
+          myHorseIdsCount: myHorseIds.length,
+          ownerReqsCount: ownerReqs?.length ?? 0,
           requestIds,
-          note: "No borrow_requests matched this user as borrower or owner.",
-          reqs,
         });
         return;
       }
 
-      // 2) Fetch conversations for those request_ids
+      // 5) Fetch conversations for those request_ids
       const { data: convs, error: convErr } = await supabase
         .from("conversations")
         .select("id, request_id, created_at")
@@ -70,10 +98,11 @@ export default function MessagesPage() {
       setDebug({
         step: "done",
         userId,
+        borrowerReqsCount: borrowerReqs?.length ?? 0,
+        myHorseIdsCount: myHorseIds.length,
+        ownerReqsCount: ownerReqs?.length ?? 0,
         requestIds,
-        borrow_requests_count: reqs?.length ?? 0,
-        conversations_count: convs?.length ?? 0,
-        reqs,
+        conversationsCount: convs?.length ?? 0,
         convs,
       });
     };
@@ -85,7 +114,7 @@ export default function MessagesPage() {
     <div style={{ padding: 40 }}>
       <h1>Messages</h1>
 
-      <div
+      <pre
         style={{
           background: "#111",
           color: "#0f0",
@@ -99,7 +128,7 @@ export default function MessagesPage() {
         }}
       >
         {JSON.stringify(debug, null, 2)}
-      </div>
+      </pre>
 
       {conversations.length === 0 ? (
         <p>No conversations yet.</p>
