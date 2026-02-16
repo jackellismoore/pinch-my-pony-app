@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { supabase } from "@/app/lib/supabaseClient" // ✅ matches your repo tree
+import { supabase } from "@/lib/supabaseClient" // ✅ matches your repo tree
 
 export type Message = {
   id: string

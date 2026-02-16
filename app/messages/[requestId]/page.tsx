@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { supabase } from "@/app/lib/supabaseClient"
-import { usePaginatedMessages, type Message } from "@/app/lib/hooks/usePaginatedMessages"
-import MessageBubble from "@/app/components/MessageBubble"
-import TypingBubbleInline from "@/app/components/TypingBubbleInline"
+import { supabase } from "@/lib/supabaseClient"
+import { usePaginatedMessages, type Message } from "@/lib/hooks/usePaginatedMessages"
+import MessageBubble from "@/components/MessageBubble"
+import TypingBubbleInline from "@/components/TypingBubbleInline"
 
 type OtherUser = {
   id: string
