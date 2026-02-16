@@ -14,10 +14,7 @@ export async function registerPushForCurrentUser() {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return
 
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-  if (!publicKey) {
-    console.warn("Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY")
-    return
-  }
+  if (!publicKey) return
 
   const { data } = await supabase.auth.getUser()
   const user = data?.user
@@ -41,6 +38,8 @@ export async function registerPushForCurrentUser() {
   const auth = json.keys?.auth
   if (!endpoint || !p256dh || !auth) return
 
+  // upsert is not available cleanly without constraints in supabase-js insert
+  // but unique(user_id, endpoint) exists — duplicate errors are fine
   const { error } = await supabase.from("push_subscriptions").insert({
     user_id: user.id,
     endpoint,
@@ -48,7 +47,6 @@ export async function registerPushForCurrentUser() {
     auth,
   })
 
-  // Duplicate insert is OK because table is unique(user_id, endpoint)
   if (error && !String(error.message).toLowerCase().includes("duplicate")) {
     console.warn("push_subscriptions insert error:", error)
   }
