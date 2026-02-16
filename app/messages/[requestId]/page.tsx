@@ -45,13 +45,13 @@ export default function ConversationPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Presence + typing
   const [otherTyping, setOtherTyping] = useState(false);
   const [otherOnlineCount, setOtherOnlineCount] = useState(0);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const typingStopTimerRef = useRef<number | null>(null);
-
   const presenceChannelRef = useRef<any>(null);
 
   const scrollToBottom = () => bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -116,13 +116,18 @@ export default function ConversationPage() {
       const uid = authData.user.id;
       setUserId(uid);
 
-      const { data: ti } = await supabase
+      const { data: ti, error: tiErr } = await supabase
         .from("message_threads")
         .select("horse_name, other_display_name, other_avatar_url")
         .eq("request_id", requestId)
         .maybeSingle();
 
-      setThreadInfo((ti as ThreadInfo) ?? null);
+      if (tiErr) {
+        // Not fatal; we can still show chat
+        setThreadInfo(null);
+      } else {
+        setThreadInfo((ti as ThreadInfo) ?? null);
+      }
 
       const { data: msgs, error: msgErr } = await supabase
         .from("messages")
@@ -167,7 +172,7 @@ export default function ConversationPage() {
         )
         .subscribe();
 
-      // Presence + typing
+      // Presence + typing channel
       presenceChannel = supabase.channel(`presence:thread:${requestId}`, {
         config: { presence: { key: uid } },
       });
@@ -186,6 +191,7 @@ export default function ConversationPage() {
         const isTyping = evt?.payload?.isTyping as boolean | undefined;
 
         if (!from || from === uid) return;
+
         setOtherTyping(Boolean(isTyping));
 
         if (Boolean(isTyping)) {
@@ -250,6 +256,7 @@ export default function ConversationPage() {
       return;
     }
 
+    // stop typing
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     sendTyping(false);
 
@@ -266,8 +273,6 @@ export default function ConversationPage() {
   const otherName = threadInfo?.other_display_name ?? "User";
   const horseName = threadInfo?.horse_name ?? "Horse";
   const otherAvatar = threadInfo?.other_avatar_url ?? null;
-
-  const statusText = otherTyping ? "Typing…" : otherOnlineCount > 0 ? "Online" : "Offline";
 
   const styles = {
     page: {
@@ -359,6 +364,17 @@ export default function ConversationPage() {
       fontWeight: 700,
     } as React.CSSProperties,
     stamp: { marginTop: 6, fontSize: 11, opacity: 0.75, fontWeight: 800 } as React.CSSProperties,
+    // Typing dots
+    typingDotsWrap: { display: "flex", gap: 6, alignItems: "center" } as React.CSSProperties,
+    typingDot: (delayMs: number) =>
+      ({
+        width: 8,
+        height: 8,
+        borderRadius: 999,
+        background: "#9ca3af",
+        animation: `typing 1.2s infinite ease-in-out`,
+        animationDelay: `${delayMs}ms`,
+      } as React.CSSProperties),
     composerWrap: {
       position: "sticky" as const,
       bottom: 12,
@@ -408,6 +424,13 @@ export default function ConversationPage() {
 
   return (
     <div style={styles.page}>
+      <style>{`
+        @keyframes typing {
+          0%, 80%, 100% { opacity: 0.3; transform: translateY(0px) scale(0.9); }
+          40% { opacity: 1; transform: translateY(-2px) scale(1); }
+        }
+      `}</style>
+
       <div style={styles.shell}>
         <div style={styles.topBar}>
           <div style={styles.leftHead}>
@@ -418,38 +441,56 @@ export default function ConversationPage() {
               <div style={styles.title}>
                 {otherName} <span style={{ color: "#d1d5db" }}>•</span> {horseName}
               </div>
-              <div style={styles.sub}>request_id: {String(requestId)}</div>
+
+              {/* nicer subtext: remove request_id */}
+              <div style={styles.sub}>Conversation about {horseName}</div>
             </div>
           </div>
 
+          {/* Keep Online/Offline only (Typing is now shown as a bubble) */}
           <div style={styles.status}>
-            <span style={styles.dot(otherTyping ? true : otherOnlineCount > 0)} />
-            {statusText}
+            <span style={styles.dot(otherOnlineCount > 0)} />
+            {otherOnlineCount > 0 ? "Online" : "Offline"}
           </div>
         </div>
 
         <div ref={scrollerRef} style={styles.scroller}>
           {loading ? (
             <div style={{ color: "#6b7280", fontWeight: 800 }}>Loading…</div>
-          ) : messages.length === 0 ? (
+          ) : messages.length === 0 && !otherTyping ? (
             <div style={{ color: "#6b7280", fontWeight: 800 }}>
               Say hi 👋 — this is the start of your conversation.
             </div>
           ) : (
-            messages.map((m) => {
-              const mine = m.sender_id === userId;
-              return (
-                <div key={m.id} style={styles.row}>
-                  <div style={mine ? styles.bubbleMe : styles.bubbleThem}>
-                    {m.content}
-                    <div style={styles.stamp}>
-                      {labelForSender(m.sender_id)} • {timeAgo(m.created_at)} ago
-                      {!mine && m.read_at ? " • read" : ""}
+            <>
+              {messages.map((m) => {
+                const mine = m.sender_id === userId;
+                return (
+                  <div key={m.id} style={styles.row}>
+                    <div style={mine ? styles.bubbleMe : styles.bubbleThem}>
+                      {m.content}
+                      <div style={styles.stamp}>
+                        {labelForSender(m.sender_id)} • {timeAgo(m.created_at)} ago
+                        {!mine && m.read_at ? " • read" : ""}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Typing indicator as a chat bubble */}
+              {otherTyping && (
+                <div style={styles.row}>
+                  <div style={styles.bubbleThem}>
+                    <div style={styles.typingDotsWrap}>
+                      <div style={styles.typingDot(0)} />
+                      <div style={styles.typingDot(150)} />
+                      <div style={styles.typingDot(300)} />
                     </div>
                   </div>
                 </div>
-              );
-            })
+              )}
+            </>
           )}
           <div ref={bottomRef} />
         </div>
