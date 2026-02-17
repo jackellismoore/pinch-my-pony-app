@@ -3,16 +3,14 @@
 type NormalizedStatus = "pending" | "approved" | "rejected";
 
 function normalizeStatus(input: unknown): NormalizedStatus {
-  const raw = String(input ?? "").toLowerCase();
+  const raw = String(input ?? "").toLowerCase().trim();
 
-  // handle legacy / unexpected values safely
   if (raw === "approved") return "approved";
   if (raw === "rejected") return "rejected";
 
-  // legacy mapping
+  // Legacy mapping (if anything still says declined)
   if (raw === "declined") return "rejected";
 
-  // default fallback (prevents UI crash)
   return "pending";
 }
 
@@ -53,6 +51,7 @@ export default function StatusPill(props: { status: string }) {
         color: c.fg,
         fontSize: 12,
         fontWeight: 900,
+        letterSpacing: "0.3px",
       }}
     >
       {c.label}

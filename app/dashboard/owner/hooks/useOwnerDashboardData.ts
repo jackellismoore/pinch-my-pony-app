@@ -22,8 +22,14 @@ type Summary = {
   activeBorrows: number;
 };
 
+// If your FK names ever differ, change them here in one place.
+const FK = {
+  borrowRequestsHorse: "borrow_requests_horse_id_fkey",
+  borrowRequestsBorrower: "borrow_requests_borrower_id_fkey",
+} as const;
+
 function normalizeStatus(input: unknown): OwnerRequestRow["status"] {
-  const raw = String(input ?? "").toLowerCase();
+  const raw = String(input ?? "").toLowerCase().trim();
   if (raw === "approved") return "approved";
   if (raw === "rejected") return "rejected";
   if (raw === "declined") return "rejected"; // legacy mapping
@@ -118,8 +124,7 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 2) Requests + joins
-    // IMPORTANT: FK names must match your DB constraints.
+    // 2) Requests + joins (explicit FK names)
     const { data: rows, error: reqErr } = await supabase
       .from("borrow_requests")
       .select(
@@ -130,8 +135,8 @@ export function useOwnerDashboardData() {
           start_date,
           end_date,
           message,
-          horse:horses!borrow_requests_horse_id_fkey ( id, name ),
-          borrower:profiles!borrow_requests_borrower_id_fkey ( id, display_name, full_name )
+          horse:horses!${FK.borrowRequestsHorse} ( id, name ),
+          borrower:profiles!${FK.borrowRequestsBorrower} ( id, display_name, full_name )
         `
       )
       .in("horse_id", horseIds)
@@ -170,7 +175,6 @@ export function useOwnerDashboardData() {
 
       setBusy(row.id, true);
 
-      // optimistic UI
       setRequests((prev) =>
         prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r))
       );
@@ -181,7 +185,6 @@ export function useOwnerDashboardData() {
         .eq("id", row.id);
 
       if (updateErr) {
-        // rollback
         setRequests((prev) =>
           prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
         );
@@ -201,7 +204,6 @@ export function useOwnerDashboardData() {
 
     setBusy(row.id, true);
 
-    // optimistic UI
     setRequests((prev) =>
       prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r))
     );
@@ -212,7 +214,6 @@ export function useOwnerDashboardData() {
       .eq("id", row.id);
 
     if (updateErr) {
-      // rollback
       setRequests((prev) =>
         prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
       );
