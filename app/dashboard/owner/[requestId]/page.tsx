@@ -1,12 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import DashboardShell from "@/components/DashboardShell";
 import StatusPill from "@/components/StatusPill";
-import { useOwnerRequestDetail } from "@/dashboard/owner/hooks/useOwnerRequestDetail";
-import { useState } from "react";
+import { useOwnerRequestDetail } from "../hooks/useOwnerRequestDetail";
 
 export default function OwnerRequestDetailPage({
   params,
@@ -24,11 +24,11 @@ export default function OwnerRequestDetailPage({
 
   const approve = async () => {
     if (!detail || detail.status !== "pending") return;
-    setLocalError(null);
 
     const ok = confirm("Approve this request?");
     if (!ok) return;
 
+    setLocalError(null);
     setBusy(true);
 
     // optimistic
@@ -52,11 +52,11 @@ export default function OwnerRequestDetailPage({
 
   const reject = async () => {
     if (!detail || detail.status !== "pending") return;
-    setLocalError(null);
 
     const ok = confirm("Reject this request?");
     if (!ok) return;
 
+    setLocalError(null);
     setBusy(true);
 
     // optimistic
@@ -81,32 +81,28 @@ export default function OwnerRequestDetailPage({
   return (
     <DashboardShell
       title="Request Details"
-      subtitle="Review request info and take action. Messaging remains tied to this request."
+      subtitle="Review request info and take action."
       onRefresh={refresh}
       loading={loading}
     >
       <div style={styles.topRow}>
-        <Link href="/dashboard/owner/requests" style={{ textDecoration: "none" }}>
-          <button style={styles.secondaryBtn}>← Back to Requests</button>
-        </Link>
+        <button onClick={() => router.back()} style={styles.secondaryBtn}>
+          ← Back
+        </button>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Link href={`/messages/${requestId}`} style={{ textDecoration: "none" }}>
             <button style={styles.primaryBtn}>Open Messages</button>
           </Link>
-
-          <button
-            onClick={() => router.push("/dashboard/owner")}
-            style={styles.secondaryBtn}
-          >
-            Dashboard
-          </button>
+          <Link href="/dashboard/owner" style={{ textDecoration: "none" }}>
+            <button style={styles.secondaryBtn}>Owner Dashboard</button>
+          </Link>
         </div>
       </div>
 
       {(error || localError) && (
         <div style={styles.errorBox}>
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>Couldn’t load</div>
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>Error</div>
           <div style={{ opacity: 0.85 }}>{localError || error}</div>
         </div>
       )}
@@ -115,7 +111,6 @@ export default function OwnerRequestDetailPage({
 
       {detail && (
         <div style={styles.grid}>
-          {/* Left: Request Info */}
           <div style={styles.card}>
             <div style={styles.cardTitle}>Request</div>
 
@@ -179,7 +174,6 @@ export default function OwnerRequestDetailPage({
             )}
           </div>
 
-          {/* Right: Horse Preview */}
           <div style={styles.card}>
             <div style={styles.cardTitle}>Horse</div>
 

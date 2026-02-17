@@ -10,10 +10,21 @@ export type OwnerRequestDetail = {
   start_date: string | null;
   end_date: string | null;
   message: string | null;
-  horse: { id: string; name: string | null; image_url?: string | null; location?: string | null } | null;
-  borrower: { id: string; display_name: string | null; full_name: string | null } | null;
+  horse: {
+    id: string;
+    name: string | null;
+    image_url?: string | null;
+    location?: string | null;
+  } | null;
+  borrower: {
+    id: string;
+    display_name: string | null;
+    full_name: string | null;
+  } | null;
 };
 
+// IMPORTANT: these FK names must match your DB constraint names.
+// You already used these successfully in the owner dashboard hook.
 const FK = {
   borrowRequestsHorse: "borrow_requests_horse_id_fkey",
   borrowRequestsBorrower: "borrow_requests_borrower_id_fkey",
@@ -23,7 +34,7 @@ function normalizeStatus(input: unknown): OwnerRequestDetail["status"] {
   const raw = String(input ?? "").toLowerCase().trim();
   if (raw === "approved") return "approved";
   if (raw === "rejected") return "rejected";
-  if (raw === "declined") return "rejected";
+  if (raw === "declined") return "rejected"; // legacy mapping
   return "pending";
 }
 
@@ -58,7 +69,7 @@ export function useOwnerRequestDetail(requestId: string) {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<OwnerRequestDetail | null>(null);
 
-  const load = useCallback(async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -66,15 +77,15 @@ export function useOwnerRequestDetail(requestId: string) {
       .from("borrow_requests")
       .select(
         `
-        id,
-        status,
-        created_at,
-        start_date,
-        end_date,
-        message,
-        horse:horses!${FK.borrowRequestsHorse} ( id, name, image_url, location ),
-        borrower:profiles!${FK.borrowRequestsBorrower} ( id, display_name, full_name )
-      `
+          id,
+          status,
+          created_at,
+          start_date,
+          end_date,
+          message,
+          horse:horses!${FK.borrowRequestsHorse} ( id, name, image_url, location ),
+          borrower:profiles!${FK.borrowRequestsBorrower} ( id, display_name, full_name )
+        `
       )
       .eq("id", requestId)
       .maybeSingle();
@@ -99,8 +110,8 @@ export function useOwnerRequestDetail(requestId: string) {
 
   useEffect(() => {
     if (!requestId) return;
-    load();
-  }, [requestId, load]);
+    refresh();
+  }, [requestId, refresh]);
 
-  return { loading, error, detail, refresh: load, setDetail };
+  return { loading, error, detail, refresh, setDetail };
 }
