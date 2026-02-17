@@ -14,6 +14,35 @@ export type OwnerRequestDetail = {
   borrower: { id: string; display_name: string | null; full_name: string | null } | null;
 };
 
+function normalizeStatus(input: unknown): OwnerRequestDetail["status"] {
+  const raw = String(input ?? "").toLowerCase().trim();
+  if (raw === "approved") return "approved";
+  if (raw === "rejected") return "rejected";
+  if (raw === "declined") return "rejected"; // legacy mapping
+  return "pending";
+}
+
+function normalizeRow(r: any): OwnerRequestDetail {
+  return {
+    id: String(r?.id ?? ""),
+    status: normalizeStatus(r?.status),
+    created_at: String(r?.created_at ?? new Date().toISOString()),
+    start_date: r?.start_date ?? null,
+    end_date: r?.end_date ?? null,
+    message: r?.message ?? null,
+    horse: r?.horse
+      ? { id: String(r.horse.id ?? ""), name: r.horse.name ?? null }
+      : null,
+    borrower: r?.borrower
+      ? {
+          id: String(r.borrower.id ?? ""),
+          display_name: r.borrower.display_name ?? null,
+          full_name: r.borrower.full_name ?? null,
+        }
+      : null,
+  };
+}
+
 export function useOwnerRequestDetail(requestId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +85,7 @@ export function useOwnerRequestDetail(requestId: string) {
       return;
     }
 
-    setDetail(data as OwnerRequestDetail);
+    setDetail(normalizeRow(data));
     setLoading(false);
   }, [requestId]);
 
