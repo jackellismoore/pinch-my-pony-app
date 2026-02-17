@@ -80,8 +80,12 @@ export default function RequestsTable(props: {
                 </td>
 
                 <td style={{ ...styles.td, textAlign: "right", whiteSpace: "nowrap" }}>
+                  <Link href={`/dashboard/owner/requests/${r.id}`} style={styles.linkBtn}>
+                    Details
+                  </Link>
+
                   <Link href={`/messages/${r.id}`} style={styles.linkBtn}>
-                    Open
+                    Messages
                   </Link>
 
                   {r.status === "pending" && (
