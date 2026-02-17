@@ -334,18 +334,35 @@ export default function MessageThreadPage() {
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // ---- Read receipts ----
+  // ✅ HARDEN READ RECEIPTS:
+  // - run on message changes
+  // - also re-run when tab becomes visible (mobile / background)
   useEffect(() => {
     if (!requestId || !myUserId) return
-    if (messages.length === 0) return
 
-    const unreadIds = messages
-      .filter((m) => m.sender_id !== myUserId && !m.read_at && !String(m.id).startsWith("temp-"))
-      .map((m) => m.id)
+    const markRead = async () => {
+      const unreadIds = messages
+        .filter((m) => m.sender_id !== myUserId && !m.read_at && !String(m.id).startsWith("temp-"))
+        .map((m) => m.id)
 
-    if (unreadIds.length === 0) return
+      if (unreadIds.length === 0) return
 
-    supabase.from("messages").update({ read_at: new Date().toISOString() }).in("id", unreadIds)
+      const { error } = await supabase
+        .from("messages")
+        .update({ read_at: new Date().toISOString() })
+        .in("id", unreadIds)
+
+      if (error) console.error("mark read error:", error)
+    }
+
+    markRead()
+
+    const onVis = () => {
+      if (document.visibilityState === "visible") markRead()
+    }
+
+    document.addEventListener("visibilitychange", onVis)
+    return () => document.removeEventListener("visibilitychange", onVis)
   }, [messages, myUserId, requestId])
 
   // ---- Group rendering ----
@@ -379,7 +396,7 @@ export default function MessageThreadPage() {
 
     const result = await sendOptimistic(myUserId, text)
 
-    // 🔔 Only send push if recipient exists and they are NOT online
+    // 🔔 Only push if recipient exists and they're offline
     if (result.ok && otherUserId && !otherOnline) {
       fetch("/api/push/send", {
         method: "POST",
