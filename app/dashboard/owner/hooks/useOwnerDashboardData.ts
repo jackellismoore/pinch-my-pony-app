@@ -30,6 +30,28 @@ function isActiveBorrow(row: OwnerRequestRow, now = new Date()): boolean {
   return start <= now && now <= end;
 }
 
+function normalizeRequestRow(r: any): OwnerRequestRow {
+  // defensively normalize to a stable, typed shape
+  return {
+    id: String(r?.id ?? ""),
+    status: (r?.status ?? "pending") as OwnerRequestRow["status"],
+    created_at: String(r?.created_at ?? new Date().toISOString()),
+    start_date: r?.start_date ?? null,
+    end_date: r?.end_date ?? null,
+    message: r?.message ?? null,
+    horse: r?.horse
+      ? { id: String(r.horse.id ?? ""), name: r.horse.name ?? null }
+      : null,
+    borrower: r?.borrower
+      ? {
+          id: String(r.borrower.id ?? ""),
+          display_name: r.borrower.display_name ?? null,
+          full_name: r.borrower.full_name ?? null,
+        }
+      : null,
+  };
+}
+
 export function useOwnerDashboardData() {
   const router = useRouter();
 
@@ -39,9 +61,11 @@ export function useOwnerDashboardData() {
   const [requests, setRequests] = useState<OwnerRequestRow[]>([]);
   const [totalHorses, setTotalHorses] = useState<number>(0);
 
-  const [actionBusyById, setActionBusyById] = useState<Record<string, boolean>>(
-    {}
-  );
+  const [actionBusyById, setActionBusyById] = useState<Record<string, boolean>>({});
+
+  const setBusy = (id: string, busy: boolean) => {
+    setActionBusyById((prev) => ({ ...prev, [id]: busy }));
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,7 +87,7 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 1) Get owned horse IDs (minimal)
+    // 1) Get horse IDs (minimal)
     const { data: horses, error: horsesErr } = await supabase
       .from("horses")
       .select("id")
@@ -75,7 +99,7 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    const horseIds = (horses || []).map((h: any) => h.id as string);
+    const horseIds = (horses ?? []).map((h: any) => h.id as string);
     setTotalHorses(horseIds.length);
 
     if (horseIds.length === 0) {
@@ -84,20 +108,20 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 2) Requests + joins for display
+    // 2) Get requests + joined display fields
     const { data: rows, error: reqErr } = await supabase
       .from("borrow_requests")
       .select(
         `
-        id,
-        status,
-        created_at,
-        start_date,
-        end_date,
-        message,
-        horse:horses ( id, name ),
-        borrower:profiles ( id, display_name, full_name )
-      `
+          id,
+          status,
+          created_at,
+          start_date,
+          end_date,
+          message,
+          horse:horses ( id, name ),
+          borrower:profiles ( id, display_name, full_name )
+        `
       )
       .in("horse_id", horseIds)
       .order("created_at", { ascending: false });
@@ -108,7 +132,8 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    setRequests((rows || []) as OwnerRequestRow[]);
+    const normalized = (rows ?? []).map(normalizeRequestRow);
+    setRequests(normalized);
     setLoading(false);
   }, []);
 
@@ -129,20 +154,14 @@ export function useOwnerDashboardData() {
     };
   }, [requests, totalHorses]);
 
-  const setBusy = (id: string, busy: boolean) => {
-    setActionBusyById((prev) => ({ ...prev, [id]: busy }));
-  };
-
   const approve = useCallback(
     async (row: OwnerRequestRow) => {
       if (row.status !== "pending") return;
 
       setBusy(row.id, true);
 
-      // optimistic UI
-      setRequests((prev) =>
-        prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r))
-      );
+      // optimistic update
+      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r)));
 
       const { error: updateErr } = await supabase
         .from("borrow_requests")
@@ -151,17 +170,13 @@ export function useOwnerDashboardData() {
 
       if (updateErr) {
         // rollback
-        setRequests((prev) =>
-          prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
-        );
+        setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
         setError(updateErr.message);
         setBusy(row.id, false);
         return;
       }
 
       setBusy(row.id, false);
-
-      // your messaging threads are keyed by request_id
       router.push(`/messages/${row.id}`);
     },
     [router]
@@ -172,10 +187,8 @@ export function useOwnerDashboardData() {
 
     setBusy(row.id, true);
 
-    // optimistic UI
-    setRequests((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r))
-    );
+    // optimistic update
+    setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r)));
 
     const { error: updateErr } = await supabase
       .from("borrow_requests")
@@ -184,9 +197,7 @@ export function useOwnerDashboardData() {
 
     if (updateErr) {
       // rollback
-      setRequests((prev) =>
-        prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
-      );
+      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
       setError(updateErr.message);
       setBusy(row.id, false);
       return;
