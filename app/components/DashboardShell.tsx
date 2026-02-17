@@ -30,11 +30,7 @@ export default function DashboardShell(props: {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: {
-    padding: 24,
-    maxWidth: 1200,
-    margin: "0 auto",
-  },
+  page: { padding: 24, maxWidth: 1200, margin: "0 auto" },
   header: {
     display: "flex",
     alignItems: "flex-end",
@@ -42,7 +38,12 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   title: { fontSize: 22, fontWeight: 900, letterSpacing: "-0.4px" },
-  subtitle: { marginTop: 8, fontSize: 13, color: "rgba(15,23,42,0.70)", maxWidth: 760 },
+  subtitle: {
+    marginTop: 8,
+    fontSize: 13,
+    color: "rgba(15,23,42,0.70)",
+    maxWidth: 760,
+  },
   refreshBtn: {
     height: 36,
     padding: "0 12px",
@@ -50,6 +51,6 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(15,23,42,0.14)",
     background: "white",
     cursor: "pointer",
-    fontWeight: 700,
+    fontWeight: 800,
   },
 };

@@ -39,7 +39,9 @@ export function useOwnerDashboardData() {
   const [requests, setRequests] = useState<OwnerRequestRow[]>([]);
   const [totalHorses, setTotalHorses] = useState<number>(0);
 
-  const [actionBusyById, setActionBusyById] = useState<Record<string, boolean>>({});
+  const [actionBusyById, setActionBusyById] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,7 +63,7 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 1) Minimal horses query
+    // 1) Get owned horse IDs (minimal)
     const { data: horses, error: horsesErr } = await supabase
       .from("horses")
       .select("id")
@@ -82,10 +84,7 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 2) Requests query with joins for table display
-    // NOTE: This assumes:
-    // - borrow_requests.horse_id -> horses.id FK
-    // - borrow_requests.borrower_id -> profiles.id FK
+    // 2) Requests + joins for display
     const { data: rows, error: reqErr } = await supabase
       .from("borrow_requests")
       .select(
@@ -141,7 +140,9 @@ export function useOwnerDashboardData() {
       setBusy(row.id, true);
 
       // optimistic UI
-      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r)));
+      setRequests((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r))
+      );
 
       const { error: updateErr } = await supabase
         .from("borrow_requests")
@@ -150,7 +151,9 @@ export function useOwnerDashboardData() {
 
       if (updateErr) {
         // rollback
-        setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
+        setRequests((prev) =>
+          prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
+        );
         setError(updateErr.message);
         setBusy(row.id, false);
         return;
@@ -158,7 +161,7 @@ export function useOwnerDashboardData() {
 
       setBusy(row.id, false);
 
-      // Go to the request thread (your messaging uses request_id)
+      // your messaging threads are keyed by request_id
       router.push(`/messages/${row.id}`);
     },
     [router]
@@ -170,7 +173,9 @@ export function useOwnerDashboardData() {
     setBusy(row.id, true);
 
     // optimistic UI
-    setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r)));
+    setRequests((prev) =>
+      prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r))
+    );
 
     const { error: updateErr } = await supabase
       .from("borrow_requests")
@@ -179,7 +184,9 @@ export function useOwnerDashboardData() {
 
     if (updateErr) {
       // rollback
-      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
+      setRequests((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
+      );
       setError(updateErr.message);
       setBusy(row.id, false);
       return;

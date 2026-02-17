@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import StatusPill from "./StatusPill";
-import type { OwnerRequestRow } from "../_hooks/useOwnerDashboardData";
+import StatusPill from "@/components/StatusPill";
+import type { OwnerRequestRow } from "@/dashboard/owner/hooks/useOwnerDashboardData";
 
 export type RequestRow = OwnerRequestRow;
 
@@ -22,7 +22,7 @@ export default function RequestsTable(props: {
   if (!loading && rows.length === 0) {
     return (
       <div style={styles.empty}>
-        <div style={{ fontWeight: 800, marginBottom: 6 }}>No requests found</div>
+        <div style={{ fontWeight: 900, marginBottom: 6 }}>No requests found</div>
         <div style={{ color: "rgba(15,23,42,0.65)", fontSize: 13 }}>
           When someone requests to borrow one of your horses, it will appear here.
         </div>
@@ -46,23 +46,26 @@ export default function RequestsTable(props: {
         <tbody>
           {rows.map((r) => {
             const busy = !!actionBusyById[r.id];
-            const borrowerName = r.borrower?.display_name || r.borrower?.full_name || "Unknown";
+            const borrowerName =
+              r.borrower?.display_name || r.borrower?.full_name || "Unknown";
             const horseName = r.horse?.name || "Unnamed horse";
 
             return (
               <tr key={r.id} style={styles.tr}>
                 <td style={styles.td}>
-                  <div style={{ fontWeight: 800 }}>{horseName}</div>
+                  <div style={{ fontWeight: 900 }}>{horseName}</div>
                   <div style={styles.meta}>Request #{r.id.slice(0, 8)}</div>
                 </td>
 
                 <td style={styles.td}>
-                  <div style={{ fontWeight: 800 }}>{borrowerName}</div>
-                  <div style={styles.meta}>{r.message ? r.message.slice(0, 60) : "No message"}</div>
+                  <div style={{ fontWeight: 900 }}>{borrowerName}</div>
+                  <div style={styles.meta}>
+                    {r.message ? r.message.slice(0, 60) : "No message"}
+                  </div>
                 </td>
 
                 <td style={styles.td}>
-                  <div style={{ fontWeight: 800 }}>
+                  <div style={{ fontWeight: 900 }}>
                     {r.start_date ? new Date(r.start_date).toLocaleDateString() : "—"}{" "}
                     <span style={{ opacity: 0.5 }}>→</span>{" "}
                     {r.end_date ? new Date(r.end_date).toLocaleDateString() : "—"}
@@ -111,23 +114,17 @@ export default function RequestsTable(props: {
 
 const styles: Record<string, React.CSSProperties> = {
   empty: { padding: 16 },
-  table: {
-    width: "100%",
-    borderCollapse: "separate",
-    borderSpacing: 0,
-  },
+  table: { width: "100%", borderCollapse: "separate", borderSpacing: 0 },
   th: {
     textAlign: "left",
     fontSize: 12,
-    fontWeight: 800,
+    fontWeight: 900,
     color: "rgba(15,23,42,0.70)",
     padding: "12px 16px",
     background: "rgba(248,250,252,1)",
     borderBottom: "1px solid rgba(15,23,42,0.08)",
   },
-  tr: {
-    background: "white",
-  },
+  tr: { background: "white" },
   td: {
     padding: "14px 16px",
     borderBottom: "1px solid rgba(15,23,42,0.08)",
@@ -143,7 +140,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 10,
     border: "1px solid rgba(15,23,42,0.14)",
     background: "white",
-    fontWeight: 800,
+    fontWeight: 900,
     fontSize: 13,
     marginRight: 8,
     textDecoration: "none",

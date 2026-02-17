@@ -2,7 +2,11 @@
 
 type Accent = "default" | "green" | "amber" | "blue";
 
-export default function StatCard(props: { label: string; value: number; accent?: Accent }) {
+export default function StatCard(props: {
+  label: string;
+  value: number;
+  accent?: Accent;
+}) {
   const { label, value, accent = "default" } = props;
 
   const accentMap: Record<Accent, string> = {
@@ -31,15 +35,11 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     minHeight: 78,
   },
-  accentBar: {
-    position: "absolute",
-    inset: "0 0 auto 0",
-    height: 6,
-  },
+  accentBar: { position: "absolute", inset: "0 0 auto 0", height: 6 },
   label: {
     marginTop: 6,
     fontSize: 12,
-    fontWeight: 700,
+    fontWeight: 800,
     color: "rgba(15,23,42,0.65)",
   },
   value: {
