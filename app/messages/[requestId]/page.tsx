@@ -212,7 +212,7 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // ---- Typing broadcast (single global channel; filtered by requestId) ----
+  // ---- Typing broadcast (global channel; filter by requestId) ----
   useEffect(() => {
     if (!myUserId) return
 
@@ -334,7 +334,7 @@ export default function MessageThreadPage() {
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // ---- Read receipts (mark unread as read) ----
+  // ---- Read receipts ----
   useEffect(() => {
     if (!requestId || !myUserId) return
     if (messages.length === 0) return
@@ -357,7 +357,6 @@ export default function MessageThreadPage() {
     })
   }, [messages])
 
-  // ---- show status only on latest outgoing ----
   const lastOutgoingId = useMemo(() => {
     if (!myUserId) return null
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -380,8 +379,8 @@ export default function MessageThreadPage() {
 
     const result = await sendOptimistic(myUserId, text)
 
-    // 🔔 Best-effort push while sender is online
-    if (result.ok && otherUserId) {
+    // 🔔 Only send push if recipient exists and they are NOT online
+    if (result.ok && otherUserId && !otherOnline) {
       fetch("/api/push/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -406,8 +405,11 @@ export default function MessageThreadPage() {
   const horseName = header?.horse_name ?? ""
   const avatarUrl = header?.other_user?.avatar_url ?? ""
 
-  const statusText =
-    otherOnline ? "Online" : otherLastSeenAt ? `Last seen ${timeAgo(otherLastSeenAt)}` : "Offline"
+  const statusText = otherOnline
+    ? "Online"
+    : otherLastSeenAt
+      ? `Last seen ${timeAgo(otherLastSeenAt)}`
+      : "Offline"
 
   return (
     <div style={{ height: "calc(100vh - 60px)", display: "flex", flexDirection: "column", background: "#f6f7fb" }}>
