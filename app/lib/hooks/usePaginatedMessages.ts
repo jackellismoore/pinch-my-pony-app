@@ -15,8 +15,6 @@ export type Message = {
 
 export type UIMessage = Message & {
   client_status?: "pending" | "sent" | "error"
-  delivered_at?: string | null
-  client_temp_id?: string // optimistic correlation id
 }
 
 const PAGE_SIZE = 40
@@ -27,8 +25,8 @@ function compareAsc(a: UIMessage, b: UIMessage) {
   return a.id.localeCompare(b.id)
 }
 
-function makeTempId() {
-  return `temp-${Math.random().toString(36).slice(2)}-${Date.now()}`
+function tempId() {
+  return `temp-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`
 }
 
 export function usePaginatedMessages(requestId: string) {
@@ -40,9 +38,6 @@ export function usePaginatedMessages(requestId: string) {
   const [version, setVersion] = useState(0)
   const oldestCursorRef = useRef<{ created_at: string; id: string } | null>(null)
 
-  // client_temp_id -> temp message key
-  const tempKeyByClientTempRef = useRef<Map<string, string>>(new Map())
-
   const bump = useCallback(() => setVersion((v) => v + 1), [])
 
   const messages = useMemo(() => {
@@ -50,6 +45,41 @@ export function usePaginatedMessages(requestId: string) {
     arr.sort(compareAsc)
     return arr
   }, [version])
+
+  const mergeMessages = useCallback(
+    (msgs: UIMessage[]) => {
+      let changed = false
+
+      for (const m of msgs) {
+        const existing = mapRef.current.get(m.id)
+        if (!existing) {
+          mapRef.current.set(m.id, m)
+          changed = true
+          continue
+        }
+
+        const next: UIMessage = {
+          ...existing,
+          ...m,
+          read_at: m.read_at ?? existing.read_at,
+          client_status:
+            existing.client_status === "pending" ? (m.client_status ?? "sent") : (m.client_status ?? existing.client_status),
+        }
+
+        if (
+          next.read_at !== existing.read_at ||
+          next.content !== existing.content ||
+          next.client_status !== existing.client_status
+        ) {
+          mapRef.current.set(m.id, next)
+          changed = true
+        }
+      }
+
+      if (changed) bump()
+    },
+    [bump]
+  )
 
   const setOldestCursorFromCurrent = useCallback(() => {
     const arr = Array.from(mapRef.current.values())
@@ -64,69 +94,10 @@ export function usePaginatedMessages(requestId: string) {
 
   const reset = useCallback(() => {
     mapRef.current = new Map()
-    tempKeyByClientTempRef.current = new Map()
     oldestCursorRef.current = null
     setHasMore(true)
     bump()
   }, [bump])
-
-  const mergeServerMessages = useCallback(
-    (msgs: UIMessage[]) => {
-      let changed = false
-
-      for (const m of msgs) {
-        const clientTemp = m.client_temp_id
-        if (clientTemp) {
-          const tempKey = tempKeyByClientTempRef.current.get(clientTemp)
-          if (tempKey && mapRef.current.has(tempKey)) {
-            mapRef.current.delete(tempKey)
-            tempKeyByClientTempRef.current.delete(clientTemp)
-            changed = true
-          }
-        }
-
-        const existing = mapRef.current.get(m.id)
-        if (!existing) {
-          mapRef.current.set(m.id, { ...m, client_status: "sent" })
-          changed = true
-          continue
-        }
-
-        const next: UIMessage = {
-          ...existing,
-          ...m,
-          read_at: m.read_at ?? existing.read_at,
-          client_status: "sent",
-        }
-
-        if (
-          next.read_at !== existing.read_at ||
-          next.content !== existing.content ||
-          next.client_status !== existing.client_status
-        ) {
-          mapRef.current.set(m.id, next)
-          changed = true
-        }
-      }
-
-      if (changed) {
-        bump()
-        setOldestCursorFromCurrent()
-      }
-    },
-    [bump, setOldestCursorFromCurrent]
-  )
-
-  const markDeliveredLocal = useCallback(
-    (messageId: string, deliveredAtIso?: string) => {
-      const existing = mapRef.current.get(messageId)
-      if (!existing) return
-      if (existing.delivered_at) return
-      mapRef.current.set(messageId, { ...existing, delivered_at: deliveredAtIso ?? new Date().toISOString() })
-      bump()
-    },
-    [bump]
-  )
 
   const loadInitial = useCallback(async () => {
     if (!requestId) return
@@ -147,11 +118,11 @@ export function usePaginatedMessages(requestId: string) {
       return
     }
 
-    mergeServerMessages((data ?? []) as any)
+    mergeMessages((data ?? []).map((m) => ({ ...m, client_status: "sent" })))
     setHasMore((data ?? []).length === PAGE_SIZE)
     setOldestCursorFromCurrent()
     setLoadingInitial(false)
-  }, [mergeServerMessages, requestId, setOldestCursorFromCurrent])
+  }, [mergeMessages, requestId, setOldestCursorFromCurrent])
 
   const loadMore = useCallback(async () => {
     if (!requestId) return
@@ -177,95 +148,78 @@ export function usePaginatedMessages(requestId: string) {
       return
     }
 
-    mergeServerMessages((data ?? []) as any)
+    mergeMessages((data ?? []).map((m) => ({ ...m, client_status: "sent" })))
     setHasMore((data ?? []).length === PAGE_SIZE)
     setOldestCursorFromCurrent()
     setLoadingMore(false)
-  }, [hasMore, loadingMore, mergeServerMessages, requestId, setOldestCursorFromCurrent])
+  }, [hasMore, loadingMore, mergeMessages, requestId, setOldestCursorFromCurrent])
 
-  // Optimistic send
+  // ---- Optimistic send with reconciliation via client_temp_id ----
   const sendOptimistic = useCallback(
-    async (sender_id: string, content: string) => {
-      if (!requestId) return { ok: false as const }
-
-      const tempId = makeTempId()
-      const client_temp_id = makeTempId()
+    async (senderId: string, content: string): Promise<{ ok: boolean; tempId?: string }> => {
+      const tId = tempId()
       const nowIso = new Date().toISOString()
 
-      const optimistic: UIMessage = {
-        id: tempId,
+      mapRef.current.set(tId, {
+        id: tId,
         request_id: requestId,
-        sender_id,
+        sender_id: senderId,
         content,
         created_at: nowIso,
         read_at: null,
+        client_temp_id: tId,
         client_status: "pending",
-        client_temp_id,
-      }
-
-      mapRef.current.set(tempId, optimistic)
-      tempKeyByClientTempRef.current.set(client_temp_id, tempId)
+      })
       bump()
-      setOldestCursorFromCurrent()
 
       const { error } = await supabase.from("messages").insert({
         request_id: requestId,
-        sender_id,
+        sender_id: senderId,
         content,
-        client_temp_id,
+        client_temp_id: tId,
       })
 
       if (error) {
-        const existing = mapRef.current.get(tempId)
+        console.error("sendOptimistic insert error:", error)
+        const existing = mapRef.current.get(tId)
         if (existing) {
-          mapRef.current.set(tempId, { ...existing, client_status: "error" })
+          mapRef.current.set(tId, { ...existing, client_status: "error" })
           bump()
         }
-        return { ok: false as const, tempId, client_temp_id, error }
+        return { ok: false, tempId: tId }
       }
 
-      window.setTimeout(() => {
-        const still = mapRef.current.get(tempId)
-        if (still && still.client_status === "pending") {
-          mapRef.current.set(tempId, { ...still, client_status: "sent" })
-          bump()
-        }
-      }, 2000)
-
-      return { ok: true as const, tempId, client_temp_id }
+      return { ok: true, tempId: tId }
     },
-    [bump, requestId, setOldestCursorFromCurrent]
+    [bump, requestId]
   )
 
   const retryOptimistic = useCallback(
-    async (tempId: string) => {
-      const existing = mapRef.current.get(tempId)
-      if (!existing) return { ok: false as const }
+    async (tempMessageId: string) => {
+      const msg = mapRef.current.get(tempMessageId)
+      if (!msg) return
+      if (!msg.sender_id || !msg.content) return
 
-      mapRef.current.set(tempId, { ...existing, client_status: "pending" })
+      mapRef.current.set(tempMessageId, { ...msg, client_status: "pending" })
       bump()
 
-      const client_temp_id = existing.client_temp_id ?? makeTempId()
-      tempKeyByClientTempRef.current.set(client_temp_id, tempId)
-
       const { error } = await supabase.from("messages").insert({
-        request_id: existing.request_id,
-        sender_id: existing.sender_id,
-        content: existing.content,
-        client_temp_id,
+        request_id: requestId,
+        sender_id: msg.sender_id,
+        content: msg.content,
+        client_temp_id: msg.client_temp_id ?? tempMessageId,
       })
 
       if (error) {
-        mapRef.current.set(tempId, { ...existing, client_status: "error", client_temp_id })
+        console.error("retryOptimistic insert error:", error)
+        mapRef.current.set(tempMessageId, { ...msg, client_status: "error" })
         bump()
-        return { ok: false as const, error }
       }
-
-      return { ok: true as const }
     },
-    [bump]
+    [bump, requestId]
   )
 
+  // ---- Realtime: INSERT + UPDATE ----
   useEffect(() => {
     if (!requestId) return
 
@@ -277,19 +231,40 @@ export function usePaginatedMessages(requestId: string) {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `request_id=eq.${requestId}` },
-        (payload) => mergeServerMessages([payload.new as any])
+        (payload) => {
+          const row = payload.new as Message
+
+          // Reconcile optimistic temp id if present
+          if (row.client_temp_id && mapRef.current.has(row.client_temp_id)) {
+            const temp = mapRef.current.get(row.client_temp_id)!
+            mapRef.current.delete(row.client_temp_id)
+            mapRef.current.set(row.id, {
+              ...temp,
+              ...row,
+              client_status: "sent",
+            })
+            bump()
+            setOldestCursorFromCurrent()
+            return
+          }
+
+          mergeMessages([{ ...row, client_status: "sent" }])
+          setOldestCursorFromCurrent()
+        }
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages", filter: `request_id=eq.${requestId}` },
-        (payload) => mergeServerMessages([payload.new as any])
+        (payload) => {
+          mergeMessages([{ ...(payload.new as Message), client_status: "sent" }])
+        }
       )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [requestId, loadInitial, mergeServerMessages, reset])
+  }, [requestId, loadInitial, mergeMessages, reset, bump, setOldestCursorFromCurrent])
 
   return {
     messages,
@@ -299,6 +274,5 @@ export function usePaginatedMessages(requestId: string) {
     loadMore,
     sendOptimistic,
     retryOptimistic,
-    markDeliveredLocal,
   }
 }
