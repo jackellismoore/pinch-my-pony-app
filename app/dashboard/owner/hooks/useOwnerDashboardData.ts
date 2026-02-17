@@ -1,36 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
-export type OwnerRequestDetail = {
+export type OwnerRequestRow = {
   id: string;
   status: "pending" | "approved" | "rejected";
   created_at: string;
   start_date: string | null;
   end_date: string | null;
   message: string | null;
-  horse: {
-    id: string;
-    name: string | null;
-    image_url?: string | null;
-    location?: string | null;
-  } | null;
-  borrower: {
-    id: string;
-    display_name: string | null;
-    full_name: string | null;
-  } | null;
+  horse: { id: string; name: string | null } | null;
+  borrower: { id: string; display_name: string | null; full_name: string | null } | null;
 };
 
-// IMPORTANT: these FK names must match your DB constraint names.
-// You already used these successfully in the owner dashboard hook.
+type Summary = {
+  totalHorses: number;
+  pendingRequests: number;
+  approvedRequests: number;
+  activeBorrows: number;
+};
+
+// Centralize FK names so you can change once if needed
 const FK = {
   borrowRequestsHorse: "borrow_requests_horse_id_fkey",
   borrowRequestsBorrower: "borrow_requests_borrower_id_fkey",
 } as const;
 
-function normalizeStatus(input: unknown): OwnerRequestDetail["status"] {
+function normalizeStatus(input: unknown): OwnerRequestRow["status"] {
   const raw = String(input ?? "").toLowerCase().trim();
   if (raw === "approved") return "approved";
   if (raw === "rejected") return "rejected";
@@ -38,7 +36,15 @@ function normalizeStatus(input: unknown): OwnerRequestDetail["status"] {
   return "pending";
 }
 
-function normalizeRow(r: any): OwnerRequestDetail {
+function isActiveBorrow(row: OwnerRequestRow, now = new Date()): boolean {
+  if (row.status !== "approved") return false;
+  if (!row.start_date || !row.end_date) return false;
+  const start = new Date(row.start_date);
+  const end = new Date(row.end_date);
+  return start <= now && now <= end;
+}
+
+function normalizeRequestRow(r: any): OwnerRequestRow {
   return {
     id: String(r?.id ?? ""),
     status: normalizeStatus(r?.status),
@@ -47,12 +53,7 @@ function normalizeRow(r: any): OwnerRequestDetail {
     end_date: r?.end_date ?? null,
     message: r?.message ?? null,
     horse: r?.horse
-      ? {
-          id: String(r.horse.id ?? ""),
-          name: r.horse.name ?? null,
-          image_url: r.horse.image_url ?? null,
-          location: r.horse.location ?? null,
-        }
+      ? { id: String(r.horse.id ?? ""), name: r.horse.name ?? null }
       : null,
     borrower: r?.borrower
       ? {
@@ -64,16 +65,67 @@ function normalizeRow(r: any): OwnerRequestDetail {
   };
 }
 
-export function useOwnerRequestDetail(requestId: string) {
+export function useOwnerDashboardData() {
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [detail, setDetail] = useState<OwnerRequestDetail | null>(null);
 
-  const refresh = useCallback(async () => {
+  const [requests, setRequests] = useState<OwnerRequestRow[]>([]);
+  const [totalHorses, setTotalHorses] = useState<number>(0);
+
+  const [actionBusyById, setActionBusyById] = useState<Record<string, boolean>>(
+    {}
+  );
+
+  const setBusy = (id: string, busy: boolean) => {
+    setActionBusyById((prev) => ({ ...prev, [id]: busy }));
+  };
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+
+    if (userErr) {
+      setError(userErr.message);
+      setLoading(false);
+      return;
+    }
+
+    if (!user) {
+      setError("Not signed in.");
+      setLoading(false);
+      return;
+    }
+
+    // 1) Get owned horse IDs
+    const { data: horses, error: horsesErr } = await supabase
+      .from("horses")
+      .select("id")
+      .eq("owner_id", user.id);
+
+    if (horsesErr) {
+      setError(horsesErr.message);
+      setLoading(false);
+      return;
+    }
+
+    const horseIds = (horses ?? []).map((h: any) => h.id as string);
+    setTotalHorses(horseIds.length);
+
+    if (horseIds.length === 0) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
+
+    // 2) Requests + joins (explicit FK names to avoid ambiguity)
+    const { data: rows, error: reqErr } = await supabase
       .from("borrow_requests")
       .select(
         `
@@ -83,35 +135,108 @@ export function useOwnerRequestDetail(requestId: string) {
           start_date,
           end_date,
           message,
-          horse:horses!${FK.borrowRequestsHorse} ( id, name, image_url, location ),
+          horse:horses!${FK.borrowRequestsHorse} ( id, name ),
           borrower:profiles!${FK.borrowRequestsBorrower} ( id, display_name, full_name )
         `
       )
-      .eq("id", requestId)
-      .maybeSingle();
+      .in("horse_id", horseIds)
+      .order("created_at", { ascending: false });
 
-    if (error) {
-      setError(error.message);
-      setDetail(null);
+    if (reqErr) {
+      setError(reqErr.message);
       setLoading(false);
       return;
     }
 
-    if (!data) {
-      setError("Request not found (or you don’t have access).");
-      setDetail(null);
-      setLoading(false);
-      return;
-    }
-
-    setDetail(normalizeRow(data));
+    setRequests((rows ?? []).map(normalizeRequestRow));
     setLoading(false);
-  }, [requestId]);
+  }, []);
 
   useEffect(() => {
-    if (!requestId) return;
-    refresh();
-  }, [requestId, refresh]);
+    load();
+  }, [load]);
 
-  return { loading, error, detail, refresh, setDetail };
+  const summary: Summary = useMemo(() => {
+    const pendingRequests = requests.filter((r) => r.status === "pending").length;
+    const approvedRequests = requests.filter((r) => r.status === "approved").length;
+    const activeBorrows = requests.filter((r) => isActiveBorrow(r)).length;
+
+    return {
+      totalHorses,
+      pendingRequests,
+      approvedRequests,
+      activeBorrows,
+    };
+  }, [requests, totalHorses]);
+
+  const approve = useCallback(
+    async (row: OwnerRequestRow) => {
+      if (row.status !== "pending") return;
+
+      setBusy(row.id, true);
+
+      // optimistic
+      setRequests((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r))
+      );
+
+      const { error: updateErr } = await supabase
+        .from("borrow_requests")
+        .update({ status: "approved" })
+        .eq("id", row.id);
+
+      if (updateErr) {
+        // rollback
+        setRequests((prev) =>
+          prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
+        );
+        setError(updateErr.message);
+        setBusy(row.id, false);
+        return;
+      }
+
+      setBusy(row.id, false);
+      router.push(`/messages/${row.id}`);
+    },
+    [router]
+  );
+
+  const reject = useCallback(async (row: OwnerRequestRow) => {
+    if (row.status !== "pending") return;
+
+    setBusy(row.id, true);
+
+    // optimistic
+    setRequests((prev) =>
+      prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r))
+    );
+
+    const { error: updateErr } = await supabase
+      .from("borrow_requests")
+      .update({ status: "rejected" })
+      .eq("id", row.id);
+
+    if (updateErr) {
+      // rollback
+      setRequests((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
+      );
+      setError(updateErr.message);
+      setBusy(row.id, false);
+      return;
+    }
+
+    setBusy(row.id, false);
+  }, []);
+
+  return {
+    loading,
+    error,
+    summary,
+    requests,
+    refresh: load,
+    approve,
+    reject,
+    actionBusyById,
+  };
 }
