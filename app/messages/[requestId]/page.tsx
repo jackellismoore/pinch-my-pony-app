@@ -334,9 +334,7 @@ export default function MessageThreadPage() {
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // ✅ HARDEN READ RECEIPTS:
-  // - run on message changes
-  // - also re-run when tab becomes visible (mobile / background)
+  // ✅ HARDEN READ RECEIPTS
   useEffect(() => {
     if (!requestId || !myUserId) return
 
@@ -414,6 +412,38 @@ export default function MessageThreadPage() {
     if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight))
   }
 
+  // ✅ Delete chat (hide for current user only)
+  const [deleting, setDeleting] = useState(false)
+  const deleteChatForMe = async () => {
+    if (!myUserId || !requestId) return
+    const ok = window.confirm("Delete this chat for you? It will reappear if a new message is sent.")
+    if (!ok) return
+
+    setDeleting(true)
+
+    const { error } = await supabase
+      .from("message_thread_deletions")
+      .upsert(
+        {
+          user_id: myUserId,
+          request_id: requestId,
+          deleted_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,request_id" }
+      )
+
+    setDeleting(false)
+
+    if (error) {
+      console.error("deleteChatForMe error:", error)
+      alert("Could not delete chat: " + error.message)
+      return
+    }
+
+    router.push("/messages")
+    router.refresh()
+  }
+
   if (!requestId) return <div style={{ padding: 20 }}>Missing requestId in URL</div>
   if (authLoading) return <div style={{ padding: 20, opacity: 0.75 }}>Loading session…</div>
   if (!myUserId) return <div style={{ padding: 20 }}>You’re not logged in.</div>
@@ -456,6 +486,24 @@ export default function MessageThreadPage() {
           }}
         >
           ← Back
+        </button>
+
+        <button
+          onClick={deleteChatForMe}
+          disabled={deleting}
+          style={{
+            marginLeft: 2,
+            border: "1px solid rgba(239,68,68,0.25)",
+            background: deleting ? "rgba(239,68,68,0.25)" : "rgba(239,68,68,0.10)",
+            color: "#b91c1c",
+            cursor: deleting ? "not-allowed" : "pointer",
+            fontWeight: 900,
+            fontSize: 12,
+            padding: "6px 10px",
+            borderRadius: 10,
+          }}
+        >
+          {deleting ? "Deleting…" : "Delete"}
         </button>
 
         <div style={{ width: 40, height: 40, borderRadius: 999, overflow: "hidden", background: "rgba(15,23,42,0.06)" }}>
@@ -521,7 +569,7 @@ export default function MessageThreadPage() {
             message={m}
             isMine={m.sender_id === myUserId}
             groupPos={pos}
-            showStatus={m.sender_id === myUserId && m.id === lastOutgoingId}
+            showStatus={false}
             onRetry={(id) => retry(id)}
           />
         ))}
