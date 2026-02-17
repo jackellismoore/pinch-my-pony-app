@@ -15,9 +15,7 @@ export default function RequestsTable(props: {
 }) {
   const { rows, loading, onApprove, onReject, actionBusyById } = props;
 
-  if (loading && rows.length === 0) {
-    return <div style={styles.empty}>Loading requests…</div>;
-  }
+  if (loading && rows.length === 0) return <div style={styles.empty}>Loading requests…</div>;
 
   if (!loading && rows.length === 0) {
     return (
@@ -59,9 +57,7 @@ export default function RequestsTable(props: {
 
                 <td style={styles.td}>
                   <div style={{ fontWeight: 900 }}>{borrowerName}</div>
-                  <div style={styles.meta}>
-                    {r.message ? r.message.slice(0, 60) : "No message"}
-                  </div>
+                  <div style={styles.meta}>{r.message ? r.message.slice(0, 60) : "No message"}</div>
                 </td>
 
                 <td style={styles.td}>
@@ -70,9 +66,7 @@ export default function RequestsTable(props: {
                     <span style={{ opacity: 0.5 }}>→</span>{" "}
                     {r.end_date ? new Date(r.end_date).toLocaleDateString() : "—"}
                   </div>
-                  <div style={styles.meta}>
-                    {new Date(r.created_at).toLocaleString()}
-                  </div>
+                  <div style={styles.meta}>{new Date(r.created_at).toLocaleString()}</div>
                 </td>
 
                 <td style={styles.td}>
@@ -80,7 +74,7 @@ export default function RequestsTable(props: {
                 </td>
 
                 <td style={{ ...styles.td, textAlign: "right", whiteSpace: "nowrap" }}>
-                  <Link href={`/dashboard/owner/requests/${r.id}`} style={styles.linkBtn}>
+                  <Link href={`/dashboard/owner/${r.id}`} style={styles.linkBtn}>
                     Details
                   </Link>
 

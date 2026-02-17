@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 export type OwnerRequestDetail = {
@@ -19,16 +19,16 @@ export function useOwnerRequestDetail(requestId: string) {
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<OwnerRequestDetail | null>(null);
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
     if (!requestId) return;
 
-    const load = async () => {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      const { data, error } = await supabase
-        .from("borrow_requests")
-        .select(`
+    const { data, error } = await supabase
+      .from("borrow_requests")
+      .select(
+        `
           id,
           status,
           created_at,
@@ -37,28 +37,32 @@ export function useOwnerRequestDetail(requestId: string) {
           message,
           horse:horses!borrow_requests_horse_id_fkey ( id, name ),
           borrower:profiles!borrow_requests_borrower_id_fkey ( id, display_name, full_name )
-        `)
-        .eq("id", requestId)
-        .maybeSingle();
+        `
+      )
+      .eq("id", requestId)
+      .maybeSingle();
 
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
-
-      if (!data) {
-        setError("Request not found.");
-        setLoading(false);
-        return;
-      }
-
-      setDetail(data as OwnerRequestDetail);
+    if (error) {
+      setError(error.message);
+      setDetail(null);
       setLoading(false);
-    };
+      return;
+    }
 
-    load();
+    if (!data) {
+      setError("Request not found (or you don’t have access).");
+      setDetail(null);
+      setLoading(false);
+      return;
+    }
+
+    setDetail(data as OwnerRequestDetail);
+    setLoading(false);
   }, [requestId]);
 
-  return { loading, error, detail, setDetail };
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { loading, error, detail, refresh, setDetail };
 }

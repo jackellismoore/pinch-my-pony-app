@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import DashboardShell from "@/components/DashboardShell";
 import StatusPill from "@/components/StatusPill";
-import { useOwnerRequestDetail } from "../hooks/useOwnerRequestDetail";
+import { useOwnerRequestDetail } from "@/dashboard/owner/hooks/useOwnerRequestDetail";
 
 export default function OwnerRequestDetailPage({
   params,
@@ -41,7 +41,6 @@ export default function OwnerRequestDetailPage({
 
     if (error) {
       setLocalError(error.message);
-      // rollback
       setDetail((prev) => (prev ? { ...prev, status: "pending" } : prev));
       setBusy(false);
       return;
@@ -69,7 +68,6 @@ export default function OwnerRequestDetailPage({
 
     if (error) {
       setLocalError(error.message);
-      // rollback
       setDetail((prev) => (prev ? { ...prev, status: "pending" } : prev));
       setBusy(false);
       return;
@@ -94,8 +92,8 @@ export default function OwnerRequestDetailPage({
           <Link href={`/messages/${requestId}`} style={{ textDecoration: "none" }}>
             <button style={styles.primaryBtn}>Open Messages</button>
           </Link>
-          <Link href="/dashboard/owner" style={{ textDecoration: "none" }}>
-            <button style={styles.secondaryBtn}>Owner Dashboard</button>
+          <Link href="/dashboard/owner/requests" style={{ textDecoration: "none" }}>
+            <button style={styles.secondaryBtn}>All Requests</button>
           </Link>
         </div>
       </div>
@@ -175,27 +173,17 @@ export default function OwnerRequestDetailPage({
           </div>
 
           <div style={styles.card}>
-            <div style={styles.cardTitle}>Horse</div>
+            <div style={styles.cardTitle}>Actions</div>
 
-            {detail.horse?.image_url ? (
-              <img
-                src={detail.horse.image_url}
-                alt={detail.horse.name ?? "Horse"}
-                style={styles.horseImg}
-              />
-            ) : (
-              <div style={styles.horseImgPlaceholder}>No photo</div>
-            )}
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              <Link href={`/messages/${requestId}`} style={{ textDecoration: "none" }}>
+                <button style={styles.secondaryBtnWide}>Open Messages</button>
+              </Link>
 
-            <div style={{ marginTop: 12, fontWeight: 900 }}>
-              {detail.horse?.name || "Unnamed horse"}
+              <button onClick={refresh} style={styles.secondaryBtnWide}>
+                Refresh
+              </button>
             </div>
-
-            {detail.horse?.location && (
-              <div style={{ marginTop: 6, color: "rgba(15,23,42,0.70)" }}>
-                {detail.horse.location}
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -249,27 +237,6 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
     whiteSpace: "pre-wrap",
   },
-  horseImg: {
-    marginTop: 12,
-    width: "100%",
-    height: 220,
-    objectFit: "cover",
-    borderRadius: 12,
-    border: "1px solid rgba(15,23,42,0.10)",
-  },
-  horseImgPlaceholder: {
-    marginTop: 12,
-    width: "100%",
-    height: 220,
-    borderRadius: 12,
-    border: "1px solid rgba(15,23,42,0.10)",
-    background: "rgba(248,250,252,1)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "rgba(15,23,42,0.55)",
-    fontWeight: 900,
-  },
   primaryBtn: {
     height: 36,
     padding: "0 12px",
@@ -282,6 +249,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   secondaryBtn: {
     height: 36,
+    padding: "0 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(15,23,42,0.14)",
+    background: "white",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  secondaryBtnWide: {
+    height: 38,
+    width: "100%",
     padding: "0 12px",
     borderRadius: 10,
     border: "1px solid rgba(15,23,42,0.14)",
