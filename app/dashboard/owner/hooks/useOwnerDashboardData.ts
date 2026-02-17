@@ -31,7 +31,6 @@ function isActiveBorrow(row: OwnerRequestRow, now = new Date()): boolean {
 }
 
 function normalizeRequestRow(r: any): OwnerRequestRow {
-  // defensively normalize to a stable, typed shape
   return {
     id: String(r?.id ?? ""),
     status: (r?.status ?? "pending") as OwnerRequestRow["status"],
@@ -61,7 +60,9 @@ export function useOwnerDashboardData() {
   const [requests, setRequests] = useState<OwnerRequestRow[]>([]);
   const [totalHorses, setTotalHorses] = useState<number>(0);
 
-  const [actionBusyById, setActionBusyById] = useState<Record<string, boolean>>({});
+  const [actionBusyById, setActionBusyById] = useState<Record<string, boolean>>(
+    {}
+  );
 
   const setBusy = (id: string, busy: boolean) => {
     setActionBusyById((prev) => ({ ...prev, [id]: busy }));
@@ -81,13 +82,14 @@ export function useOwnerDashboardData() {
       setLoading(false);
       return;
     }
+
     if (!user) {
       setError("Not signed in.");
       setLoading(false);
       return;
     }
 
-    // 1) Get horse IDs (minimal)
+    // 1) Get owned horse IDs (minimal select)
     const { data: horses, error: horsesErr } = await supabase
       .from("horses")
       .select("id")
@@ -108,7 +110,14 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 2) Get requests + joined display fields
+    // 2) Load requests + joined display fields
+    //
+    // IMPORTANT:
+    // Your DB has more than one relationship between borrow_requests and horses,
+    // so we MUST specify the FK name to disambiguate.
+    //
+    // These are the common default FK names. If yours differ, replace them with
+    // your actual FK constraint names.
     const { data: rows, error: reqErr } = await supabase
       .from("borrow_requests")
       .select(
@@ -119,8 +128,8 @@ export function useOwnerDashboardData() {
           start_date,
           end_date,
           message,
-          horse:horses ( id, name ),
-          borrower:profiles ( id, display_name, full_name )
+          horse:horses!borrow_requests_horse_id_fkey ( id, name ),
+          borrower:profiles!borrow_requests_borrower_id_fkey ( id, display_name, full_name )
         `
       )
       .in("horse_id", horseIds)
@@ -160,8 +169,10 @@ export function useOwnerDashboardData() {
 
       setBusy(row.id, true);
 
-      // optimistic update
-      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r)));
+      // optimistic UI
+      setRequests((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r))
+      );
 
       const { error: updateErr } = await supabase
         .from("borrow_requests")
@@ -170,13 +181,17 @@ export function useOwnerDashboardData() {
 
       if (updateErr) {
         // rollback
-        setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
+        setRequests((prev) =>
+          prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
+        );
         setError(updateErr.message);
         setBusy(row.id, false);
         return;
       }
 
       setBusy(row.id, false);
+
+      // messaging threads are keyed by request_id
       router.push(`/messages/${row.id}`);
     },
     [router]
@@ -187,8 +202,10 @@ export function useOwnerDashboardData() {
 
     setBusy(row.id, true);
 
-    // optimistic update
-    setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r)));
+    // optimistic UI
+    setRequests((prev) =>
+      prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r))
+    );
 
     const { error: updateErr } = await supabase
       .from("borrow_requests")
@@ -197,7 +214,9 @@ export function useOwnerDashboardData() {
 
     if (updateErr) {
       // rollback
-      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
+      setRequests((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
+      );
       setError(updateErr.message);
       setBusy(row.id, false);
       return;
