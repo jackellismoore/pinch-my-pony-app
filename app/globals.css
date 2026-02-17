@@ -63,3 +63,8 @@ label {
     transform: translateY(0);
   }
 }
+
+@keyframes pmpTyping {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(-4px); opacity: 1; }
+}
