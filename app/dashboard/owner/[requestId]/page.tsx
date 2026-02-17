@@ -41,6 +41,7 @@ export default function OwnerRequestDetailPage({
 
     if (error) {
       setLocalError(error.message);
+      // rollback
       setDetail((prev) => (prev ? { ...prev, status: "pending" } : prev));
       setBusy(false);
       return;
@@ -68,6 +69,7 @@ export default function OwnerRequestDetailPage({
 
     if (error) {
       setLocalError(error.message);
+      // rollback
       setDetail((prev) => (prev ? { ...prev, status: "pending" } : prev));
       setBusy(false);
       return;
@@ -92,6 +94,7 @@ export default function OwnerRequestDetailPage({
           <Link href={`/messages/${requestId}`} style={{ textDecoration: "none" }}>
             <button style={styles.primaryBtn}>Open Messages</button>
           </Link>
+
           <Link href="/dashboard/owner/requests" style={{ textDecoration: "none" }}>
             <button style={styles.secondaryBtn}>All Requests</button>
           </Link>
@@ -112,7 +115,14 @@ export default function OwnerRequestDetailPage({
           <div style={styles.card}>
             <div style={styles.cardTitle}>Request</div>
 
-            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
               <StatusPill status={detail.status} />
               <div style={styles.meta}>#{detail.id.slice(0, 8)}</div>
             </div>
@@ -134,15 +144,21 @@ export default function OwnerRequestDetailPage({
             <div style={styles.row}>
               <div style={styles.label}>Dates</div>
               <div style={styles.value}>
-                {detail.start_date ? new Date(detail.start_date).toLocaleDateString() : "—"}{" "}
+                {detail.start_date
+                  ? new Date(detail.start_date).toLocaleDateString()
+                  : "—"}{" "}
                 <span style={{ opacity: 0.5 }}>→</span>{" "}
-                {detail.end_date ? new Date(detail.end_date).toLocaleDateString() : "—"}
+                {detail.end_date
+                  ? new Date(detail.end_date).toLocaleDateString()
+                  : "—"}
               </div>
             </div>
 
             <div style={styles.row}>
               <div style={styles.label}>Created</div>
-              <div style={styles.value}>{new Date(detail.created_at).toLocaleString()}</div>
+              <div style={styles.value}>
+                {new Date(detail.created_at).toLocaleString()}
+              </div>
             </div>
 
             <div style={{ marginTop: 14 }}>
@@ -153,7 +169,14 @@ export default function OwnerRequestDetailPage({
             </div>
 
             {detail.status === "pending" && (
-              <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  marginTop: 16,
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}
+              >
                 <button
                   onClick={approve}
                   disabled={busy}
@@ -173,10 +196,20 @@ export default function OwnerRequestDetailPage({
           </div>
 
           <div style={styles.card}>
-            <div style={styles.cardTitle}>Actions</div>
+            <div style={styles.cardTitle}>Quick Actions</div>
 
-            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-              <Link href={`/messages/${requestId}`} style={{ textDecoration: "none" }}>
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              <Link
+                href={`/messages/${requestId}`}
+                style={{ textDecoration: "none" }}
+              >
                 <button style={styles.secondaryBtnWide}>Open Messages</button>
               </Link>
 
