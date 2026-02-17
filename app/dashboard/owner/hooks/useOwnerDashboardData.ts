@@ -22,6 +22,14 @@ type Summary = {
   activeBorrows: number;
 };
 
+function normalizeStatus(input: unknown): OwnerRequestRow["status"] {
+  const raw = String(input ?? "").toLowerCase();
+  if (raw === "approved") return "approved";
+  if (raw === "rejected") return "rejected";
+  if (raw === "declined") return "rejected"; // legacy mapping
+  return "pending";
+}
+
 function isActiveBorrow(row: OwnerRequestRow, now = new Date()): boolean {
   if (row.status !== "approved") return false;
   if (!row.start_date || !row.end_date) return false;
@@ -33,7 +41,7 @@ function isActiveBorrow(row: OwnerRequestRow, now = new Date()): boolean {
 function normalizeRequestRow(r: any): OwnerRequestRow {
   return {
     id: String(r?.id ?? ""),
-    status: (r?.status ?? "pending") as OwnerRequestRow["status"],
+    status: normalizeStatus(r?.status),
     created_at: String(r?.created_at ?? new Date().toISOString()),
     start_date: r?.start_date ?? null,
     end_date: r?.end_date ?? null,
@@ -89,7 +97,7 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 1) Get owned horse IDs (minimal select)
+    // 1) Get owned horse IDs
     const { data: horses, error: horsesErr } = await supabase
       .from("horses")
       .select("id")
@@ -110,14 +118,8 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 2) Load requests + joined display fields
-    //
-    // IMPORTANT:
-    // Your DB has more than one relationship between borrow_requests and horses,
-    // so we MUST specify the FK name to disambiguate.
-    //
-    // These are the common default FK names. If yours differ, replace them with
-    // your actual FK constraint names.
+    // 2) Requests + joins
+    // IMPORTANT: FK names must match your DB constraints.
     const { data: rows, error: reqErr } = await supabase
       .from("borrow_requests")
       .select(
@@ -141,8 +143,7 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    const normalized = (rows ?? []).map(normalizeRequestRow);
-    setRequests(normalized);
+    setRequests((rows ?? []).map(normalizeRequestRow));
     setLoading(false);
   }, []);
 
@@ -190,8 +191,6 @@ export function useOwnerDashboardData() {
       }
 
       setBusy(row.id, false);
-
-      // messaging threads are keyed by request_id
       router.push(`/messages/${row.id}`);
     },
     [router]

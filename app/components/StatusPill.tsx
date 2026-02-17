@@ -1,11 +1,28 @@
 "use client";
 
-export default function StatusPill(props: {
-  status: "pending" | "approved" | "rejected";
-}) {
-  const { status } = props;
+type NormalizedStatus = "pending" | "approved" | "rejected";
 
-  const config = {
+function normalizeStatus(input: unknown): NormalizedStatus {
+  const raw = String(input ?? "").toLowerCase();
+
+  // handle legacy / unexpected values safely
+  if (raw === "approved") return "approved";
+  if (raw === "rejected") return "rejected";
+
+  // legacy mapping
+  if (raw === "declined") return "rejected";
+
+  // default fallback (prevents UI crash)
+  return "pending";
+}
+
+export default function StatusPill(props: { status: string }) {
+  const status = normalizeStatus(props.status);
+
+  const config: Record<
+    NormalizedStatus,
+    { bg: string; fg: string; label: string }
+  > = {
     pending: {
       bg: "rgba(245,158,11,0.14)",
       fg: "rgba(146,64,14,1)",
@@ -21,7 +38,9 @@ export default function StatusPill(props: {
       fg: "rgba(127,29,29,1)",
       label: "Rejected",
     },
-  }[status];
+  };
+
+  const c = config[status];
 
   return (
     <span
@@ -30,13 +49,13 @@ export default function StatusPill(props: {
         alignItems: "center",
         padding: "6px 10px",
         borderRadius: 999,
-        background: config.bg,
-        color: config.fg,
+        background: c.bg,
+        color: c.fg,
         fontSize: 12,
         fontWeight: 900,
       }}
     >
-      {config.label}
+      {c.label}
     </span>
   );
 }
