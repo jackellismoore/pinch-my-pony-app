@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase, SUPABASE_ENV_OK } from '@/lib/supabaseClient';
+import { useRouter, usePathname } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 import { registerPushForCurrentUser } from '@/lib/push/registerPush';
 
 type ProfileMini = {
@@ -11,107 +11,107 @@ type ProfileMini = {
   role: 'owner' | 'borrower' | null;
   display_name: string | null;
   full_name: string | null;
-  avatar_url: string | null;
 };
 
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
-    p.then((v) => {
-      clearTimeout(t);
-      resolve(v);
-    }).catch((e) => {
-      clearTimeout(t);
-      reject(e);
-    });
-  });
+function navLinkStyle(active: boolean): React.CSSProperties {
+  return {
+    textDecoration: 'none',
+    color: active ? 'black' : 'rgba(0,0,0,0.72)',
+    fontWeight: active ? 950 : 850,
+    fontSize: 13,
+    padding: '8px 10px',
+    borderRadius: 10,
+    background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
+  };
 }
 
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
 
-  const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  const [user, setUser] = useState<any>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
+
+  const dashboardHref = useMemo(() => {
+    if (profile?.role === 'borrower') return '/dashboard/borrower';
+    if (profile?.role === 'owner') return '/dashboard/owner';
+    return '/dashboard';
+  }, [profile?.role]);
+
+  const isActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(href + '/');
+  };
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadProfile(userId: string) {
+    async function init() {
       try {
-        const r = await supabase
-          .from('profiles')
-          .select('id,role,display_name,full_name,avatar_url')
-          .eq('id', userId)
-          .single();
-
+        const { data } = await supabase.auth.getUser();
         if (cancelled) return;
 
-        if (!r.error) setProfile((r.data ?? null) as ProfileMini | null);
-      } catch {
-        // ignore
-      }
-    }
+        const u = data.user ?? null;
+        setUserId(u?.id ?? null);
+        setAuthReady(true);
 
-    async function boot() {
-      setLoading(true);
-      setAuthError(null);
+        if (u?.id) {
+          // best-effort push registration (don’t block render)
+          try {
+            registerPushForCurrentUser();
+          } catch {}
 
-      try {
-        // 1) quick local session read
-        const sessionRes = await withTimeout(supabase.auth.getSession(), 2500, 'getSession');
-        if (cancelled) return;
+          // load role for dashboard routing
+          const res = await supabase
+            .from('profiles')
+            .select('id,role,display_name,full_name')
+            .eq('id', u.id)
+            .single();
 
-        const sessionUser = sessionRes.data.session?.user ?? null;
-        setUser(sessionUser);
-        setLoading(false);
-
-        if (!sessionUser) {
+          if (!cancelled) {
+            if (!res.error) setProfile(res.data as ProfileMini);
+          }
+        } else {
           setProfile(null);
-          return;
         }
-
-        // Fire-and-forget push
-        registerPushForCurrentUser();
-
-        // Fire-and-forget profile fetch (not blocking UI)
-        loadProfile(sessionUser.id);
-
-        // 2) optional network check
-        try {
-          const userRes = await withTimeout(supabase.auth.getUser(), 2500, 'getUser');
-          if (cancelled) return;
-          setUser(userRes.data.user ?? sessionUser);
-        } catch {
-          // ignore
+      } catch {
+        if (!cancelled) {
+          setUserId(null);
+          setProfile(null);
+          setAuthReady(true);
         }
-      } catch (e: any) {
-        if (cancelled) return;
-        setAuthError(e?.message ?? 'Auth init failed.');
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
       }
     }
 
-    boot();
+    init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (cancelled) return;
 
-      setAuthError(null);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      const u = session?.user ?? null;
+      setUserId(u?.id ?? null);
+      setAuthReady(true);
 
-      if (!session?.user) {
+      if (u?.id) {
+        try {
+          registerPushForCurrentUser();
+        } catch {}
+
+        const res = await supabase
+          .from('profiles')
+          .select('id,role,display_name,full_name')
+          .eq('id', u.id)
+          .single();
+
+        if (!cancelled) {
+          if (!res.error) setProfile(res.data as ProfileMini);
+          else setProfile(null);
+        }
+      } else {
         setProfile(null);
-        return;
       }
-
-      registerPushForCurrentUser();
-      loadProfile(session.user.id);
     });
 
     return () => {
@@ -119,12 +119,6 @@ export default function Header() {
       sub.subscription.unsubscribe();
     };
   }, []);
-
-  const label = useMemo(() => {
-    const dn = profile?.display_name?.trim();
-    const fn = profile?.full_name?.trim();
-    return dn || fn || 'Profile';
-  }, [profile]);
 
   const logout = async () => {
     await supabase.auth.signOut();
@@ -135,61 +129,124 @@ export default function Header() {
   return (
     <header
       style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '14px 30px',
-        borderBottom: '1px solid #eee',
-        background: 'white',
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        background: 'rgba(255,255,255,0.92)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(0,0,0,0.08)',
       }}
     >
-      <Link href="/" style={{ fontWeight: 700, fontSize: 18, textDecoration: 'none', color: 'black' }}>
-        🐴 Pinch My Pony
-      </Link>
-
-      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-        {!SUPABASE_ENV_OK ? (
-          <div style={{ fontSize: 13, color: 'rgba(180,0,0,0.9)', fontWeight: 800 }}>
-            Missing Supabase env vars (check Vercel settings)
+      <div
+        style={{
+          maxWidth: 1100,
+          margin: '0 auto',
+          padding: '12px 16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <Link
+          href="/"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            textDecoration: 'none',
+            color: 'black',
+          }}
+        >
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 12,
+              background: 'black',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 950,
+              fontSize: 16,
+            }}
+          >
+            🐴
           </div>
-        ) : loading ? (
-          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Loading…</div>
-        ) : authError ? (
-          <div style={{ fontSize: 13, color: 'rgba(180,0,0,0.9)' }}>{authError}</div>
-        ) : user ? (
-          <>
-            <Link href="/browse">Browse</Link>
-            <Link href="/messages">Messages</Link>
-            <Link href="/profile">{label}</Link>
+          <div style={{ display: 'grid', lineHeight: 1.1 }}>
+            <div style={{ fontWeight: 950, fontSize: 14 }}>Pinch My Pony</div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', fontWeight: 700 }}>
+              Marketplace
+            </div>
+          </div>
+        </Link>
 
-            {profile?.role === 'owner' ? (
-              <>
-                <Link href="/dashboard/owner">Dashboard</Link>
-                <Link href="/dashboard/owner/horses">My Horses</Link>
-              </>
-            ) : (
-              <Link href="/dashboard/borrower">Dashboard</Link>
-            )}
+        <nav style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          {!authReady ? (
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', fontWeight: 800 }}>Loading…</div>
+          ) : userId ? (
+            <>
+              <Link href="/browse" style={navLinkStyle(isActive('/browse'))}>
+                Browse
+              </Link>
 
-            <button
-              onClick={logout}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 6,
-                border: '1px solid #ddd',
-                background: '#f3f3f3',
-                cursor: 'pointer',
-              }}
-            >
-              Logout
-            </button>
-          </>
-        ) : (
-          <>
-            <Link href="/login">Login</Link>
-            <Link href="/signup">Sign Up</Link>
-          </>
-        )}
+              <Link href="/messages" style={navLinkStyle(isActive('/messages'))}>
+                Messages
+              </Link>
+
+              <Link href={dashboardHref} style={navLinkStyle(isActive('/dashboard'))}>
+                Dashboard
+              </Link>
+
+              <Link href="/profile" style={navLinkStyle(isActive('/profile'))}>
+                Profile
+              </Link>
+
+              <button
+                onClick={logout}
+                style={{
+                  marginLeft: 6,
+                  padding: '9px 12px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(0,0,0,0.14)',
+                  background: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 950,
+                  fontSize: 13,
+                }}
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/browse" style={navLinkStyle(isActive('/browse'))}>
+                Browse
+              </Link>
+
+              <Link href="/login" style={navLinkStyle(isActive('/login'))}>
+                Login
+              </Link>
+
+              <Link
+                href="/signup"
+                style={{
+                  textDecoration: 'none',
+                  color: 'white',
+                  background: 'black',
+                  fontWeight: 950,
+                  fontSize: 13,
+                  padding: '9px 12px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(0,0,0,0.14)',
+                }}
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
+        </nav>
       </div>
     </header>
   );
