@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useHorseAvailability, hasOverlapInclusive } from '@/app/dashboard/owner/hooks/useHorseAvailability';
+import { useEffect, useMemo } from 'react';
+import { useHorseAvailability, hasOverlapInclusive } from '@/dashboard/owner/hooks/useHorseAvailability';
 
 export function AvailabilityConflictNotice(props: {
   horseId: string;
   startDate: string; // YYYY-MM-DD
   endDate: string;   // YYYY-MM-DD
-  onConflictChange?: (hasConflict: boolean) => void;
+  onConflictChange?: (hasConflictOrLoading: boolean) => void;
 }) {
   const { horseId, startDate, endDate, onConflictChange } = props;
 
@@ -24,11 +24,10 @@ export function AvailabilityConflictNotice(props: {
     );
   }, [startDate, endDate, unavailableRanges]);
 
-  // Notify parent (optional)
-  useMemo(() => {
-    onConflictChange?.(conflict || loading);
-    // include loading as "conflict-like" if you want to disable submit until loaded
-  }, [conflict, loading, onConflictChange]);
+  // Tell parent to disable submit while loading OR conflicting
+  useEffect(() => {
+    onConflictChange?.(loading || conflict);
+  }, [loading, conflict, onConflictChange]);
 
   if (error) {
     return (

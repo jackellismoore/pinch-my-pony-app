@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useHorseAvailability } from '@/app/dashboard/owner/hooks/useHorseAvailability';
+import { useHorseAvailability } from '@/dashboard/owner/hooks/useHorseAvailability';
 
 function badgeStyle(kind: 'blocked' | 'booking') {
   const base: React.CSSProperties = {
