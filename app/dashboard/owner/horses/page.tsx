@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { AvailabilityBadge } from '@/components/AvailabilityBadge';
 
 type HorseRow = {
   id: string;
@@ -10,8 +11,35 @@ type HorseRow = {
   is_active: boolean | null;
 };
 
+type BlockRow = {
+  id: string;
+  horse_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+};
+
+type BookingRow = {
+  id: string;
+  horse_id: string;
+  start_date: string;
+  end_date: string;
+};
+
+type NextRange = {
+  kind: 'blocked' | 'booking';
+  startDate: string;
+  endDate: string;
+  label: string;
+};
+
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function OwnerHorsesPage() {
   const [horses, setHorses] = useState<HorseRow[]>([]);
+  const [nextByHorseId, setNextByHorseId] = useState<Record<string, NextRange | null>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,19 +55,13 @@ export default function OwnerHorsesPage() {
         error: userErr,
       } = await supabase.auth.getUser();
 
-      if (userErr) {
-        if (!cancelled) setError(userErr.message);
+      if (userErr || !user) {
+        if (!cancelled) setError(userErr?.message ?? 'Not authenticated');
         if (!cancelled) setLoading(false);
         return;
       }
 
-      if (!user) {
-        if (!cancelled) setError('Not authenticated');
-        if (!cancelled) setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
+      const { data, error: horsesErr } = await supabase
         .from('horses')
         .select('id,name,is_active')
         .eq('owner_id', user.id)
@@ -47,13 +69,92 @@ export default function OwnerHorsesPage() {
 
       if (cancelled) return;
 
-      if (error) {
-        setError(error.message);
+      if (horsesErr) {
+        setError(horsesErr.message);
         setLoading(false);
         return;
       }
 
-      setHorses((data ?? []) as HorseRow[]);
+      const horseRows = (data ?? []) as HorseRow[];
+      setHorses(horseRows);
+
+      const horseIds = horseRows.map((h) => h.id);
+      if (horseIds.length === 0) {
+        setNextByHorseId({});
+        setLoading(false);
+        return;
+      }
+
+      const today = todayISODate();
+
+      const [blocksRes, bookingsRes] = await Promise.all([
+        supabase
+          .from('horse_unavailability')
+          .select('id,horse_id,start_date,end_date,reason')
+          .in('horse_id', horseIds)
+          .gte('end_date', today)
+          .order('start_date', { ascending: true }),
+
+        supabase
+          .from('borrow_requests')
+          .select('id,horse_id,start_date,end_date,status')
+          .in('horse_id', horseIds)
+          .eq('status', 'approved')
+          .not('start_date', 'is', null)
+          .not('end_date', 'is', null)
+          .gte('end_date', today)
+          .order('start_date', { ascending: true }),
+      ]);
+
+      if (cancelled) return;
+
+      if (blocksRes.error) {
+        setError(blocksRes.error.message);
+        setLoading(false);
+        return;
+      }
+      if (bookingsRes.error) {
+        setError(bookingsRes.error.message);
+        setLoading(false);
+        return;
+      }
+
+      const blocks = (blocksRes.data ?? []) as BlockRow[];
+      const bookings = (bookingsRes.data ?? []) as BookingRow[];
+
+      // Build earliest upcoming range per horse
+      const byHorse: Record<string, NextRange | null> = {};
+      for (const id of horseIds) byHorse[id] = null;
+
+      const merged = [
+        ...blocks.map((b) => ({
+          horseId: b.horse_id,
+          kind: 'blocked' as const,
+          startDate: b.start_date,
+          endDate: b.end_date,
+          label: b.reason?.trim() ? b.reason.trim() : 'Blocked',
+        })),
+        ...bookings.map((br) => ({
+          horseId: br.horse_id,
+          kind: 'booking' as const,
+          startDate: br.start_date,
+          endDate: br.end_date,
+          label: 'Approved booking',
+        })),
+      ].sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+      for (const r of merged) {
+        if (!byHorse[r.horseId]) {
+          byHorse[r.horseId] = {
+            kind: r.kind,
+            startDate: r.startDate,
+            endDate: r.endDate,
+            label: r.label,
+          };
+        }
+      }
+
+      setNextByHorseId(byHorse);
       setLoading(false);
     }
 
@@ -62,6 +163,8 @@ export default function OwnerHorsesPage() {
       cancelled = true;
     };
   }, []);
+
+  const hasHorses = useMemo(() => horses.length > 0, [horses.length]);
 
   return (
     <div style={{ padding: 16, maxWidth: 1000, margin: '0 auto' }}>
@@ -109,71 +212,94 @@ export default function OwnerHorsesPage() {
         </div>
       ) : null}
 
-      {!loading && !error && horses.length === 0 ? (
+      {!loading && !error && !hasHorses ? (
         <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>
           No horses yet. Click “Add Horse”.
         </div>
       ) : null}
 
       <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
-        {horses.map((h) => (
-          <div
-            key={h.id}
-            style={{
-              border: '1px solid rgba(0,0,0,0.10)',
-              borderRadius: 14,
-              padding: 14,
-              background: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {h.name ?? 'Unnamed horse'}
+        {horses.map((h) => {
+          const next = nextByHorseId[h.id] ?? null;
+
+          return (
+            <div
+              key={h.id}
+              style={{
+                border: '1px solid rgba(0,0,0,0.10)',
+                borderRadius: 14,
+                padding: 14,
+                background: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {h.name ?? 'Unnamed horse'}
+                </div>
+
+                <div style={{ marginTop: 6, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+                    Status: {h.is_active ? 'Active' : 'Inactive'}
+                  </div>
+
+                  {next ? (
+                    <>
+                      <AvailabilityBadge
+                        label={next.kind === 'blocked' ? 'Blocked' : 'Booking'}
+                        tone={next.kind === 'blocked' ? 'warn' : 'info'}
+                      />
+                      <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
+                        Next unavailable: <span style={{ fontWeight: 700 }}>{next.startDate} → {next.endDate}</span>
+                        {' — '}
+                        {next.label}
+                      </div>
+                    </>
+                  ) : (
+                    <AvailabilityBadge label="No upcoming blocks" tone="neutral" />
+                  )}
+                </div>
               </div>
-              <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-                Status: {h.is_active ? 'Active' : 'Inactive'}
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <Link
+                  href={`/dashboard/owner/horses/${h.id}/edit`}
+                  style={{
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    background: 'white',
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    textDecoration: 'none',
+                    color: 'black',
+                    fontSize: 13,
+                    fontWeight: 650,
+                  }}
+                >
+                  Edit
+                </Link>
+
+                <Link
+                  href={`/dashboard/owner/horses/${h.id}/availability`}
+                  style={{
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    background: 'white',
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    textDecoration: 'none',
+                    color: 'black',
+                    fontSize: 13,
+                    fontWeight: 650,
+                  }}
+                >
+                  Availability
+                </Link>
               </div>
             </div>
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <Link
-                href={`/dashboard/owner/horses/${h.id}/edit`}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  background: 'white',
-                  padding: '8px 10px',
-                  borderRadius: 10,
-                  textDecoration: 'none',
-                  color: 'black',
-                  fontSize: 13,
-                  fontWeight: 650,
-                }}
-              >
-                Edit
-              </Link>
-
-              <Link
-                href={`/dashboard/owner/horses/${h.id}/availability`}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  background: 'white',
-                  padding: '8px 10px',
-                  borderRadius: 10,
-                  textDecoration: 'none',
-                  color: 'black',
-                  fontSize: 13,
-                  fontWeight: 650,
-                }}
-              >
-                Availability
-              </Link>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
