@@ -1,122 +1,176 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import Link from "next/link";
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
-type Horse = {
+type HorseRow = {
   id: string;
-  name: string;
-  breed: string;
-  age: number;
-  height_hh: number;
-  temperament: string;
-  location: string;
-  image_url: string | null;
-  is_active: boolean;
+  name: string | null;
+  is_active: boolean | null;
 };
 
-export default function MyHorsesPage() {
-  const [horses, setHorses] = useState<Horse[]>([]);
+export default function OwnerHorsesPage() {
+  const [horses, setHorses] = useState<HorseRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadHorses();
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      const {
+        data: { user },
+        error: userErr,
+      } = await supabase.auth.getUser();
+
+      if (userErr) {
+        if (!cancelled) setError(userErr.message);
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
+      if (!user) {
+        if (!cancelled) setError('Not authenticated');
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('horses')
+        .select('id,name,is_active')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (cancelled) return;
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      setHorses((data ?? []) as HorseRow[]);
+      setLoading(false);
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const loadHorses = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("horses")
-      .select("*")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: false });
-
-    setHorses(data || []);
-    setLoading(false);
-  };
-
-  const toggleActive = async (id: string, current: boolean) => {
-    await supabase
-      .from("horses")
-      .update({ is_active: !current })
-      .eq("id", id);
-
-    loadHorses();
-  };
-
-  const deleteHorse = async (id: string) => {
-    const confirmDelete = confirm("Delete this horse?");
-    if (!confirmDelete) return;
-
-    await supabase.from("horses").delete().eq("id", id);
-
-    loadHorses();
-  };
-
-  if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
-
   return (
-    <div style={{ padding: 40 }}>
-      <h1>My Horses</h1>
+    <div style={{ padding: 16, maxWidth: 1000, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22 }}>Your Horses</h1>
+          <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+            Manage listings and availability blocks.
+          </div>
+        </div>
 
-      <Link href="/dashboard/owner/horses/add">
-        <button style={addButton}>+ Add Horse</button>
-      </Link>
+        <Link
+          href="/dashboard/owner/horses/add"
+          style={{
+            border: '1px solid rgba(0,0,0,0.14)',
+            background: 'black',
+            color: 'white',
+            padding: '10px 14px',
+            borderRadius: 12,
+            textDecoration: 'none',
+            fontWeight: 650,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          + Add Horse
+        </Link>
+      </div>
 
-      <div style={{ marginTop: 30 }}>
-        {horses.length === 0 && <p>No horses yet.</p>}
+      {loading ? (
+        <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Loading…</div>
+      ) : null}
 
-        {horses.map((horse) => (
-          <div key={horse.id} style={card}>
-            {horse.image_url && (
-              <img
-                src={horse.image_url}
+      {error ? (
+        <div
+          style={{
+            marginTop: 16,
+            border: '1px solid rgba(255,0,0,0.25)',
+            background: 'rgba(255,0,0,0.06)',
+            padding: 12,
+            borderRadius: 12,
+            fontSize: 13,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      {!loading && !error && horses.length === 0 ? (
+        <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>
+          No horses yet. Click “Add Horse”.
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
+        {horses.map((h) => (
+          <div
+            key={h.id}
+            style={{
+              border: '1px solid rgba(0,0,0,0.10)',
+              borderRadius: 14,
+              padding: 14,
+              background: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {h.name ?? 'Unnamed horse'}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+                Status: {h.is_active ? 'Active' : 'Inactive'}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <Link
+                href={`/dashboard/owner/horses/${h.id}/edit`}
                 style={{
-                  width: "100%",
-                  height: 180,
-                  objectFit: "cover",
-                  borderRadius: 8,
+                  border: '1px solid rgba(0,0,0,0.14)',
+                  background: 'white',
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  textDecoration: 'none',
+                  color: 'black',
+                  fontSize: 13,
+                  fontWeight: 650,
                 }}
-              />
-            )}
-
-            <h3>{horse.name}</h3>
-            <p>{horse.breed}</p>
-            <p>{horse.age} yrs • {horse.height_hh}hh</p>
-            <p>{horse.temperament}</p>
-            <p>{horse.location}</p>
-
-            <p>
-              Status:{" "}
-              <strong style={{ color: horse.is_active ? "green" : "red" }}>
-                {horse.is_active ? "Active" : "Inactive"}
-              </strong>
-            </p>
-
-            <div style={{ marginTop: 10 }}>
-              <Link href={`/dashboard/owner/horses/edit/${horse.id}`}>
-                <button style={editButton}>Edit</button>
+              >
+                Edit
               </Link>
 
-              <button
-                onClick={() => toggleActive(horse.id, horse.is_active)}
-                style={toggleButton}
+              <Link
+                href={`/dashboard/owner/horses/${h.id}/availability`}
+                style={{
+                  border: '1px solid rgba(0,0,0,0.14)',
+                  background: 'white',
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  textDecoration: 'none',
+                  color: 'black',
+                  fontSize: 13,
+                  fontWeight: 650,
+                }}
               >
-                {horse.is_active ? "Deactivate" : "Activate"}
-              </button>
-
-              <button
-                onClick={() => deleteHorse(horse.id)}
-                style={deleteButton}
-              >
-                Delete
-              </button>
+                Availability
+              </Link>
             </div>
           </div>
         ))}
@@ -124,47 +178,3 @@ export default function MyHorsesPage() {
     </div>
   );
 }
-
-const addButton = {
-  marginTop: 10,
-  padding: "10px 18px",
-  background: "#2563eb",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-};
-
-const editButton = {
-  marginRight: 8,
-  padding: "6px 12px",
-  background: "#2563eb",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-};
-
-const toggleButton = {
-  marginRight: 8,
-  padding: "6px 12px",
-  background: "#f59e0b",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-};
-
-const deleteButton = {
-  padding: "6px 12px",
-  background: "#dc2626",
-  color: "white",
-  border: "none",
-  borderRadius: 6,
-};
-
-const card = {
-  border: "1px solid #ddd",
-  borderRadius: 10,
-  padding: 20,
-  marginBottom: 20,
-  background: "#fff",
-};
