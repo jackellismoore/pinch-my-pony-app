@@ -1,17 +1,21 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import HorseMap from '@/components/HorseMap';
 import { supabase } from '@/lib/supabaseClient';
-import { AvailabilityBadge } from '@/components/AvailabilityBadge';
+import RequestForm from './request-form';
 
 type HorseRow = {
   id: string;
   owner_id: string;
   name: string | null;
   is_active: boolean | null;
-  // your map already pins horses, so you likely have location fields; we don't depend on them here
+  lat: number | null;
+  lng: number | null;
 };
 
 type ProfileMini = {
@@ -20,39 +24,21 @@ type ProfileMini = {
   full_name: string | null;
 };
 
-type BlockRow = {
-  id: string;
-  horse_id: string;
-  start_date: string;
-  end_date: string;
-  reason: string | null;
-};
-
-type BookingRow = {
-  id: string;
-  horse_id: string;
-  start_date: string;
-  end_date: string;
-};
-
-type NextRange = {
-  kind: 'blocked' | 'booking';
-  startDate: string;
-  endDate: string;
-  label: string;
-};
-
-function todayISODate() {
-  return new Date().toISOString().slice(0, 10);
+function ownerLabel(p: ProfileMini | undefined) {
+  return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || 'Owner';
 }
 
-export default function BrowsePage() {
+export default function RequestClient() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const horseId = searchParams.get('horseId');
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [horses, setHorses] = useState<HorseRow[]>([]);
-  const [profilesById, setProfilesById] = useState<Record<string, ProfileMini>>({});
-  const [nextByHorseId, setNextByHorseId] = useState<Record<string, NextRange | null>>({});
+  const [horse, setHorse] = useState<HorseRow | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<ProfileMini | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,123 +47,105 @@ export default function BrowsePage() {
       setLoading(true);
       setError(null);
 
-      const { data: horsesData, error: horsesErr } = await supabase
-        .from('horses')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      try {
+        if (!horseId) {
+          setHorse(null);
+          setOwnerProfile(null);
+          setLoading(false);
+          return;
+        }
 
-      if (cancelled) return;
+        const hRes = await supabase
+          .from('horses')
+          .select('id,owner_id,name,is_active,lat,lng')
+          .eq('id', horseId)
+          .single();
 
-      if (horsesErr) {
-        setError(horsesErr.message);
-        setLoading(false);
-        return;
-      }
+        if (cancelled) return;
+        if (hRes.error) throw hRes.error;
 
-      const horseRows = (horsesData ?? []) as HorseRow[];
-      setHorses(horseRows);
+        const h = (hRes.data ?? null) as HorseRow | null;
+        setHorse(h);
 
-      const ownerIds = Array.from(new Set(horseRows.map((h) => h.owner_id).filter(Boolean)));
-      const horseIds = horseRows.map((h) => h.id);
+        if (!h?.owner_id) {
+          setOwnerProfile(null);
+          setLoading(false);
+          return;
+        }
 
-      if (ownerIds.length > 0) {
-        const { data: profData } = await supabase
+        const pRes = await supabase
           .from('profiles')
           .select('id,display_name,full_name')
-          .in('id', ownerIds);
-
-        const map: Record<string, ProfileMini> = {};
-        for (const p of (profData ?? []) as ProfileMini[]) map[p.id] = p;
-        if (!cancelled) setProfilesById(map);
-      }
-
-      // Availability preview: compute earliest upcoming blocked/booking per horse
-      if (horseIds.length > 0) {
-        const today = todayISODate();
-
-        const [blocksRes, bookingsRes] = await Promise.all([
-          supabase
-            .from('horse_unavailability')
-            .select('id,horse_id,start_date,end_date,reason')
-            .in('horse_id', horseIds)
-            .gte('end_date', today)
-            .order('start_date', { ascending: true }),
-
-          supabase
-            .from('borrow_requests')
-            .select('id,horse_id,start_date,end_date,status')
-            .in('horse_id', horseIds)
-            .eq('status', 'approved')
-            .not('start_date', 'is', null)
-            .not('end_date', 'is', null)
-            .gte('end_date', today)
-            .order('start_date', { ascending: true }),
-        ]);
+          .eq('id', h.owner_id)
+          .single();
 
         if (!cancelled) {
-          if (blocksRes.error) setError(blocksRes.error.message);
-          if (bookingsRes.error) setError(bookingsRes.error.message);
-
-          const blocks = (blocksRes.data ?? []) as BlockRow[];
-          const bookings = (bookingsRes.data ?? []) as BookingRow[];
-
-          const merged = [
-            ...blocks.map((b) => ({
-              horseId: b.horse_id,
-              kind: 'blocked' as const,
-              startDate: b.start_date,
-              endDate: b.end_date,
-              label: b.reason?.trim() ? b.reason.trim() : 'Blocked',
-            })),
-            ...bookings.map((br) => ({
-              horseId: br.horse_id,
-              kind: 'booking' as const,
-              startDate: br.start_date,
-              endDate: br.end_date,
-              label: 'Approved booking',
-            })),
-          ].sort((a, b) => a.startDate.localeCompare(b.startDate));
-
-          const byHorse: Record<string, NextRange | null> = {};
-          for (const id of horseIds) byHorse[id] = null;
-
-          for (const r of merged) {
-            if (!byHorse[r.horseId]) {
-              byHorse[r.horseId] = {
-                kind: r.kind,
-                startDate: r.startDate,
-                endDate: r.endDate,
-                label: r.label,
-              };
-            }
-          }
-
-          setNextByHorseId(byHorse);
+          if (!pRes.error) setOwnerProfile((pRes.data ?? null) as ProfileMini | null);
         }
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message ?? 'Failed to load request details.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      if (!cancelled) setLoading(false);
     }
 
     load();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [horseId]);
 
-  function ownerLabel(ownerId: string) {
-    const p = profilesById[ownerId];
-    return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || 'Owner';
+  const mapHorses = useMemo(() => {
+    if (!horse) return [];
+    if (typeof horse.lat !== 'number' || typeof horse.lng !== 'number') return [];
+
+    return [
+      {
+        id: horse.id,
+        name: horse.name ?? 'Horse',
+        lat: horse.lat,
+        lng: horse.lng,
+        owner_id: horse.owner_id,
+        owner_label: ownerLabel(ownerProfile ?? undefined),
+      },
+    ];
+  }, [horse, ownerProfile]);
+
+  if (!horseId) {
+    return (
+      <div style={{ padding: 16, maxWidth: 1100, margin: '0 auto' }}>
+        <h1 style={{ margin: 0, fontSize: 22 }}>Request</h1>
+        <div style={{ marginTop: 10, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+          Missing horseId. Go back to <Link href="/browse">Browse</Link>.
+        </div>
+      </div>
+    );
   }
-
-  const mapHorses = useMemo(() => horses as any[], [horses]);
 
   return (
     <div style={{ padding: 16, maxWidth: 1100, margin: '0 auto' }}>
-      <h1 style={{ margin: 0, fontSize: 22 }}>Browse</h1>
-      <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-        Click a pin (or Request) to book dates. Availability is enforced.
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22 }}>Request</h1>
+          <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+            Pick dates. Availability is enforced.
+          </div>
+        </div>
+
+        <button
+          onClick={() => router.push('/browse')}
+          style={{
+            border: '1px solid rgba(0,0,0,0.14)',
+            background: 'white',
+            padding: '9px 10px',
+            borderRadius: 12,
+            fontWeight: 900,
+            fontSize: 13,
+            cursor: 'pointer',
+          }}
+        >
+          ← Browse
+        </button>
       </div>
 
       {loading ? (
@@ -199,74 +167,45 @@ export default function BrowsePage() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 14 }}>
-        <HorseMap horses={mapHorses} />
-      </div>
-
-      <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>
-        {horses.map((h) => {
-          const next = nextByHorseId[h.id] ?? null;
-
-          return (
-            <div
-              key={h.id}
-              style={{
-                border: '1px solid rgba(0,0,0,0.10)',
-                borderRadius: 14,
-                padding: 14,
-                background: 'white',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 800, fontSize: 15 }}>
-                  {ownerLabel(h.owner_id)}
-                </div>
-                <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-                  Listing: {h.name ?? 'Horse'}
-                </div>
-
-                <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {next ? (
-                    <>
-                      <AvailabilityBadge
-                        label={next.kind === 'blocked' ? 'Blocked' : 'Booked'}
-                        tone={next.kind === 'blocked' ? 'warn' : 'info'}
-                      />
-                      <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
-                        Next unavailable: <span style={{ fontWeight: 750 }}>{next.startDate} → {next.endDate}</span>
-                        {' — '}
-                        {next.label}
-                      </div>
-                    </>
-                  ) : (
-                    <AvailabilityBadge label="No upcoming blocks" tone="neutral" />
-                  )}
-                </div>
-              </div>
-
-              <Link
-                href={`/request?horseId=${h.id}`}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  background: 'black',
-                  color: 'white',
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  textDecoration: 'none',
-                  fontSize: 13,
-                  fontWeight: 750,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Request →
+      {horse ? (
+        <div
+          style={{
+            marginTop: 14,
+            border: '1px solid rgba(0,0,0,0.10)',
+            borderRadius: 14,
+            padding: 14,
+            background: 'white',
+          }}
+        >
+          <div style={{ fontWeight: 950, fontSize: 16 }}>
+            {ownerLabel(ownerProfile ?? undefined)}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
+            Listing: {horse.name ?? 'Horse'}
+          </div>
+          {horse.owner_id ? (
+            <div style={{ marginTop: 10 }}>
+              <Link href={`/owner/${horse.owner_id}`} style={{ fontSize: 13 }}>
+                View owner profile →
               </Link>
             </div>
-          );
-        })}
+          ) : null}
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: 14 }}>
+        {/* ✅ FIX: pass required props */}
+        <HorseMap horses={mapHorses as any} userLocation={null} highlightedId={null} />
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <RequestForm
+          horseId={horseId}
+          onSuccess={() => {
+            router.push('/messages');
+            router.refresh();
+          }}
+        />
       </div>
     </div>
   );
