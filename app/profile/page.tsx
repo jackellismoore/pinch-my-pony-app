@@ -12,21 +12,24 @@ type ProfileRow = {
   avatar_url: string | null
   created_at: string | null
   last_seen_at: string | null
-
-  // optional extras (may exist)
-  stable_name?: string | null
-  age?: number | null
-  location?: string | null
-  bio?: string | null
 }
 
 function safeTrim(v: string) {
   return v.trim()
 }
 
+function extFromFilename(name: string) {
+  const parts = name.split(".")
+  if (parts.length < 2) return "png"
+  const ext = parts[parts.length - 1].toLowerCase()
+  if (!ext) return "png"
+  return ext
+}
+
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -36,6 +39,7 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [avatarUrl, setAvatarUrl] = useState("")
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
 
   async function loadProfile() {
     setLoading(true)
@@ -60,12 +64,12 @@ export default function ProfilePage() {
 
       const profRes = await supabase
         .from("profiles")
-        .select("*")
+        .select("id,role,full_name,display_name,avatar_url,created_at,last_seen_at")
         .eq("id", user.id)
         .single()
 
-      // If missing profile row, create it
       if (profRes.error && (profRes.error as any).code === "PGRST116") {
+        // create missing profile row
         const upsertRes = await supabase
           .from("profiles")
           .upsert(
@@ -82,7 +86,7 @@ export default function ProfilePage() {
 
         const retry = await supabase
           .from("profiles")
-          .select("*")
+          .select("id,role,full_name,display_name,avatar_url,created_at,last_seen_at")
           .eq("id", user.id)
           .single()
 
@@ -166,21 +170,53 @@ export default function ProfilePage() {
       if (error) throw error
 
       setSuccess("Profile saved.")
-
-      const refreshed = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", profile.id)
-        .single()
-
-      if (!refreshed.error) {
-        const p = (refreshed.data ?? null) as ProfileRow | null
-        setProfile(p)
-      }
     } catch (e: any) {
       setError(e?.message ?? "Failed to save profile.")
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function uploadAvatar() {
+    if (!userId) {
+      setError("You must be logged in.")
+      return
+    }
+    if (!avatarFile) {
+      setError("Choose an image first.")
+      return
+    }
+
+    setError(null)
+    setSuccess(null)
+
+    try {
+      setUploading(true)
+
+      const ext = extFromFilename(avatarFile.name)
+      const objectPath = `${userId}/avatar.${ext}`
+
+      // Upload with upsert so repeated uploads replace the file
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(objectPath, avatarFile, {
+          upsert: true,
+          contentType: avatarFile.type || "image/*",
+        })
+
+      if (upErr) throw upErr
+
+      const { data } = supabase.storage.from("avatars").getPublicUrl(objectPath)
+      const publicUrl = data?.publicUrl
+
+      if (!publicUrl) throw new Error("Could not resolve public avatar URL.")
+
+      setAvatarUrl(publicUrl)
+      setSuccess("Avatar uploaded. Click Save to apply.")
+    } catch (e: any) {
+      setError(e?.message ?? "Avatar upload failed.")
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -304,7 +340,7 @@ export default function ProfilePage() {
               {displayName.trim() || fullName.trim() || "Your name"}
             </div>
             <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-              Set your name + avatar so other users recognize you.
+              Upload an avatar and set your public name.
             </div>
           </div>
         </div>
@@ -340,8 +376,31 @@ export default function ProfilePage() {
           </label>
         </div>
 
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
+          />
+          <button
+            onClick={uploadAvatar}
+            disabled={uploading || !avatarFile}
+            style={{
+              border: "1px solid rgba(0,0,0,0.14)",
+              borderRadius: 12,
+              padding: "10px 12px",
+              background: uploading || !avatarFile ? "rgba(0,0,0,0.05)" : "white",
+              color: "black",
+              cursor: uploading || !avatarFile ? "not-allowed" : "pointer",
+              fontWeight: 850,
+            }}
+          >
+            {uploading ? "Uploading…" : "Upload Avatar"}
+          </button>
+        </div>
+
         <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-          Avatar URL
+          Avatar URL (auto-filled on upload)
           <input
             value={avatarUrl}
             onChange={(e) => setAvatarUrl(e.target.value)}
