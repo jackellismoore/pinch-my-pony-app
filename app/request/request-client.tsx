@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import HorseMap from '@/components/HorseMap';
+import AvailabilityRanges from '@/components/AvailabilityRanges';
 import { supabase } from '@/lib/supabaseClient';
 import RequestForm from './request-form';
 
@@ -24,7 +25,7 @@ type ProfileMini = {
   full_name: string | null;
 };
 
-function ownerLabel(p: ProfileMini | undefined) {
+function ownerLabel(p: ProfileMini | null) {
   return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || 'Owner';
 }
 
@@ -106,7 +107,7 @@ export default function RequestClient() {
         lat: horse.lat,
         lng: horse.lng,
         owner_id: horse.owner_id,
-        owner_label: ownerLabel(ownerProfile ?? undefined),
+        owner_label: ownerLabel(ownerProfile),
       },
     ];
   }, [horse, ownerProfile]);
@@ -177,9 +178,7 @@ export default function RequestClient() {
             background: 'white',
           }}
         >
-          <div style={{ fontWeight: 950, fontSize: 16 }}>
-            {ownerLabel(ownerProfile ?? undefined)}
-          </div>
+          <div style={{ fontWeight: 950, fontSize: 16 }}>{ownerLabel(ownerProfile)}</div>
           <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
             Listing: {horse.name ?? 'Horse'}
           </div>
@@ -194,8 +193,11 @@ export default function RequestClient() {
       ) : null}
 
       <div style={{ marginTop: 14 }}>
-        {/* ✅ FIX: pass required props */}
         <HorseMap horses={mapHorses as any} userLocation={null} highlightedId={null} />
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <AvailabilityRanges horseId={horseId} />
       </div>
 
       <div style={{ marginTop: 14 }}>
