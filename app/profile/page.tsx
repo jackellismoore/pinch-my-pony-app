@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { supabase } from "@/lib/supabaseClient"
-import { useRouter } from "next/navigation"
 
 type ProfileRow = {
   id: string
@@ -13,7 +13,7 @@ type ProfileRow = {
   created_at: string | null
   last_seen_at: string | null
 
-  // Optional legacy/custom fields (safe if they exist)
+  // optional extras (may exist)
   stable_name?: string | null
   age?: number | null
   location?: string | null
@@ -25,90 +25,115 @@ function safeTrim(v: string) {
 }
 
 export default function ProfilePage() {
-  const router = useRouter()
-
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  const [userId, setUserId] = useState<string | null>(null)
   const [profile, setProfile] = useState<ProfileRow | null>(null)
 
-  // Editable fields
   const [fullName, setFullName] = useState("")
   const [displayName, setDisplayName] = useState("")
   const [avatarUrl, setAvatarUrl] = useState("")
-  const [stableName, setStableName] = useState("")
-  const [age, setAge] = useState<string>("")
-  const [location, setLocation] = useState("")
-  const [bio, setBio] = useState("")
 
-  useEffect(() => {
-    let cancelled = false
+  async function loadProfile() {
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
 
-    async function load() {
-      setLoading(true)
-      setError(null)
-
+    try {
       const {
         data: { user },
         error: userErr,
       } = await supabase.auth.getUser()
 
-      if (userErr) {
-        if (!cancelled) setError(userErr.message)
-        if (!cancelled) setLoading(false)
-        return
-      }
+      if (userErr) throw userErr
 
       if (!user) {
-        router.push("/login")
+        setUserId(null)
+        setProfile(null)
         return
       }
 
-      const { data, error } = await supabase
+      setUserId(user.id)
+
+      const profRes = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
         .single()
 
-      if (cancelled) return
+      // If missing profile row, create it
+      if (profRes.error && (profRes.error as any).code === "PGRST116") {
+        const upsertRes = await supabase
+          .from("profiles")
+          .upsert(
+            {
+              id: user.id,
+              full_name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+              display_name: user.user_metadata?.display_name ?? null,
+              avatar_url: user.user_metadata?.avatar_url ?? null,
+            },
+            { onConflict: "id" }
+          )
 
-      if (error) {
-        setError(error.message)
-        setLoading(false)
+        if (upsertRes.error) throw upsertRes.error
+
+        const retry = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
+
+        if (retry.error) throw retry.error
+
+        const p = (retry.data ?? null) as ProfileRow | null
+        setProfile(p)
+        setFullName(p?.full_name ?? "")
+        setDisplayName(p?.display_name ?? "")
+        setAvatarUrl(p?.avatar_url ?? "")
         return
       }
 
-      const p = (data ?? null) as ProfileRow | null
-      setProfile(p)
+      if (profRes.error) throw profRes.error
 
+      const p = (profRes.data ?? null) as ProfileRow | null
+      setProfile(p)
       setFullName(p?.full_name ?? "")
       setDisplayName(p?.display_name ?? "")
       setAvatarUrl(p?.avatar_url ?? "")
-      setStableName((p as any)?.stable_name ?? "")
-      setAge(
-        typeof (p as any)?.age === "number" && Number.isFinite((p as any).age)
-          ? String((p as any).age)
-          : ""
-      )
-      setLocation((p as any)?.location ?? "")
-      setBio((p as any)?.bio ?? "")
-
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to load profile.")
+      setProfile(null)
+    } finally {
       setLoading(false)
     }
+  }
 
-    load()
+  useEffect(() => {
+    let cancelled = false
+
+    ;(async () => {
+      if (cancelled) return
+      await loadProfile()
+    })()
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async () => {
+      if (cancelled) return
+      await loadProfile()
+    })
+
     return () => {
       cancelled = true
+      sub.subscription.unsubscribe()
     }
-  }, [router])
+  }, [])
 
   const canSave = useMemo(() => {
     if (!profile) return false
     if (saving) return false
     if (!safeTrim(fullName)) return false
-    // display name optional, but nice to have
     return true
   }, [profile, saving, fullName])
 
@@ -123,53 +148,35 @@ export default function ProfilePage() {
       return
     }
 
-    // Optional fields
     const dn = safeTrim(displayName)
     const av = safeTrim(avatarUrl)
-    const st = safeTrim(stableName)
-    const loc = safeTrim(location)
-    const b = bio.trim()
-    const ageNum =
-      age.trim() === "" ? null : Number.isFinite(Number(age.trim())) ? Number(age.trim()) : NaN
-
-    if (Number.isNaN(ageNum as any)) {
-      setError("Age must be a number.")
-      return
-    }
 
     try {
       setSaving(true)
 
-      // Update only fields that exist / are safe. Profiles table definitely has these:
-      const payload: any = {
-        full_name: fn,
-        display_name: dn || null,
-        avatar_url: av || null,
-      }
-
-      // These are optional in your current profile UI; we include them if your DB has them.
-      // If the columns don't exist, Supabase will error — so if you don't have them, tell me
-      // and I’ll remove them in a clean follow-up.
-      payload.stable_name = st || null
-      payload.age = ageNum === null ? null : ageNum
-      payload.location = loc || null
-      payload.bio = b || null
-
       const { error } = await supabase
         .from("profiles")
-        .update(payload)
+        .update({
+          full_name: fn,
+          display_name: dn || null,
+          avatar_url: av || null,
+        })
         .eq("id", profile.id)
 
       if (error) throw error
 
       setSuccess("Profile saved.")
-      // reload profile snapshot
-      const { data } = await supabase
+
+      const refreshed = await supabase
         .from("profiles")
         .select("*")
         .eq("id", profile.id)
         .single()
-      setProfile((data ?? null) as ProfileRow | null)
+
+      if (!refreshed.error) {
+        const p = (refreshed.data ?? null) as ProfileRow | null
+        setProfile(p)
+      }
     } catch (e: any) {
       setError(e?.message ?? "Failed to save profile.")
     } finally {
@@ -177,12 +184,30 @@ export default function ProfilePage() {
     }
   }
 
-  if (loading) return <div style={{ padding: 40 }}>Loading…</div>
+  if (loading) {
+    return <div style={{ padding: 40, fontSize: 13, color: "rgba(0,0,0,0.6)" }}>Loading…</div>
+  }
+
+  if (!userId) {
+    return (
+      <div style={{ padding: 40 }}>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>You’re not logged in</div>
+        <div style={{ marginTop: 8 }}>
+          <Link href="/login" style={{ textDecoration: "none", fontWeight: 800 }}>
+            Go to Login →
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   if (!profile) {
     return (
       <div style={{ padding: 40 }}>
-        {error ? <div style={{ color: "rgba(180,0,0,0.9)" }}>{error}</div> : "Profile not found."}
+        <div style={{ fontSize: 16, fontWeight: 800 }}>Profile unavailable</div>
+        {error ? (
+          <div style={{ marginTop: 10, fontSize: 13, color: "rgba(180,0,0,0.9)" }}>{error}</div>
+        ) : null}
       </div>
     )
   }
@@ -279,7 +304,7 @@ export default function ProfilePage() {
               {displayName.trim() || fullName.trim() || "Your name"}
             </div>
             <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-              Update your profile so owners/borrowers recognize you.
+              Set your name + avatar so other users recognize you.
             </div>
           </div>
         </div>
@@ -326,70 +351,6 @@ export default function ProfilePage() {
               borderRadius: 10,
               padding: "10px 12px",
               fontSize: 14,
-            }}
-          />
-        </label>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 12 }}>
-          <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-            Stable name
-            <input
-              value={stableName}
-              onChange={(e) => setStableName(e.target.value)}
-              placeholder="Optional"
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-              }}
-            />
-          </label>
-
-          <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-            Age
-            <input
-              value={age}
-              onChange={(e) => setAge(e.target.value)}
-              placeholder="Optional"
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-              }}
-            />
-          </label>
-        </div>
-
-        <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-          Location
-          <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Optional"
-            style={{
-              border: "1px solid rgba(0,0,0,0.14)",
-              borderRadius: 10,
-              padding: "10px 12px",
-              fontSize: 14,
-            }}
-          />
-        </label>
-
-        <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-          Bio
-          <textarea
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            rows={5}
-            placeholder="Tell people about yourself…"
-            style={{
-              border: "1px solid rgba(0,0,0,0.14)",
-              borderRadius: 10,
-              padding: "10px 12px",
-              fontSize: 14,
-              resize: "vertical",
             }}
           />
         </label>
