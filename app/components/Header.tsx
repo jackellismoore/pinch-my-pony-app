@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { registerPushForCurrentUser } from '@/lib/push/registerPush';
@@ -9,8 +9,6 @@ import { registerPushForCurrentUser } from '@/lib/push/registerPush';
 type ProfileMini = {
   id: string;
   role: 'owner' | 'borrower' | null;
-  display_name: string | null;
-  full_name: string | null;
 };
 
 function navLinkStyle(active: boolean): React.CSSProperties {
@@ -19,19 +17,42 @@ function navLinkStyle(active: boolean): React.CSSProperties {
     color: active ? 'black' : 'rgba(0,0,0,0.72)',
     fontWeight: active ? 950 : 850,
     fontSize: 13,
-    padding: '8px 10px',
-    borderRadius: 10,
+    padding: '10px 12px',
+    borderRadius: 12,
     background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+  };
+}
+
+function primaryButtonStyle(): React.CSSProperties {
+  return {
+    textDecoration: 'none',
+    color: 'white',
+    background: 'black',
+    fontWeight: 950,
+    fontSize: 13,
+    padding: '10px 12px',
+    borderRadius: 12,
+    border: '1px solid rgba(0,0,0,0.14)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   };
 }
 
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const [authReady, setAuthReady] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
+
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const dashboardHref = useMemo(() => {
     if (profile?.role === 'borrower') return '/dashboard/borrower';
@@ -39,11 +60,35 @@ export default function Header() {
     return '/dashboard';
   }, [profile?.role]);
 
+  const dashboardLabel = useMemo(() => {
+    if (profile?.role === 'borrower') return 'Borrower Dashboard';
+    if (profile?.role === 'owner') return 'Owner Dashboard';
+    return 'Dashboard';
+  }, [profile?.role]);
+
   const isActive = (href: string) => {
     if (!pathname) return false;
     if (href === '/') return pathname === '/';
     return pathname === href || pathname.startsWith(href + '/');
   };
+
+  // Close menu on navigation change
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  // Click-outside to close
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!menuOpen) return;
+      const target = e.target as Node;
+      if (panelRef.current && !panelRef.current.contains(target)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [menuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,20 +103,14 @@ export default function Header() {
         setAuthReady(true);
 
         if (u?.id) {
-          // best-effort push registration (don’t block render)
           try {
             registerPushForCurrentUser();
           } catch {}
 
-          // load role for dashboard routing
-          const res = await supabase
-            .from('profiles')
-            .select('id,role,display_name,full_name')
-            .eq('id', u.id)
-            .single();
-
+          const res = await supabase.from('profiles').select('id,role').eq('id', u.id).single();
           if (!cancelled) {
             if (!res.error) setProfile(res.data as ProfileMini);
+            else setProfile(null);
           }
         } else {
           setProfile(null);
@@ -99,12 +138,7 @@ export default function Header() {
           registerPushForCurrentUser();
         } catch {}
 
-        const res = await supabase
-          .from('profiles')
-          .select('id,role,display_name,full_name')
-          .eq('id', u.id)
-          .single();
-
+        const res = await supabase.from('profiles').select('id,role').eq('id', u.id).single();
         if (!cancelled) {
           if (!res.error) setProfile(res.data as ProfileMini);
           else setProfile(null);
@@ -182,72 +216,132 @@ export default function Header() {
           </div>
         </Link>
 
-        <nav style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        {/* Desktop nav (still OK on mobile, but hamburger is the primary) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {!authReady ? (
             <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', fontWeight: 800 }}>Loading…</div>
           ) : userId ? (
             <>
-              <Link href="/browse" style={navLinkStyle(isActive('/browse'))}>
-                Browse
-              </Link>
-
-              <Link href="/messages" style={navLinkStyle(isActive('/messages'))}>
-                Messages
-              </Link>
-
-              <Link href={dashboardHref} style={navLinkStyle(isActive('/dashboard'))}>
-                Dashboard
-              </Link>
-
-              <Link href="/profile" style={navLinkStyle(isActive('/profile'))}>
-                Profile
-              </Link>
-
-              <button
-                onClick={logout}
+              <div
                 style={{
-                  marginLeft: 6,
-                  padding: '9px 12px',
+                  display: 'none',
+                }}
+              />
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label="Menu"
+                style={{
+                  width: 40,
+                  height: 40,
                   borderRadius: 12,
                   border: '1px solid rgba(0,0,0,0.14)',
                   background: 'white',
                   cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   fontWeight: 950,
-                  fontSize: 13,
                 }}
               >
-                Logout
+                ☰
               </button>
             </>
           ) : (
             <>
-              <Link href="/browse" style={navLinkStyle(isActive('/browse'))}>
-                Browse
-              </Link>
-
-              <Link href="/login" style={navLinkStyle(isActive('/login'))}>
-                Login
-              </Link>
-
-              <Link
-                href="/signup"
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label="Menu"
                 style={{
-                  textDecoration: 'none',
-                  color: 'white',
-                  background: 'black',
-                  fontWeight: 950,
-                  fontSize: 13,
-                  padding: '9px 12px',
+                  width: 40,
+                  height: 40,
                   borderRadius: 12,
                   border: '1px solid rgba(0,0,0,0.14)',
+                  background: 'white',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 950,
                 }}
               >
-                Sign Up
-              </Link>
+                ☰
+              </button>
             </>
           )}
-        </nav>
+        </div>
       </div>
+
+      {/* Dropdown panel */}
+      {menuOpen ? (
+        <div
+          ref={panelRef}
+          style={{
+            maxWidth: 1100,
+            margin: '0 auto',
+            padding: '0 16px 14px 16px',
+          }}
+        >
+          <div
+            style={{
+              border: '1px solid rgba(0,0,0,0.10)',
+              background: 'white',
+              borderRadius: 16,
+              padding: 12,
+              boxShadow: '0 12px 30px rgba(0,0,0,0.10)',
+              display: 'grid',
+              gap: 8,
+            }}
+          >
+            {/* Common links */}
+            <Link href="/browse" style={navLinkStyle(isActive('/browse'))}>
+              Browse
+            </Link>
+
+            {userId ? (
+              <>
+                <Link href="/messages" style={navLinkStyle(isActive('/messages'))}>
+                  Messages
+                </Link>
+
+                <Link href={dashboardHref} style={navLinkStyle(isActive('/dashboard'))}>
+                  {dashboardLabel}
+                </Link>
+
+                <Link href="/profile" style={navLinkStyle(isActive('/profile'))}>
+                  Profile
+                </Link>
+
+                <button
+                  onClick={logout}
+                  style={{
+                    marginTop: 4,
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    background: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 950,
+                    fontSize: 13,
+                    textAlign: 'left',
+                  }}
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" style={navLinkStyle(isActive('/login'))}>
+                  Login
+                </Link>
+
+                <Link href="/signup" style={primaryButtonStyle()}>
+                  Sign Up
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }
