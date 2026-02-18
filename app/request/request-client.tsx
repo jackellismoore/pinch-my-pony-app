@@ -1,332 +1,273 @@
-"use client";
+'use client';
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import HorseMap from '@/components/HorseMap';
+import { supabase } from '@/lib/supabaseClient';
+import { AvailabilityBadge } from '@/components/AvailabilityBadge';
 
-type FormError =
-  | "missingHorse"
-  | "notLoggedIn"
-  | "invalidDates"
-  | "duplicateRequest"
-  | "unknown";
+type HorseRow = {
+  id: string;
+  owner_id: string;
+  name: string | null;
+  is_active: boolean | null;
+  // your map already pins horses, so you likely have location fields; we don't depend on them here
+};
 
-export default function RequestClient() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const horseId = searchParams.get("horseId");
+type ProfileMini = {
+  id: string;
+  display_name: string | null;
+  full_name: string | null;
+};
 
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [message, setMessage] = useState("");
+type BlockRow = {
+  id: string;
+  horse_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+};
 
-  const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+type BookingRow = {
+  id: string;
+  horse_id: string;
+  start_date: string;
+  end_date: string;
+};
 
-  const [errorCode, setErrorCode] = useState<FormError | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string>("");
+type NextRange = {
+  kind: 'blocked' | 'booking';
+  startDate: string;
+  endDate: string;
+  label: string;
+};
 
-  // If horseId missing, bounce to browse
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export default function BrowsePage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [horses, setHorses] = useState<HorseRow[]>([]);
+  const [profilesById, setProfilesById] = useState<Record<string, ProfileMini>>({});
+  const [nextByHorseId, setNextByHorseId] = useState<Record<string, NextRange | null>>({});
+
   useEffect(() => {
-    if (!horseId) router.push("/browse");
-  }, [horseId, router]);
+    let cancelled = false;
 
-  const canSubmit = useMemo(() => {
-    if (!horseId) return false;
+    async function load() {
+      setLoading(true);
+      setError(null);
 
-    // Dates are optional, but if either is set, they must be valid.
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-      if (end < start) return false;
-    }
+      const { data: horsesData, error: horsesErr } = await supabase
+        .from('horses')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
 
-    return true;
-  }, [horseId, startDate, endDate]);
+      if (cancelled) return;
 
-  const humanError = useMemo(() => {
-    if (!errorCode) return null;
-
-    const map: Record<FormError, { title: string; body: string }> = {
-      missingHorse: {
-        title: "Missing horse",
-        body: "Please select a horse again and retry.",
-      },
-      notLoggedIn: {
-        title: "Please log in",
-        body: "You need to be signed in to request a borrow.",
-      },
-      invalidDates: {
-        title: "Invalid dates",
-        body: "End date can’t be before the start date.",
-      },
-      duplicateRequest: {
-        title: "Request already sent",
-        body: "You already have a pending request for this horse.",
-      },
-      unknown: {
-        title: "Request failed",
-        body: errorMessage || "Something went wrong. Please try again.",
-      },
-    };
-
-    return map[errorCode];
-  }, [errorCode, errorMessage]);
-
-  const checkDuplicatePendingRequest = async (userId: string, horseId: string) => {
-    // Prevent spamming: if there is already a pending request for this horse from this borrower, block.
-    // (RLS should allow this borrower to see their own requests; if not, we’ll rely on insert error handling.)
-    const { data, error } = await supabase
-      .from("borrow_requests")
-      .select("id")
-      .eq("borrower_id", userId)
-      .eq("horse_id", horseId)
-      .eq("status", "pending")
-      .limit(1);
-
-    if (error) {
-      // If RLS blocks this select, we don't hard-fail; we just proceed to insert and let DB decide.
-      return { exists: false, softFailure: true };
-    }
-
-    return { exists: (data?.length ?? 0) > 0, softFailure: false };
-  };
-
-  const handleSubmit = async () => {
-    setErrorCode(null);
-    setErrorMessage("");
-
-    if (!horseId) {
-      setErrorCode("missingHorse");
-      return;
-    }
-
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      if (end < start) {
-        setErrorCode("invalidDates");
+      if (horsesErr) {
+        setError(horsesErr.message);
+        setLoading(false);
         return;
       }
+
+      const horseRows = (horsesData ?? []) as HorseRow[];
+      setHorses(horseRows);
+
+      const ownerIds = Array.from(new Set(horseRows.map((h) => h.owner_id).filter(Boolean)));
+      const horseIds = horseRows.map((h) => h.id);
+
+      if (ownerIds.length > 0) {
+        const { data: profData } = await supabase
+          .from('profiles')
+          .select('id,display_name,full_name')
+          .in('id', ownerIds);
+
+        const map: Record<string, ProfileMini> = {};
+        for (const p of (profData ?? []) as ProfileMini[]) map[p.id] = p;
+        if (!cancelled) setProfilesById(map);
+      }
+
+      // Availability preview: compute earliest upcoming blocked/booking per horse
+      if (horseIds.length > 0) {
+        const today = todayISODate();
+
+        const [blocksRes, bookingsRes] = await Promise.all([
+          supabase
+            .from('horse_unavailability')
+            .select('id,horse_id,start_date,end_date,reason')
+            .in('horse_id', horseIds)
+            .gte('end_date', today)
+            .order('start_date', { ascending: true }),
+
+          supabase
+            .from('borrow_requests')
+            .select('id,horse_id,start_date,end_date,status')
+            .in('horse_id', horseIds)
+            .eq('status', 'approved')
+            .not('start_date', 'is', null)
+            .not('end_date', 'is', null)
+            .gte('end_date', today)
+            .order('start_date', { ascending: true }),
+        ]);
+
+        if (!cancelled) {
+          if (blocksRes.error) setError(blocksRes.error.message);
+          if (bookingsRes.error) setError(bookingsRes.error.message);
+
+          const blocks = (blocksRes.data ?? []) as BlockRow[];
+          const bookings = (bookingsRes.data ?? []) as BookingRow[];
+
+          const merged = [
+            ...blocks.map((b) => ({
+              horseId: b.horse_id,
+              kind: 'blocked' as const,
+              startDate: b.start_date,
+              endDate: b.end_date,
+              label: b.reason?.trim() ? b.reason.trim() : 'Blocked',
+            })),
+            ...bookings.map((br) => ({
+              horseId: br.horse_id,
+              kind: 'booking' as const,
+              startDate: br.start_date,
+              endDate: br.end_date,
+              label: 'Approved booking',
+            })),
+          ].sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+          const byHorse: Record<string, NextRange | null> = {};
+          for (const id of horseIds) byHorse[id] = null;
+
+          for (const r of merged) {
+            if (!byHorse[r.horseId]) {
+              byHorse[r.horseId] = {
+                kind: r.kind,
+                startDate: r.startDate,
+                endDate: r.endDate,
+                label: r.label,
+              };
+            }
+          }
+
+          setNextByHorseId(byHorse);
+        }
+      }
+
+      if (!cancelled) setLoading(false);
     }
 
-    setLoading(true);
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      setLoading(false);
-      setErrorCode("notLoggedIn");
-      // Preserve horseId so user can continue after login
-      router.push(`/login?next=${encodeURIComponent(`/request?horseId=${horseId}`)}`);
-      return;
-    }
-
-    // Optional: prevent duplicate pending request
-    const dup = await checkDuplicatePendingRequest(user.id, horseId);
-    if (dup.exists) {
-      setLoading(false);
-      setErrorCode("duplicateRequest");
-      return;
-    }
-
-    const { error } = await supabase.from("borrow_requests").insert({
-      horse_id: horseId,
-      borrower_id: user.id,
-      start_date: startDate || null,
-      end_date: endDate || null,
-      message: message.trim() ? message.trim() : null,
-      status: "pending", // matches DB constraint
-    });
-
-    if (error) {
-      console.error("Insert error:", error);
-
-      // If you later add a DB unique constraint for (borrower_id, horse_id, status='pending'),
-      // you can map that specific error code to duplicateRequest here.
-      setLoading(false);
-      setErrorCode("unknown");
-      setErrorMessage(error.message);
-      return;
-    }
-
-    setSubmitted(true);
-    setLoading(false);
-  };
-
-  if (submitted) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <div style={styles.successTitle}>Request Sent ✔</div>
-          <div style={styles.successSub}>Your request has been sent to the owner.</div>
-
-          <div style={{ marginTop: 18, display: "flex", gap: 10 }}>
-            <button
-              onClick={() => router.push("/messages")}
-              style={{ ...styles.primaryBtn, width: "auto", padding: "12px 14px" }}
-            >
-              Go to Messages
-            </button>
-
-            <button
-              onClick={() => router.push("/browse")}
-              style={{ ...styles.secondaryBtn, width: "auto", padding: "12px 14px" }}
-            >
-              Browse More Horses
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+  function ownerLabel(ownerId: string) {
+    const p = profilesById[ownerId];
+    return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || 'Owner';
   }
 
+  const mapHorses = useMemo(() => horses as any[], [horses]);
+
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.title}>Request to Borrow</div>
-        <div style={styles.subtitle}>Send a message and optionally choose dates.</div>
+    <div style={{ padding: 16, maxWidth: 1100, margin: '0 auto' }}>
+      <h1 style={{ margin: 0, fontSize: 22 }}>Browse</h1>
+      <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+        Click a pin (or Request) to book dates. Availability is enforced.
+      </div>
 
-        {humanError && (
-          <div style={styles.errorBox}>
-            <div style={{ fontWeight: 900, marginBottom: 6 }}>{humanError.title}</div>
-            <div style={{ opacity: 0.85 }}>{humanError.body}</div>
-          </div>
-        )}
+      {loading ? (
+        <div style={{ marginTop: 14, fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Loading…</div>
+      ) : null}
 
-        <label style={styles.label}>Start Date (optional)</label>
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          style={styles.input}
-        />
-
-        <label style={styles.label}>End Date (optional)</label>
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          style={styles.input}
-        />
-
-        <label style={styles.label}>Message to Owner</label>
-        <textarea
-          placeholder="Introduce yourself, your riding experience, and what you’re looking for…"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          style={{ ...styles.input, height: 110, resize: "vertical" }}
-        />
-
-        <button
-          onClick={handleSubmit}
-          disabled={loading || !canSubmit}
+      {error ? (
+        <div
           style={{
-            ...styles.primaryBtn,
-            opacity: loading || !canSubmit ? 0.65 : 1,
-            cursor: loading || !canSubmit ? "not-allowed" : "pointer",
+            marginTop: 14,
+            border: '1px solid rgba(255,0,0,0.25)',
+            background: 'rgba(255,0,0,0.06)',
+            padding: 12,
+            borderRadius: 12,
+            fontSize: 13,
           }}
         >
-          {loading ? "Sending…" : "Send Request"}
-        </button>
+          {error}
+        </div>
+      ) : null}
 
-        <button onClick={() => router.back()} style={styles.linkBtn}>
-          ← Back
-        </button>
+      <div style={{ marginTop: 14 }}>
+        <HorseMap horses={mapHorses} />
+      </div>
+
+      <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>
+        {horses.map((h) => {
+          const next = nextByHorseId[h.id] ?? null;
+
+          return (
+            <div
+              key={h.id}
+              style={{
+                border: '1px solid rgba(0,0,0,0.10)',
+                borderRadius: 14,
+                padding: 14,
+                background: 'white',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>
+                  {ownerLabel(h.owner_id)}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+                  Listing: {h.name ?? 'Horse'}
+                </div>
+
+                <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {next ? (
+                    <>
+                      <AvailabilityBadge
+                        label={next.kind === 'blocked' ? 'Blocked' : 'Booked'}
+                        tone={next.kind === 'blocked' ? 'warn' : 'info'}
+                      />
+                      <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
+                        Next unavailable: <span style={{ fontWeight: 750 }}>{next.startDate} → {next.endDate}</span>
+                        {' — '}
+                        {next.label}
+                      </div>
+                    </>
+                  ) : (
+                    <AvailabilityBadge label="No upcoming blocks" tone="neutral" />
+                  )}
+                </div>
+              </div>
+
+              <Link
+                href={`/request?horseId=${h.id}`}
+                style={{
+                  border: '1px solid rgba(0,0,0,0.14)',
+                  background: 'black',
+                  color: 'white',
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  textDecoration: 'none',
+                  fontSize: 13,
+                  fontWeight: 750,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Request →
+              </Link>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: "flex",
-    justifyContent: "center",
-    padding: 60,
-  },
-  card: {
-    width: 520,
-    background: "#fff",
-    padding: 40,
-    borderRadius: 14,
-    boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
-    border: "1px solid rgba(15,23,42,0.10)",
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 900,
-    letterSpacing: "-0.4px",
-  },
-  subtitle: {
-    marginTop: 8,
-    marginBottom: 18,
-    color: "rgba(15,23,42,0.70)",
-    fontSize: 13,
-    lineHeight: 1.4,
-  },
-  label: {
-    display: "block",
-    marginBottom: 6,
-    fontWeight: 800,
-    fontSize: 13,
-  },
-  input: {
-    width: "100%",
-    padding: 12,
-    marginBottom: 18,
-    borderRadius: 10,
-    border: "1px solid rgba(15,23,42,0.14)",
-    outline: "none",
-    fontSize: 14,
-  },
-  primaryBtn: {
-    width: "100%",
-    padding: 14,
-    borderRadius: 10,
-    background: "#2563eb",
-    color: "white",
-    border: "none",
-    fontWeight: 900,
-    cursor: "pointer",
-    marginTop: 4,
-  },
-  secondaryBtn: {
-    borderRadius: 10,
-    background: "white",
-    color: "rgba(15,23,42,0.92)",
-    border: "1px solid rgba(15,23,42,0.14)",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  linkBtn: {
-    marginTop: 14,
-    background: "transparent",
-    border: "none",
-    color: "rgba(37,99,235,1)",
-    fontWeight: 900,
-    cursor: "pointer",
-    padding: 0,
-  },
-  errorBox: {
-    marginBottom: 18,
-    padding: 14,
-    borderRadius: 12,
-    border: "1px solid rgba(220,38,38,0.35)",
-    background: "rgba(220,38,38,0.06)",
-    color: "rgba(127,29,29,1)",
-  },
-  successTitle: {
-    fontSize: 20,
-    fontWeight: 900,
-    color: "#16a34a",
-    marginBottom: 8,
-  },
-  successSub: {
-    color: "rgba(15,23,42,0.75)",
-    lineHeight: 1.5,
-  },
-};

@@ -1,0 +1,111 @@
+.
+├── .gitignore
+├── README.md
+├── app
+│   ├── .env.local
+│   ├── api
+│   │   └── push
+│   │       └── send
+│   │           └── route.ts
+│   ├── browse
+│   │   └── page.tsx
+│   ├── components
+│   │   ├── AvailabilityBadge.tsx
+│   │   ├── AvailabilityConflictNotice.tsx
+│   │   ├── DashboardShell.tsx
+│   │   ├── EnablePushButton.tsx
+│   │   ├── Footer.tsx
+│   │   ├── GoogleMap.tsx
+│   │   ├── Header.tsx
+│   │   ├── HorseMap.tsx
+│   │   ├── MessageBubble.tsx
+│   │   ├── NotificationBell.tsx
+│   │   ├── RequestsTable.tsx
+│   │   ├── StatCard.tsx
+│   │   ├── StatusPill.tsx
+│   │   └── TypingBubbleInline.tsx
+│   ├── dashboard
+│   │   ├── borrower
+│   │   │   ├── horses
+│   │   │   │   ├── [horseId]
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── request
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   ├── owner
+│   │   │   ├── [requestId]
+│   │   │   │   └── page.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── useHorseAvailability.ts
+│   │   │   │   ├── useOwnerDashboardData.ts
+│   │   │   │   └── useOwnerRequestDetail.ts
+│   │   │   ├── horses
+│   │   │   │   ├── [horseId
+│   │   │   │   │   └── availability
+│   │   │   │   ├── add
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── edit
+│   │   │   │   │   └── [id]
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── requests
+│   │   │       └── page.tsx
+│   │   └── page.tsx
+│   ├── favicon.ico
+│   ├── globals.css
+│   ├── horse
+│   │   ├── edit
+│   │   │   └── [id]
+│   │   │       └── page
+│   │   │           └── page.tsx
+│   │   ├── horse-client.tsx
+│   │   └── page.tsx
+│   ├── layout.tsx
+│   ├── lib
+│   │   ├── auth.ts
+│   │   ├── hooks
+│   │   │   ├── usePaginatedMessages.ts
+│   │   │   └── useThreads.tsx
+│   │   ├── push
+│   │   │   ├── registerPush.ts
+│   │   │   └── send
+│   │   └── supabaseClient.ts
+│   ├── login
+│   │   └── page.tsx
+│   ├── messages
+│   │   ├── [requestId]
+│   │   │   └── page.tsx
+│   │   └── page.tsx
+│   ├── page.module.css
+│   ├── page.tsx
+│   ├── profile
+│   │   └── page.tsx
+│   ├── request
+│   │   ├── page.tsx
+│   │   ├── request-client.tsx
+│   │   └── request-form.tsx
+│   └── signup
+│       ├── borrower
+│       │   └── page.tsx
+│       ├── owner
+│       │   └── page.tsx
+│       └── page.tsx
+├── eslint.config.mjs
+├── next-env.d.ts
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── public
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── sw.js
+│   ├── vercel.svg
+│   └── window.svg
+├── redeploy.txt
+├── repo-tree.txt
+└── tsconfig.json
+
+39 directories, 70 files

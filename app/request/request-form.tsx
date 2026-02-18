@@ -55,6 +55,23 @@ export default function RequestForm({
       if (userErr) throw userErr;
       if (!user) throw new Error('Not authenticated');
 
+      // DB hardening (fast RPC check before insert for better UX)
+      const { data: ok, error: rpcErr } = await supabase.rpc('is_horse_range_available', {
+        p_horse_id: horseId,
+        p_start_date: startDate,
+        p_end_date: endDate,
+        p_exclude_request_id: null,
+      });
+
+      if (rpcErr) {
+        // If RPC blocked by RLS/etc. you'll still be protected by trigger on insert.
+        // But in most setups this will work and give better UX.
+      } else if (ok === false) {
+        setSubmitError('Selected dates overlap an unavailable range.');
+        setSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.from('borrow_requests').insert({
         horse_id: horseId,
         borrower_id: user.id,
@@ -64,7 +81,12 @@ export default function RequestForm({
         message: message?.trim() ? message.trim() : null,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Trigger error message from SQL will land here.
+        setSubmitError(error.message);
+        setSubmitting(false);
+        return;
+      }
 
       onSuccess?.();
     } catch (err: any) {
@@ -120,7 +142,6 @@ export default function RequestForm({
         </label>
       </div>
 
-      {/* Availability validation */}
       <AvailabilityConflictNotice
         horseId={horseId}
         startDate={startDate}
@@ -145,9 +166,7 @@ export default function RequestForm({
       </label>
 
       {submitError ? (
-        <div style={{ fontSize: 13, color: 'rgba(180,0,0,0.9)' }}>
-          {submitError}
-        </div>
+        <div style={{ fontSize: 13, color: 'rgba(180,0,0,0.9)' }}>{submitError}</div>
       ) : null}
 
       <button
