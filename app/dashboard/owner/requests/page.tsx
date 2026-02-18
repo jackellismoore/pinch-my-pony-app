@@ -9,8 +9,16 @@ import { useOwnerDashboardData } from "@/dashboard/owner/hooks/useOwnerDashboard
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
 export default function OwnerRequestsPage() {
-  const { loading, error, requests, refresh, approve, reject, actionBusyById } =
-    useOwnerDashboardData();
+  const {
+    loading,
+    error,
+    requests,
+    refresh,
+    approve,
+    reject,
+    remove,
+    actionBusyById,
+  } = useOwnerDashboardData();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -22,7 +30,7 @@ export default function OwnerRequestsPage() {
   return (
     <DashboardShell
       title="Owner Requests"
-      subtitle="Review requests, approve/reject, and open message threads."
+      subtitle="Review requests, approve/reject, delete, and open message threads."
       onRefresh={refresh}
       loading={loading}
     >
@@ -59,6 +67,7 @@ export default function OwnerRequestsPage() {
           loading={loading}
           onApprove={approve}
           onReject={reject}
+          onDelete={remove}
           actionBusyById={actionBusyById}
         />
       </div>

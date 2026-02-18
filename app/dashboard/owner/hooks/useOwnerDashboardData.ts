@@ -22,7 +22,6 @@ type Summary = {
   activeBorrows: number;
 };
 
-// Centralize FK names so you can change once if needed
 const FK = {
   borrowRequestsHorse: "borrow_requests_horse_id_fkey",
   borrowRequestsBorrower: "borrow_requests_borrower_id_fkey",
@@ -32,7 +31,7 @@ function normalizeStatus(input: unknown): OwnerRequestRow["status"] {
   const raw = String(input ?? "").toLowerCase().trim();
   if (raw === "approved") return "approved";
   if (raw === "rejected") return "rejected";
-  if (raw === "declined") return "rejected"; // legacy mapping
+  if (raw === "declined") return "rejected"; // legacy mapping only for display
   return "pending";
 }
 
@@ -103,7 +102,6 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 1) Get owned horse IDs
     const { data: horses, error: horsesErr } = await supabase
       .from("horses")
       .select("id")
@@ -124,7 +122,6 @@ export function useOwnerDashboardData() {
       return;
     }
 
-    // 2) Requests + joins (explicit FK names to avoid ambiguity)
     const { data: rows, error: reqErr } = await supabase
       .from("borrow_requests")
       .select(
@@ -161,12 +158,7 @@ export function useOwnerDashboardData() {
     const approvedRequests = requests.filter((r) => r.status === "approved").length;
     const activeBorrows = requests.filter((r) => isActiveBorrow(r)).length;
 
-    return {
-      totalHorses,
-      pendingRequests,
-      approvedRequests,
-      activeBorrows,
-    };
+    return { totalHorses, pendingRequests, approvedRequests, activeBorrows };
   }, [requests, totalHorses]);
 
   const approve = useCallback(
@@ -174,11 +166,7 @@ export function useOwnerDashboardData() {
       if (row.status !== "pending") return;
 
       setBusy(row.id, true);
-
-      // optimistic
-      setRequests((prev) =>
-        prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r))
-      );
+      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r)));
 
       const { error: updateErr } = await supabase
         .from("borrow_requests")
@@ -186,10 +174,7 @@ export function useOwnerDashboardData() {
         .eq("id", row.id);
 
       if (updateErr) {
-        // rollback
-        setRequests((prev) =>
-          prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
-        );
+        setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
         setError(updateErr.message);
         setBusy(row.id, false);
         return;
@@ -205,11 +190,7 @@ export function useOwnerDashboardData() {
     if (row.status !== "pending") return;
 
     setBusy(row.id, true);
-
-    // optimistic
-    setRequests((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r))
-    );
+    setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r)));
 
     const { error: updateErr } = await supabase
       .from("borrow_requests")
@@ -217,10 +198,7 @@ export function useOwnerDashboardData() {
       .eq("id", row.id);
 
     if (updateErr) {
-      // rollback
-      setRequests((prev) =>
-        prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
-      );
+      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
       setError(updateErr.message);
       setBusy(row.id, false);
       return;
@@ -228,6 +206,32 @@ export function useOwnerDashboardData() {
 
     setBusy(row.id, false);
   }, []);
+
+  const remove = useCallback(async (row: OwnerRequestRow) => {
+    const ok = confirm("Delete this request? This cannot be undone.");
+    if (!ok) return;
+
+    setBusy(row.id, true);
+
+    // optimistic remove
+    const prev = requests;
+    setRequests((p) => p.filter((r) => r.id !== row.id));
+
+    const { error: delErr } = await supabase
+      .from("borrow_requests")
+      .delete()
+      .eq("id", row.id);
+
+    if (delErr) {
+      // rollback
+      setRequests(prev);
+      setError(delErr.message);
+      setBusy(row.id, false);
+      return;
+    }
+
+    setBusy(row.id, false);
+  }, [requests]);
 
   return {
     loading,
@@ -237,6 +241,7 @@ export function useOwnerDashboardData() {
     refresh: load,
     approve,
     reject,
+    remove,
     actionBusyById,
   };
 }
