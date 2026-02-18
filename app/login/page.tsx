@@ -30,63 +30,57 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function login() {
-    setLoading(true);
     setError(null);
 
-    try {
-      if (!SUPABASE_ENV_OK) {
-        throw new Error(
-          'Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
-        );
-      }
+    if (!SUPABASE_ENV_OK) {
+      setError('Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+      return;
+    }
 
+    const e = email.trim();
+    if (!e || !password) {
+      setError('Enter email and password.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // ✅ Use a realistic timeout (Supabase can be slow on cold start / dev / mobile)
       const res = await withTimeout(
-        supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        }),
-        6000,
+        supabase.auth.signInWithPassword({ email: e, password }),
+        15000,
         'signInWithPassword'
       );
 
-      // supabase-js v2 returns { data, error }
-      // @ts-ignore
-      if (res?.error) throw res.error;
+      if (res.error) throw res.error;
 
+      // If your app relies on profile/role, let Header handle fetching it.
       router.push('/browse');
       router.refresh();
-    } catch (e: any) {
-      setError(e?.message ?? 'Login failed.');
+    } catch (err: any) {
+      const msg = String(err?.message ?? 'Login failed.');
+      if (msg.toLowerCase().includes('timed out')) {
+        setError(
+          'Login request timed out. This usually means the Supabase request is blocked or slow. ' +
+            'Try again, and if it persists: check browser console/network + Supabase Auth settings.'
+        );
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 520, margin: '0 auto' }}>
-      <h1 style={{ margin: 0, fontSize: 22 }}>Login</h1>
-
-      {!SUPABASE_ENV_OK ? (
-        <div
-          style={{
-            marginTop: 12,
-            border: '1px solid rgba(255,0,0,0.25)',
-            background: 'rgba(255,0,0,0.06)',
-            padding: 12,
-            borderRadius: 12,
-            fontSize: 13,
-            color: 'rgba(180,0,0,0.95)',
-            fontWeight: 800,
-          }}
-        >
-          Missing Supabase env vars (check Vercel Project Settings).
-        </div>
-      ) : null}
+    <div style={{ maxWidth: 520, margin: '0 auto', padding: 24 }}>
+      <h1 style={{ margin: 0, fontSize: 28 }}>Login</h1>
 
       {error ? (
         <div
           style={{
-            marginTop: 12,
+            marginTop: 14,
             border: '1px solid rgba(255,0,0,0.25)',
             background: 'rgba(255,0,0,0.06)',
             padding: 12,
@@ -98,23 +92,38 @@ export default function LoginPage() {
         </div>
       ) : null}
 
-      <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
+      <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
         <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
           Email
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
+            type="email"
+            autoComplete="email"
+            style={{
+              border: '1px solid rgba(0,0,0,0.14)',
+              borderRadius: 12,
+              padding: '12px 12px',
+              fontSize: 14,
+              background: 'rgba(0,0,0,0.03)',
+            }}
           />
         </label>
 
         <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
           Password
           <input
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
+            type="password"
+            autoComplete="current-password"
+            style={{
+              border: '1px solid rgba(0,0,0,0.14)',
+              borderRadius: 12,
+              padding: '12px 12px',
+              fontSize: 14,
+              background: 'rgba(0,0,0,0.03)',
+            }}
           />
         </label>
 
@@ -124,20 +133,23 @@ export default function LoginPage() {
           style={{
             marginTop: 6,
             border: '1px solid rgba(0,0,0,0.14)',
-            background: 'black',
-            color: 'white',
-            padding: '10px 12px',
-            borderRadius: 12,
+            borderRadius: 14,
+            padding: '12px 14px',
+            background: loading ? 'rgba(0,0,0,0.06)' : 'black',
+            color: loading ? 'rgba(0,0,0,0.55)' : 'white',
             cursor: loading ? 'not-allowed' : 'pointer',
-            fontWeight: 900,
-            opacity: loading ? 0.7 : 1,
+            fontWeight: 950,
+            fontSize: 15,
           }}
         >
           {loading ? 'Logging in…' : 'Login'}
         </button>
 
-        <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-          No account? <Link href="/signup">Sign up</Link>
+        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
+          No account?{' '}
+          <Link href="/signup" style={{ fontWeight: 900 }}>
+            Sign up
+          </Link>
         </div>
       </div>
     </div>
