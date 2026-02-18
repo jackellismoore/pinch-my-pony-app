@@ -31,7 +31,7 @@ function normalizeStatus(input: unknown): OwnerRequestRow["status"] {
   const raw = String(input ?? "").toLowerCase().trim();
   if (raw === "approved") return "approved";
   if (raw === "rejected") return "rejected";
-  if (raw === "declined") return "rejected"; // legacy mapping only for display
+  if (raw === "declined") return "rejected"; // legacy mapping for display only
   return "pending";
 }
 
@@ -166,7 +166,10 @@ export function useOwnerDashboardData() {
       if (row.status !== "pending") return;
 
       setBusy(row.id, true);
-      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r)));
+
+      setRequests((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, status: "approved" } : r))
+      );
 
       const { error: updateErr } = await supabase
         .from("borrow_requests")
@@ -174,7 +177,9 @@ export function useOwnerDashboardData() {
         .eq("id", row.id);
 
       if (updateErr) {
-        setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
+        setRequests((prev) =>
+          prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
+        );
         setError(updateErr.message);
         setBusy(row.id, false);
         return;
@@ -190,7 +195,10 @@ export function useOwnerDashboardData() {
     if (row.status !== "pending") return;
 
     setBusy(row.id, true);
-    setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r)));
+
+    setRequests((prev) =>
+      prev.map((r) => (r.id === row.id ? { ...r, status: "rejected" } : r))
+    );
 
     const { error: updateErr } = await supabase
       .from("borrow_requests")
@@ -198,7 +206,9 @@ export function useOwnerDashboardData() {
       .eq("id", row.id);
 
     if (updateErr) {
-      setRequests((prev) => prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r)));
+      setRequests((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, status: "pending" } : r))
+      );
       setError(updateErr.message);
       setBusy(row.id, false);
       return;
@@ -207,31 +217,43 @@ export function useOwnerDashboardData() {
     setBusy(row.id, false);
   }, []);
 
-  const remove = useCallback(async (row: OwnerRequestRow) => {
-    const ok = confirm("Delete this request? This cannot be undone.");
-    if (!ok) return;
+  const remove = useCallback(
+    async (row: OwnerRequestRow) => {
+      // disallow deleting active approved borrows
+      if (row.status === "approved" && row.start_date && row.end_date) {
+        const now = new Date();
+        const start = new Date(row.start_date);
+        const end = new Date(row.end_date);
+        if (start <= now && now <= end) {
+          alert("You cannot delete an active approved borrow.");
+          return;
+        }
+      }
 
-    setBusy(row.id, true);
+      const ok = confirm("Delete this request? This cannot be undone.");
+      if (!ok) return;
 
-    // optimistic remove
-    const prev = requests;
-    setRequests((p) => p.filter((r) => r.id !== row.id));
+      setBusy(row.id, true);
 
-    const { error: delErr } = await supabase
-      .from("borrow_requests")
-      .delete()
-      .eq("id", row.id);
+      const prev = requests;
+      setRequests((p) => p.filter((r) => r.id !== row.id));
 
-    if (delErr) {
-      // rollback
-      setRequests(prev);
-      setError(delErr.message);
+      const { error: delErr } = await supabase
+        .from("borrow_requests")
+        .delete()
+        .eq("id", row.id);
+
+      if (delErr) {
+        setRequests(prev);
+        setError(delErr.message);
+        setBusy(row.id, false);
+        return;
+      }
+
       setBusy(row.id, false);
-      return;
-    }
-
-    setBusy(row.id, false);
-  }, [requests]);
+    },
+    [requests]
+  );
 
   return {
     loading,

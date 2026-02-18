@@ -11,18 +11,19 @@ export default function RequestsTable(props: {
   loading: boolean;
   onApprove: (row: RequestRow) => void;
   onReject: (row: RequestRow) => void;
+  onDelete: (row: RequestRow) => void;
   actionBusyById: Record<string, boolean>;
 }) {
-  const { rows, loading, onApprove, onReject, actionBusyById } = props;
+  const { rows, loading, onApprove, onReject, onDelete, actionBusyById } = props;
 
   if (loading && rows.length === 0) return <div style={styles.empty}>Loading requests…</div>;
 
   if (!loading && rows.length === 0) {
     return (
-      <div style={styles.empty}>
-        <div style={{ fontWeight: 900, marginBottom: 6 }}>No requests found</div>
-        <div style={{ color: "rgba(15,23,42,0.65)", fontSize: 13 }}>
-          When someone requests to borrow one of your horses, it will appear here.
+      <div style={styles.emptyCentered}>
+        <div style={{ fontWeight: 900 }}>No requests yet</div>
+        <div style={{ opacity: 0.6, marginTop: 6 }}>
+          When someone requests to borrow a horse, it will appear here.
         </div>
       </div>
     );
@@ -57,7 +58,9 @@ export default function RequestsTable(props: {
 
                 <td style={styles.td}>
                   <div style={{ fontWeight: 900 }}>{borrowerName}</div>
-                  <div style={styles.meta}>{r.message ? r.message.slice(0, 60) : "No message"}</div>
+                  <div style={styles.meta}>
+                    {r.message ? r.message.slice(0, 60) : "No message"}
+                  </div>
                 </td>
 
                 <td style={styles.td}>
@@ -100,6 +103,15 @@ export default function RequestsTable(props: {
                       </button>
                     </>
                   )}
+
+                  <button
+                    onClick={() => onDelete(r)}
+                    style={{ ...styles.actionBtn, ...styles.deleteBtn }}
+                    disabled={busy}
+                    title="Delete request"
+                  >
+                    {busy ? "…" : "Delete"}
+                  </button>
                 </td>
               </tr>
             );
@@ -112,6 +124,7 @@ export default function RequestsTable(props: {
 
 const styles: Record<string, React.CSSProperties> = {
   empty: { padding: 16 },
+  emptyCentered: { padding: 24, textAlign: "center" },
   table: { width: "100%", borderCollapse: "separate", borderSpacing: 0 },
   th: {
     textAlign: "left",
@@ -155,5 +168,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginRight: 8,
   },
   approveBtn: { background: "#16a34a", color: "white" },
-  rejectBtn: { background: "#dc2626", color: "white", marginRight: 0 },
+  rejectBtn: { background: "#dc2626", color: "white" },
+  deleteBtn: { background: "rgba(15,23,42,0.12)", color: "rgba(15,23,42,0.92)", marginRight: 0 },
 };
