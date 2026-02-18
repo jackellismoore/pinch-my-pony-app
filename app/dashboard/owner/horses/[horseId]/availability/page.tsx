@@ -19,15 +19,8 @@ function badgeStyle(kind: 'blocked' | 'booking') {
     whiteSpace: 'nowrap',
   };
 
-  if (kind === 'blocked') {
-    return { ...base, background: 'rgba(255, 170, 0, 0.10)' };
-  }
+  if (kind === 'blocked') return { ...base, background: 'rgba(255, 170, 0, 0.10)' };
   return { ...base, background: 'rgba(0, 120, 255, 0.10)' };
-}
-
-function toISODate(d: string) {
-  // expects yyyy-mm-dd already
-  return d.slice(0, 10);
 }
 
 export default function HorseAvailabilityPage() {
@@ -40,9 +33,9 @@ export default function HorseAvailabilityPage() {
     error,
     blocked,
     bookings,
-    createBlock,
-    deleteBlock,
     refresh,
+    addBlockedRange,
+    deleteBlockedRange,
   } = useHorseAvailability(horseId);
 
   const [startDate, setStartDate] = useState<string>('');
@@ -89,9 +82,9 @@ export default function HorseAvailabilityPage() {
 
     try {
       setSaving(true);
-      await createBlock({
-        start_date: toISODate(startDate),
-        end_date: toISODate(endDate),
+      await addBlockedRange({
+        start_date: startDate,
+        end_date: endDate,
         reason: reason.trim() || null,
       });
       setStartDate('');
@@ -277,7 +270,7 @@ export default function HorseAvailabilityPage() {
 
               {r.kind === 'blocked' ? (
                 <button
-                  onClick={() => deleteBlock(r.id)}
+                  onClick={() => deleteBlockedRange(r.id)}
                   style={{
                     border: '1px solid rgba(0,0,0,0.14)',
                     background: 'white',
