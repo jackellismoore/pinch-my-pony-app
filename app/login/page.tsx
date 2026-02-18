@@ -3,9 +3,22 @@
 export const dynamic = 'force-dynamic';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { supabase, SUPABASE_ENV_OK } from '@/lib/supabaseClient';
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    p.then((v) => {
+      clearTimeout(t);
+      resolve(v);
+    }).catch((e) => {
+      clearTimeout(t);
+      reject(e);
+    });
+  });
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,12 +34,24 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const res = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+      if (!SUPABASE_ENV_OK) {
+        throw new Error(
+          'Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
+        );
+      }
 
-      if (res.error) throw res.error;
+      const res = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        }),
+        6000,
+        'signInWithPassword'
+      );
+
+      // supabase-js v2 returns { data, error }
+      // @ts-ignore
+      if (res?.error) throw res.error;
 
       router.push('/browse');
       router.refresh();
@@ -40,6 +65,23 @@ export default function LoginPage() {
   return (
     <div style={{ padding: 24, maxWidth: 520, margin: '0 auto' }}>
       <h1 style={{ margin: 0, fontSize: 22 }}>Login</h1>
+
+      {!SUPABASE_ENV_OK ? (
+        <div
+          style={{
+            marginTop: 12,
+            border: '1px solid rgba(255,0,0,0.25)',
+            background: 'rgba(255,0,0,0.06)',
+            padding: 12,
+            borderRadius: 12,
+            fontSize: 13,
+            color: 'rgba(180,0,0,0.95)',
+            fontWeight: 800,
+          }}
+        >
+          Missing Supabase env vars (check Vercel Project Settings).
+        </div>
+      ) : null}
 
       {error ? (
         <div
@@ -88,6 +130,7 @@ export default function LoginPage() {
             borderRadius: 12,
             cursor: loading ? 'not-allowed' : 'pointer',
             fontWeight: 900,
+            opacity: loading ? 0.7 : 1,
           }}
         >
           {loading ? 'Logging in…' : 'Login'}
