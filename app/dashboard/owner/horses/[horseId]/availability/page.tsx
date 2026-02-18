@@ -82,11 +82,16 @@ export default function HorseAvailabilityPage() {
 
     try {
       setSaving(true);
+
+      const trimmedReason = reason.trim();
+
+      // IMPORTANT: reason must be omitted if empty (hook type uses optional string, not null)
       await addBlockedRange({
         start_date: startDate,
         end_date: endDate,
-        reason: reason.trim() || null,
+        ...(trimmedReason ? { reason: trimmedReason } : {}),
       });
+
       setStartDate('');
       setEndDate('');
       setReason('');
