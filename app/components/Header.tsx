@@ -50,6 +50,8 @@ export default function Header() {
 
   const [authReady, setAuthReady] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+
+  const [roleLoading, setRoleLoading] = useState(false);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -66,18 +68,18 @@ export default function Header() {
     return 'Dashboard';
   }, [profile?.role]);
 
+  const roleReady = !!profile?.role; // ✅ hide dashboard until true
+
   const isActive = (href: string) => {
     if (!pathname) return false;
     if (href === '/') return pathname === '/';
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  // Close menu on navigation change
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
 
-  // Click-outside to close
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!menuOpen) return;
@@ -89,6 +91,17 @@ export default function Header() {
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [menuOpen]);
+
+  async function loadRoleForUser(id: string) {
+    setRoleLoading(true);
+    try {
+      const res = await supabase.from('profiles').select('id,role').eq('id', id).single();
+      if (!res.error) setProfile(res.data as ProfileMini);
+      else setProfile(null);
+    } finally {
+      setRoleLoading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -107,18 +120,16 @@ export default function Header() {
             registerPushForCurrentUser();
           } catch {}
 
-          const res = await supabase.from('profiles').select('id,role').eq('id', u.id).single();
-          if (!cancelled) {
-            if (!res.error) setProfile(res.data as ProfileMini);
-            else setProfile(null);
-          }
+          await loadRoleForUser(u.id);
         } else {
           setProfile(null);
+          setRoleLoading(false);
         }
       } catch {
         if (!cancelled) {
           setUserId(null);
           setProfile(null);
+          setRoleLoading(false);
           setAuthReady(true);
         }
       }
@@ -137,14 +148,10 @@ export default function Header() {
         try {
           registerPushForCurrentUser();
         } catch {}
-
-        const res = await supabase.from('profiles').select('id,role').eq('id', u.id).single();
-        if (!cancelled) {
-          if (!res.error) setProfile(res.data as ProfileMini);
-          else setProfile(null);
-        }
+        await loadRoleForUser(u.id);
       } else {
         setProfile(null);
+        setRoleLoading(false);
       }
     });
 
@@ -216,62 +223,26 @@ export default function Header() {
           </div>
         </Link>
 
-        {/* Desktop nav (still OK on mobile, but hamburger is the primary) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {!authReady ? (
-            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', fontWeight: 800 }}>Loading…</div>
-          ) : userId ? (
-            <>
-              <div
-                style={{
-                  display: 'none',
-                }}
-              />
-              <button
-                onClick={() => setMenuOpen((v) => !v)}
-                aria-label="Menu"
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  background: 'white',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 950,
-                }}
-              >
-                ☰
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => setMenuOpen((v) => !v)}
-                aria-label="Menu"
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  background: 'white',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 950,
-                }}
-              >
-                ☰
-              </button>
-            </>
-          )}
-        </div>
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label="Menu"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            border: '1px solid rgba(0,0,0,0.14)',
+            background: 'white',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 950,
+          }}
+        >
+          ☰
+        </button>
       </div>
 
-      {/* Dropdown panel */}
       {menuOpen ? (
         <div
           ref={panelRef}
@@ -292,20 +263,39 @@ export default function Header() {
               gap: 8,
             }}
           >
-            {/* Common links */}
             <Link href="/browse" style={navLinkStyle(isActive('/browse'))}>
               Browse
             </Link>
 
-            {userId ? (
+            {!authReady ? (
+              <div style={{ fontSize: 13, fontWeight: 850, color: 'rgba(0,0,0,0.6)', padding: '10px 12px' }}>
+                Loading…
+              </div>
+            ) : userId ? (
               <>
                 <Link href="/messages" style={navLinkStyle(isActive('/messages'))}>
                   Messages
                 </Link>
 
-                <Link href={dashboardHref} style={navLinkStyle(isActive('/dashboard'))}>
-                  {dashboardLabel}
-                </Link>
+                {roleReady ? (
+                  <Link href={dashboardHref} style={navLinkStyle(isActive('/dashboard'))}>
+                    {dashboardLabel}
+                  </Link>
+                ) : (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      fontSize: 13,
+                      fontWeight: 850,
+                      color: 'rgba(0,0,0,0.6)',
+                      border: '1px solid rgba(0,0,0,0.10)',
+                      background: 'rgba(0,0,0,0.03)',
+                    }}
+                  >
+                    {roleLoading ? 'Setting up dashboard…' : 'Dashboard will appear once your role is set.'}
+                  </div>
+                )}
 
                 <Link href="/profile" style={navLinkStyle(isActive('/profile'))}>
                   Profile
