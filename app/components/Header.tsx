@@ -1,127 +1,155 @@
-"use client"
+'use client';
 
-import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
-import { useRouter } from "next/navigation"
-import { registerPushForCurrentUser } from "@/lib/push/registerPush"
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useRouter } from 'next/navigation';
+import { registerPushForCurrentUser } from '@/lib/push/registerPush';
 
-type Role = "owner" | "borrower" | null
+type ProfileMini = {
+  id: string;
+  role: 'owner' | 'borrower' | null;
+  display_name: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+};
 
 export default function Header() {
-  const [user, setUser] = useState<any>(null)
-  const [role, setRole] = useState<Role>(null)
-  const router = useRouter()
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileMini | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const router = useRouter();
 
   useEffect(() => {
-    let mounted = true
+    let cancelled = false;
 
-    const loadRole = async (userId: string) => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .single()
+    async function load() {
+      setLoading(true);
+      setAuthError(null);
 
-      if (!mounted) return
-      if (error) {
-        setRole(null)
-        return
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) throw error;
+
+        if (cancelled) return;
+
+        setUser(data.user ?? null);
+
+        if (data.user) {
+          registerPushForCurrentUser();
+
+          const profRes = await supabase
+            .from('profiles')
+            .select('id,role,display_name,full_name,avatar_url')
+            .eq('id', data.user.id)
+            .single();
+
+          if (!cancelled) {
+            if (profRes.error) {
+              setProfile(null);
+            } else {
+              setProfile((profRes.data ?? null) as ProfileMini | null);
+            }
+          }
+        } else {
+          setProfile(null);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setAuthError(e?.message ?? 'Auth failed.');
+          setUser(null);
+          setProfile(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setRole((data?.role as Role) ?? null)
     }
 
-    const init = async () => {
-      const { data } = await supabase.auth.getUser()
-      if (!mounted) return
-
-      const u = data.user ?? null
-      setUser(u)
-
-      if (u) {
-        registerPushForCurrentUser()
-        loadRole(u.id)
-      } else {
-        setRole(null)
-      }
-    }
-
-    init()
+    load();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const u = session?.user ?? null
-      setUser(u)
+      if (cancelled) return;
 
-      if (u) {
-        registerPushForCurrentUser()
-        await loadRole(u.id)
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        registerPushForCurrentUser();
+        const profRes = await supabase
+          .from('profiles')
+          .select('id,role,display_name,full_name,avatar_url')
+          .eq('id', session.user.id)
+          .single();
+
+        if (!cancelled) setProfile((profRes.data ?? null) as ProfileMini | null);
       } else {
-        setRole(null)
+        setProfile(null);
       }
-    })
+
+      setLoading(false);
+    });
 
     return () => {
-      mounted = false
-      sub.subscription.unsubscribe()
-    }
-  }, [])
-
-  const dashboardHref = useMemo(() => {
-    if (!user) return "/dashboard"
-    if (role === "borrower") return "/dashboard/borrower"
-    return "/dashboard/owner"
-  }, [user, role])
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   const logout = async () => {
-    await supabase.auth.signOut()
-    router.push("/")
-    router.refresh()
-  }
+    await supabase.auth.signOut();
+    router.push('/');
+    router.refresh();
+  };
+
+  const label =
+    (profile?.display_name && profile.display_name.trim()) ||
+    (profile?.full_name && profile.full_name.trim()) ||
+    'Account';
 
   return (
     <header
       style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "14px 30px",
-        borderBottom: "1px solid #eee",
-        background: "white",
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '14px 30px',
+        borderBottom: '1px solid #eee',
+        background: 'white',
       }}
     >
-      <Link href="/" style={{ fontWeight: 700, fontSize: 18, textDecoration: "none", color: "black" }}>
+      <Link href="/" style={{ fontWeight: 700, fontSize: 18, textDecoration: 'none', color: 'black' }}>
         🐴 Pinch My Pony
       </Link>
 
-      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-        {user ? (
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+        {loading ? (
+          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Loading…</div>
+        ) : authError ? (
+          <div style={{ fontSize: 13, color: 'rgba(180,0,0,0.9)' }}>{authError}</div>
+        ) : user ? (
           <>
-            <Link href="/browse" style={{ textDecoration: "none", color: "black" }}>Browse</Link>
-            <Link href="/messages" style={{ textDecoration: "none", color: "black" }}>Messages</Link>
+            <Link href="/browse">Browse</Link>
+            <Link href="/messages">Messages</Link>
+            <Link href="/profile">{label}</Link>
 
-            <Link href={dashboardHref} style={{ textDecoration: "none", color: "black" }}>
-              Dashboard
-            </Link>
-
-            {role === "owner" ? (
-              <Link href="/dashboard/owner/horses" style={{ textDecoration: "none", color: "black" }}>
-                My Horses
-              </Link>
-            ) : null}
-
-            <Link href="/profile" style={{ textDecoration: "none", color: "black", fontWeight: 700 }}>
-              My Profile
-            </Link>
+            {profile?.role === 'owner' ? (
+              <>
+                <Link href="/dashboard/owner">Dashboard</Link>
+                <Link href="/dashboard/owner/horses">My Horses</Link>
+              </>
+            ) : (
+              <Link href="/dashboard/borrower">Dashboard</Link>
+            )}
 
             <button
               onClick={logout}
               style={{
-                padding: "6px 14px",
-                borderRadius: 10,
-                border: "1px solid #ddd",
-                background: "#f3f3f3",
-                cursor: "pointer",
-                fontWeight: 650,
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: '1px solid #ddd',
+                background: '#f3f3f3',
+                cursor: 'pointer',
               }}
             >
               Logout
@@ -129,11 +157,11 @@ export default function Header() {
           </>
         ) : (
           <>
-            <Link href="/login" style={{ textDecoration: "none", color: "black" }}>Login</Link>
-            <Link href="/signup" style={{ textDecoration: "none", color: "black" }}>Sign Up</Link>
+            <Link href="/login">Login</Link>
+            <Link href="/signup">Sign Up</Link>
           </>
         )}
       </div>
     </header>
-  )
+  );
 }

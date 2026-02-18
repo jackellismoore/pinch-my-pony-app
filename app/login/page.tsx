@@ -1,61 +1,102 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
+export const dynamic = 'force-dynamic';
+
+import { useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async () => {
+  async function login() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const res = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-    if (error) {
-      setError(error.message);
+      if (res.error) throw res.error;
+
+      router.push('/browse');
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message ?? 'Login failed.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    router.push("/dashboard");
-  };
+  }
 
   return (
-    <main style={{ padding: 40, maxWidth: 400, margin: "0 auto" }}>
-      <h1>Login</h1>
+    <div style={{ padding: 24, maxWidth: 520, margin: '0 auto' }}>
+      <h1 style={{ margin: 0, fontSize: 22 }}>Login</h1>
 
-      <input
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
+      {error ? (
+        <div
+          style={{
+            marginTop: 12,
+            border: '1px solid rgba(255,0,0,0.25)',
+            background: 'rgba(255,0,0,0.06)',
+            padding: 12,
+            borderRadius: 12,
+            fontSize: 13,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
 
-      <br />
+      <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
+        <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+          Email
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
+          />
+        </label>
 
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+        <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+          Password
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
+          />
+        </label>
 
-      <br /><br />
+        <button
+          onClick={login}
+          disabled={loading}
+          style={{
+            marginTop: 6,
+            border: '1px solid rgba(0,0,0,0.14)',
+            background: 'black',
+            color: 'white',
+            padding: '10px 12px',
+            borderRadius: 12,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            fontWeight: 900,
+          }}
+        >
+          {loading ? 'Logging in…' : 'Login'}
+        </button>
 
-      <button onClick={handleLogin} disabled={loading}>
-        {loading ? "Logging in..." : "Login"}
-      </button>
-
-      {error && <p style={{ color: "red" }}>{error}</p>}
-    </main>
+        <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+          No account? <Link href="/signup">Sign up</Link>
+        </div>
+      </div>
+    </div>
   );
 }
