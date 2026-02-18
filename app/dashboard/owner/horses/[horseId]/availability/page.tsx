@@ -6,96 +6,139 @@ import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useHorseAvailability } from '@/dashboard/owner/hooks/useHorseAvailability';
 
-function badgeStyle(kind: 'blocked' | 'booking') {
-  const base: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 8,
-    border: '1px solid rgba(0,0,0,0.12)',
-    borderRadius: 999,
-    padding: '6px 10px',
-    fontSize: 12,
-    fontWeight: 850,
-    whiteSpace: 'nowrap',
-  };
+type DayKind = 'blocked' | 'booking' | null;
 
-  if (kind === 'blocked') return { ...base, background: 'rgba(255, 170, 0, 0.10)' };
-  return { ...base, background: 'rgba(0, 120, 255, 0.10)' };
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
 }
 
-export default function HorseAvailabilityPage() {
-  const params = useParams<{ horseId: string }>();
-  const horseId = params?.horseId;
+function toISODate(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function addMonths(d: Date, delta: number) {
+  return new Date(d.getFullYear(), d.getMonth() + delta, 1);
+}
+
+function daysInMonth(year: number, monthIndex: number) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function overlapsDate(dateISO: string, startISO: string, endISO: string) {
+  return startISO <= dateISO && dateISO >= startISO && dateISO <= endISO;
+}
+
+export default function OwnerHorseAvailabilityPage() {
+  const params = useParams();
   const router = useRouter();
+  const horseId = String((params as any)?.horseId ?? '');
 
   const {
-    loading,
-    error,
     blocked,
     bookings,
-    refresh,
+    loading,
+    error,
     addBlockedRange,
     deleteBlockedRange,
   } = useHorseAvailability(horseId);
 
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  const [reason, setReason] = useState<string>('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const merged = useMemo(() => {
-    const a = blocked.map((b) => ({
-      kind: 'blocked' as const,
-      id: b.id,
-      start_date: b.start_date,
-      end_date: b.end_date,
-      label: b.reason?.trim() ? b.reason.trim() : 'Blocked',
-    }));
+  const [monthCursor, setMonthCursor] = useState<Date>(() => startOfMonth(new Date()));
 
-    const b = bookings.map((br) => ({
-      kind: 'booking' as const,
-      id: br.id,
-      start_date: br.start_date,
-      end_date: br.end_date,
-      label: 'Approved booking',
-    }));
+  const monthLabel = useMemo(() => {
+    const y = monthCursor.getFullYear();
+    const m = monthCursor.toLocaleString(undefined, { month: 'long' });
+    return `${m} ${y}`;
+  }, [monthCursor]);
 
-    return [...a, ...b].sort((x, y) => x.start_date.localeCompare(y.start_date));
-  }, [blocked, bookings]);
+  const calendarCells = useMemo(() => {
+    const year = monthCursor.getFullYear();
+    const month = monthCursor.getMonth();
 
-  async function onAdd() {
+    const first = new Date(year, month, 1);
+    const leadingBlanks = first.getDay();
+    const dim = daysInMonth(year, month);
+
+    const cells: Array<{ dateISO: string | null; day: number | null }> = [];
+
+    for (let i = 0; i < leadingBlanks; i++) {
+      cells.push({ dateISO: null, day: null });
+    }
+
+    for (let day = 1; day <= dim; day++) {
+      const d = new Date(year, month, day);
+      cells.push({ dateISO: toISODate(d), day });
+    }
+
+    while (cells.length % 7 !== 0) cells.push({ dateISO: null, day: null });
+
+    return cells;
+  }, [monthCursor]);
+
+  const dayKindByISO = useMemo(() => {
+    const kinds: Record<string, DayKind> = {};
+    const year = monthCursor.getFullYear();
+    const month = monthCursor.getMonth();
+    const dim = daysInMonth(year, month);
+
+    for (let day = 1; day <= dim; day++) {
+      const dateISO = toISODate(new Date(year, month, day));
+
+      const isBlocked = blocked.some((b: any) =>
+        overlapsDate(dateISO, b.start_date, b.end_date)
+      );
+
+      if (isBlocked) {
+        kinds[dateISO] = 'blocked';
+        continue;
+      }
+
+      const isBooked = bookings.some((br: any) =>
+        overlapsDate(dateISO, br.start_date, br.end_date)
+      );
+
+      kinds[dateISO] = isBooked ? 'booking' : null;
+    }
+
+    return kinds;
+  }, [monthCursor, blocked, bookings]);
+
+  async function onAddBlock() {
     setLocalError(null);
 
-    if (!horseId) {
-      setLocalError('Missing horseId.');
-      return;
-    }
     if (!startDate || !endDate) {
-      setLocalError('Start and end date required.');
+      setLocalError('Start and end dates required.');
       return;
     }
+
     if (startDate > endDate) {
-      setLocalError('Start date must be before or equal to end date.');
+      setLocalError('Start must be before or equal to end.');
       return;
     }
 
     try {
       setSaving(true);
 
-      const trimmedReason = reason.trim();
+      const trimmed = reason.trim();
 
-      // Hook expects camelCase input: { startDate, endDate, reason? }
       await addBlockedRange({
         startDate,
         endDate,
-        ...(trimmedReason ? { reason: trimmedReason } : {}),
+        ...(trimmed ? { reason: trimmed } : {}),
       });
 
       setStartDate('');
       setEndDate('');
       setReason('');
-      await refresh();
     } catch (e: any) {
       setLocalError(e?.message ?? 'Failed to add block.');
     } finally {
@@ -103,197 +146,120 @@ export default function HorseAvailabilityPage() {
     }
   }
 
-  if (!horseId) {
-    return <div style={{ padding: 20 }}>Missing horseId.</div>;
-  }
-
   return (
-    <div style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 20 }}>Availability</h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-            Block date ranges; approved bookings show here automatically.
-          </div>
+    <div style={{ padding: 20, maxWidth: 1100, margin: '0 auto' }}>
+      <h1 style={{ margin: 0, fontSize: 22 }}>Availability</h1>
+
+      {error && (
+        <div style={{ marginTop: 12, color: 'red', fontSize: 13 }}>
+          {error}
+        </div>
+      )}
+
+      {/* Calendar */}
+      <div style={{ marginTop: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button onClick={() => setMonthCursor(addMonths(monthCursor, -1))}>
+            ←
+          </button>
+          <div style={{ fontWeight: 800 }}>{monthLabel}</div>
+          <button onClick={() => setMonthCursor(addMonths(monthCursor, 1))}>
+            →
+          </button>
         </div>
 
-        <button
-          onClick={() => router.push('/dashboard/owner/horses')}
-          style={{
-            border: '1px solid rgba(0,0,0,0.14)',
-            background: 'white',
-            padding: '10px 12px',
-            borderRadius: 12,
-            cursor: 'pointer',
-            fontWeight: 850,
-            fontSize: 13,
-          }}
-        >
-          Back to My Horses
-        </button>
-      </div>
-
-      {(error || localError) ? (
         <div
           style={{
             marginTop: 12,
-            border: '1px solid rgba(255,0,0,0.25)',
-            background: 'rgba(255,0,0,0.06)',
-            padding: 12,
-            borderRadius: 12,
-            fontSize: 13,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gap: 4,
           }}
         >
-          {localError ?? error}
-        </div>
-      ) : null}
+          {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
+            <div key={d} style={{ fontSize: 12, fontWeight: 700 }}>
+              {d}
+            </div>
+          ))}
 
-      <div
-        style={{
-          marginTop: 14,
-          border: '1px solid rgba(0,0,0,0.10)',
-          borderRadius: 14,
-          padding: 14,
-          background: 'white',
-        }}
-      >
-        <div style={{ fontWeight: 900, fontSize: 14 }}>Add blocked range</div>
+          {calendarCells.map((cell, idx) => {
+            if (!cell.dateISO) {
+              return <div key={idx} />;
+            }
 
-        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-            Start date
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
-            />
-          </label>
+            const kind = dayKindByISO[cell.dateISO];
 
-          <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-            End date (inclusive)
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
-            />
-          </label>
-        </div>
+            const bg =
+              kind === 'blocked'
+                ? 'rgba(255,170,0,0.2)'
+                : kind === 'booking'
+                ? 'rgba(0,140,255,0.2)'
+                : 'white';
 
-        <label style={{ marginTop: 10, display: 'grid', gap: 6, fontSize: 13 }}>
-          Reason (optional)
-          <input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Vacation, maintenance, etc."
-            style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
-          />
-        </label>
-
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={onAdd}
-            disabled={saving}
-            style={{
-              border: '1px solid rgba(0,0,0,0.14)',
-              background: 'black',
-              color: 'white',
-              padding: '10px 12px',
-              borderRadius: 12,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              fontWeight: 900,
-              fontSize: 13,
-              opacity: saving ? 0.7 : 1,
-            }}
-          >
-            {saving ? 'Saving…' : 'Add Block'}
-          </button>
+            return (
+              <div
+                key={idx}
+                style={{
+                  padding: 6,
+                  border: '1px solid rgba(0,0,0,0.1)',
+                  background: bg,
+                  fontSize: 12,
+                  borderRadius: 6,
+                  textAlign: 'center',
+                }}
+              >
+                {cell.day}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 14,
-          border: '1px solid rgba(0,0,0,0.10)',
-          borderRadius: 14,
-          padding: 14,
-          background: 'white',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-          <div style={{ fontWeight: 900, fontSize: 14 }}>Unavailable ranges</div>
-          <button
-            onClick={refresh}
-            style={{
-              border: '1px solid rgba(0,0,0,0.14)',
-              background: 'white',
-              padding: '8px 10px',
-              borderRadius: 10,
-              cursor: 'pointer',
-              fontWeight: 850,
-              fontSize: 13,
-            }}
-          >
-            Refresh
+      {/* Add Block Form */}
+      <div style={{ marginTop: 30 }}>
+        <h3>Add Blocked Range</h3>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          <input
+            placeholder="Reason (optional)"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <button onClick={onAddBlock} disabled={saving}>
+            {saving ? 'Saving…' : 'Add'}
           </button>
         </div>
 
-        {loading ? (
-          <div style={{ marginTop: 10, fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Loading…</div>
-        ) : null}
-
-        {merged.length === 0 && !loading ? (
-          <div style={{ marginTop: 10, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-            No blocked ranges or bookings.
+        {localError && (
+          <div style={{ marginTop: 8, color: 'red', fontSize: 13 }}>
+            {localError}
           </div>
-        ) : null}
+        )}
+      </div>
 
-        <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-          {merged.map((r) => (
-            <div
-              key={`${r.kind}-${r.id}`}
-              style={{
-                border: '1px solid rgba(0,0,0,0.10)',
-                borderRadius: 12,
-                padding: 12,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-              }}
+      {/* Lists */}
+      <div style={{ marginTop: 30 }}>
+        <h3>Blocked Ranges</h3>
+        {blocked.map((b: any) => (
+          <div key={b.id} style={{ marginTop: 6, fontSize: 13 }}>
+            {b.start_date} → {b.end_date} ({b.reason || 'Blocked'})
+            <button
+              style={{ marginLeft: 10 }}
+              onClick={() => deleteBlockedRange(b.id)}
             >
-              <div style={{ minWidth: 0 }}>
-                <div style={badgeStyle(r.kind)}>{r.kind === 'blocked' ? 'Blocked' : 'Booking'}</div>
-                <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(0,0,0,0.8)', fontWeight: 800 }}>
-                  {r.start_date} → {r.end_date}
-                </div>
-                <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-                  {r.label}
-                </div>
-              </div>
+              Delete
+            </button>
+          </div>
+        ))}
 
-              {r.kind === 'blocked' ? (
-                <button
-                  onClick={() => deleteBlockedRange(r.id)}
-                  style={{
-                    border: '1px solid rgba(0,0,0,0.14)',
-                    background: 'white',
-                    padding: '8px 10px',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    fontWeight: 850,
-                    fontSize: 13,
-                  }}
-                >
-                  Delete
-                </button>
-              ) : (
-                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>Read-only</div>
-              )}
-            </div>
-          ))}
-        </div>
+        <h3 style={{ marginTop: 20 }}>Approved Bookings</h3>
+        {bookings.map((br: any) => (
+          <div key={br.id} style={{ marginTop: 6, fontSize: 13 }}>
+            {br.start_date} → {br.end_date}
+          </div>
+        ))}
       </div>
     </div>
   );
