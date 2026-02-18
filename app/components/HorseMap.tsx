@@ -10,7 +10,7 @@ type Horse = {
   lat: number;
   lng: number;
   owner_id?: string;
-  owner_label?: string; // <-- we’ll pass this from browse page
+  owner_label?: string;
   distance?: number;
 };
 
@@ -41,7 +41,7 @@ export default function HorseMap({
   return (
     <GoogleMap zoom={7} center={center} mapContainerStyle={{ width: '100%', height: '600px' }}>
       {horses.map((horse) =>
-        horse.lat && horse.lng ? (
+        typeof horse.lat === 'number' && typeof horse.lng === 'number' ? (
           <Marker
             key={horse.id}
             position={{ lat: horse.lat, lng: horse.lng }}
@@ -58,12 +58,12 @@ export default function HorseMap({
           position={{ lat: selectedHorse.lat, lng: selectedHorse.lng }}
           onCloseClick={() => setSelected(null)}
         >
-          <div style={{ minWidth: 220 }}>
-            <div style={{ fontWeight: 900, fontSize: 14 }}>
+          <div style={{ minWidth: 240 }}>
+            <div style={{ fontWeight: 950, fontSize: 14 }}>
               {selectedHorse.owner_label?.trim() ? selectedHorse.owner_label.trim() : 'Owner'}
             </div>
 
-            <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.7)', fontWeight: 700 }}>
+            <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.7)', fontWeight: 750 }}>
               {selectedHorse.name}
             </div>
 
@@ -73,24 +73,26 @@ export default function HorseMap({
               </div>
             ) : null}
 
-            <div style={{ marginTop: 10, display: 'flex', gap: 10 }}>
-              <Link
-                href={`/dashboard/borrower/horses/${selectedHorse.id}`}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  padding: '8px 10px',
-                  borderRadius: 10,
-                  textDecoration: 'none',
-                  color: 'black',
-                  fontWeight: 900,
-                  fontSize: 12,
-                }}
-              >
-                View
-              </Link>
+            <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {selectedHorse.owner_id ? (
+                <Link
+                  href={`/owner/${selectedHorse.owner_id}`}
+                  style={{
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    textDecoration: 'none',
+                    color: 'black',
+                    fontWeight: 900,
+                    fontSize: 12,
+                  }}
+                >
+                  View Profile
+                </Link>
+              ) : null}
 
               <Link
-                href={`/dashboard/borrower/horses/${selectedHorse.id}/request`}
+                href={`/request?horseId=${selectedHorse.id}`}
                 style={{
                   border: '1px solid rgba(0,0,0,0.14)',
                   padding: '8px 10px',

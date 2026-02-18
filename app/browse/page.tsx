@@ -67,12 +67,11 @@ export default function BrowsePage() {
       try {
         const { data: horsesData, error: horsesErr } = await supabase
           .from('horses')
-          .select('id,owner_id,name,is_active,lat,lng')
+          .select('id,owner_id,name,is_active,lat,lng,created_at')
           .eq('is_active', true)
           .order('created_at', { ascending: false });
 
         if (cancelled) return;
-
         if (horsesErr) throw horsesErr;
 
         const horseRows = (horsesData ?? []) as HorseRow[];
@@ -179,14 +178,17 @@ export default function BrowsePage() {
 
   const mapHorses = useMemo(
     () =>
-      horses.map((h) => ({
-        id: h.id,
-        name: h.name,
-        lat: h.lat,
-        lng: h.lng,
-        owner_id: h.owner_id,
-      })),
-    [horses]
+      horses
+        .filter((h) => typeof h.lat === 'number' && typeof h.lng === 'number')
+        .map((h) => ({
+          id: h.id,
+          name: h.name ?? 'Horse',
+          lat: h.lat as number,
+          lng: h.lng as number,
+          owner_id: h.owner_id,
+          owner_label: ownerLabel(h.owner_id),
+        })),
+    [horses, profilesById]
   );
 
   return (
@@ -216,7 +218,7 @@ export default function BrowsePage() {
       ) : null}
 
       <div style={{ marginTop: 14 }}>
-        <HorseMap horses={mapHorses} userLocation={null} highlightedId={null} />
+        <HorseMap horses={mapHorses as any} userLocation={null} highlightedId={null} />
       </div>
 
       <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>
