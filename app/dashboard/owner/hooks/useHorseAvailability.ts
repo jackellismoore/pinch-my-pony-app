@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createClient } from '@/lib/supabase/client'; // <-- if this errors, tell me your actual client path
+import { supabase } from '@/lib/supabaseClient'; // <-- use the exported instance you have
 
 type UnavailabilityRow = {
   id: string;
@@ -31,12 +31,8 @@ export type DateRange = {
   sourceId: string;
 };
 
-export function rangesOverlapInclusive(
-  aStart: string,
-  aEnd: string,
-  bStart: string,
-  bEnd: string
-) {
+export function rangesOverlapInclusive(aStart: string, aEnd: string, bStart: string, bEnd: string) {
+  // ISO date-only strings compare lexicographically correctly (YYYY-MM-DD).
   return aStart <= bEnd && bStart <= aEnd;
 }
 
@@ -45,13 +41,12 @@ export function hasOverlapInclusive(
   proposedEnd: string,
   ranges: Pick<DateRange, 'startDate' | 'endDate'>[]
 ) {
-  return ranges.some((r) =>
-    rangesOverlapInclusive(proposedStart, proposedEnd, r.startDate, r.endDate)
-  );
+  return ranges.some((r) => rangesOverlapInclusive(proposedStart, proposedEnd, r.startDate, r.endDate));
 }
 
 export function useHorseAvailability(horseId: string | null) {
-  const supabase = useMemo(() => createClient(), []);
+  // use the single shared supabase instance exported from app/lib/supabaseClient.ts
+  // No need for createClient() here — reusing the same instance is correct for client components.
   const [blocked, setBlocked] = useState<UnavailabilityRow[]>([]);
   const [bookings, setBookings] = useState<ApprovedBookingRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -85,7 +80,6 @@ export function useHorseAvailability(horseId: string | null) {
       setLoading(false);
       return;
     }
-
     if (bookingsRes.error) {
       setError(bookingsRes.error.message);
       setLoading(false);
@@ -95,7 +89,7 @@ export function useHorseAvailability(horseId: string | null) {
     setBlocked((blockedRes.data ?? []) as UnavailabilityRow[]);
     setBookings((bookingsRes.data ?? []) as ApprovedBookingRow[]);
     setLoading(false);
-  }, [horseId, supabase]);
+  }, [horseId]);
 
   useEffect(() => {
     refresh();
@@ -118,9 +112,7 @@ export function useHorseAvailability(horseId: string | null) {
       sourceId: br.id,
     }));
 
-    return [...blockedRanges, ...bookingRanges].sort((a, b) =>
-      a.startDate.localeCompare(b.startDate)
-    );
+    return [...blockedRanges, ...bookingRanges].sort((a, b) => a.startDate.localeCompare(b.startDate));
   }, [blocked, bookings]);
 
   const addBlockedRange = useCallback(
@@ -132,6 +124,7 @@ export function useHorseAvailability(horseId: string | null) {
       if (!startDate || !endDate) throw new Error('Start and end dates required');
       if (startDate > endDate) throw new Error('Start date must be <= end date');
 
+      // supabase.auth.getUser() returns { data: { user }, error } in v2
       const {
         data: { user },
         error: userErr,
@@ -140,35 +133,28 @@ export function useHorseAvailability(horseId: string | null) {
       if (userErr) throw userErr;
       if (!user) throw new Error('Not authenticated');
 
-      const { error: insertErr } = await supabase
-        .from('horse_unavailability')
-        .insert({
-          horse_id: horseId,
-          owner_id: user.id,
-          start_date: startDate,
-          end_date: endDate,
-          reason: reason?.trim() ? reason.trim() : null,
-        });
+      const { error: insertErr } = await supabase.from('horse_unavailability').insert({
+        horse_id: horseId,
+        owner_id: user.id,
+        start_date: startDate,
+        end_date: endDate,
+        reason: reason?.trim() ? reason.trim() : null,
+      });
 
       if (insertErr) throw insertErr;
 
       await refresh();
     },
-    [horseId, refresh, supabase]
+    [horseId, refresh]
   );
 
   const deleteBlockedRange = useCallback(
     async (blockId: string) => {
-      const { error } = await supabase
-        .from('horse_unavailability')
-        .delete()
-        .eq('id', blockId);
-
-      if (error) throw error;
-
+      const { error: delErr } = await supabase.from('horse_unavailability').delete().eq('id', blockId);
+      if (delErr) throw delErr;
       await refresh();
     },
-    [refresh, supabase]
+    [refresh]
   );
 
   return {
