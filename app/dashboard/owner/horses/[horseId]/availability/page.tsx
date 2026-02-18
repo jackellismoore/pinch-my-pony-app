@@ -85,10 +85,10 @@ export default function HorseAvailabilityPage() {
 
       const trimmedReason = reason.trim();
 
-      // IMPORTANT: reason must be omitted if empty (hook type uses optional string, not null)
+      // Hook expects camelCase input: { startDate, endDate, reason? }
       await addBlockedRange({
-        start_date: startDate,
-        end_date: endDate,
+        startDate,
+        endDate,
         ...(trimmedReason ? { reason: trimmedReason } : {}),
       });
 
