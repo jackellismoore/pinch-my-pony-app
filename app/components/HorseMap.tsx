@@ -1,88 +1,181 @@
-"use client";
+'use client';
 
 import {
   GoogleMap,
   Marker,
   InfoWindow,
   useLoadScript,
-} from "@react-google-maps/api";
-import { useState, useMemo } from "react";
+} from '@react-google-maps/api';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 type Horse = {
   id: string;
-  name: string;
-  lat: number;
-  lng: number;
+  name: string | null;
+  lat: number | null;
+  lng: number | null;
+  owner_id: string | null;
   distance?: number;
+};
+
+type ProfileMini = {
+  id: string;
+  display_name: string | null;
+  full_name: string | null;
 };
 
 export default function HorseMap({
   horses,
-  userLocation,
-  highlightedId,
+  userLocation = null,
+  highlightedId = null,
 }: {
   horses: Horse[];
-  userLocation: { lat: number; lng: number } | null;
-  highlightedId: string | null;
+  userLocation?: { lat: number; lng: number } | null;
+  highlightedId?: string | null;
 }) {
   const { isLoaded } = useLoadScript({
-    googleMapsApiKey:
-      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
   });
 
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [profilesById, setProfilesById] = useState<Record<string, ProfileMini>>({});
 
   const center = useMemo(() => {
     if (userLocation) return userLocation;
     return { lat: 51.505, lng: -0.09 };
   }, [userLocation]);
 
-  if (!isLoaded) return <div>Loading map...</div>;
+  const horsesById = useMemo(() => {
+    const map = new Map<string, Horse>();
+    for (const h of horses) map.set(h.id, h);
+    return map;
+  }, [horses]);
+
+  const ownerIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const h of horses) {
+      if (h.owner_id) set.add(h.owner_id);
+    }
+    return Array.from(set);
+  }, [horses]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfiles() {
+      if (ownerIds.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id,display_name,full_name')
+        .in('id', ownerIds);
+
+      if (cancelled) return;
+      if (error) return;
+
+      const map: Record<string, ProfileMini> = {};
+      for (const p of (data ?? []) as ProfileMini[]) map[p.id] = p;
+      setProfilesById(map);
+    }
+
+    loadProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerIds]);
+
+  function ownerLabel(ownerId: string | null) {
+    if (!ownerId) return 'Owner';
+    const p = profilesById[ownerId];
+    return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || 'Owner';
+  }
+
+  if (!isLoaded) {
+    return <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Loading map…</div>;
+  }
+
+  const selectedHorse = selectedId ? horsesById.get(selectedId) ?? null : null;
 
   return (
-    <GoogleMap
-      zoom={7}
-      center={center}
-      mapContainerStyle={{ width: "100%", height: "600px" }}
-    >
-      {horses.map((horse) =>
-        horse.lat && horse.lng ? (
+    <GoogleMap zoom={7} center={center} mapContainerStyle={{ width: '100%', height: '600px' }}>
+      {horses.map((horse) => {
+        if (horse.lat == null || horse.lng == null) return null;
+
+        return (
           <Marker
             key={horse.id}
             position={{ lat: horse.lat, lng: horse.lng }}
-            onClick={() => setSelected(horse.id)}
+            onClick={() => setSelectedId(horse.id)}
             icon={
               highlightedId === horse.id
-                ? "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+                ? 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
                 : undefined
             }
           />
-        ) : null
-      )}
+        );
+      })}
 
-      {selected && (
+      {selectedHorse && selectedHorse.lat != null && selectedHorse.lng != null ? (
         <InfoWindow
-          position={{
-            lat: horses.find((h) => h.id === selected)!.lat,
-            lng: horses.find((h) => h.id === selected)!.lng,
-          }}
-          onCloseClick={() => setSelected(null)}
+          position={{ lat: selectedHorse.lat, lng: selectedHorse.lng }}
+          onCloseClick={() => setSelectedId(null)}
         >
-          <div>
-            <strong>
-              {horses.find((h) => h.id === selected)!.name}
-            </strong>
-            {horses.find((h) => h.id === selected)!.distance && (
-              <div>
-                {horses
-                  .find((h) => h.id === selected)!
-                  .distance!.toFixed(1)}{" "}
-                miles away
+          <div style={{ maxWidth: 280 }}>
+            <div style={{ fontWeight: 900, fontSize: 14 }}>
+              {ownerLabel(selectedHorse.owner_id)}
+            </div>
+
+            <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
+              Listing: {selectedHorse.name ?? 'Horse'}
+            </div>
+
+            {typeof selectedHorse.distance === 'number' ? (
+              <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+                {selectedHorse.distance.toFixed(1)} miles away
               </div>
-            )}
+            ) : null}
+
+            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {selectedHorse.owner_id ? (
+                <Link
+                  href={`/owner/${selectedHorse.owner_id}`}
+                  style={{
+                    display: 'inline-block',
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    background: 'white',
+                    color: 'black',
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    textDecoration: 'none',
+                    fontSize: 13,
+                    fontWeight: 800,
+                  }}
+                >
+                  View Profile
+                </Link>
+              ) : null}
+
+              <Link
+                href={`/request?horseId=${selectedHorse.id}`}
+                style={{
+                  display: 'inline-block',
+                  border: '1px solid rgba(0,0,0,0.14)',
+                  background: 'black',
+                  color: 'white',
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  textDecoration: 'none',
+                  fontSize: 13,
+                  fontWeight: 900,
+                }}
+              >
+                Request →
+              </Link>
+            </div>
           </div>
         </InfoWindow>
-      )}
+      ) : null}
     </GoogleMap>
   );
 }
