@@ -189,7 +189,7 @@ export default function BrowsePage() {
     <div style={{ padding: 16, maxWidth: 1100, margin: '0 auto' }}>
       <h1 style={{ margin: 0, fontSize: 22 }}>Browse</h1>
       <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-        Click a pin to see the owner and request dates.
+        Click a pin to view the owner or request dates.
       </div>
 
       {loading ? (
@@ -234,9 +234,20 @@ export default function BrowsePage() {
               }}
             >
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 850, fontSize: 15 }}>
+                {/* OWNER NAME clickable to public owner profile */}
+                <Link
+                  href={`/owner/${h.owner_id}`}
+                  style={{
+                    fontWeight: 900,
+                    fontSize: 15,
+                    color: 'black',
+                    textDecoration: 'none',
+                    display: 'inline-block',
+                  }}
+                >
                   {ownerLabel(h.owner_id)}
-                </div>
+                </Link>
+
                 <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
                   Listing: {h.name ?? 'Horse'}
                 </div>
@@ -263,22 +274,41 @@ export default function BrowsePage() {
                 </div>
               </div>
 
-              <Link
-                href={`/request?horseId=${h.id}`}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  background: 'black',
-                  color: 'white',
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  textDecoration: 'none',
-                  fontSize: 13,
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                Request →
-              </Link>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <Link
+                  href={`/owner/${h.owner_id}`}
+                  style={{
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    background: 'white',
+                    color: 'black',
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    textDecoration: 'none',
+                    fontSize: 13,
+                    fontWeight: 850,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  View Profile
+                </Link>
+
+                <Link
+                  href={`/request?horseId=${h.id}`}
+                  style={{
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    background: 'black',
+                    color: 'white',
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    textDecoration: 'none',
+                    fontSize: 13,
+                    fontWeight: 900,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Request →
+                </Link>
+              </div>
             </div>
           );
         })}
