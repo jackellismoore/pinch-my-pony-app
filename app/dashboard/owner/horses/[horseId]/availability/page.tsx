@@ -1,6 +1,6 @@
-export const dynamic = "force-dynamic";
-
 'use client';
+
+export const dynamic = 'force-dynamic';
 
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -8,296 +8,293 @@ import { useHorseAvailability } from '@/dashboard/owner/hooks/useHorseAvailabili
 
 function badgeStyle(kind: 'blocked' | 'booking') {
   const base: React.CSSProperties = {
-    display: 'inline-block',
-    padding: '2px 8px',
-    borderRadius: 999,
-    fontSize: 12,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
     border: '1px solid rgba(0,0,0,0.12)',
-    marginRight: 8,
+    borderRadius: 999,
+    padding: '6px 10px',
+    fontSize: 12,
+    fontWeight: 850,
+    whiteSpace: 'nowrap',
   };
-  if (kind === 'blocked') return { ...base, background: 'rgba(255, 200, 0, 0.18)' };
-  return { ...base, background: 'rgba(0, 180, 255, 0.15)' };
+
+  if (kind === 'blocked') {
+    return { ...base, background: 'rgba(255, 170, 0, 0.10)' };
+  }
+  return { ...base, background: 'rgba(0, 120, 255, 0.10)' };
 }
 
-export default function OwnerHorseAvailabilityPage() {
+function toISODate(d: string) {
+  // expects yyyy-mm-dd already
+  return d.slice(0, 10);
+}
+
+export default function HorseAvailabilityPage() {
   const params = useParams<{ horseId: string }>();
-  const horseId = params?.horseId ?? null;
+  const horseId = params?.horseId;
   const router = useRouter();
 
   const {
-    blocked,
-    bookings,
-    unavailableRanges,
     loading,
     error,
-    addBlockedRange,
-    deleteBlockedRange,
+    blocked,
+    bookings,
+    createBlock,
+    deleteBlock,
+    refresh,
   } = useHorseAvailability(horseId);
 
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [reason, setReason] = useState('');
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [reason, setReason] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const disabled = !startDate || !endDate || submitting;
+  const merged = useMemo(() => {
+    const a = blocked.map((b) => ({
+      kind: 'blocked' as const,
+      id: b.id,
+      start_date: b.start_date,
+      end_date: b.end_date,
+      label: b.reason?.trim() ? b.reason.trim() : 'Blocked',
+    }));
 
-  const headerSubtitle = useMemo(() => {
-    const total = unavailableRanges.length;
-    return `${total} unavailable range${total === 1 ? '' : 's'} (blocked + approved bookings)`;
-  }, [unavailableRanges.length]);
+    const b = bookings.map((br) => ({
+      kind: 'booking' as const,
+      id: br.id,
+      start_date: br.start_date,
+      end_date: br.end_date,
+      label: 'Approved booking',
+    }));
 
-  async function onAddBlocked(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitError(null);
+    return [...a, ...b].sort((x, y) => x.start_date.localeCompare(y.start_date));
+  }, [blocked, bookings]);
+
+  async function onAdd() {
+    setLocalError(null);
+
+    if (!horseId) {
+      setLocalError('Missing horseId.');
+      return;
+    }
+    if (!startDate || !endDate) {
+      setLocalError('Start and end date required.');
+      return;
+    }
+    if (startDate > endDate) {
+      setLocalError('Start date must be before or equal to end date.');
+      return;
+    }
 
     try {
-      setSubmitting(true);
-      await addBlockedRange({ startDate, endDate, reason });
-
+      setSaving(true);
+      await createBlock({
+        start_date: toISODate(startDate),
+        end_date: toISODate(endDate),
+        reason: reason.trim() || null,
+      });
       setStartDate('');
       setEndDate('');
       setReason('');
-    } catch (err: any) {
-      setSubmitError(err?.message ?? 'Failed to add blocked range');
+      await refresh();
+    } catch (e: any) {
+      setLocalError(e?.message ?? 'Failed to add block.');
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   }
 
-  async function onDeleteBlock(id: string) {
-    if (!confirm('Delete this blocked range?')) return;
-    try {
-      await deleteBlockedRange(id);
-    } catch (err: any) {
-      alert(err?.message ?? 'Failed to delete blocked range');
-    }
+  if (!horseId) {
+    return <div style={{ padding: 20 }}>Missing horseId.</div>;
   }
 
   return (
     <div style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-        <button
-          onClick={() => router.back()}
-          style={{
-            border: '1px solid rgba(0,0,0,0.12)',
-            borderRadius: 10,
-            padding: '8px 10px',
-            background: 'white',
-            cursor: 'pointer',
-          }}
-        >
-          ← Back
-        </button>
-
-        <div style={{ flex: 1 }}>
-          <h1 style={{ margin: 0, fontSize: 22 }}>Availability</h1>
-          <div style={{ marginTop: 4, color: 'rgba(0,0,0,0.65)', fontSize: 13 }}>
-            {headerSubtitle}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 20 }}>Availability</h1>
+          <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+            Block date ranges; approved bookings show here automatically.
           </div>
         </div>
+
+        <button
+          onClick={() => router.push('/dashboard/owner/horses')}
+          style={{
+            border: '1px solid rgba(0,0,0,0.14)',
+            background: 'white',
+            padding: '10px 12px',
+            borderRadius: 12,
+            cursor: 'pointer',
+            fontWeight: 850,
+            fontSize: 13,
+          }}
+        >
+          Back to My Horses
+        </button>
       </div>
 
-      {error ? (
+      {(error || localError) ? (
         <div
           style={{
+            marginTop: 12,
             border: '1px solid rgba(255,0,0,0.25)',
             background: 'rgba(255,0,0,0.06)',
             padding: 12,
             borderRadius: 12,
-            marginBottom: 12,
+            fontSize: 13,
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Error</div>
-          <div style={{ fontSize: 13 }}>{error}</div>
+          {localError ?? error}
         </div>
       ) : null}
 
       <div
         style={{
+          marginTop: 14,
           border: '1px solid rgba(0,0,0,0.10)',
           borderRadius: 14,
           padding: 14,
           background: 'white',
-          marginBottom: 14,
         }}
       >
-        <div style={{ fontWeight: 650, marginBottom: 10 }}>Add blocked date range</div>
+        <div style={{ fontWeight: 900, fontSize: 14 }}>Add blocked range</div>
 
-        <form onSubmit={onAddBlocked} style={{ display: 'grid', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-              Start date
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  borderRadius: 10,
-                  padding: '10px 12px',
-                  fontSize: 14,
-                }}
-              />
-            </label>
-
-            <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-              End date (inclusive)
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  borderRadius: 10,
-                  padding: '10px 12px',
-                  fontSize: 14,
-                }}
-              />
-            </label>
-          </div>
-
+        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-            Reason (optional)
+            Start date
             <input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Vacation, maintenance, etc."
-              style={{
-                border: '1px solid rgba(0,0,0,0.14)',
-                borderRadius: 10,
-                padding: '10px 12px',
-                fontSize: 14,
-              }}
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
             />
           </label>
 
-          {submitError ? (
-            <div style={{ color: 'rgba(180,0,0,0.9)', fontSize: 13 }}>{submitError}</div>
-          ) : null}
-
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button
-              type="submit"
-              disabled={disabled}
-              style={{
-                border: '1px solid rgba(0,0,0,0.14)',
-                borderRadius: 12,
-                padding: '10px 14px',
-                background: disabled ? 'rgba(0,0,0,0.05)' : 'black',
-                color: disabled ? 'rgba(0,0,0,0.5)' : 'white',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                fontWeight: 650,
-              }}
-            >
-              {submitting ? 'Adding…' : 'Add blocked range'}
-            </button>
-
-            {loading ? (
-              <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Refreshing…</span>
-            ) : null}
-          </div>
-        </form>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <div
-          style={{
-            border: '1px solid rgba(0,0,0,0.10)',
-            borderRadius: 14,
-            padding: 14,
-            background: 'white',
-          }}
-        >
-          <div style={{ fontWeight: 650, marginBottom: 10 }}>Blocked ranges</div>
-
-          {blocked.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>
-              No blocked ranges yet.
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              {blocked.map((b) => (
-                <div
-                  key={b.id}
-                  style={{
-                    border: '1px solid rgba(0,0,0,0.10)',
-                    borderRadius: 12,
-                    padding: 12,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    alignItems: 'center',
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <span style={badgeStyle('blocked')}>Blocked</span>
-                      <div style={{ fontWeight: 650, fontSize: 14 }}>
-                        {b.start_date} → {b.end_date}
-                      </div>
-                    </div>
-                    {b.reason ? (
-                      <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.7)' }}>
-                        {b.reason}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <button
-                    onClick={() => onDeleteBlock(b.id)}
-                    style={{
-                      border: '1px solid rgba(0,0,0,0.14)',
-                      borderRadius: 10,
-                      padding: '8px 10px',
-                      background: 'white',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+            End date (inclusive)
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
+            />
+          </label>
         </div>
 
-        <div
-          style={{
-            border: '1px solid rgba(0,0,0,0.10)',
-            borderRadius: 14,
-            padding: 14,
-            background: 'white',
-          }}
-        >
-          <div style={{ fontWeight: 650, marginBottom: 10 }}>Approved bookings (read-only)</div>
+        <label style={{ marginTop: 10, display: 'grid', gap: 6, fontSize: 13 }}>
+          Reason (optional)
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Vacation, maintenance, etc."
+            style={{ border: '1px solid rgba(0,0,0,0.14)', borderRadius: 10, padding: '10px 12px' }}
+          />
+        </label>
 
-          {bookings.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>
-              No approved bookings.
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              {bookings.map((br) => (
-                <div
-                  key={br.id}
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onAdd}
+            disabled={saving}
+            style={{
+              border: '1px solid rgba(0,0,0,0.14)',
+              background: 'black',
+              color: 'white',
+              padding: '10px 12px',
+              borderRadius: 12,
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontWeight: 900,
+              fontSize: 13,
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? 'Saving…' : 'Add Block'}
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 14,
+          border: '1px solid rgba(0,0,0,0.10)',
+          borderRadius: 14,
+          padding: 14,
+          background: 'white',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontWeight: 900, fontSize: 14 }}>Unavailable ranges</div>
+          <button
+            onClick={refresh}
+            style={{
+              border: '1px solid rgba(0,0,0,0.14)',
+              background: 'white',
+              padding: '8px 10px',
+              borderRadius: 10,
+              cursor: 'pointer',
+              fontWeight: 850,
+              fontSize: 13,
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {loading ? (
+          <div style={{ marginTop: 10, fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Loading…</div>
+        ) : null}
+
+        {merged.length === 0 && !loading ? (
+          <div style={{ marginTop: 10, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+            No blocked ranges or bookings.
+          </div>
+        ) : null}
+
+        <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+          {merged.map((r) => (
+            <div
+              key={`${r.kind}-${r.id}`}
+              style={{
+                border: '1px solid rgba(0,0,0,0.10)',
+                borderRadius: 12,
+                padding: 12,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={badgeStyle(r.kind)}>{r.kind === 'blocked' ? 'Blocked' : 'Booking'}</div>
+                <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(0,0,0,0.8)', fontWeight: 800 }}>
+                  {r.start_date} → {r.end_date}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+                  {r.label}
+                </div>
+              </div>
+
+              {r.kind === 'blocked' ? (
+                <button
+                  onClick={() => deleteBlock(r.id)}
                   style={{
-                    border: '1px solid rgba(0,0,0,0.10)',
-                    borderRadius: 12,
-                    padding: 12,
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    background: 'white',
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    fontWeight: 850,
+                    fontSize: 13,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={badgeStyle('booking')}>Booking</span>
-                    <div style={{ fontWeight: 650, fontSize: 14 }}>
-                      {br.start_date} → {br.end_date}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  Delete
+                </button>
+              ) : (
+                <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>Read-only</div>
+              )}
             </div>
-          )}
+          ))}
         </div>
       </div>
     </div>
