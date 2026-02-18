@@ -1,12 +1,43 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import DashboardShell from "@/components/DashboardShell";
-import StatCard from "@/components/StatCard";
 import RequestsTable, { RequestRow } from "@/components/RequestsTable";
-import { useOwnerDashboardData } from "./hooks/useOwnerDashboardData";
+import { useOwnerDashboardData } from "@/dashboard/owner/hooks/useOwnerDashboardData";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
+
+function SummaryCard(props: { label: string; value: number; accent?: string }) {
+  const { label, value, accent } = props;
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        border: "1px solid rgba(15,23,42,0.10)",
+        borderRadius: 14,
+        padding: 16,
+        minWidth: 180,
+      }}
+    >
+      <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(15,23,42,0.65)" }}>
+        {label}
+      </div>
+      <div
+        style={{
+          marginTop: 8,
+          fontSize: 28,
+          fontWeight: 900,
+          color: accent || "rgba(15,23,42,0.92)",
+          lineHeight: 1,
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
 
 export default function OwnerDashboardPage() {
   const {
@@ -17,6 +48,7 @@ export default function OwnerDashboardPage() {
     refresh,
     approve,
     reject,
+    remove,
     actionBusyById,
   } = useOwnerDashboardData();
 
@@ -30,123 +62,142 @@ export default function OwnerDashboardPage() {
   return (
     <DashboardShell
       title="Owner Dashboard"
-      subtitle="Manage requests, track active borrows, and keep your stable updated."
+      subtitle="Overview of your horses and borrow requests."
       onRefresh={refresh}
       loading={loading}
     >
       {error && (
-        <div style={styles.errorBox}>
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>
-            Something went wrong
-          </div>
+        <div
+          style={{
+            marginTop: 14,
+            padding: 14,
+            borderRadius: 12,
+            border: "1px solid rgba(220,38,38,0.35)",
+            background: "rgba(220,38,38,0.06)",
+            color: "rgba(127,29,29,1)",
+          }}
+        >
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>Error</div>
           <div style={{ opacity: 0.85 }}>{error}</div>
         </div>
       )}
 
-      <div style={styles.statsRow}>
-        <StatCard label="Total horses" value={summary.totalHorses} />
-        <StatCard
-          label="Pending requests"
+      {/* Summary */}
+      <div
+        style={{
+          marginTop: 14,
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <SummaryCard label="Total Horses" value={summary.totalHorses} />
+        <SummaryCard
+          label="Pending Requests"
           value={summary.pendingRequests}
-          accent="amber"
+          accent="#f59e0b"
         />
-        <StatCard
-          label="Approved requests"
+        <SummaryCard
+          label="Approved Requests"
           value={summary.approvedRequests}
-          accent="green"
+          accent="#16a34a"
         />
-        <StatCard
-          label="Active borrows"
+        <SummaryCard
+          label="Active Borrows"
           value={summary.activeBorrows}
-          accent="blue"
+          accent="#2563eb"
         />
       </div>
 
-      <div style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <div style={styles.sectionTitle}>Requests</div>
-            <div style={styles.sectionSub}>
-              Approve or reject requests quickly. Open a request to message the
-              borrower.
-            </div>
-          </div>
-
-          <div style={styles.filters}>
-            <label style={styles.filterLabel}>Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              style={styles.select}
+      {/* Actions Row */}
+      <div
+        style={{
+          marginTop: 14,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Link href="/dashboard/owner/horses" style={{ textDecoration: "none" }}>
+            <button
+              style={{
+                height: 36,
+                padding: "0 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(15,23,42,0.14)",
+                background: "white",
+                cursor: "pointer",
+                fontWeight: 900,
+              }}
             >
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
+              Manage Horses
+            </button>
+          </Link>
+
+          <Link href="/dashboard/owner/requests" style={{ textDecoration: "none" }}>
+            <button
+              style={{
+                height: 36,
+                padding: "0 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(15,23,42,0.14)",
+                background: "white",
+                cursor: "pointer",
+                fontWeight: 900,
+              }}
+            >
+              View All Requests
+            </button>
+          </Link>
         </div>
 
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 180 }}>
+          <label style={{ fontSize: 12, fontWeight: 900, color: "rgba(15,23,42,0.70)" }}>
+            Status
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            style={{
+              height: 36,
+              borderRadius: 10,
+              border: "1px solid rgba(15,23,42,0.14)",
+              padding: "0 10px",
+              background: "white",
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Requests Preview */}
+      <div
+        style={{
+          marginTop: 14,
+          background: "#fff",
+          border: "1px solid rgba(15,23,42,0.10)",
+          borderRadius: 14,
+          overflow: "hidden",
+        }}
+      >
         <RequestsTable
           rows={filteredRequests as RequestRow[]}
           loading={loading}
           onApprove={approve}
           onReject={reject}
+          onDelete={remove}
           actionBusyById={actionBusyById}
         />
       </div>
     </DashboardShell>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  statsRow: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-    gap: 14,
-    marginTop: 16,
-  },
-  section: {
-    marginTop: 18,
-    background: "#fff",
-    border: "1px solid rgba(15, 23, 42, 0.10)",
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  sectionHeader: {
-    padding: 16,
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 12,
-    borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
-    background:
-      "linear-gradient(180deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%)",
-  },
-  sectionTitle: { fontSize: 16, fontWeight: 900, letterSpacing: "-0.2px" },
-  sectionSub: { marginTop: 6, fontSize: 13, color: "rgba(15,23,42,0.70)" },
-  filters: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    minWidth: 160,
-  },
-  filterLabel: { fontSize: 12, fontWeight: 800, color: "rgba(15,23,42,0.70)" },
-  select: {
-    height: 36,
-    borderRadius: 10,
-    border: "1px solid rgba(15,23,42,0.14)",
-    padding: "0 10px",
-    background: "white",
-    outline: "none",
-    cursor: "pointer",
-  },
-  errorBox: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 12,
-    border: "1px solid rgba(220,38,38,0.35)",
-    background: "rgba(220,38,38,0.06)",
-    color: "rgba(127,29,29,1)",
-  },
-};
