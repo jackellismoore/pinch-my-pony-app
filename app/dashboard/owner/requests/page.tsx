@@ -21,6 +21,13 @@ type Row = {
   borrower_name: string | null;
 };
 
+function normalizeStatus(raw: any): Status {
+  const s = String(raw ?? "").toLowerCase();
+  if (s === "approved") return "approved";
+  if (s === "rejected" || s === "declined" || s === "denied") return "rejected";
+  return "pending";
+}
+
 function chip(active: boolean): React.CSSProperties {
   return {
     border: "1px solid rgba(15,23,42,0.14)",
@@ -52,7 +59,14 @@ export default function OwnerRequestsPage() {
     setLoading(true);
     setError(null);
 
-    const { data: u } = await supabase.auth.getUser();
+    const { data: u, error: uErr } = await supabase.auth.getUser();
+    if (uErr) {
+      setError(uErr.message);
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
     const uid = u.user?.id;
     if (!uid) {
       setRows([]);
@@ -61,7 +75,7 @@ export default function OwnerRequestsPage() {
     }
 
     try {
-      // my horses
+      // 1) My horses
       const { data: horses, error: hErr } = await supabase.from("horses").select("id,name").eq("owner_id", uid);
       if (hErr) throw hErr;
 
@@ -75,6 +89,7 @@ export default function OwnerRequestsPage() {
         return;
       }
 
+      // 2) Requests for my horses
       const { data: reqs, error: rErr } = await supabase
         .from("borrow_requests")
         .select("id,horse_id,borrower_id,start_date,end_date,status,created_at")
@@ -85,9 +100,12 @@ export default function OwnerRequestsPage() {
 
       const borrowerIds = Array.from(new Set((reqs ?? []).map((r: any) => r.borrower_id).filter(Boolean)));
 
-      const { data: profs } = borrowerIds.length
+      // 3) Borrower names
+      const { data: profs, error: pErr } = borrowerIds.length
         ? await supabase.from("profiles").select("id,display_name,full_name").in("id", borrowerIds)
-        : ({ data: [] } as any);
+        : ({ data: [], error: null } as any);
+
+      if (pErr) throw pErr;
 
       const borrowerNameById: Record<string, string> = {};
       for (const p of profs ?? []) {
@@ -97,7 +115,13 @@ export default function OwnerRequestsPage() {
       }
 
       const mapped: Row[] = (reqs ?? []).map((r: any) => ({
-        ...r,
+        id: r.id,
+        horse_id: r.horse_id,
+        borrower_id: r.borrower_id,
+        start_date: r.start_date ?? null,
+        end_date: r.end_date ?? null,
+        status: normalizeStatus(r.status),
+        created_at: r.created_at ?? null,
         horse_name: horseNameById[r.horse_id] ?? "Horse",
         borrower_name: borrowerNameById[r.borrower_id] ?? "Borrower",
       }));
@@ -106,14 +130,17 @@ export default function OwnerRequestsPage() {
       setLoading(false);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load requests.");
+      setRows([]);
       setLoading(false);
     }
   }
 
   useEffect(() => {
     let mounted = true;
+
     load();
 
+    // Live refresh on changes
     const ch = supabase
       .channel("rt:owner_requests_page")
       .on("postgres_changes", { event: "*", schema: "public", table: "borrow_requests" }, () => mounted && load())
@@ -135,7 +162,7 @@ export default function OwnerRequestsPage() {
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 950 }}>Requests</h1>
         <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
-          Manage incoming borrow requests. Click a row to open the request thread.
+          Manage incoming borrow requests. Click a row to open the message thread.
         </div>
 
         <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -185,10 +212,10 @@ export default function OwnerRequestsPage() {
             <div style={{ padding: 14, fontSize: 13, opacity: 0.7 }}>No requests.</div>
           ) : (
             <div style={{ display: "grid" }}>
-              {filtered.map((r) => (
+              {filtered.map((r, idx) => (
                 <Link
                   key={r.id}
-                  href={`/dashboard/owner/${r.id}`}
+                  href={`/messages/${r.id}`}
                   style={{
                     textDecoration: "none",
                     color: "#0f172a",
@@ -196,6 +223,7 @@ export default function OwnerRequestsPage() {
                     borderTop: "1px solid rgba(15,23,42,0.08)",
                     display: "grid",
                     gap: 6,
+                    background: idx % 2 === 0 ? "rgba(15,23,42,0.02)" : "white",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -213,11 +241,11 @@ export default function OwnerRequestsPage() {
                     </span>
                   </div>
 
-                  <div style={{ fontSize: 13, opacity: 0.8 }}>
+                  <div style={{ fontSize: 13, opacity: 0.85 }}>
                     Borrower: <span style={{ fontWeight: 900 }}>{r.borrower_name}</span>
                   </div>
 
-                  <div style={{ fontSize: 13, opacity: 0.8 }}>
+                  <div style={{ fontSize: 13, opacity: 0.85 }}>
                     Dates:{" "}
                     <span style={{ fontWeight: 900 }}>
                       {r.start_date ?? "—"} → {r.end_date ?? "—"}
