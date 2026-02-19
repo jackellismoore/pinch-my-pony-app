@@ -1,171 +1,103 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import DashboardShell from "@/components/DashboardShell";
-import HorseImageUploader from "@/components/HorseImageUploader";
-import LocationAutocomplete from "@/components/LocationAutocomplete";
 import { supabase } from "@/lib/supabaseClient";
 
 type HorseRow = {
   id: string;
-  owner_id: string;
   name: string | null;
   location: string | null;
-  lat: number | null;
-  lng: number | null;
   image_url: string | null;
-  breed: string | null;
-  age: string | null;
-  height: string | null;
-  temperament: string | null;
-  description: string | null;
   is_active: boolean | null;
+  created_at: string | null;
 };
 
-function input(): React.CSSProperties {
-  return {
-    border: "1px solid rgba(15,23,42,0.12)",
-    borderRadius: 12,
-    padding: "12px 12px",
-    fontSize: 14,
-    outline: "none",
-    background: "white",
-  };
-}
-
-function labelStyle(): React.CSSProperties {
-  return { fontSize: 13, fontWeight: 900 };
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "grid", gap: 8 }}>
-      <div style={labelStyle()}>{label}</div>
-      {children}
-    </label>
-  );
-}
-
-export default function EditHorsePage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id;
-  const router = useRouter();
-
+export default function OwnerHorsesPage() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [horse, setHorse] = useState<HorseRow | null>(null);
-
-  const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
-
-  const [breed, setBreed] = useState("");
-  const [age, setAge] = useState("");
-  const [height, setHeight] = useState("");
-  const [temperament, setTemperament] = useState("");
-  const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [isActive, setIsActive] = useState(true);
+  const [horses, setHorses] = useState<HorseRow[]>([]);
 
   useEffect(() => {
-    let cancelled = false;
+    let mounted = true;
 
     async function load() {
-      if (!id) return;
       setLoading(true);
       setError(null);
 
       try {
-        const { data, error } = await supabase
+        const { data: userRes, error: userErr } = await supabase.auth.getUser();
+        if (userErr) throw userErr;
+
+        const uid = userRes.user?.id;
+        if (!uid) {
+          if (!mounted) return;
+          setHorses([]);
+          setError("Not signed in.");
+          return;
+        }
+
+        const { data, error: horsesErr } = await supabase
           .from("horses")
-          .select("id,owner_id,name,location,lat,lng,image_url,breed,age,height,temperament,description,is_active")
-          .eq("id", id)
-          .single();
+          .select("id,name,location,image_url,is_active,created_at")
+          .eq("owner_id", uid)
+          .order("created_at", { ascending: false });
 
-        if (cancelled) return;
-        if (error) throw error;
+        if (horsesErr) throw horsesErr;
 
-        const h = data as HorseRow;
-        setHorse(h);
-
-        setName(h.name ?? "");
-        setLocation(h.location ?? "");
-        setLat(h.lat ?? null);
-        setLng(h.lng ?? null);
-        setImageUrl(h.image_url ?? "");
-        setBreed(h.breed ?? "");
-        setAge(h.age ?? "");
-        setHeight(h.height ?? "");
-        setTemperament(h.temperament ?? "");
-        setDescription(h.description ?? "");
-        setIsActive(h.is_active !== false);
+        if (!mounted) return;
+        setHorses((data ?? []) as HorseRow[]);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load horse");
+        if (!mounted) return;
+        setError(e?.message ?? "Failed to load horses.");
+        setHorses([]);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
 
     load();
+
+    // optional: live refresh if horses change
+    const ch = supabase
+      .channel("rt:owner_horses")
+      .on("postgres_changes", { event: "*", schema: "public", table: "horses" }, () => mounted && load())
+      .subscribe();
+
     return () => {
-      cancelled = true;
+      mounted = false;
+      supabase.removeChannel(ch);
     };
-  }, [id]);
-
-  const canSave = useMemo(() => !saving && name.trim().length > 0, [saving, name]);
-
-  async function save() {
-    if (!id) return;
-    setError(null);
-
-    try {
-      setSaving(true);
-
-      const payload: any = {
-        name: name.trim() ? name.trim() : null,
-        location: location.trim() ? location.trim() : null,
-        lat: lat,
-        lng: lng,
-        image_url: imageUrl.trim() ? imageUrl.trim() : null,
-        breed: breed.trim() ? breed.trim() : null,
-        age: age.trim() ? age.trim() : null,
-        height: height.trim() ? height.trim() : null,
-        temperament: temperament.trim() ? temperament.trim() : null,
-        description: description.trim() ? description.trim() : null,
-        is_active: isActive,
-      };
-
-      const { error } = await supabase.from("horses").update(payload).eq("id", id);
-      if (error) throw error;
-
-      router.push("/dashboard/owner/horses");
-      router.refresh();
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to save horse");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (loading) {
-    return (
-      <DashboardShell>
-        <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", opacity: 0.7 }}>Loading…</div>
-      </DashboardShell>
-    );
-  }
+  }, []);
 
   return (
     <DashboardShell>
-      <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
-        <div style={{ margin: 0, fontSize: 24, fontWeight: 950 }}>Edit Horse</div>
-        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
-          Update details. Select a location suggestion to set the map pin.
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 950 }}>My Horses</h1>
+            <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>Manage your listings.</div>
+          </div>
+
+          <Link
+            href="/dashboard/owner/horses/add"
+            style={{
+              background: "black",
+              color: "white",
+              padding: "10px 14px",
+              borderRadius: 12,
+              textDecoration: "none",
+              fontWeight: 950,
+              fontSize: 13,
+              whiteSpace: "nowrap",
+            }}
+          >
+            + Add Horse
+          </Link>
         </div>
+
+        {loading ? <div style={{ marginTop: 14, opacity: 0.7 }}>Loading…</div> : null}
 
         {error ? (
           <div
@@ -178,108 +110,104 @@ export default function EditHorsePage() {
               fontSize: 13,
             }}
           >
-            {error}
+            <b>Error:</b> {error}
           </div>
         ) : null}
 
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid rgba(15,23,42,0.10)",
-            borderRadius: 16,
-            background: "white",
-            padding: 14,
-            display: "grid",
-            gap: 12,
-          }}
-        >
-          <Field label="Horse name">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={input()} />
-          </Field>
-
-          <Field label="Location">
-            <LocationAutocomplete
-              value={location}
-              onChange={setLocation}
-              onPlaceSelected={({ locationText, lat, lng }) => {
-                setLocation(locationText);
-                setLat(lat);
-                setLng(lng);
-              }}
-              placeholder="Type a location and select a suggestion…"
-            />
-          </Field>
-
-          <div style={{ fontSize: 12, opacity: 0.65 }}>
-            {lat != null && lng != null ? (
-              <span>
-                Pin set: <b>{lat.toFixed(5)}</b>, <b>{lng.toFixed(5)}</b>
-              </span>
-            ) : (
-              <span>Select a location from Google suggestions to set the map pin.</span>
-            )}
+        {!loading && !error && horses.length === 0 ? (
+          <div style={{ marginTop: 14, fontSize: 13, opacity: 0.7 }}>
+            No horses found. Click <b>+ Add Horse</b> to create your first listing.
           </div>
+        ) : null}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Breed">
-              <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
-            </Field>
-            <Field label="Age">
-              <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} />
-            </Field>
+        {!loading && horses.length > 0 ? (
+          <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+            {horses.map((h) => (
+              <div
+                key={h.id}
+                style={{
+                  border: "1px solid rgba(15,23,42,0.10)",
+                  borderRadius: 16,
+                  background: "white",
+                  padding: 14,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                  <div
+                    style={{
+                      width: 54,
+                      height: 54,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      border: "1px solid rgba(0,0,0,0.10)",
+                      background: "rgba(0,0,0,0.06)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {h.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={h.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : null}
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 950, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {h.name ?? "Horse"}
+                    </div>
+                    <div style={{ fontSize: 13, opacity: 0.7, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {h.location ?? "No location"}
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+                      Status:{" "}
+                      <b style={{ color: h.is_active === false ? "#b91c1c" : "#15803d" }}>
+                        {h.is_active === false ? "INACTIVE" : "ACTIVE"}
+                      </b>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Link
+                    href={`/horse/${h.id}`}
+                    style={{
+                      border: "1px solid rgba(0,0,0,0.14)",
+                      background: "white",
+                      color: "black",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      textDecoration: "none",
+                      fontSize: 13,
+                      fontWeight: 900,
+                    }}
+                  >
+                    View
+                  </Link>
+
+                  <Link
+                    href={`/dashboard/owner/horses/edit/${h.id}`}
+                    style={{
+                      border: "1px solid rgba(0,0,0,0.14)",
+                      background: "black",
+                      color: "white",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      textDecoration: "none",
+                      fontSize: 13,
+                      fontWeight: 950,
+                    }}
+                  >
+                    Edit
+                  </Link>
+                </div>
+              </div>
+            ))}
           </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Height (hh)">
-              <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
-            </Field>
-            <Field label="Temperament">
-              <input value={temperament} onChange={(e) => setTemperament(e.target.value)} placeholder="Calm, forward…" style={input()} />
-            </Field>
-          </div>
-
-          <Field label="Description">
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              placeholder="Describe your horse"
-              style={{ ...input(), resize: "vertical" }}
-            />
-          </Field>
-
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={labelStyle()}>Photo</div>
-
-            <HorseImageUploader bucket="horses" value={imageUrl} onChange={(url: string) => setImageUrl(url)} />
-
-            <Field label="Image URL (auto-filled on upload)">
-              <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." style={input()} />
-            </Field>
-          </div>
-
-          <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 900 }}>
-            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-            Active listing
-          </label>
-
-          <button
-            onClick={save}
-            disabled={!canSave}
-            style={{
-              marginTop: 4,
-              border: "none",
-              borderRadius: 12,
-              padding: "12px 14px",
-              background: !canSave ? "rgba(0,0,0,0.10)" : "black",
-              color: !canSave ? "rgba(0,0,0,0.55)" : "white",
-              fontWeight: 950,
-              cursor: !canSave ? "not-allowed" : "pointer",
-            }}
-          >
-            {saving ? "Saving…" : "Save changes"}
-          </button>
-        </div>
+        ) : null}
       </div>
     </DashboardShell>
   );
