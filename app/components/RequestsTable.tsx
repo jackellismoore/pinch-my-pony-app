@@ -3,6 +3,29 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 
+export type RequestRow = {
+  id: string;
+  horse_id: string;
+  borrower_id: string;
+  status: 'pending' | 'approved' | 'rejected' | string;
+  start_date: string | null;
+  end_date: string | null;
+  message?: string | null;
+
+  // optional joins / computed fields your app may pass
+  horse?: { id?: string; name?: string | null } | null;
+  borrower?: { id?: string; display_name?: string | null; full_name?: string | null } | null;
+  horse_name?: string | null;
+  borrower_name?: string | null;
+  horseId?: string | null;
+  horseName?: string | null;
+  request_id?: string | null;
+  requestId?: string | null;
+
+  // allow extra props safely
+  [key: string]: any;
+};
+
 type Props = any;
 
 function pillStyle(kind: string): React.CSSProperties {
