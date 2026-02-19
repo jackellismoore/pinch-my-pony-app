@@ -5,28 +5,51 @@ import { useMemo } from 'react';
 
 export type RequestRow = {
   id: string;
-  horse_id: string;
-  borrower_id: string;
   status: 'pending' | 'approved' | 'rejected' | string;
   start_date: string | null;
   end_date: string | null;
   message?: string | null;
 
-  // optional joins / computed fields your app may pass
+  horse_id?: string | null;
+  borrower_id?: string | null;
+
+  // allow your existing shape too
+  horseId?: string | null;
+  borrowerId?: string | null;
+
   horse?: { id?: string; name?: string | null } | null;
   borrower?: { id?: string; display_name?: string | null; full_name?: string | null } | null;
+
   horse_name?: string | null;
   borrower_name?: string | null;
-  horseId?: string | null;
-  horseName?: string | null;
+
   request_id?: string | null;
   requestId?: string | null;
 
-  // allow extra props safely
   [key: string]: any;
 };
 
-type Props = any;
+type Props = {
+  rows?: any[];
+  requests?: any[];
+  data?: any[];
+  loading?: boolean;
+  title?: string;
+  subtitle?: string;
+  emptyLabel?: string;
+
+  onApprove?: (row: any) => void;
+  onReject?: (row: any) => void;
+  onDelete?: (row: any) => void;
+
+  onApproveRequest?: (row: any) => void;
+  onRejectRequest?: (row: any) => void;
+  onDeleteRequest?: (row: any) => void;
+
+  approveRequest?: (row: any) => void;
+  rejectRequest?: (row: any) => void;
+  deleteRequest?: (row: any) => void;
+};
 
 function pillStyle(kind: string): React.CSSProperties {
   const base: React.CSSProperties = {
@@ -113,32 +136,23 @@ function getBorrowerLabel(r: any): string {
 }
 
 function RequestsTableImpl(props: Props) {
-  const requests: any[] = (props?.requests ?? props?.rows ?? props?.data ?? []) as any[];
+  const requests: any[] = (props.requests ?? props.rows ?? props.data ?? []) as any[];
 
-  const onApprove = props?.onApprove ?? props?.onApproveRequest ?? props?.approveRequest ?? null;
-  const onReject = props?.onReject ?? props?.onRejectRequest ?? props?.rejectRequest ?? null;
-  const onDelete = props?.onDelete ?? props?.onDeleteRequest ?? props?.deleteRequest ?? null;
+  const onApprove = props.onApprove ?? props.onApproveRequest ?? props.approveRequest ?? null;
+  const onReject = props.onReject ?? props.onRejectRequest ?? props.rejectRequest ?? null;
+  const onDelete = props.onDelete ?? props.onDeleteRequest ?? props.deleteRequest ?? null;
 
-  const title: string = props?.title ?? 'Requests';
-  const subtitle: string | null = props?.subtitle ?? null;
-  const emptyLabel: string = props?.emptyLabel ?? 'No requests.';
+  const title = props.title ?? 'Requests';
+  const subtitle = props.subtitle ?? null;
+  const emptyLabel = props.emptyLabel ?? 'No requests.';
 
   const rows = useMemo(() => requests ?? [], [requests]);
 
   return (
-    <div
-      style={{
-        border: '1px solid rgba(0,0,0,0.10)',
-        borderRadius: 14,
-        background: 'white',
-        overflow: 'hidden',
-      }}
-    >
+    <div style={{ border: '1px solid rgba(0,0,0,0.10)', borderRadius: 14, background: 'white', overflow: 'hidden' }}>
       <div style={{ padding: 14, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
         <div style={{ fontWeight: 950, fontSize: 14 }}>{title}</div>
-        {subtitle ? (
-          <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>{subtitle}</div>
-        ) : null}
+        {subtitle ? <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>{subtitle}</div> : null}
       </div>
 
       {rows.length === 0 ? (
@@ -173,9 +187,7 @@ function RequestsTableImpl(props: Props) {
                   <tr key={String(requestId ?? `${horseId}-${Math.random()}`)}>
                     <td style={tdStyle()}>
                       <div style={{ fontWeight: 950, fontSize: 13 }}>{getHorseName(r)}</div>
-                      {horseId ? (
-                        <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>{horseId}</div>
-                      ) : null}
+                      {horseId ? <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>{horseId}</div> : null}
                     </td>
 
                     <td style={tdStyle()}>

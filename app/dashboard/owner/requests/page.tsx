@@ -1,122 +1,109 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import DashboardShell from "@/components/DashboardShell";
-import RequestsTable, { RequestRow } from "@/components/RequestsTable";
-import { useOwnerDashboardData } from "@/dashboard/owner/hooks/useOwnerDashboardData";
+export const dynamic = 'force-dynamic';
 
-type StatusFilter = "all" | "pending" | "approved" | "rejected";
+import Link from 'next/link';
+import DashboardShell from '@/components/DashboardShell';
+import RequestsTable from '@/components/RequestsTable';
+import { useOwnerDashboardData } from '@/dashboard/owner/hooks/useOwnerDashboardData';
+import { useMemo, useState } from 'react';
+
+type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
 
 export default function OwnerRequestsPage() {
-  const {
-    loading,
-    error,
-    requests,
-    refresh,
-    approve,
-    reject,
-    remove,
-    actionBusyById,
-  } = useOwnerDashboardData();
+  const { loading, error, rows, approve, reject, remove } = useOwnerDashboardData();
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [filter, setFilter] = useState<StatusFilter>('all');
 
   const filtered = useMemo(() => {
-    if (statusFilter === "all") return requests;
-    return requests.filter((r) => r.status === statusFilter);
-  }, [requests, statusFilter]);
+    const list = (rows ?? []) as any[];
+    if (filter === 'all') return list;
+    return list.filter((r) => String(r?.status) === filter);
+  }, [rows, filter]);
+
+  const styles: Record<string, React.CSSProperties> = {
+    wrap: { padding: 16, maxWidth: 1100, margin: '0 auto' },
+    top: { display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12, flexWrap: 'wrap' },
+    h1: { margin: 0, fontSize: 22 },
+    sub: { marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' },
+    section: { marginTop: 14 },
+    filters: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+    chip: (active: boolean): React.CSSProperties => ({
+      border: '1px solid rgba(0,0,0,0.14)',
+      borderRadius: 999,
+      padding: '8px 10px',
+      fontSize: 13,
+      fontWeight: 900,
+      background: active ? 'black' : 'white',
+      color: active ? 'white' : 'black',
+      cursor: 'pointer',
+    }),
+    err: {
+      marginTop: 14,
+      border: '1px solid rgba(255,0,0,0.25)',
+      background: 'rgba(255,0,0,0.06)',
+      padding: 12,
+      borderRadius: 12,
+      fontSize: 13,
+    },
+    btn: {
+      border: '1px solid rgba(0,0,0,0.14)',
+      borderRadius: 12,
+      padding: '10px 12px',
+      textDecoration: 'none',
+      fontSize: 13,
+      fontWeight: 900,
+      background: 'white',
+      color: 'black',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 8,
+      whiteSpace: 'nowrap',
+    },
+  };
 
   return (
-    <DashboardShell
-      title="Owner Requests"
-      subtitle="Review requests, approve/reject, delete, and open message threads."
-      onRefresh={refresh}
-      loading={loading}
-    >
-      <div style={styles.topRow}>
-        <Link href="/dashboard/owner" style={{ textDecoration: "none" }}>
-          <button style={styles.secondaryBtn}>← Back to Dashboard</button>
-        </Link>
+    <DashboardShell>
+      <div style={styles.wrap}>
+        <div style={styles.top}>
+          <div>
+            <h1 style={styles.h1}>Requests</h1>
+            <div style={styles.sub}>Manage incoming borrow requests. Use Availability to block dates.</div>
+          </div>
 
-        <div style={styles.filterWrap}>
-          <label style={styles.filterLabel}>Status</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            style={styles.select}
-          >
-            <option value="all">All</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Link href="/dashboard/owner" style={styles.btn}>
+              ← Dashboard
+            </Link>
+            <Link href="/dashboard/owner/horses" style={styles.btn}>
+              Horses
+            </Link>
+          </div>
         </div>
-      </div>
 
-      {error && (
-        <div style={styles.errorBox}>
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>Couldn’t load</div>
-          <div style={{ opacity: 0.85 }}>{error}</div>
+        <div style={{ ...styles.section, ...styles.filters }}>
+          {(['all', 'pending', 'approved', 'rejected'] as StatusFilter[]).map((k) => (
+            <button key={k} onClick={() => setFilter(k)} style={styles.chip(filter === k)}>
+              {k === 'all' ? 'All' : k.charAt(0).toUpperCase() + k.slice(1)}
+            </button>
+          ))}
         </div>
-      )}
 
-      <div style={styles.section}>
-        <RequestsTable
-          rows={filtered as RequestRow[]}
-          loading={loading}
-          onApprove={approve}
-          onReject={reject}
-          onDelete={remove}
-          actionBusyById={actionBusyById}
-        />
+        {error ? <div style={styles.err}>{error}</div> : null}
+
+        <div style={styles.section}>
+          <RequestsTable
+            rows={filtered} // ✅ no cast needed
+            loading={loading}
+            onApprove={approve}
+            onReject={reject}
+            onDelete={remove}
+            title="Borrow requests"
+            subtitle="Click Availability on a row to manage blocks + bookings."
+            emptyLabel={loading ? 'Loading…' : 'No requests found.'}
+          />
+        </div>
       </div>
     </DashboardShell>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  topRow: {
-    marginTop: 14,
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  filterWrap: { display: "flex", flexDirection: "column", gap: 6, minWidth: 180 },
-  filterLabel: { fontSize: 12, fontWeight: 900, color: "rgba(15,23,42,0.70)" },
-  select: {
-    height: 36,
-    borderRadius: 10,
-    border: "1px solid rgba(15,23,42,0.14)",
-    padding: "0 10px",
-    background: "white",
-    outline: "none",
-    cursor: "pointer",
-  },
-  section: {
-    marginTop: 14,
-    background: "#fff",
-    border: "1px solid rgba(15,23,42,0.10)",
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  secondaryBtn: {
-    height: 36,
-    padding: "0 12px",
-    borderRadius: 10,
-    border: "1px solid rgba(15,23,42,0.14)",
-    background: "white",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  errorBox: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 12,
-    border: "1px solid rgba(220,38,38,0.35)",
-    background: "rgba(220,38,38,0.06)",
-    color: "rgba(127,29,29,1)",
-  },
-};
