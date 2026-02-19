@@ -69,13 +69,10 @@ export default function NotificationBell() {
         return;
       }
 
-      // My horse ids (owner)
       const { data: myHorses, error: horsesErr } = await supabase.from("horses").select("id").eq("owner_id", uid);
       if (horsesErr) throw horsesErr;
-
       const myHorseIds = (myHorses ?? []).map((r: any) => r.id).filter(Boolean);
 
-      // Requests where I'm borrower OR owner (via horse_id)
       const [borrowerReqs, ownerReqs] = await Promise.all([
         supabase.from("borrow_requests").select("id").eq("borrower_id", uid),
         myHorseIds.length
@@ -90,7 +87,6 @@ export default function NotificationBell() {
         new Set([...(borrowerReqs.data ?? []), ...(ownerReqs.data ?? [])].map((r: any) => r.id))
       );
 
-      // Unread messages in those threads (not sent by me)
       let unreadMessages = 0;
       if (requestIds.length) {
         const { count, error } = await supabase
@@ -104,7 +100,6 @@ export default function NotificationBell() {
         unreadMessages = count ?? 0;
       }
 
-      // Pending requests for owners (incoming only)
       let pendingRequests = 0;
       if (myHorseIds.length) {
         const { count, error } = await supabase
@@ -163,39 +158,36 @@ export default function NotificationBell() {
           position: "relative",
           width: 44,
           height: 44,
-          borderRadius: 12,
+          borderRadius: 14,
           border: "1px solid rgba(15,23,42,0.12)",
           background: "white",
           cursor: "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
+          display: "grid",
+          placeItems: "center",
           color: "#0f172a",
         }}
       >
         <BellIcon />
-
         {total > 0 ? (
           <span
             style={{
               position: "absolute",
-              top: -4,
-              right: -4,
+              top: -6,
+              right: -6,
               minWidth: 20,
               height: 20,
-              padding: "0 6px",
+              padding: "0 7px",
               borderRadius: 999,
-              background: "black",
+              background: "#0f172a",
               color: "white",
               fontSize: 11,
-              fontWeight: 900,
+              fontWeight: 950,
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              lineHeight: "20px",
+              lineHeight: 1,
               border: "2px solid white",
-              boxShadow: "0 6px 18px rgba(15,23,42,0.18)",
-              pointerEvents: "none",
+              boxShadow: "0 10px 25px rgba(15,23,42,0.18)",
             }}
           >
             {total > 99 ? "99+" : total}
@@ -208,9 +200,9 @@ export default function NotificationBell() {
           style={{
             position: "absolute",
             right: 0,
-            top: 50,
-            width: 280,
-            borderRadius: 14,
+            top: 52,
+            width: 290,
+            borderRadius: 16,
             border: "1px solid rgba(15,23,42,0.12)",
             background: "white",
             boxShadow: "0 18px 50px rgba(15,23,42,0.12)",
@@ -221,38 +213,12 @@ export default function NotificationBell() {
           <div style={{ fontWeight: 950, fontSize: 14, marginBottom: 8 }}>Notifications</div>
 
           <div style={{ display: "grid", gap: 8 }}>
-            <Link
-              href="/messages"
-              onClick={() => setOpen(false)}
-              style={{
-                textDecoration: "none",
-                color: "#0f172a",
-                border: "1px solid rgba(15,23,42,0.10)",
-                borderRadius: 12,
-                padding: 10,
-                display: "flex",
-                justifyContent: "space-between",
-                fontWeight: 850,
-              }}
-            >
+            <Link href="/messages" onClick={() => setOpen(false)} style={pillLink()}>
               <span>Unread messages</span>
               <span>{counts.unreadMessages}</span>
             </Link>
 
-            <Link
-              href="/dashboard/owner/requests"
-              onClick={() => setOpen(false)}
-              style={{
-                textDecoration: "none",
-                color: "#0f172a",
-                border: "1px solid rgba(15,23,42,0.10)",
-                borderRadius: 12,
-                padding: 10,
-                display: "flex",
-                justifyContent: "space-between",
-                fontWeight: 850,
-              }}
-            >
+            <Link href="/dashboard/owner/requests" onClick={() => setOpen(false)} style={pillLink()}>
               <span>Pending requests</span>
               <span>{counts.pendingRequests}</span>
             </Link>
@@ -263,4 +229,18 @@ export default function NotificationBell() {
       ) : null}
     </div>
   );
+}
+
+function pillLink(): React.CSSProperties {
+  return {
+    textDecoration: "none",
+    color: "#0f172a",
+    border: "1px solid rgba(15,23,42,0.10)",
+    borderRadius: 14,
+    padding: 11,
+    display: "flex",
+    justifyContent: "space-between",
+    fontWeight: 900,
+    background: "rgba(15,23,42,0.03)",
+  };
 }

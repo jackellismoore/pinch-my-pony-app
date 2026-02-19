@@ -1,122 +1,256 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { useLoadScript, Autocomplete } from "@react-google-maps/api";
+import DashboardShell from "@/components/DashboardShell";
+import HorseImageUploader from "@/components/HorseImageUploader";
 
-const libraries: ("places")[] = ["places"];
+function toNumOrNull(v: string) {
+  const t = v.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
 
 export default function EditHorsePage() {
-  const { id } = useParams();
   const router = useRouter();
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const params = useParams<{ id: string }>();
+  const horseId = params?.id;
 
-  const { isLoaded } = useLoadScript({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
-    libraries,
-  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [form, setForm] = useState<any>(null);
+  const [name, setName] = useState("");
+  const [breed, setBreed] = useState("");
+  const [age, setAge] = useState("");
+  const [height, setHeight] = useState("");
+  const [temperament, setTemperament] = useState("");
+  const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
 
   useEffect(() => {
-    loadHorse();
-  }, []);
+    let cancelled = false;
+    (async () => {
+      if (!horseId) return;
+      setLoading(true);
+      setError(null);
 
-  const loadHorse = async () => {
-    const { data } = await supabase
-      .from("horses")
-      .select("*")
-      .eq("id", id)
-      .single();
+      const { data, error } = await supabase
+        .from("horses")
+        .select("id,name,breed,age,height,temperament,location,description,image_url,lat,lng")
+        .eq("id", horseId)
+        .single();
 
-    setForm(data);
-  };
+      if (cancelled) return;
 
-  const handleImageUpload = async (file: File) => {
-    const fileName = `${Date.now()}-${file.name}`;
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
 
-    await supabase.storage
-      .from("horse-images")
-      .upload(fileName, file);
+      setName(data?.name ?? "");
+      setBreed(data?.breed ?? "");
+      setAge(data?.age ?? "");
+      setHeight(data?.height ?? "");
+      setTemperament(data?.temperament ?? "");
+      setLocation(data?.location ?? "");
+      setDescription(data?.description ?? "");
+      setImageUrl(data?.image_url ?? "");
+      setLat(data?.lat != null ? String(data.lat) : "");
+      setLng(data?.lng != null ? String(data.lng) : "");
 
-    const { data } = supabase.storage
-      .from("horse-images")
-      .getPublicUrl(fileName);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [horseId]);
 
-    setForm({ ...form, image_url: data.publicUrl });
-  };
+  const canSave = useMemo(() => {
+    return !saving && !loading && name.trim().length > 0;
+  }, [saving, loading, name]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function save() {
+    if (!horseId) return;
+    setError(null);
 
-    await supabase
-      .from("horses")
-      .update(form)
-      .eq("id", id);
+    try {
+      setSaving(true);
 
-    router.push("/dashboard/owner/horses");
-  };
+      const payload: any = {
+        name: name.trim() ? name.trim() : null,
+        breed: breed.trim() ? breed.trim() : null,
+        age: age.trim() ? age.trim() : null,
+        height: height.trim() ? height.trim() : null,
+        temperament: temperament.trim() ? temperament.trim() : null,
+        location: location.trim() ? location.trim() : null,
+        description: description.trim() ? description.trim() : null,
+        image_url: imageUrl.trim() ? imageUrl.trim() : null,
+        lat: toNumOrNull(lat),
+        lng: toNumOrNull(lng),
+      };
 
-  if (!isLoaded || !form)
-    return <div style={{ padding: 40 }}>Loading...</div>;
+      const { error } = await supabase.from("horses").update(payload).eq("id", horseId);
+      if (error) throw error;
+
+      router.push("/dashboard/owner/horses");
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to update horse");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Edit Horse</h1>
+    <DashboardShell>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 950 }}>Edit Horse</h1>
+        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>Update listing details and photo.</div>
 
-      <form onSubmit={handleSubmit}
-        style={{ maxWidth: 500, display: "flex", flexDirection: "column", gap: 10 }}
-      >
-        <input value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
+        {loading ? <div style={{ marginTop: 14, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
 
-        <Autocomplete
-          onLoad={(auto) => (autocompleteRef.current = auto)}
-          onPlaceChanged={() => {
-            const place = autocompleteRef.current?.getPlace();
-            if (!place?.geometry) return;
+        {error ? (
+          <div
+            style={{
+              marginTop: 14,
+              border: "1px solid rgba(255,0,0,0.25)",
+              background: "rgba(255,0,0,0.06)",
+              padding: 12,
+              borderRadius: 12,
+              fontSize: 13,
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
 
-            setForm({
-              ...form,
-              location: place.formatted_address,
-              lat: place.geometry.location?.lat(),
-              lng: place.geometry.location?.lng(),
-            });
-          }}
-        >
-          <input value={form.location} />
-        </Autocomplete>
+        {!loading ? (
+          <div
+            style={{
+              marginTop: 14,
+              border: "1px solid rgba(15,23,42,0.10)",
+              borderRadius: 16,
+              padding: 16,
+              background: "white",
+              display: "grid",
+              gap: 12,
+            }}
+          >
+            <Field label="Horse name">
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={input()} />
+            </Field>
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => {
-            if (e.target.files) {
-              handleImageUpload(e.target.files[0]);
-            }
-          }}
-        />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Field label="Breed">
+                <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
+              </Field>
+              <Field label="Age">
+                <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} />
+              </Field>
+            </div>
 
-        {form.image_url && (
-          <img src={form.image_url}
-            style={{ width: "100%", borderRadius: 8 }}
-          />
-        )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Field label="Height (hh)">
+                <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="Height" style={input()} />
+              </Field>
+              <Field label="Temperament">
+                <input
+                  value={temperament}
+                  onChange={(e) => setTemperament(e.target.value)}
+                  placeholder="Temperament"
+                  style={input()}
+                />
+              </Field>
+            </div>
 
-        <button
-          style={{
-            padding: "10px",
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-          }}
-        >
-          Update Horse
-        </button>
-      </form>
-    </div>
+            <Field label="Location">
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. Buckhurst Hill IG9, UK"
+                style={input()}
+              />
+            </Field>
+
+            <Field label="Description">
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                placeholder="Describe your horse"
+                style={{ ...input(), resize: "vertical" }}
+              />
+            </Field>
+
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 900 }}>Photo</div>
+              <HorseImageUploader
+                bucket="horses"
+                value={imageUrl}
+                onChange={(url: string) => setImageUrl(url)}
+                label="Upload photo"
+                helper="Uploads to storage bucket horses and saves a public URL."
+              />
+
+              <div style={{ marginTop: 6, fontSize: 12, opacity: 0.65 }}>
+                Optional: set lat/lng to place the pin precisely.
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Field label="Latitude (optional)">
+                  <input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="51.5072" style={input()} />
+                </Field>
+                <Field label="Longitude (optional)">
+                  <input value={lng} onChange={(e) => setLng(e.target.value)} placeholder="-0.1276" style={input()} />
+                </Field>
+              </div>
+            </div>
+
+            <button onClick={save} disabled={!canSave} style={primaryBtn(!canSave)}>
+              {saving ? "Saving…" : "Update horse"}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </DashboardShell>
   );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+      <span style={{ fontWeight: 900 }}>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function input(): React.CSSProperties {
+  return {
+    width: "100%",
+    border: "1px solid rgba(15,23,42,0.14)",
+    borderRadius: 12,
+    padding: "11px 12px",
+    fontSize: 14,
+    outline: "none",
+    background: "white",
+  };
+}
+
+function primaryBtn(disabled: boolean): React.CSSProperties {
+  return {
+    height: 44,
+    borderRadius: 12,
+    border: "1px solid rgba(15,23,42,0.14)",
+    background: disabled ? "rgba(15,23,42,0.06)" : "#2563eb",
+    color: disabled ? "rgba(15,23,42,0.45)" : "white",
+    fontWeight: 950,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
 }

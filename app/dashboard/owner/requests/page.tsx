@@ -1,116 +1,234 @@
-'use client';
+"use client";
 
-export const dynamic = 'force-dynamic';
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import DashboardShell from "@/components/DashboardShell";
+import { supabase } from "@/lib/supabaseClient";
 
-import { useMemo, useState } from 'react';
-import Link from 'next/link';
-import RequestsTable from '@/components/RequestsTable';
+type Status = "pending" | "approved" | "rejected";
+type StatusFilter = "all" | Status;
 
-type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
+type Row = {
+  id: string;
+  horse_id: string;
+  borrower_id: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: Status;
+  created_at: string | null;
 
-function chipStyle(active: boolean): React.CSSProperties {
+  horse_name: string | null;
+  borrower_name: string | null;
+};
+
+function chip(active: boolean): React.CSSProperties {
   return {
-    border: '1px solid rgba(0,0,0,0.14)',
+    border: "1px solid rgba(15,23,42,0.14)",
     borderRadius: 999,
-    padding: '8px 10px',
+    padding: "8px 10px",
     fontSize: 13,
-    fontWeight: 900,
-    background: active ? 'black' : 'white',
-    color: active ? 'white' : 'black',
-    cursor: 'pointer',
+    fontWeight: 950,
+    background: active ? "#0f172a" : "white",
+    color: active ? "white" : "#0f172a",
+    cursor: "pointer",
   };
 }
 
-export default function OwnerRequestsPage() {
-  // TEMP: page compiles even if your hook is currently broken elsewhere.
-  const loading = false;
-  const error: string | null = null;
-  const rows: any[] = [];
+function statusPill(status: Status): React.CSSProperties {
+  if (status === "approved")
+    return { background: "rgba(34,197,94,0.12)", color: "#15803d", border: "1px solid rgba(34,197,94,0.22)" };
+  if (status === "rejected")
+    return { background: "rgba(239,68,68,0.10)", color: "#b91c1c", border: "1px solid rgba(239,68,68,0.22)" };
+  return { background: "rgba(245,158,11,0.14)", color: "#92400e", border: "1px solid rgba(245,158,11,0.24)" };
+}
 
-  const [filter, setFilter] = useState<StatusFilter>('all');
+export default function OwnerRequestsPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [filter, setFilter] = useState<StatusFilter>("all");
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u.user?.id;
+    if (!uid) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // my horses
+      const { data: horses, error: hErr } = await supabase.from("horses").select("id,name").eq("owner_id", uid);
+      if (hErr) throw hErr;
+
+      const horseIds = (horses ?? []).map((h: any) => h.id).filter(Boolean);
+      const horseNameById: Record<string, string> = {};
+      for (const h of horses ?? []) horseNameById[h.id] = h.name ?? "Horse";
+
+      if (!horseIds.length) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: reqs, error: rErr } = await supabase
+        .from("borrow_requests")
+        .select("id,horse_id,borrower_id,start_date,end_date,status,created_at")
+        .in("horse_id", horseIds)
+        .order("created_at", { ascending: false });
+
+      if (rErr) throw rErr;
+
+      const borrowerIds = Array.from(new Set((reqs ?? []).map((r: any) => r.borrower_id).filter(Boolean)));
+
+      const { data: profs } = borrowerIds.length
+        ? await supabase.from("profiles").select("id,display_name,full_name").in("id", borrowerIds)
+        : ({ data: [] } as any);
+
+      const borrowerNameById: Record<string, string> = {};
+      for (const p of profs ?? []) {
+        const dn = (p.display_name ?? "").trim();
+        const fn = (p.full_name ?? "").trim();
+        borrowerNameById[p.id] = dn || fn || "Borrower";
+      }
+
+      const mapped: Row[] = (reqs ?? []).map((r: any) => ({
+        ...r,
+        horse_name: horseNameById[r.horse_id] ?? "Horse",
+        borrower_name: borrowerNameById[r.borrower_id] ?? "Borrower",
+      }));
+
+      setRows(mapped);
+      setLoading(false);
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to load requests.");
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let mounted = true;
+    load();
+
+    const ch = supabase
+      .channel("rt:owner_requests_page")
+      .on("postgres_changes", { event: "*", schema: "public", table: "borrow_requests" }, () => mounted && load())
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(ch);
+    };
+  }, []);
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return rows;
-    return rows.filter((r) => String(r?.status) === filter);
+    if (filter === "all") return rows;
+    return rows.filter((r) => r.status === filter);
   }, [rows, filter]);
 
-  const styles = {
-    wrap: { padding: 16, maxWidth: 1100, margin: '0 auto' as const },
-    top: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'end',
-      gap: 12,
-      flexWrap: 'wrap' as const,
-    },
-    h1: { margin: 0, fontSize: 22 },
-    sub: { marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' },
-    section: { marginTop: 14 },
-    filters: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as const },
-    err: {
-      marginTop: 14,
-      border: '1px solid rgba(255,0,0,0.25)',
-      background: 'rgba(255,0,0,0.06)',
-      padding: 12,
-      borderRadius: 12,
-      fontSize: 13,
-    },
-    btn: {
-      border: '1px solid rgba(0,0,0,0.14)',
-      borderRadius: 12,
-      padding: '10px 12px',
-      textDecoration: 'none',
-      fontSize: 13,
-      fontWeight: 900,
-      background: 'white',
-      color: 'black',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 8,
-      whiteSpace: 'nowrap' as const,
-    },
-    tip: { marginTop: 14, fontSize: 13, color: 'rgba(0,0,0,0.60)' },
-  };
-
   return (
-    <div style={styles.wrap}>
-      <div style={styles.top}>
-        <div>
-          <h1 style={styles.h1}>Requests</h1>
-          <div style={styles.sub}>Manage incoming borrow requests. Availability button opens the calendar.</div>
+    <DashboardShell>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 950 }}>Requests</h1>
+        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
+          Manage incoming borrow requests. Click a row to open the request thread.
         </div>
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Link href="/dashboard/owner" style={styles.btn}>
-            ← Dashboard
-          </Link>
-          <Link href="/dashboard/owner/horses" style={styles.btn}>
-            Horses
-          </Link>
-        </div>
-      </div>
-
-      <div style={{ ...styles.section, ...styles.filters }}>
-        {(['all', 'pending', 'approved', 'rejected'] as StatusFilter[]).map((k) => (
-          <button key={k} onClick={() => setFilter(k)} style={chipStyle(filter === k)}>
-            {k === 'all' ? 'All' : k.charAt(0).toUpperCase() + k.slice(1)}
+        <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button onClick={() => setFilter("all")} style={chip(filter === "all")}>
+            All
           </button>
-        ))}
+          <button onClick={() => setFilter("pending")} style={chip(filter === "pending")}>
+            Pending
+          </button>
+          <button onClick={() => setFilter("approved")} style={chip(filter === "approved")}>
+            Approved
+          </button>
+          <button onClick={() => setFilter("rejected")} style={chip(filter === "rejected")}>
+            Rejected
+          </button>
+        </div>
+
+        {loading ? <div style={{ marginTop: 14, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
+
+        {error ? (
+          <div
+            style={{
+              marginTop: 14,
+              border: "1px solid rgba(255,0,0,0.25)",
+              background: "rgba(255,0,0,0.06)",
+              padding: 12,
+              borderRadius: 12,
+              fontSize: 13,
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+
+        <div
+          style={{
+            marginTop: 14,
+            border: "1px solid rgba(15,23,42,0.10)",
+            borderRadius: 16,
+            background: "white",
+            overflow: "hidden",
+          }}
+        >
+          <div style={{ padding: 14, fontWeight: 950 }}>Borrow requests</div>
+
+          {filtered.length === 0 ? (
+            <div style={{ padding: 14, fontSize: 13, opacity: 0.7 }}>No requests.</div>
+          ) : (
+            <div style={{ display: "grid" }}>
+              {filtered.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/dashboard/owner/${r.id}`}
+                  style={{
+                    textDecoration: "none",
+                    color: "#0f172a",
+                    padding: 14,
+                    borderTop: "1px solid rgba(15,23,42,0.08)",
+                    display: "grid",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ fontWeight: 950 }}>{r.horse_name}</div>
+                    <span
+                      style={{
+                        ...statusPill(r.status),
+                        fontSize: 12,
+                        fontWeight: 950,
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                      }}
+                    >
+                      {r.status.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: 13, opacity: 0.8 }}>
+                    Borrower: <span style={{ fontWeight: 900 }}>{r.borrower_name}</span>
+                  </div>
+
+                  <div style={{ fontSize: 13, opacity: 0.8 }}>
+                    Dates:{" "}
+                    <span style={{ fontWeight: 900 }}>
+                      {r.start_date ?? "—"} → {r.end_date ?? "—"}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-
-      {error ? <div style={styles.err}>{error}</div> : null}
-
-      <div style={styles.section}>
-        <RequestsTable
-          rows={filtered}
-          loading={loading}
-          title="Borrow requests"
-          subtitle="(Temporarily disconnected while we fix the hook import mismatch)"
-          emptyLabel="No requests."
-        />
-      </div>
-
-      <div style={styles.tip}>Once this file is green, we reconnect the hook in a single safe patch.</div>
-    </div>
+    </DashboardShell>
   );
 }
