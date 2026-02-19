@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 import NotificationBell from '@/components/NotificationBell';
 import { registerPushForCurrentUser } from '@/lib/push/registerPush';
 
@@ -15,45 +15,21 @@ type ProfileMini = {
   role: 'owner' | 'borrower' | null;
 };
 
-function MenuIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
+function cleanName(v: string | null | undefined) {
+  const s = (v ?? '').trim();
+  return s.length ? s : null;
 }
 
 export default function Header() {
+  const router = useRouter();
+
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const router = useRouter();
-
-  const displayLabel = useMemo(() => {
-    const dn = profile?.display_name?.trim();
-    const fn = profile?.full_name?.trim();
-    return dn || fn || 'Account';
+  const display = useMemo(() => {
+    return cleanName(profile?.display_name) || cleanName(profile?.full_name) || 'Profile';
   }, [profile]);
-
-  const avatarUrl = useMemo(() => {
-    const url = profile?.avatar_url?.trim();
-    return url ? url : null;
-  }, [profile]);
-
-  async function fetchProfile(userId: string) {
-    try {
-      const res = await supabase
-        .from('profiles')
-        .select('id,display_name,full_name,avatar_url,role')
-        .eq('id', userId)
-        .single();
-
-      if (!res.error) setProfile((res.data ?? null) as ProfileMini | null);
-    } catch {
-      // ignore
-    }
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -65,8 +41,19 @@ export default function Header() {
       setUser(data.user ?? null);
 
       if (data.user) {
+        // fire and forget push register
         registerPushForCurrentUser();
-        fetchProfile(data.user.id);
+
+        supabase
+          .from('profiles')
+          .select('id,display_name,full_name,avatar_url,role')
+          .eq('id', data.user.id)
+          .single()
+          .then((r) => {
+            if (cancelled) return;
+            if (!r.error) setProfile((r.data ?? null) as ProfileMini | null);
+          })
+          .catch(() => {});
       } else {
         setProfile(null);
       }
@@ -80,7 +67,16 @@ export default function Header() {
 
       if (session?.user) {
         registerPushForCurrentUser();
-        fetchProfile(session.user.id);
+        supabase
+          .from('profiles')
+          .select('id,display_name,full_name,avatar_url,role')
+          .eq('id', session.user.id)
+          .single()
+          .then((r) => {
+            if (cancelled) return;
+            if (!r.error) setProfile((r.data ?? null) as ProfileMini | null);
+          })
+          .catch(() => {});
       } else {
         setProfile(null);
       }
@@ -99,181 +95,193 @@ export default function Header() {
     router.refresh();
   };
 
-  const nav = user
-    ? [
-        { label: 'Browse', href: '/browse' },
-        { label: 'Messages', href: '/messages' },
-        { label: 'Owner Dashboard', href: '/dashboard/owner' },
-        { label: 'Profile', href: '/profile' },
-      ]
-    : [
-        { label: 'Login', href: '/login' },
-        { label: 'Sign Up', href: '/signup' },
-      ];
-
   return (
     <header
       style={{
         position: 'sticky',
         top: 0,
         zIndex: 20,
-        background: 'rgba(255,255,255,0.92)',
-        backdropFilter: 'blur(10px)',
+        background: 'white',
         borderBottom: '1px solid rgba(0,0,0,0.08)',
       }}
     >
       <div
         style={{
-          maxWidth: 1100,
+          maxWidth: 1150,
           margin: '0 auto',
           padding: '12px 16px',
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
+          justifyContent: 'space-between',
           gap: 12,
         }}
       >
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'black' }}>
-          <div
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
-              background: 'black',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontWeight: 950,
-              fontSize: 16,
-            }}
-          >
-            🐴
-          </div>
-
-          <div style={{ lineHeight: 1.05 }}>
-            <div style={{ fontWeight: 950, fontSize: 15 }}>Pinch My Pony</div>
-            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.60)', marginTop: 2 }}>Marketplace</div>
+        <Link href="/" style={{ textDecoration: 'none', color: 'black' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 12,
+                background: 'black',
+                display: 'grid',
+                placeItems: 'center',
+                color: 'white',
+                fontWeight: 900,
+              }}
+            >
+              🐴
+            </div>
+            <div style={{ lineHeight: 1.1 }}>
+              <div style={{ fontWeight: 900, fontSize: 15 }}>Pinch My Pony</div>
+              <div style={{ fontSize: 12, opacity: 0.7 }}>Marketplace</div>
+            </div>
           </div>
         </Link>
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {user ? <NotificationBell /> : null}
-
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {user ? (
-            <Link
-              href="/profile"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 10,
-                textDecoration: 'none',
-                color: 'black',
-                border: '1px solid rgba(0,0,0,0.12)',
-                borderRadius: 999,
-                padding: '6px 10px',
-                background: 'white',
-              }}
-              title="Profile"
-            >
-              <div
+            <>
+              <NotificationBell />
+
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label="Menu"
                 style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 999,
-                  overflow: 'hidden',
-                  background: 'rgba(0,0,0,0.06)',
-                  border: '1px solid rgba(0,0,0,0.10)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 12,
-                  fontWeight: 950,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  border: '1px solid rgba(0,0,0,0.12)',
+                  background: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 900,
                 }}
               >
-                {avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  (displayLabel?.[0] ?? 'P').toUpperCase()
-                )}
-              </div>
-
-              <div style={{ fontSize: 13, fontWeight: 950 }}>Profile</div>
-            </Link>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Menu"
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 14,
-              border: '1px solid rgba(0,0,0,0.12)',
-              background: 'white',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <MenuIcon />
-          </button>
+                ☰
+              </button>
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Link
+                href="/login"
+                style={{
+                  textDecoration: 'none',
+                  color: 'black',
+                  fontWeight: 850,
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(0,0,0,0.14)',
+                  background: 'white',
+                }}
+              >
+                Login
+              </Link>
+              <Link
+                href="/signup"
+                style={{
+                  textDecoration: 'none',
+                  color: 'white',
+                  fontWeight: 900,
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(0,0,0,0.14)',
+                  background: 'black',
+                }}
+              >
+                Sign Up
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
-      {menuOpen ? (
-        <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-          <div style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
-            <div
+      {user && menuOpen ? (
+        <div style={{ maxWidth: 1150, margin: '0 auto', padding: '0 16px 14px' }}>
+          <div
+            style={{
+              border: '1px solid rgba(0,0,0,0.10)',
+              borderRadius: 18,
+              background: 'rgba(0,0,0,0.02)',
+              padding: 10,
+              display: 'grid',
+              gap: 8,
+            }}
+          >
+            <Link
+              href="/browse"
+              onClick={() => setMenuOpen(false)}
               style={{
-                border: '1px solid rgba(0,0,0,0.10)',
-                borderRadius: 16,
-                background: 'white',
-                padding: 12,
+                padding: '12px 14px',
+                borderRadius: 14,
+                textDecoration: 'none',
+                color: 'black',
+                fontWeight: 900,
               }}
             >
-              <div style={{ display: 'grid', gap: 8 }}>
-                {nav.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMenuOpen(false)}
-                    style={{
-                      textDecoration: 'none',
-                      color: 'black',
-                      fontWeight: 950,
-                      fontSize: 14,
-                      padding: 12,
-                      borderRadius: 14,
-                      background: 'rgba(0,0,0,0.04)',
-                    }}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
+              Browse
+            </Link>
 
-                {user ? (
-                  <button
-                    onClick={logout}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      fontWeight: 950,
-                      fontSize: 14,
-                      padding: 12,
-                      borderRadius: 14,
-                      border: '1px solid rgba(0,0,0,0.12)',
-                      background: 'white',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Logout
-                  </button>
-                ) : null}
-              </div>
+            <Link
+              href="/messages"
+              onClick={() => setMenuOpen(false)}
+              style={{
+                padding: '12px 14px',
+                borderRadius: 14,
+                textDecoration: 'none',
+                color: 'black',
+                fontWeight: 900,
+                background: 'rgba(0,0,0,0.05)',
+              }}
+            >
+              Messages
+            </Link>
+
+            <Link
+              href="/dashboard/owner"
+              onClick={() => setMenuOpen(false)}
+              style={{
+                padding: '12px 14px',
+                borderRadius: 14,
+                textDecoration: 'none',
+                color: 'black',
+                fontWeight: 900,
+              }}
+            >
+              Owner Dashboard
+            </Link>
+
+            <Link
+              href="/profile"
+              onClick={() => setMenuOpen(false)}
+              style={{
+                padding: '12px 14px',
+                borderRadius: 14,
+                textDecoration: 'none',
+                color: 'black',
+                fontWeight: 900,
+              }}
+            >
+              Profile
+            </Link>
+
+            <button
+              onClick={logout}
+              style={{
+                marginTop: 6,
+                padding: '12px 14px',
+                borderRadius: 14,
+                border: '1px solid rgba(0,0,0,0.14)',
+                background: 'white',
+                cursor: 'pointer',
+                fontWeight: 900,
+                textAlign: 'left',
+              }}
+            >
+              Logout
+            </button>
+
+            <div style={{ padding: '2px 14px', fontSize: 12, opacity: 0.65 }}>
+              Signed in as: {display}
             </div>
           </div>
         </div>
