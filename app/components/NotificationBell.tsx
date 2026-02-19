@@ -161,35 +161,41 @@ export default function NotificationBell() {
         title="Notifications"
         style={{
           position: "relative",
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
           borderRadius: 12,
           border: "1px solid rgba(15,23,42,0.12)",
           background: "white",
           cursor: "pointer",
-          display: "grid",
-          placeItems: "center",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
           color: "#0f172a",
         }}
       >
         <BellIcon />
+
         {total > 0 ? (
           <span
             style={{
               position: "absolute",
-              top: 6,
-              right: 6,
-              minWidth: 18,
-              height: 18,
+              top: -4,
+              right: -4,
+              minWidth: 20,
+              height: 20,
               padding: "0 6px",
               borderRadius: 999,
               background: "black",
               color: "white",
               fontSize: 11,
               fontWeight: 900,
-              display: "grid",
-              placeItems: "center",
-              lineHeight: 1,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: "20px",
+              border: "2px solid white",
+              boxShadow: "0 6px 18px rgba(15,23,42,0.18)",
+              pointerEvents: "none",
             }}
           >
             {total > 99 ? "99+" : total}
@@ -202,7 +208,7 @@ export default function NotificationBell() {
           style={{
             position: "absolute",
             right: 0,
-            top: 46,
+            top: 50,
             width: 280,
             borderRadius: 14,
             border: "1px solid rgba(15,23,42,0.12)",

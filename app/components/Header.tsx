@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { registerPushForCurrentUser } from "@/lib/push/registerPush";
@@ -18,7 +18,7 @@ type ProfileMini = {
 function pickName(p: ProfileMini | null) {
   const dn = (p?.display_name ?? "").trim();
   const fn = (p?.full_name ?? "").trim();
-  return dn || fn || "Profile";
+  return dn || fn || "User";
 }
 
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -34,6 +34,18 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise
   });
 }
 
+function useOutsideClick<T extends HTMLElement>(ref: React.RefObject<T | null>, onOutside: () => void) {
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      const el = ref.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) onOutside();
+    }
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [ref, onOutside]);
+}
+
 export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
@@ -41,8 +53,20 @@ export default function Header() {
 
   const router = useRouter();
 
+  const menuWrapRef = useRef<HTMLDivElement | null>(null);
+  useOutsideClick(menuWrapRef, () => setMenuOpen(false));
+
   useEffect(() => {
     let cancelled = false;
+
+    async function loadProfile(uid: string) {
+      const { data: p, error } = await supabase
+        .from("profiles")
+        .select("id,role,display_name,full_name,avatar_url")
+        .eq("id", uid)
+        .maybeSingle();
+      if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
+    }
 
     async function init() {
       try {
@@ -54,14 +78,7 @@ export default function Header() {
 
         if (u) {
           registerPushForCurrentUser();
-
-          const { data: p, error } = await supabase
-            .from("profiles")
-            .select("id,role,display_name,full_name,avatar_url")
-            .eq("id", u.id)
-            .maybeSingle();
-
-          if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
+          await loadProfile(u.id);
         } else {
           setProfile(null);
         }
@@ -82,12 +99,7 @@ export default function Header() {
 
       if (u) {
         registerPushForCurrentUser();
-        const { data: p, error } = await supabase
-          .from("profiles")
-          .select("id,role,display_name,full_name,avatar_url")
-          .eq("id", u.id)
-          .maybeSingle();
-        if (!error) setProfile((p ?? null) as ProfileMini | null);
+        await loadProfile(u.id);
       } else {
         setProfile(null);
       }
@@ -101,6 +113,7 @@ export default function Header() {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    setMenuOpen(false);
     router.push("/");
     router.refresh();
   };
@@ -159,91 +172,108 @@ export default function Header() {
           {brand}
         </Link>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {user ? <NotificationBell /> : null}
+        <div ref={menuWrapRef} style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
+          {/* Make bell and menu feel like one system: same sizing/shape */}
+          {user ? (
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <NotificationBell />
+            </div>
+          ) : null}
 
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 14,
-              border: "1px solid rgba(15,23,42,0.12)",
-              background: "white",
-              cursor: "pointer",
-              display: "grid",
-              placeItems: "center",
-              fontSize: 18,
-              fontWeight: 900,
-            }}
+            style={iconButtonStyle(menuOpen)}
             aria-label="Menu"
             title="Menu"
           >
             ☰
           </button>
-        </div>
-      </div>
 
-      {menuOpen ? (
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 16px 14px" }}>
-          <div
-            style={{
-              border: "1px solid rgba(15,23,42,0.10)",
-              borderRadius: 18,
-              background: "white",
-              padding: 12,
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            {user ? (
-              <>
-                <Link href="/browse" onClick={() => setMenuOpen(false)} style={menuItem()}>
-                  Browse
-                </Link>
-                <Link href="/messages" onClick={() => setMenuOpen(false)} style={menuItem()}>
-                  Messages
-                </Link>
-
-                {isOwner ? (
-                  <Link href="/dashboard/owner" onClick={() => setMenuOpen(false)} style={menuItem()}>
-                    Owner Dashboard
+          {menuOpen ? (
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: 54,
+                width: 320,
+                maxWidth: "calc(100vw - 32px)",
+                border: "1px solid rgba(15,23,42,0.10)",
+                borderRadius: 18,
+                background: "white",
+                boxShadow: "0 18px 50px rgba(15,23,42,0.12)",
+                padding: 12,
+                display: "grid",
+                gap: 8,
+                zIndex: 60,
+              }}
+            >
+              {user ? (
+                <>
+                  <Link href="/browse" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                    Browse
                   </Link>
-                ) : (
-                  <Link href="/dashboard/borrower" onClick={() => setMenuOpen(false)} style={menuItem()}>
-                    Borrower Dashboard
+                  <Link href="/messages" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                    Messages
                   </Link>
-                )}
 
-                <Link href="/profile" onClick={() => setMenuOpen(false)} style={menuItem()}>
-                  Profile
-                </Link>
+                  {isOwner ? (
+                    <Link href="/dashboard/owner" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                      Owner Dashboard
+                    </Link>
+                  ) : (
+                    <Link href="/dashboard/borrower" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                      Borrower Dashboard
+                    </Link>
+                  )}
 
-                <button onClick={logout} style={menuButton()}>
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link href="/login" onClick={() => setMenuOpen(false)} style={menuItem()}>
-                  Login
-                </Link>
-                <Link href="/signup" onClick={() => setMenuOpen(false)} style={menuItem()}>
-                  Sign Up
-                </Link>
-              </>
-            )}
-          </div>
+                  {/* Always just say Profile */}
+                  <Link href="/profile" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                    Profile
+                  </Link>
 
-          {user ? (
-            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.6 }}>
-              Signed in as <span style={{ fontWeight: 800 }}>{pickName(profile)}</span>
+                  <button onClick={logout} style={menuButton()}>
+                    Logout
+                  </button>
+
+                  <div style={{ marginTop: 4, fontSize: 12, opacity: 0.6, padding: "0 2px" }}>
+                    Signed in as <span style={{ fontWeight: 900 }}>{pickName(profile)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                    Login
+                  </Link>
+                  <Link href="/signup" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                    Sign Up
+                  </Link>
+                </>
+              )}
             </div>
           ) : null}
         </div>
-      ) : null}
+      </div>
     </header>
   );
+}
+
+function iconButtonStyle(active: boolean): React.CSSProperties {
+  return {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    border: active ? "1px solid rgba(37,99,235,0.35)" : "1px solid rgba(15,23,42,0.12)",
+    background: "white",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 18,
+    fontWeight: 900,
+    color: "#0f172a",
+    boxShadow: active ? "0 10px 24px rgba(37,99,235,0.10)" : "none",
+    transition: "box-shadow 120ms ease, border-color 120ms ease, transform 120ms ease",
+  };
 }
 
 function menuItem(): React.CSSProperties {
