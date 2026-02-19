@@ -1,230 +1,247 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import DashboardShell from "@/components/DashboardShell";
-import HorseImageUploader from "@/components/HorseImageUploader";
-import { supabase } from "@/lib/supabaseClient";
 
-function input(): React.CSSProperties {
-  return {
-    border: "1px solid rgba(15,23,42,0.12)",
-    borderRadius: 12,
-    padding: "12px 12px",
-    fontSize: 14,
-    outline: "none",
-    background: "white",
-  };
+export type MapHorse = {
+  id: string;
+  name?: string | null;
+  location?: string | null;
+  image_url?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+};
+
+type Props = {
+  horses: MapHorse[];
+  userLocation?: { lat: number; lng: number } | null;
+  highlightedId?: string | null;
+};
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
 }
 
-function labelStyle(): React.CSSProperties {
-  return { fontSize: 13, fontWeight: 900 };
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "grid", gap: 8 }}>
-      <div style={labelStyle()}>{label}</div>
-      {children}
-    </label>
-  );
-}
-
-export default function AddHorsePage() {
+/**
+ * Lightweight “no API key” map:
+ * - If horses have lat/lng → place pins in a normalized box.
+ * - Clicking a pin/card routes to /horse/[id] (fixes your wrong routing).
+ * - Keeps your current BrowsePage call signature so the red TS error goes away.
+ */
+export default function HorseMap({ horses, userLocation = null, highlightedId = null }: Props) {
   const router = useRouter();
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const points = useMemo(() => {
+    const withCoords = horses
+      .map((h) => ({
+        ...h,
+        lat: typeof h.lat === "number" ? h.lat : null,
+        lng: typeof h.lng === "number" ? h.lng : null,
+      }))
+      .filter((h) => h.lat != null && h.lng != null) as Array<MapHorse & { lat: number; lng: number }>;
 
-  const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
-  const [breed, setBreed] = useState("");
-  const [age, setAge] = useState("");
-  const [height, setHeight] = useState("");
-  const [temperament, setTemperament] = useState("");
-  const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+    if (!withCoords.length) return { withCoords: [], bounds: null as null | { minLat: number; maxLat: number; minLng: number; maxLng: number } };
 
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
+    let minLat = withCoords[0].lat!;
+    let maxLat = withCoords[0].lat!;
+    let minLng = withCoords[0].lng!;
+    let maxLng = withCoords[0].lng!;
 
-  const canSave = useMemo(() => !saving && name.trim().length > 0, [saving, name]);
-
-  async function save() {
-    setError(null);
-
-    try {
-      setSaving(true);
-
-      const { data: userRes, error: userErr } = await supabase.auth.getUser();
-      if (userErr) throw userErr;
-
-      const ownerId = userRes.user?.id;
-      if (!ownerId) throw new Error("Not authenticated");
-
-      const latNum = lat.trim() ? Number(lat) : null;
-      const lngNum = lng.trim() ? Number(lng) : null;
-
-      if (latNum != null && !Number.isFinite(latNum)) throw new Error("Latitude must be a number");
-      if (lngNum != null && !Number.isFinite(lngNum)) throw new Error("Longitude must be a number");
-
-      const payload: any = {
-        owner_id: ownerId,
-        is_active: true,
-        name: name.trim() ? name.trim() : null,
-        location: location.trim() ? location.trim() : null,
-        breed: breed.trim() ? breed.trim() : null,
-        age: age.trim() ? age.trim() : null,
-        height: height.trim() ? height.trim() : null,
-        temperament: temperament.trim() ? temperament.trim() : null,
-        description: description.trim() ? description.trim() : null,
-        lat: latNum,
-        lng: lngNum,
-      };
-
-      if (imageUrl.trim()) payload.image_url = imageUrl.trim();
-
-      const { error: insErr } = await supabase.from("horses").insert(payload);
-      if (insErr) throw insErr;
-
-      router.push("/dashboard/owner/horses");
-      router.refresh();
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to create horse");
-    } finally {
-      setSaving(false);
+    for (const p of withCoords) {
+      minLat = Math.min(minLat, p.lat!);
+      maxLat = Math.max(maxLat, p.lat!);
+      minLng = Math.min(minLng, p.lng!);
+      maxLng = Math.max(maxLng, p.lng!);
     }
-  }
+
+    // pad bounds so pins aren’t glued to edges
+    const padLat = Math.max(0.01, (maxLat - minLat) * 0.15);
+    const padLng = Math.max(0.01, (maxLng - minLng) * 0.15);
+
+    return {
+      withCoords,
+      bounds: {
+        minLat: minLat - padLat,
+        maxLat: maxLat + padLat,
+        minLng: minLng - padLng,
+        maxLng: maxLng + padLng,
+      },
+    };
+  }, [horses]);
+
+  const openHorse = (id: string) => {
+    // ✅ This is the important routing fix:
+    router.push(`/horse/${id}`);
+  };
+
+  const hasCoords = points.withCoords.length > 0;
 
   return (
-    <DashboardShell>
-      <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
-        <h1 style={{ margin: 0, fontSize: 28 }}>Add Horse</h1>
-        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
-          Add a listing. Include a photo so it shows on the map.
-        </div>
-
-        {error ? (
-          <div
-            style={{
-              marginTop: 14,
-              border: "1px solid rgba(255,0,0,0.25)",
-              background: "rgba(255,0,0,0.06)",
-              padding: 12,
-              borderRadius: 12,
-              fontSize: 13,
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
-
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid rgba(15,23,42,0.10)",
-            borderRadius: 16,
-            background: "white",
-            padding: 14,
-            display: "grid",
-            gap: 12,
-          }}
-        >
-          <Field label="Horse name">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={input()} />
-          </Field>
-
-          <Field label="Location">
-            <input
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g. Buckhurst Hill IG9, UK"
-              style={input()}
-            />
-          </Field>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Breed">
-              <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
-            </Field>
-
-            <Field label="Age">
-              <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} />
-            </Field>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Height (hh)">
-              <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
-            </Field>
-
-            <Field label="Temperament">
-              <input
-                value={temperament}
-                onChange={(e) => setTemperament(e.target.value)}
-                placeholder="Calm, forward, etc."
-                style={input()}
-              />
-            </Field>
-          </div>
-
-          <Field label="Description">
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              placeholder="Describe your horse"
-              style={{ ...input(), resize: "vertical" }}
-            />
-          </Field>
-
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={labelStyle()}>Photo</div>
-
-            <HorseImageUploader
-              bucket="horses"
-              value={imageUrl}
-              onChange={(url: string) => setImageUrl(url)}
-            />
-
-            <div style={{ fontSize: 12, opacity: 0.65 }}>Uploads to storage bucket <b>horses</b> and saves a public URL.</div>
-
-            <Field label="Image URL (auto-filled on upload)">
-              <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." style={input()} />
-            </Field>
-          </div>
-
-          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.65 }}>
-            Optional: set lat/lng to place the pin precisely (otherwise map can fallback to location).
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Latitude (optional)">
-              <input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="51.5072" style={input()} />
-            </Field>
-            <Field label="Longitude (optional)">
-              <input value={lng} onChange={(e) => setLng(e.target.value)} placeholder="-0.1276" style={input()} />
-            </Field>
-          </div>
-
-          <button
-            onClick={save}
-            disabled={!canSave}
-            style={{
-              marginTop: 4,
-              border: "none",
-              borderRadius: 12,
-              padding: "12px 14px",
-              background: !canSave ? "rgba(0,0,0,0.10)" : "black",
-              color: !canSave ? "rgba(0,0,0,0.55)" : "white",
-              fontWeight: 950,
-              cursor: !canSave ? "not-allowed" : "pointer",
-            }}
-          >
-            {saving ? "Creating…" : "Create horse"}
-          </button>
+    <div
+      style={{
+        border: "1px solid rgba(15,23,42,0.10)",
+        borderRadius: 18,
+        background: "white",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ padding: 14, fontWeight: 950, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div>Map</div>
+        <div style={{ fontSize: 12, opacity: 0.65 }}>
+          Click a pin (or card) to view the horse
         </div>
       </div>
-    </DashboardShell>
+
+      {/* Map surface */}
+      <div
+        style={{
+          position: "relative",
+          height: 360,
+          background:
+            "radial-gradient(900px 600px at 15% 15%, rgba(59,130,246,0.10), transparent 60%), radial-gradient(700px 500px at 90% 20%, rgba(14,165,233,0.08), transparent 60%), linear-gradient(180deg, rgba(15,23,42,0.03), rgba(15,23,42,0.02))",
+          borderTop: "1px solid rgba(15,23,42,0.08)",
+          borderBottom: "1px solid rgba(15,23,42,0.08)",
+        }}
+      >
+        {!hasCoords ? (
+          <div style={{ padding: 14, fontSize: 13, opacity: 0.7 }}>
+            No horses with latitude/longitude yet. Add lat/lng (or later we can geocode from location).
+          </div>
+        ) : (
+          <>
+            {/* Optional: user location dot */}
+            {userLocation && points.bounds ? (
+              (() => {
+                const { minLat, maxLat, minLng, maxLng } = points.bounds!;
+                const x = ((userLocation.lng - minLng) / (maxLng - minLng)) * 100;
+                const y = (1 - (userLocation.lat - minLat) / (maxLat - minLat)) * 100;
+                const cx = clamp(x, 2, 98);
+                const cy = clamp(y, 2, 98);
+                return (
+                  <div
+                    title="You"
+                    style={{
+                      position: "absolute",
+                      left: `${cx}%`,
+                      top: `${cy}%`,
+                      transform: "translate(-50%,-50%)",
+                      width: 10,
+                      height: 10,
+                      borderRadius: 999,
+                      background: "#2563eb",
+                      boxShadow: "0 0 0 6px rgba(37,99,235,0.18)",
+                    }}
+                  />
+                );
+              })()
+            ) : null}
+
+            {/* Horse pins */}
+            {points.bounds
+              ? points.withCoords.map((h) => {
+                  const { minLat, maxLat, minLng, maxLng } = points.bounds!;
+                  const x = ((h.lng - minLng) / (maxLng - minLng)) * 100;
+                  const y = (1 - (h.lat - minLat) / (maxLat - minLat)) * 100;
+
+                  const px = clamp(x, 3, 97);
+                  const py = clamp(y, 3, 97);
+
+                  const active = highlightedId && h.id === highlightedId;
+
+                  return (
+                    <button
+                      key={h.id}
+                      onClick={() => openHorse(h.id)}
+                      title={h.name ?? "Horse"}
+                      style={{
+                        position: "absolute",
+                        left: `${px}%`,
+                        top: `${py}%`,
+                        transform: "translate(-50%,-50%)",
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: active ? 18 : 14,
+                          height: active ? 18 : 14,
+                          borderRadius: 999,
+                          background: "black",
+                          boxShadow: active ? "0 0 0 8px rgba(0,0,0,0.12)" : "0 0 0 6px rgba(0,0,0,0.10)",
+                          border: "2px solid white",
+                        }}
+                      />
+                    </button>
+                  );
+                })
+              : null}
+          </>
+        )}
+      </div>
+
+      {/* Quick list under the map */}
+      <div style={{ padding: 14, display: "grid", gap: 10 }}>
+        {horses.length === 0 ? (
+          <div style={{ fontSize: 13, opacity: 0.7 }}>No horses to show.</div>
+        ) : (
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+            {horses.map((h) => (
+              <button
+                key={h.id}
+                onClick={() => openHorse(h.id)}
+                style={{
+                  textAlign: "left",
+                  border: "1px solid rgba(15,23,42,0.10)",
+                  borderRadius: 14,
+                  background: "white",
+                  padding: 10,
+                  cursor: "pointer",
+                  display: "grid",
+                  gap: 8,
+                }}
+              >
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      background: "rgba(15,23,42,0.06)",
+                      overflow: "hidden",
+                      flex: "0 0 auto",
+                    }}
+                  >
+                    {h.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={h.image_url} alt={h.name ?? "Horse"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : null}
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 950, lineHeight: 1.2 }}>{h.name ?? "Horse"}</div>
+                    <div style={{ fontSize: 12, opacity: 0.7, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {h.location ?? "No location"}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  {typeof h.lat === "number" && typeof h.lng === "number" ? (
+                    <span>
+                      {h.lat.toFixed(4)}, {h.lng.toFixed(4)}
+                    </span>
+                  ) : (
+                    <span>No coordinates</span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
