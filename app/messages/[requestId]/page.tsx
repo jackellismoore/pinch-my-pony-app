@@ -334,34 +334,67 @@ export default function MessageThreadPage() {
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // ✅ HARDEN READ RECEIPTS
+  // ✅ Read receipts (throttled + deduped)
+  const unreadIds = useMemo(() => {
+    if (!myUserId) return []
+    return messages
+      .filter((m) => m.sender_id !== myUserId && !m.read_at && !String(m.id).startsWith("temp-"))
+      .map((m) => m.id)
+  }, [messages, myUserId])
+
+  const unreadKey = useMemo(() => unreadIds.join("|"), [unreadIds])
+
+  const lastMarkedKeyRef = useRef<string>("")
+  const inFlightRef = useRef(false)
+  const debounceRef = useRef<number | null>(null)
+
   useEffect(() => {
     if (!requestId || !myUserId) return
+    if (!unreadKey) return
+    if (document.visibilityState !== "visible") return
 
-    const markRead = async () => {
-      const unreadIds = messages
-        .filter((m) => m.sender_id !== myUserId && !m.read_at && !String(m.id).startsWith("temp-"))
-        .map((m) => m.id)
+    // Don’t repeat same set
+    if (unreadKey === lastMarkedKeyRef.current) return
 
-      if (unreadIds.length === 0) return
+    // Debounce rapid realtime bursts
+    if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    debounceRef.current = window.setTimeout(async () => {
+      if (inFlightRef.current) return
+      inFlightRef.current = true
 
-      const { error } = await supabase
-        .from("messages")
-        .update({ read_at: new Date().toISOString() })
-        .in("id", unreadIds)
+      try {
+        const idsNow = unreadIds
+        if (idsNow.length === 0) return
 
-      if (error) console.error("mark read error:", error)
-    }
+        const { error } = await supabase
+          .from("messages")
+          .update({ read_at: new Date().toISOString() })
+          .in("id", idsNow)
 
-    markRead()
+        if (error) {
+          console.error("mark read error:", error)
+          return
+        }
+
+        lastMarkedKeyRef.current = unreadKey
+      } finally {
+        inFlightRef.current = false
+      }
+    }, 250)
 
     const onVis = () => {
-      if (document.visibilityState === "visible") markRead()
+      if (document.visibilityState === "visible") {
+        // re-run by nudging the ref, next effect pass will run
+        lastMarkedKeyRef.current = ""
+      }
     }
 
     document.addEventListener("visibilitychange", onVis)
-    return () => document.removeEventListener("visibilitychange", onVis)
-  }, [messages, myUserId, requestId])
+    return () => {
+      document.removeEventListener("visibilitychange", onVis)
+      if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    }
+  }, [unreadKey, unreadIds, myUserId, requestId])
 
   // ---- Group rendering ----
   const grouped = useMemo(() => {
@@ -452,11 +485,7 @@ export default function MessageThreadPage() {
   const horseName = header?.horse_name ?? ""
   const avatarUrl = header?.other_user?.avatar_url ?? ""
 
-  const statusText = otherOnline
-    ? "Online"
-    : otherLastSeenAt
-      ? `Last seen ${timeAgo(otherLastSeenAt)}`
-      : "Offline"
+  const statusText = otherOnline ? "Online" : otherLastSeenAt ? `Last seen ${timeAgo(otherLastSeenAt)}` : "Offline"
 
   return (
     <div style={{ height: "calc(100vh - 60px)", display: "flex", flexDirection: "column", background: "#f6f7fb" }}>
@@ -514,9 +543,7 @@ export default function MessageThreadPage() {
         </div>
 
         <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ fontWeight: 900, lineHeight: 1.2, fontSize: 14 }}>
-            {headerLoading ? "Loading…" : otherName}
-          </div>
+          <div style={{ fontWeight: 900, lineHeight: 1.2, fontSize: 14 }}>{headerLoading ? "Loading…" : otherName}</div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div style={{ opacity: 0.75, fontSize: 12, whiteSpace: "nowrap" }}>{horseName}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.85 }}>
