@@ -6,12 +6,11 @@ import { useMemo, useState } from 'react';
 
 type Horse = {
   id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  owner_id?: string;
-  owner_label?: string;
+  name: string | null;
+  lat: number | null;
+  lng: number | null;
   distance?: number;
+  owner_id?: string | null;
 };
 
 export default function HorseMap({
@@ -34,14 +33,17 @@ export default function HorseMap({
     return { lat: 51.505, lng: -0.09 };
   }, [userLocation]);
 
-  const selectedHorse = useMemo(() => horses.find((h) => h.id === selected) ?? null, [horses, selected]);
+  const selectedHorse = useMemo(() => {
+    if (!selected) return null;
+    return horses.find((h) => h.id === selected) ?? null;
+  }, [selected, horses]);
 
-  if (!isLoaded) return <div>Loading map...</div>;
+  if (!isLoaded) return <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>Loading map…</div>;
 
   return (
-    <GoogleMap zoom={7} center={center} mapContainerStyle={{ width: '100%', height: '600px' }}>
+    <GoogleMap zoom={7} center={center} mapContainerStyle={{ width: '100%', height: '520px', borderRadius: 14 }}>
       {horses.map((horse) =>
-        typeof horse.lat === 'number' && typeof horse.lng === 'number' ? (
+        horse.lat != null && horse.lng != null ? (
           <Marker
             key={horse.id}
             position={{ lat: horse.lat, lng: horse.lng }}
@@ -53,41 +55,38 @@ export default function HorseMap({
         ) : null
       )}
 
-      {selectedHorse ? (
+      {selectedHorse && selectedHorse.lat != null && selectedHorse.lng != null ? (
         <InfoWindow
           position={{ lat: selectedHorse.lat, lng: selectedHorse.lng }}
           onCloseClick={() => setSelected(null)}
         >
-          <div style={{ minWidth: 240 }}>
+          <div style={{ minWidth: 220 }}>
             <div style={{ fontWeight: 950, fontSize: 14 }}>
-              {selectedHorse.owner_label?.trim() ? selectedHorse.owner_label.trim() : 'Owner'}
-            </div>
-
-            <div style={{ marginTop: 4, fontSize: 13, color: 'rgba(0,0,0,0.7)', fontWeight: 750 }}>
-              {selectedHorse.name}
+              {selectedHorse.name ?? 'Horse'}
             </div>
 
             {typeof selectedHorse.distance === 'number' ? (
-              <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(0,0,0,0.6)' }}>
+              <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(0,0,0,0.65)' }}>
                 {selectedHorse.distance.toFixed(1)} miles away
               </div>
             ) : null}
 
-            <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {selectedHorse.owner_id ? (
                 <Link
                   href={`/owner/${selectedHorse.owner_id}`}
                   style={{
                     border: '1px solid rgba(0,0,0,0.14)',
+                    borderRadius: 12,
                     padding: '8px 10px',
-                    borderRadius: 10,
                     textDecoration: 'none',
-                    color: 'black',
-                    fontWeight: 900,
                     fontSize: 12,
+                    fontWeight: 900,
+                    color: 'black',
+                    background: 'white',
                   }}
                 >
-                  View Profile
+                  Owner profile
                 </Link>
               ) : null}
 
@@ -95,16 +94,16 @@ export default function HorseMap({
                 href={`/request?horseId=${selectedHorse.id}`}
                 style={{
                   border: '1px solid rgba(0,0,0,0.14)',
+                  borderRadius: 12,
                   padding: '8px 10px',
-                  borderRadius: 10,
                   textDecoration: 'none',
+                  fontSize: 12,
+                  fontWeight: 950,
                   color: 'white',
                   background: 'black',
-                  fontWeight: 900,
-                  fontSize: 12,
                 }}
               >
-                Request to book
+                Request →
               </Link>
             </div>
           </div>
