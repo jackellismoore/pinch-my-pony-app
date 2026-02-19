@@ -3,120 +3,183 @@
 import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+type Props = {
+  bucket: string;              // e.g. "horses"
+  value: string;               // current public URL
+  onChange: (url: string) => void;
+  label?: string;
+  helper?: string;
+};
+
+function isNonEmptyString(v: unknown): v is string {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
 export default function HorseImageUploader({
-  bucket = "horses",
+  bucket,
   value,
   onChange,
-}: {
-  bucket?: string;
-  value: string;
-  onChange: (url: string) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  label = "Upload photo",
+  helper = "Uploads to storage bucket and saves a public URL.",
+}: Props) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const pick = () => inputRef.current?.click();
-
-  const onFile = async (file: File | null) => {
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
     if (!file) return;
+
     setErr(null);
     setUploading(true);
 
     try {
-      const { data: u } = await supabase.auth.getUser();
-      const uid = u.user?.id;
-      if (!uid) throw new Error("Not logged in");
+      // must be authed for RLS storage policies
+      const { data: userRes, error: userErr } = await supabase.auth.getUser();
+      if (userErr) throw userErr;
+      const uid = userRes.user?.id;
+      if (!uid) throw new Error("Not signed in.");
 
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `public/${uid}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const fileName = `${uid}/${crypto.randomUUID()}.${ext}`;
 
-      const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, {
+      const { error: upErr } = await supabase.storage.from(bucket).upload(fileName, file, {
         cacheControl: "3600",
         upsert: true,
+        contentType: file.type || undefined,
       });
+
       if (upErr) throw upErr;
 
-      const pub = supabase.storage.from(bucket).getPublicUrl(path);
-      const url = pub.data.publicUrl;
+      // If your bucket is PUBLIC:
+      const { data: pub } = supabase.storage.from(bucket).getPublicUrl(fileName);
+      const publicUrl = pub?.publicUrl;
 
-      if (!url) throw new Error("Could not build public URL");
-      onChange(url);
+      if (!publicUrl) throw new Error("Could not generate public URL.");
+
+      onChange(publicUrl);
+
+      // reset input so selecting same file again still triggers change
+      if (fileRef.current) fileRef.current.value = "";
     } catch (e: any) {
-      setErr(e?.message ?? "Upload failed");
+      setErr(e?.message ?? "Upload failed.");
     } finally {
       setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
     }
-  };
+  }
 
   return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+    <div
+      style={{
+        display: "grid",
+        gap: 10,
+        border: "1px solid rgba(15,23,42,0.10)",
+        borderRadius: 16,
+        padding: 12,
+        background: "white",
+      }}
+    >
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <div
           style={{
-            width: 72,
-            height: 72,
-            borderRadius: 14,
+            width: 74,
+            height: 74,
+            borderRadius: 16,
             overflow: "hidden",
-            background: "rgba(15,23,42,0.06)",
-            border: "1px solid rgba(15,23,42,0.12)",
+            background: "rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.10)",
             flexShrink: 0,
           }}
         >
-          {value ? (
+          {isNonEmptyString(value) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={value} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : null}
         </div>
 
         <div style={{ display: "grid", gap: 6 }}>
-          <button
-            type="button"
-            onClick={pick}
-            disabled={uploading}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid rgba(15,23,42,0.12)",
-              background: uploading ? "rgba(0,0,0,0.06)" : "white",
-              fontWeight: 900,
-              cursor: uploading ? "not-allowed" : "pointer",
-              width: "fit-content",
-            }}
-          >
-            {uploading ? "Uploading…" : "Upload photo"}
-          </button>
-          <div style={{ fontSize: 12, opacity: 0.65 }}>
-            Uploads to storage bucket <b>{bucket}</b> and saves a public URL.
+          <div style={{ fontWeight: 950 }}>{label}</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>{helper}</div>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <label
+              style={{
+                border: "1px solid rgba(0,0,0,0.14)",
+                background: "white",
+                color: "black",
+                padding: "10px 12px",
+                borderRadius: 12,
+                fontSize: 13,
+                fontWeight: 950,
+                cursor: uploading ? "not-allowed" : "pointer",
+                opacity: uploading ? 0.6 : 1,
+              }}
+            >
+              {uploading ? "Uploading…" : "Choose file"}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                onChange={onPickFile}
+                disabled={uploading}
+                style={{ display: "none" }}
+              />
+            </label>
+
+            {isNonEmptyString(value) ? (
+              <button
+                type="button"
+                onClick={() => onChange("")}
+                disabled={uploading}
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  background: "white",
+                  color: "black",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  fontSize: 13,
+                  fontWeight: 900,
+                  cursor: uploading ? "not-allowed" : "pointer",
+                  opacity: uploading ? 0.6 : 1,
+                }}
+              >
+                Remove
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        onChange={(e) => onFile(e.target.files?.[0] ?? null)}
-        style={{ display: "none" }}
-      />
-
-      <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-        Image URL (auto-filled on upload)
+      <div style={{ display: "grid", gap: 6 }}>
+        <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>Image URL</div>
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="https://..."
           style={{
-            border: "1px solid rgba(0,0,0,0.14)",
-            borderRadius: 10,
-            padding: "10px 12px",
+            border: "1px solid rgba(15,23,42,0.12)",
+            borderRadius: 12,
+            padding: "12px 12px",
             fontSize: 14,
+            outline: "none",
+            background: "white",
           }}
         />
-      </label>
+      </div>
 
-      {err ? <div style={{ fontSize: 13, color: "rgba(180,0,0,0.9)" }}>{err}</div> : null}
+      {err ? (
+        <div
+          style={{
+            border: "1px solid rgba(255,0,0,0.25)",
+            background: "rgba(255,0,0,0.06)",
+            padding: 10,
+            borderRadius: 12,
+            fontSize: 13,
+          }}
+        >
+          {err}
+        </div>
+      ) : null}
     </div>
   );
 }
