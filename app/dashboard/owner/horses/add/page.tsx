@@ -72,7 +72,7 @@ export default function AddHorsePage() {
 
       if (imageUrl.trim()) payload.image_url = imageUrl.trim();
 
-      const { data, error } = await supabase.from("horses").insert(payload).select("id").single();
+      const { error } = await supabase.from("horses").insert(payload);
       if (error) throw error;
 
       router.push(`/dashboard/owner/horses`);

@@ -74,9 +74,7 @@ export default function PublicHorsePage() {
   }, [horseId]);
 
   const ownerName =
-    (owner?.display_name ?? "").trim() ||
-    (owner?.full_name ?? "").trim() ||
-    "Owner";
+    (owner?.display_name ?? "").trim() || (owner?.full_name ?? "").trim() || "Owner";
 
   if (loading) return <div style={{ padding: 20, opacity: 0.75 }}>Loading…</div>;
   if (err) return <div style={{ padding: 20, color: "rgba(180,0,0,0.9)" }}>{err}</div>;
@@ -84,29 +82,16 @@ export default function PublicHorsePage() {
 
   return (
     <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
-      <div
-        style={{
-          border: "1px solid rgba(15,23,42,0.10)",
-          borderRadius: 18,
-          background: "white",
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ border: "1px solid rgba(15,23,42,0.10)", borderRadius: 18, background: "white", overflow: "hidden" }}>
         {horse.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={horse.image_url}
-            alt={horse.name ?? "Horse"}
-            style={{ width: "100%", height: 320, objectFit: "cover" }}
-          />
+          <img src={horse.image_url} alt={horse.name ?? "Horse"} style={{ width: "100%", height: 320, objectFit: "cover" }} />
         ) : (
           <div style={{ height: 220, background: "rgba(15,23,42,0.06)" }} />
         )}
 
         <div style={{ padding: 16 }}>
-          <div style={{ fontSize: 22, fontWeight: 950 }}>
-            {horse.name ?? "Horse"}
-          </div>
+          <div style={{ fontSize: 22, fontWeight: 950 }}>{horse.name ?? "Horse"}</div>
 
           <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
             Owned by{" "}

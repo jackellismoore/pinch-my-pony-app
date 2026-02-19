@@ -53,7 +53,6 @@ export default function Header() {
         setUser(u);
 
         if (u) {
-          // fire-and-forget push reg (never block UI)
           registerPushForCurrentUser();
 
           const { data: p, error } = await supabase
@@ -205,6 +204,7 @@ export default function Header() {
                 <Link href="/messages" onClick={() => setMenuOpen(false)} style={menuItem()}>
                   Messages
                 </Link>
+
                 {isOwner ? (
                   <Link href="/dashboard/owner" onClick={() => setMenuOpen(false)} style={menuItem()}>
                     Owner Dashboard
@@ -215,7 +215,6 @@ export default function Header() {
                   </Link>
                 )}
 
-                {/* IMPORTANT: always says "Profile" (not your name) */}
                 <Link href="/profile" onClick={() => setMenuOpen(false)} style={menuItem()}>
                   Profile
                 </Link>
@@ -236,7 +235,6 @@ export default function Header() {
             )}
           </div>
 
-          {/* small helper text */}
           {user ? (
             <div style={{ marginTop: 10, fontSize: 12, opacity: 0.6 }}>
               Signed in as <span style={{ fontWeight: 800 }}>{pickName(profile)}</span>
