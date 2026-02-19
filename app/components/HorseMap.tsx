@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 export type MapHorse = {
   id: string;
+  owner_id?: string; // ✅ added so BrowsePage can pass owner_id without TS error
   name?: string | null;
   location?: string | null;
   image_url?: string | null;
@@ -25,8 +26,8 @@ function clamp(n: number, min: number, max: number) {
 /**
  * Lightweight “no API key” map:
  * - If horses have lat/lng → place pins in a normalized box.
- * - Clicking a pin/card routes to /horse/[id] (fixes your wrong routing).
- * - Keeps your current BrowsePage call signature so the red TS error goes away.
+ * - Clicking a pin/card routes to /horse/[id] (fixes wrong routing).
+ * - Compatible with BrowsePage props.
  */
 export default function HorseMap({ horses, userLocation = null, highlightedId = null }: Props) {
   const router = useRouter();
@@ -40,7 +41,12 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
       }))
       .filter((h) => h.lat != null && h.lng != null) as Array<MapHorse & { lat: number; lng: number }>;
 
-    if (!withCoords.length) return { withCoords: [], bounds: null as null | { minLat: number; maxLat: number; minLng: number; maxLng: number } };
+    if (!withCoords.length) {
+      return {
+        withCoords: [],
+        bounds: null as null | { minLat: number; maxLat: number; minLng: number; maxLng: number },
+      };
+    }
 
     let minLat = withCoords[0].lat!;
     let maxLat = withCoords[0].lat!;
@@ -70,7 +76,6 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
   }, [horses]);
 
   const openHorse = (id: string) => {
-    // ✅ This is the important routing fix:
     router.push(`/horse/${id}`);
   };
 
@@ -85,14 +90,20 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
         overflow: "hidden",
       }}
     >
-      <div style={{ padding: 14, fontWeight: 950, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+      <div
+        style={{
+          padding: 14,
+          fontWeight: 950,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
         <div>Map</div>
-        <div style={{ fontSize: 12, opacity: 0.65 }}>
-          Click a pin (or card) to view the horse
-        </div>
+        <div style={{ fontSize: 12, opacity: 0.65 }}>Click a pin (or card) to view the horse</div>
       </div>
 
-      {/* Map surface */}
       <div
         style={{
           position: "relative",
@@ -109,7 +120,6 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
           </div>
         ) : (
           <>
-            {/* Optional: user location dot */}
             {userLocation && points.bounds ? (
               (() => {
                 const { minLat, maxLat, minLng, maxLng } = points.bounds!;
@@ -136,7 +146,6 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
               })()
             ) : null}
 
-            {/* Horse pins */}
             {points.bounds
               ? points.withCoords.map((h) => {
                   const { minLat, maxLat, minLng, maxLng } = points.bounds!;
@@ -182,7 +191,6 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
         )}
       </div>
 
-      {/* Quick list under the map */}
       <div style={{ padding: 14, display: "grid", gap: 10 }}>
         {horses.length === 0 ? (
           <div style={{ fontSize: 13, opacity: 0.7 }}>No horses to show.</div>
@@ -216,7 +224,11 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
                   >
                     {h.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={h.image_url} alt={h.name ?? "Horse"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img
+                        src={h.image_url}
+                        alt={h.name ?? "Horse"}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
                     ) : null}
                   </div>
 

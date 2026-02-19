@@ -12,6 +12,7 @@ type HorseRow = {
   id: string;
   owner_id: string;
   name: string | null;
+  location: string | null;
   image_url: string | null;
   is_active: boolean | null;
   lat: number | null;
@@ -68,7 +69,7 @@ export default function BrowsePage() {
       try {
         const { data: horsesData, error: horsesErr } = await supabase
           .from("horses")
-          .select("id,owner_id,name,image_url,is_active,lat,lng")
+          .select("id,owner_id,name,location,image_url,is_active,lat,lng")
           .eq("is_active", true)
           .order("created_at", { ascending: false });
 
@@ -81,7 +82,6 @@ export default function BrowsePage() {
         const ownerIds = Array.from(new Set(horseRows.map((h) => h.owner_id).filter(Boolean)));
         const horseIds = horseRows.map((h) => h.id);
 
-        // owner minis
         if (ownerIds.length > 0) {
           const { data: profData, error: profErr } = await supabase
             .from("profiles")
@@ -95,7 +95,6 @@ export default function BrowsePage() {
           }
         }
 
-        // next unavailable preview
         if (horseIds.length > 0) {
           const today = todayISODate();
 
@@ -181,10 +180,11 @@ export default function BrowsePage() {
     () =>
       horses.map((h) => ({
         id: h.id,
+        owner_id: h.owner_id,
         name: h.name,
+        location: h.location,
         lat: h.lat,
         lng: h.lng,
-        owner_id: h.owner_id,
         image_url: h.image_url,
       })),
     [horses]
@@ -215,7 +215,8 @@ export default function BrowsePage() {
       ) : null}
 
       <div style={{ marginTop: 14 }}>
-        <HorseMap horses={mapHorses as any} userLocation={null} highlightedId={null} />
+        {/* ✅ no more `as any` */}
+        <HorseMap horses={mapHorses} userLocation={null} highlightedId={null} />
       </div>
 
       <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
@@ -278,7 +279,10 @@ export default function BrowsePage() {
                   <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     {next ? (
                       <>
-                        <AvailabilityBadge label={next.kind === "blocked" ? "Blocked" : "Booked"} tone={next.kind === "blocked" ? "warn" : "info"} />
+                        <AvailabilityBadge
+                          label={next.kind === "blocked" ? "Blocked" : "Booked"}
+                          tone={next.kind === "blocked" ? "warn" : "info"}
+                        />
                         <div style={{ fontSize: 13, color: "rgba(0,0,0,0.7)" }}>
                           Next unavailable:{" "}
                           <span style={{ fontWeight: 750 }}>
