@@ -1,334 +1,339 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import DashboardShell from '@/components/DashboardShell';
-import { supabase } from '@/lib/supabaseClient';
+export const dynamic = "force-dynamic";
 
-function safeExt(name: string) {
-  const parts = name.split('.');
-  const ext = (parts[parts.length - 1] ?? '').toLowerCase();
-  if (ext && ext.length <= 8) return ext;
-  return 'png';
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import HorseMap from "@/components/HorseMap";
+import { supabase } from "@/lib/supabaseClient";
+import { AvailabilityBadge } from "@/components/AvailabilityBadge";
+
+type HorseRow = {
+  id: string;
+  owner_id: string;
+  name: string | null;
+  image_url: string | null;
+  is_active: boolean | null;
+  lat: number | null;
+  lng: number | null;
+};
+
+type ProfileMini = {
+  id: string;
+  display_name: string | null;
+  full_name: string | null;
+};
+
+type BlockRow = {
+  id: string;
+  horse_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+};
+
+type BookingRow = {
+  id: string;
+  horse_id: string;
+  start_date: string;
+  end_date: string;
+};
+
+type NextRange = {
+  kind: "blocked" | "booking";
+  startDate: string;
+  endDate: string;
+  label: string;
+};
+
+function todayISODate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-export default function AddHorsePage() {
-  const router = useRouter();
-
-  const [userId, setUserId] = useState<string | null>(null);
-  const [loadingUser, setLoadingUser] = useState(true);
-
-  const [name, setName] = useState('');
-  const [lat, setLat] = useState<string>('');
-  const [lng, setLng] = useState<string>('');
-  const [isActive, setIsActive] = useState(true);
-
-  const [imageUrl, setImageUrl] = useState<string>('');
-  const [uploading, setUploading] = useState(false);
-
-  const [saving, setSaving] = useState(false);
+export default function BrowsePage() {
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [horses, setHorses] = useState<HorseRow[]>([]);
+  const [profilesById, setProfilesById] = useState<Record<string, ProfileMini>>({});
+  const [nextByHorseId, setNextByHorseId] = useState<Record<string, NextRange | null>>({});
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoadingUser(true);
-      const { data } = await supabase.auth.getUser();
-      if (cancelled) return;
-      setUserId(data.user?.id ?? null);
-      setLoadingUser(false);
-    })();
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const { data: horsesData, error: horsesErr } = await supabase
+          .from("horses")
+          .select("id,owner_id,name,image_url,is_active,lat,lng")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false });
+
+        if (cancelled) return;
+        if (horsesErr) throw horsesErr;
+
+        const horseRows = (horsesData ?? []) as HorseRow[];
+        setHorses(horseRows);
+
+        const ownerIds = Array.from(new Set(horseRows.map((h) => h.owner_id).filter(Boolean)));
+        const horseIds = horseRows.map((h) => h.id);
+
+        // owner minis
+        if (ownerIds.length > 0) {
+          const { data: profData, error: profErr } = await supabase
+            .from("profiles")
+            .select("id,display_name,full_name")
+            .in("id", ownerIds);
+
+          if (!cancelled && !profErr) {
+            const map: Record<string, ProfileMini> = {};
+            for (const p of (profData ?? []) as ProfileMini[]) map[p.id] = p;
+            setProfilesById(map);
+          }
+        }
+
+        // next unavailable preview
+        if (horseIds.length > 0) {
+          const today = todayISODate();
+
+          const [blocksRes, bookingsRes] = await Promise.all([
+            supabase
+              .from("horse_unavailability")
+              .select("id,horse_id,start_date,end_date,reason")
+              .in("horse_id", horseIds)
+              .gte("end_date", today)
+              .order("start_date", { ascending: true }),
+
+            supabase
+              .from("borrow_requests")
+              .select("id,horse_id,start_date,end_date,status")
+              .in("horse_id", horseIds)
+              .eq("status", "approved")
+              .not("start_date", "is", null)
+              .not("end_date", "is", null)
+              .gte("end_date", today)
+              .order("start_date", { ascending: true }),
+          ]);
+
+          if (!cancelled) {
+            if (blocksRes.error) throw blocksRes.error;
+            if (bookingsRes.error) throw bookingsRes.error;
+
+            const blocks = (blocksRes.data ?? []) as BlockRow[];
+            const bookings = (bookingsRes.data ?? []) as BookingRow[];
+
+            const merged = [
+              ...blocks.map((b) => ({
+                horseId: b.horse_id,
+                kind: "blocked" as const,
+                startDate: b.start_date,
+                endDate: b.end_date,
+                label: b.reason?.trim() ? b.reason.trim() : "Blocked",
+              })),
+              ...bookings.map((br) => ({
+                horseId: br.horse_id,
+                kind: "booking" as const,
+                startDate: br.start_date,
+                endDate: br.end_date,
+                label: "Approved booking",
+              })),
+            ].sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+            const byHorse: Record<string, NextRange | null> = {};
+            for (const id of horseIds) byHorse[id] = null;
+
+            for (const r of merged) {
+              if (!byHorse[r.horseId]) {
+                byHorse[r.horseId] = {
+                  kind: r.kind,
+                  startDate: r.startDate,
+                  endDate: r.endDate,
+                  label: r.label,
+                };
+              }
+            }
+
+            setNextByHorseId(byHorse);
+          }
+        }
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message ?? "Failed to load browse data.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const canSave = useMemo(() => {
-    if (!userId) return false;
-    if (saving || uploading) return false;
-    if (!name.trim()) return false;
-    // lat/lng optional in your app, but map wants them. We'll allow blank but recommend.
-    return true;
-  }, [userId, saving, uploading, name]);
-
-  async function onUpload(file: File) {
-    setUploading(true);
-    setError(null);
-
-    try {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
-      if (!uid) throw new Error('Not logged in');
-
-      const ext = safeExt(file.name);
-      const path = `horses/${uid}/${crypto.randomUUID()}.${ext}`;
-
-      const up = await supabase.storage.from('horses').upload(path, file, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: file.type || undefined,
-      });
-
-      if (up.error) throw up.error;
-
-      const pub = supabase.storage.from('horses').getPublicUrl(path);
-      const url = pub.data.publicUrl;
-      if (!url) throw new Error('Could not create public URL for image');
-
-      setImageUrl(url);
-    } catch (e: any) {
-      setError(e?.message ?? 'Upload failed');
-    } finally {
-      setUploading(false);
-    }
+  function ownerLabel(ownerId: string) {
+    const p = profilesById[ownerId];
+    return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || "Owner";
   }
 
-  async function save() {
-    setError(null);
-
-    if (!userId) {
-      setError('You must be logged in.');
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      const payload: any = {
-        owner_id: userId,
-        name: name.trim(),
-        is_active: isActive,
-      };
-
-      const latNum = lat.trim() ? Number(lat) : null;
-      const lngNum = lng.trim() ? Number(lng) : null;
-
-      if (latNum !== null && !Number.isFinite(latNum)) throw new Error('Latitude must be a number');
-      if (lngNum !== null && !Number.isFinite(lngNum)) throw new Error('Longitude must be a number');
-
-      payload.lat = latNum;
-      payload.lng = lngNum;
-
-      if (imageUrl.trim()) payload.image_url = imageUrl.trim();
-
-      const { data, error } = await supabase.from('horses').insert(payload).select('id').single();
-      if (error) throw error;
-
-      router.push('/dashboard/owner/horses');
-      router.refresh();
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to create horse');
-    } finally {
-      setSaving(false);
-    }
-  }
+  const mapHorses = useMemo(
+    () =>
+      horses.map((h) => ({
+        id: h.id,
+        name: h.name,
+        lat: h.lat,
+        lng: h.lng,
+        owner_id: h.owner_id,
+        image_url: h.image_url,
+      })),
+    [horses]
+  );
 
   return (
-    <DashboardShell>
-      <div style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: 22 }}>Add Horse</h1>
-        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
-          Add a listing. Include a photo so it shows on the map.
-        </div>
+    <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
+      <h1 style={{ margin: 0, fontSize: 22 }}>Browse</h1>
+      <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
+        Click a pin to view the horse profile or request dates.
+      </div>
 
-        {loadingUser ? (
-          <div style={{ marginTop: 14, fontSize: 13, opacity: 0.7 }}>Loading…</div>
-        ) : null}
+      {loading ? <div style={{ marginTop: 14, fontSize: 13, color: "rgba(0,0,0,0.6)" }}>Loading…</div> : null}
 
-        {!loadingUser && !userId ? (
-          <div style={{ marginTop: 14, fontSize: 13, color: 'rgba(180,0,0,0.9)' }}>You’re not logged in.</div>
-        ) : null}
-
-        {error ? (
-          <div
-            style={{
-              marginTop: 14,
-              border: '1px solid rgba(255,0,0,0.25)',
-              background: 'rgba(255,0,0,0.06)',
-              padding: 12,
-              borderRadius: 12,
-              fontSize: 13,
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
-
+      {error ? (
         <div
           style={{
             marginTop: 14,
-            border: '1px solid rgba(0,0,0,0.10)',
-            borderRadius: 14,
-            background: 'white',
-            padding: 14,
-            display: 'grid',
-            gap: 12,
+            border: "1px solid rgba(255,0,0,0.25)",
+            background: "rgba(255,0,0,0.06)",
+            padding: 12,
+            borderRadius: 12,
+            fontSize: 13,
           }}
         >
-          <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-            Horse name
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={{
-                border: '1px solid rgba(0,0,0,0.14)',
-                borderRadius: 12,
-                padding: '10px 12px',
-                fontSize: 14,
-              }}
-              placeholder="e.g. Daisy"
-            />
-          </label>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-              Latitude (optional)
-              <input
-                value={lat}
-                onChange={(e) => setLat(e.target.value)}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  borderRadius: 12,
-                  padding: '10px 12px',
-                  fontSize: 14,
-                }}
-                placeholder="51.5074"
-              />
-            </label>
-
-            <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-              Longitude (optional)
-              <input
-                value={lng}
-                onChange={(e) => setLng(e.target.value)}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  borderRadius: 12,
-                  padding: '10px 12px',
-                  fontSize: 14,
-                }}
-                placeholder="-0.1278"
-              />
-            </label>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-              Active listing
-            </label>
-          </div>
-
-          <div
-            style={{
-              borderTop: '1px solid rgba(0,0,0,0.08)',
-              paddingTop: 12,
-              display: 'grid',
-              gap: 10,
-            }}
-          >
-            <div style={{ fontWeight: 900, fontSize: 13 }}>Photo</div>
-
-            {imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={imageUrl}
-                alt="Horse"
-                style={{
-                  width: 220,
-                  height: 140,
-                  objectFit: 'cover',
-                  borderRadius: 12,
-                  border: '1px solid rgba(0,0,0,0.10)',
-                }}
-              />
-            ) : (
-              <div style={{ fontSize: 13, opacity: 0.7 }}>No photo yet.</div>
-            )}
-
-            <label
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 10,
-                cursor: uploading ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                fontWeight: 900,
-              }}
-            >
-              <input
-                type="file"
-                accept="image/*"
-                disabled={uploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) onUpload(file);
-                }}
-                style={{ display: 'none' }}
-              />
-              <span
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  background: 'white',
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                }}
-              >
-                {uploading ? 'Uploading…' : 'Upload image'}
-              </span>
-
-              <span style={{ opacity: 0.7, fontWeight: 600 }}>Stored in bucket: <b>horses</b></span>
-            </label>
-
-            <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-              Or paste Image URL
-              <input
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  borderRadius: 12,
-                  padding: '10px 12px',
-                  fontSize: 14,
-                }}
-                placeholder="https://..."
-              />
-            </label>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button
-              onClick={() => router.back()}
-              style={{
-                border: '1px solid rgba(0,0,0,0.14)',
-                background: 'white',
-                borderRadius: 12,
-                padding: '10px 14px',
-                fontWeight: 900,
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-
-            <button
-              onClick={save}
-              disabled={!canSave}
-              style={{
-                border: '1px solid rgba(0,0,0,0.14)',
-                background: !canSave ? 'rgba(0,0,0,0.06)' : 'black',
-                color: !canSave ? 'rgba(0,0,0,0.45)' : 'white',
-                borderRadius: 12,
-                padding: '10px 14px',
-                fontWeight: 900,
-                cursor: !canSave ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {saving ? 'Saving…' : 'Create horse'}
-            </button>
-          </div>
+          {error}
         </div>
+      ) : null}
+
+      <div style={{ marginTop: 14 }}>
+        <HorseMap horses={mapHorses as any} userLocation={null} highlightedId={null} />
       </div>
-    </DashboardShell>
+
+      <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+        {horses.map((h) => {
+          const next = nextByHorseId[h.id] ?? null;
+
+          return (
+            <div
+              key={h.id}
+              style={{
+                border: "1px solid rgba(0,0,0,0.10)",
+                borderRadius: 14,
+                padding: 14,
+                background: "white",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                    background: "rgba(0,0,0,0.06)",
+                    border: "1px solid rgba(0,0,0,0.10)",
+                    flexShrink: 0,
+                  }}
+                >
+                  {h.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={h.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : null}
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <Link
+                    href={`/horse/${h.id}`}
+                    style={{
+                      fontWeight: 950,
+                      fontSize: 15,
+                      color: "black",
+                      textDecoration: "none",
+                      display: "inline-block",
+                    }}
+                  >
+                    {h.name ?? "Horse"}
+                  </Link>
+
+                  <div style={{ marginTop: 4, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
+                    Owner:{" "}
+                    <Link href={`/owner/${h.owner_id}`} style={{ color: "black", fontWeight: 800 }}>
+                      {ownerLabel(h.owner_id)}
+                    </Link>
+                  </div>
+
+                  <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    {next ? (
+                      <>
+                        <AvailabilityBadge label={next.kind === "blocked" ? "Blocked" : "Booked"} tone={next.kind === "blocked" ? "warn" : "info"} />
+                        <div style={{ fontSize: 13, color: "rgba(0,0,0,0.7)" }}>
+                          Next unavailable:{" "}
+                          <span style={{ fontWeight: 750 }}>
+                            {next.startDate} → {next.endDate}
+                          </span>
+                          {" — "}
+                          {next.label}
+                        </div>
+                      </>
+                    ) : (
+                      <AvailabilityBadge label="No upcoming blocks" tone="neutral" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <Link
+                  href={`/horse/${h.id}`}
+                  style={{
+                    border: "1px solid rgba(0,0,0,0.14)",
+                    background: "white",
+                    color: "black",
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    textDecoration: "none",
+                    fontSize: 13,
+                    fontWeight: 900,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  View Horse
+                </Link>
+
+                <Link
+                  href={`/request?horseId=${h.id}`}
+                  style={{
+                    border: "1px solid rgba(0,0,0,0.14)",
+                    background: "black",
+                    color: "white",
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    textDecoration: "none",
+                    fontSize: 13,
+                    fontWeight: 950,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Request →
+                </Link>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

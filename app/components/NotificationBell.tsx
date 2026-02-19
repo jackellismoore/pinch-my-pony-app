@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
 type Counts = {
   unreadMessages: number;
@@ -12,26 +12,40 @@ type Counts = {
 function BellIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 22a2.25 2.25 0 0 0 2.2-1.8h-4.4A2.25 2.25 0 0 0 12 22Z" fill="currentColor" />
       <path
-        d="M12 22a2.25 2.25 0 0 0 2.2-1.8h-4.4A2.25 2.25 0 0 0 12 22Zm7-6V11a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2Z"
+        d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"
         stroke="currentColor"
-        strokeWidth="1.7"
+        strokeWidth="1.6"
         strokeLinejoin="round"
       />
     </svg>
   );
 }
 
-function useOutsideClick(ref: React.RefObject<HTMLElement>, onOutside: () => void) {
+function useOutsideClick<T extends HTMLElement>(ref: React.RefObject<T | null>, onOutside: () => void) {
   useEffect(() => {
     function onDown(e: MouseEvent) {
       const el = ref.current;
       if (!el) return;
       if (e.target instanceof Node && !el.contains(e.target)) onOutside();
     }
-    window.addEventListener('mousedown', onDown);
-    return () => window.removeEventListener('mousedown', onDown);
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
   }, [ref, onOutside]);
+}
+
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+    p.then((v) => {
+      clearTimeout(t);
+      resolve(v);
+    }).catch((e) => {
+      clearTimeout(t);
+      reject(e);
+    });
+  });
 }
 
 export default function NotificationBell() {
@@ -39,178 +53,146 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
 
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(rootRef, () => setOpen(false));
 
   const total = useMemo(() => counts.unreadMessages + counts.pendingRequests, [counts]);
 
   async function refreshCounts() {
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
+      const { data: userRes } = await withTimeout(supabase.auth.getUser(), 2500, "getUser");
+      const uid = userRes.user?.id;
+
       if (!uid) {
         setCounts({ unreadMessages: 0, pendingRequests: 0 });
         setReady(true);
         return;
       }
 
-      // 1) Get my horse ids (if I'm an owner)
-      const { data: myHorses, error: horsesErr } = await supabase
-        .from('horses')
-        .select('id')
-        .eq('owner_id', uid);
-
+      // My horse ids (owner)
+      const { data: myHorses, error: horsesErr } = await supabase.from("horses").select("id").eq("owner_id", uid);
       if (horsesErr) throw horsesErr;
 
-      const myHorseIds = (myHorses ?? []).map((h: any) => h.id).filter(Boolean);
+      const myHorseIds = (myHorses ?? []).map((r: any) => r.id).filter(Boolean);
 
-      // 2) Pending requests on my horses
-      let pendingRequests = 0;
-      if (myHorseIds.length) {
-        const { count, error } = await supabase
-          .from('borrow_requests')
-          .select('id', { count: 'exact', head: true })
-          .in('horse_id', myHorseIds)
-          .eq('status', 'pending');
+      // Requests where I'm borrower OR owner (via horse_id)
+      const [borrowerReqs, ownerReqs] = await Promise.all([
+        supabase.from("borrow_requests").select("id").eq("borrower_id", uid),
+        myHorseIds.length
+          ? supabase.from("borrow_requests").select("id").in("horse_id", myHorseIds)
+          : Promise.resolve({ data: [], error: null } as any),
+      ]);
 
-        if (!error) pendingRequests = count ?? 0;
-      }
-
-      // 3) Figure out request IDs I'm part of (borrower OR owner of horse)
-      //    a) borrower requests
-      const { data: borrowerReqs, error: brErr } = await supabase
-        .from('borrow_requests')
-        .select('id')
-        .eq('borrower_id', uid);
-
-      if (brErr) throw brErr;
-
-      //    b) owner requests
-      let ownerReqs: any[] = [];
-      if (myHorseIds.length) {
-        const { data: or, error: orErr } = await supabase
-          .from('borrow_requests')
-          .select('id')
-          .in('horse_id', myHorseIds);
-
-        if (orErr) throw orErr;
-        ownerReqs = or ?? [];
-      }
+      if (borrowerReqs.error) throw borrowerReqs.error;
+      if (ownerReqs.error) throw ownerReqs.error;
 
       const requestIds = Array.from(
-        new Set([...(borrowerReqs ?? []), ...ownerReqs].map((r: any) => r.id).filter(Boolean))
+        new Set([...(borrowerReqs.data ?? []), ...(ownerReqs.data ?? [])].map((r: any) => r.id))
       );
 
-      // 4) Unread messages in those threads (sender != me, read_at is null)
+      // Unread messages in those threads (not sent by me)
       let unreadMessages = 0;
       if (requestIds.length) {
         const { count, error } = await supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .in('request_id', requestIds)
-          .neq('sender_id', uid)
-          .is('read_at', null);
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .in("request_id", requestIds)
+          .neq("sender_id", uid)
+          .is("read_at", null);
 
-        if (!error) unreadMessages = count ?? 0;
+        if (error) throw error;
+        unreadMessages = count ?? 0;
+      }
+
+      // Pending requests for owners (incoming only)
+      let pendingRequests = 0;
+      if (myHorseIds.length) {
+        const { count, error } = await supabase
+          .from("borrow_requests")
+          .select("id", { count: "exact", head: true })
+          .in("horse_id", myHorseIds)
+          .eq("status", "pending");
+
+        if (error) throw error;
+        pendingRequests = count ?? 0;
       }
 
       setCounts({ unreadMessages, pendingRequests });
       setReady(true);
     } catch {
-      // Don't block UI
       setReady(true);
     }
   }
 
-  // Initial + auth change refresh
   useEffect(() => {
-    let cancelled = false;
+    let mounted = true;
 
-    const run = async () => {
-      if (cancelled) return;
-      await refreshCounts();
-    };
-
-    run();
+    refreshCounts();
 
     const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      if (!mounted) return;
       refreshCounts();
     });
 
-    return () => {
-      cancelled = true;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
-  // Realtime-ish: listen to inserts/updates on messages + borrow_requests and refresh
-  useEffect(() => {
-    let active = true;
-
-    const ch = supabase
-      .channel('notif:counts')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'messages' },
-        () => active && refreshCounts()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'borrow_requests' },
-        () => active && refreshCounts()
-      )
+    const msgCh = supabase
+      .channel("rt:messages")
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => mounted && refreshCounts())
       .subscribe();
 
-    // fallback poll every 20s (keeps it reliable if realtime disabled)
-    const t = window.setInterval(() => refreshCounts(), 20000);
+    const reqCh = supabase
+      .channel("rt:borrow_requests")
+      .on("postgres_changes", { event: "*", schema: "public", table: "borrow_requests" }, () => mounted && refreshCounts())
+      .subscribe();
 
     return () => {
-      active = false;
-      window.clearInterval(t);
-      supabase.removeChannel(ch);
+      mounted = false;
+      sub.subscription.unsubscribe();
+      supabase.removeChannel(msgCh);
+      supabase.removeChannel(reqCh);
     };
   }, []);
 
   if (!ready) return null;
 
   return (
-    <div ref={rootRef} style={{ position: 'relative' }}>
+    <div ref={rootRef} style={{ position: "relative" }}>
       <button
         onClick={() => setOpen((v) => !v)}
+        title="Notifications"
         style={{
-          position: 'relative',
+          position: "relative",
           width: 40,
           height: 40,
           borderRadius: 12,
-          border: '1px solid rgba(0,0,0,0.12)',
-          background: 'white',
-          display: 'grid',
-          placeItems: 'center',
-          cursor: 'pointer',
+          border: "1px solid rgba(15,23,42,0.12)",
+          background: "white",
+          cursor: "pointer",
+          display: "grid",
+          placeItems: "center",
+          color: "#0f172a",
         }}
-        aria-label="Notifications"
       >
         <BellIcon />
         {total > 0 ? (
           <span
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: 6,
               right: 6,
               minWidth: 18,
               height: 18,
-              padding: '0 6px',
+              padding: "0 6px",
               borderRadius: 999,
-              background: 'black',
-              color: 'white',
+              background: "black",
+              color: "white",
               fontSize: 11,
               fontWeight: 900,
-              display: 'grid',
-              placeItems: 'center',
+              display: "grid",
+              placeItems: "center",
               lineHeight: 1,
             }}
           >
-            {total > 99 ? '99+' : total}
+            {total > 99 ? "99+" : total}
           </span>
         ) : null}
       </button>
@@ -218,75 +200,59 @@ export default function NotificationBell() {
       {open ? (
         <div
           style={{
-            position: 'absolute',
+            position: "absolute",
             right: 0,
             top: 46,
             width: 280,
-            border: '1px solid rgba(0,0,0,0.12)',
             borderRadius: 14,
-            background: 'white',
-            boxShadow: '0 12px 30px rgba(0,0,0,0.12)',
-            overflow: 'hidden',
+            border: "1px solid rgba(15,23,42,0.12)",
+            background: "white",
+            boxShadow: "0 18px 50px rgba(15,23,42,0.12)",
+            padding: 12,
             zIndex: 50,
           }}
         >
-          <div style={{ padding: 12, fontWeight: 900, fontSize: 13 }}>Notifications</div>
+          <div style={{ fontWeight: 950, fontSize: 14, marginBottom: 8 }}>Notifications</div>
 
-          <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+          <div style={{ display: "grid", gap: 8 }}>
             <Link
               href="/messages"
               onClick={() => setOpen(false)}
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: 12,
-                textDecoration: 'none',
-                color: 'black',
+                textDecoration: "none",
+                color: "#0f172a",
+                border: "1px solid rgba(15,23,42,0.10)",
+                borderRadius: 12,
+                padding: 10,
+                display: "flex",
+                justifyContent: "space-between",
+                fontWeight: 850,
               }}
             >
-              <div style={{ fontWeight: 800, fontSize: 13 }}>Messages</div>
-              <div style={{ fontSize: 12, opacity: 0.75 }}>
-                {counts.unreadMessages > 0 ? `${counts.unreadMessages} unread` : 'No unread'}
-              </div>
+              <span>Unread messages</span>
+              <span>{counts.unreadMessages}</span>
             </Link>
 
             <Link
               href="/dashboard/owner/requests"
               onClick={() => setOpen(false)}
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: 12,
-                textDecoration: 'none',
-                color: 'black',
-                borderTop: '1px solid rgba(0,0,0,0.08)',
+                textDecoration: "none",
+                color: "#0f172a",
+                border: "1px solid rgba(15,23,42,0.10)",
+                borderRadius: 12,
+                padding: 10,
+                display: "flex",
+                justifyContent: "space-between",
+                fontWeight: 850,
               }}
             >
-              <div style={{ fontWeight: 800, fontSize: 13 }}>Booking requests</div>
-              <div style={{ fontSize: 12, opacity: 0.75 }}>
-                {counts.pendingRequests > 0 ? `${counts.pendingRequests} pending` : 'None pending'}
-              </div>
+              <span>Pending requests</span>
+              <span>{counts.pendingRequests}</span>
             </Link>
           </div>
 
-          <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', padding: 10 }}>
-            <button
-              onClick={() => refreshCounts()}
-              style={{
-                width: '100%',
-                border: '1px solid rgba(0,0,0,0.14)',
-                background: 'white',
-                borderRadius: 12,
-                padding: '10px 12px',
-                fontWeight: 900,
-                cursor: 'pointer',
-              }}
-            >
-              Refresh
-            </button>
-          </div>
+          <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>Updates live when messages/requests change.</div>
         </div>
       ) : null}
     </div>

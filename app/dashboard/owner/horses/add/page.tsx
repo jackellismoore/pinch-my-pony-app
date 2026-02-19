@@ -1,238 +1,181 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { supabase } from "@/lib/supabaseClient";
+export const dynamic = "force-dynamic";
+
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useLoadScript, Autocomplete } from "@react-google-maps/api";
-
-const libraries: ("places")[] = ["places"];
-
-type HorseForm = {
-  name: string;
-  breed: string;
-  age: string;
-  height_hh: string;
-  temperament: string;
-  description: string;
-  location: string;
-  lat: number | null;
-  lng: number | null;
-  image_url: string;
-};
+import DashboardShell from "@/components/DashboardShell";
+import { supabase } from "@/lib/supabaseClient";
+import HorseImageUploader from "@/components/HorseImageUploader";
 
 export default function AddHorsePage() {
   const router = useRouter();
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
-  const { isLoaded } = useLoadScript({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
-    libraries,
-  });
+  const [loadingUser, setLoadingUser] = useState(true);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
 
-  const [loading, setLoading] = useState(false);
+  const [name, setName] = useState("");
+  const [lat, setLat] = useState<string>("");
+  const [lng, setLng] = useState<string>("");
+  const [imageUrl, setImageUrl] = useState<string>("");
 
-  const [form, setForm] = useState<HorseForm>({
-    name: "",
-    breed: "",
-    age: "",
-    height_hh: "",
-    temperament: "",
-    description: "",
-    location: "",
-    lat: null,
-    lng: null,
-    image_url: "",
-  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handlePlaceChanged = () => {
-    const place = autocompleteRef.current?.getPlace();
+  useEffect(() => {
+    let cancelled = false;
 
-    if (!place || !place.geometry || !place.geometry.location) {
-      alert("Please select a valid location from the dropdown.");
+    (async () => {
+      setLoadingUser(true);
+      const { data } = await supabase.auth.getUser();
+      if (cancelled) return;
+
+      const uid = data.user?.id ?? null;
+      setOwnerId(uid);
+      setLoadingUser(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function save() {
+    setError(null);
+    if (!ownerId) {
+      setError("You must be logged in.");
       return;
     }
 
-    const lat = place.geometry.location.lat();
-    const lng = place.geometry.location.lng();
+    const latNum = lat.trim() ? Number(lat.trim()) : null;
+    const lngNum = lng.trim() ? Number(lng.trim()) : null;
 
-    setForm((prev) => ({
-      ...prev,
-      location: place.formatted_address ?? "",
-      lat: lat ?? null,
-      lng: lng ?? null,
-    }));
-  };
-
-  const handleImageUpload = async (file: File) => {
-    const fileName = `${Date.now()}-${file.name}`;
-
-    const { error } = await supabase.storage
-      .from("horse-images")
-      .upload(fileName, file);
-
-    if (error) {
-      alert("Image upload failed");
+    if (latNum !== null && !Number.isFinite(latNum)) {
+      setError("Latitude must be a number");
+      return;
+    }
+    if (lngNum !== null && !Number.isFinite(lngNum)) {
+      setError("Longitude must be a number");
       return;
     }
 
-    const { data } = supabase.storage
-      .from("horse-images")
-      .getPublicUrl(fileName);
+    try {
+      setSaving(true);
 
-    setForm((prev) => ({
-      ...prev,
-      image_url: data.publicUrl,
-    }));
-  };
+      const payload: any = {
+        owner_id: ownerId,
+        name: name.trim() ? name.trim() : null,
+        is_active: true,
+        lat: latNum,
+        lng: lngNum,
+      };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+      if (imageUrl.trim()) payload.image_url = imageUrl.trim();
 
-    if (form.lat === null || form.lng === null) {
-      alert("Please select a valid location.");
-      return;
+      const { data, error } = await supabase.from("horses").insert(payload).select("id").single();
+      if (error) throw error;
+
+      router.push(`/dashboard/owner/horses`);
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to create horse");
+    } finally {
+      setSaving(false);
     }
-
-    setLoading(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert("Not logged in");
-      setLoading(false);
-      return;
-    }
-
-    await supabase.from("horses").insert({
-      owner_id: user.id,
-      name: form.name,
-      breed: form.breed,
-      age: Number(form.age),
-      height_hh: Number(form.height_hh),
-      temperament: form.temperament,
-      description: form.description,
-      location: form.location,
-      lat: form.lat,
-      lng: form.lng,
-      image_url: form.image_url,
-      is_active: true,
-    });
-
-    router.push("/dashboard/owner/horses");
-  };
-
-  if (!isLoaded) {
-    return <div style={{ padding: 40 }}>Loading Google Maps...</div>;
   }
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Add Horse</h1>
+    <DashboardShell>
+      <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
+        <h1 style={{ margin: 0, fontSize: 22 }}>Add Horse</h1>
+        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
+          Add a listing. Include a photo so it shows on the map.
+        </div>
 
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          maxWidth: 500,
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-        }}
-      >
-        <input
-          required
-          placeholder="Horse Name"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
+        {loadingUser ? <div style={{ marginTop: 14, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
 
-        <input
-          required
-          placeholder="Breed"
-          value={form.breed}
-          onChange={(e) => setForm({ ...form, breed: e.target.value })}
-        />
+        {error ? (
+          <div
+            style={{
+              marginTop: 14,
+              border: "1px solid rgba(255,0,0,0.25)",
+              background: "rgba(255,0,0,0.06)",
+              padding: 12,
+              borderRadius: 12,
+              fontSize: 13,
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
 
-        <input
-          required
-          type="number"
-          placeholder="Age"
-          value={form.age}
-          onChange={(e) => setForm({ ...form, age: e.target.value })}
-        />
+        <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+          <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+            Horse name
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={{
+                border: "1px solid rgba(0,0,0,0.14)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                fontSize: 14,
+              }}
+            />
+          </label>
 
-        <input
-          required
-          type="number"
-          placeholder="Height (hh)"
-          value={form.height_hh}
-          onChange={(e) =>
-            setForm({ ...form, height_hh: e.target.value })
-          }
-        />
+          <HorseImageUploader bucket="horses" value={imageUrl} onChange={setImageUrl} />
 
-        <input
-          required
-          placeholder="Temperament"
-          value={form.temperament}
-          onChange={(e) =>
-            setForm({ ...form, temperament: e.target.value })
-          }
-        />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              Latitude (optional)
+              <input
+                value={lat}
+                onChange={(e) => setLat(e.target.value)}
+                placeholder="51.5072"
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  fontSize: 14,
+                }}
+              />
+            </label>
 
-        <textarea
-          placeholder="Description"
-          value={form.description}
-          onChange={(e) =>
-            setForm({ ...form, description: e.target.value })
-          }
-        />
+            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              Longitude (optional)
+              <input
+                value={lng}
+                onChange={(e) => setLng(e.target.value)}
+                placeholder="-0.1276"
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  fontSize: 14,
+                }}
+              />
+            </label>
+          </div>
 
-        <Autocomplete
-          onLoad={(auto) => (autocompleteRef.current = auto)}
-          onPlaceChanged={handlePlaceChanged}
-        >
-          <input
-            required
-            placeholder="Search Location"
-            value={form.location}
-            onChange={(e) =>
-              setForm({ ...form, location: e.target.value })
-            }
-          />
-        </Autocomplete>
-
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => {
-            if (e.target.files) {
-              handleImageUpload(e.target.files[0]);
-            }
-          }}
-        />
-
-        {form.image_url && (
-          <img
-            src={form.image_url}
-            style={{ width: "100%", borderRadius: 8 }}
-          />
-        )}
-
-        <button
-          disabled={loading}
-          style={{
-            padding: "10px",
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-          }}
-        >
-          {loading ? "Saving..." : "Add Horse"}
-        </button>
-      </form>
-    </div>
+          <button
+            onClick={save}
+            disabled={saving || loadingUser || !ownerId}
+            style={{
+              border: "1px solid rgba(0,0,0,0.14)",
+              borderRadius: 12,
+              padding: "12px 14px",
+              background: saving ? "rgba(0,0,0,0.08)" : "black",
+              color: saving ? "rgba(0,0,0,0.55)" : "white",
+              cursor: saving ? "not-allowed" : "pointer",
+              fontWeight: 900,
+              width: "fit-content",
+            }}
+          >
+            {saving ? "Saving…" : "Create horse"}
+          </button>
+        </div>
+      </div>
+    </DashboardShell>
   );
 }
