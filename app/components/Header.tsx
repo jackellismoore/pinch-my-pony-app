@@ -1,105 +1,57 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useRouter } from 'next/navigation';
+import NotificationBell from '@/components/NotificationBell';
 import { registerPushForCurrentUser } from '@/lib/push/registerPush';
 
 type ProfileMini = {
   id: string;
+  display_name: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
   role: 'owner' | 'borrower' | null;
 };
 
-function navLinkStyle(active: boolean): React.CSSProperties {
-  return {
-    textDecoration: 'none',
-    color: active ? 'black' : 'rgba(0,0,0,0.72)',
-    fontWeight: active ? 950 : 850,
-    fontSize: 13,
-    padding: '10px 12px',
-    borderRadius: 12,
-    background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 8,
-  };
-}
-
-function primaryButtonStyle(): React.CSSProperties {
-  return {
-    textDecoration: 'none',
-    color: 'white',
-    background: 'black',
-    fontWeight: 950,
-    fontSize: 13,
-    padding: '10px 12px',
-    borderRadius: 12,
-    border: '1px solid rgba(0,0,0,0.14)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  };
+function MenuIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 export default function Header() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const panelRef = useRef<HTMLDivElement | null>(null);
-
-  const [authReady, setAuthReady] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-
-  const [roleLoading, setRoleLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
-
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const dashboardHref = useMemo(() => {
-    if (profile?.role === 'borrower') return '/dashboard/borrower';
-    if (profile?.role === 'owner') return '/dashboard/owner';
-    return '/dashboard';
-  }, [profile?.role]);
+  const router = useRouter();
 
-  const dashboardLabel = useMemo(() => {
-    if (profile?.role === 'borrower') return 'Borrower Dashboard';
-    if (profile?.role === 'owner') return 'Owner Dashboard';
-    return 'Dashboard';
-  }, [profile?.role]);
+  const displayLabel = useMemo(() => {
+    const dn = profile?.display_name?.trim();
+    const fn = profile?.full_name?.trim();
+    return dn || fn || 'Account';
+  }, [profile]);
 
-  const roleReady = !!profile?.role; // ✅ hide dashboard until true
+  const avatarUrl = useMemo(() => {
+    const url = profile?.avatar_url?.trim();
+    return url ? url : null;
+  }, [profile]);
 
-  const isActive = (href: string) => {
-    if (!pathname) return false;
-    if (href === '/') return pathname === '/';
-    return pathname === href || pathname.startsWith(href + '/');
-  };
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (!menuOpen) return;
-      const target = e.target as Node;
-      if (panelRef.current && !panelRef.current.contains(target)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [menuOpen]);
-
-  async function loadRoleForUser(id: string) {
-    setRoleLoading(true);
+  async function fetchProfile(userId: string) {
     try {
-      const res = await supabase.from('profiles').select('id,role').eq('id', id).single();
-      if (!res.error) setProfile(res.data as ProfileMini);
-      else setProfile(null);
-    } finally {
-      setRoleLoading(false);
+      const res = await supabase
+        .from('profiles')
+        .select('id,display_name,full_name,avatar_url,role')
+        .eq('id', userId)
+        .single();
+
+      if (!res.error) setProfile((res.data ?? null) as ProfileMini | null);
+    } catch {
+      // ignore
     }
   }
 
@@ -107,51 +59,30 @@ export default function Header() {
     let cancelled = false;
 
     async function init() {
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (cancelled) return;
+      const { data } = await supabase.auth.getUser();
+      if (cancelled) return;
 
-        const u = data.user ?? null;
-        setUserId(u?.id ?? null);
-        setAuthReady(true);
+      setUser(data.user ?? null);
 
-        if (u?.id) {
-          try {
-            registerPushForCurrentUser();
-          } catch {}
-
-          await loadRoleForUser(u.id);
-        } else {
-          setProfile(null);
-          setRoleLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setUserId(null);
-          setProfile(null);
-          setRoleLoading(false);
-          setAuthReady(true);
-        }
+      if (data.user) {
+        registerPushForCurrentUser();
+        fetchProfile(data.user.id);
+      } else {
+        setProfile(null);
       }
     }
 
     init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (cancelled) return;
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setMenuOpen(false);
 
-      const u = session?.user ?? null;
-      setUserId(u?.id ?? null);
-      setAuthReady(true);
-
-      if (u?.id) {
-        try {
-          registerPushForCurrentUser();
-        } catch {}
-        await loadRoleForUser(u.id);
+      if (session?.user) {
+        registerPushForCurrentUser();
+        fetchProfile(session.user.id);
       } else {
         setProfile(null);
-        setRoleLoading(false);
       }
     });
 
@@ -163,16 +94,29 @@ export default function Header() {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    setMenuOpen(false);
     router.push('/');
     router.refresh();
   };
+
+  const nav = user
+    ? [
+        { label: 'Browse', href: '/browse' },
+        { label: 'Messages', href: '/messages' },
+        { label: 'Owner Dashboard', href: '/dashboard/owner' },
+        { label: 'Profile', href: '/profile' },
+      ]
+    : [
+        { label: 'Login', href: '/login' },
+        { label: 'Sign Up', href: '/signup' },
+      ];
 
   return (
     <header
       style={{
         position: 'sticky',
         top: 0,
-        zIndex: 50,
+        zIndex: 20,
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(10px)',
         borderBottom: '1px solid rgba(0,0,0,0.08)',
@@ -189,146 +133,148 @@ export default function Header() {
           gap: 12,
         }}
       >
-        <Link
-          href="/"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            textDecoration: 'none',
-            color: 'black',
-          }}
-        >
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'black' }}>
           <div
             style={{
-              width: 34,
-              height: 34,
+              width: 38,
+              height: 38,
               borderRadius: 12,
               background: 'black',
-              color: 'white',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              color: 'white',
               fontWeight: 950,
               fontSize: 16,
             }}
           >
             🐴
           </div>
-          <div style={{ display: 'grid', lineHeight: 1.1 }}>
-            <div style={{ fontWeight: 950, fontSize: 14 }}>Pinch My Pony</div>
-            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', fontWeight: 700 }}>
-              Marketplace
-            </div>
+
+          <div style={{ lineHeight: 1.05 }}>
+            <div style={{ fontWeight: 950, fontSize: 15 }}>Pinch My Pony</div>
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.60)', marginTop: 2 }}>Marketplace</div>
           </div>
         </Link>
 
-        <button
-          onClick={() => setMenuOpen((v) => !v)}
-          aria-label="Menu"
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            border: '1px solid rgba(0,0,0,0.14)',
-            background: 'white',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 950,
-          }}
-        >
-          ☰
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {user ? <NotificationBell /> : null}
+
+          {user ? (
+            <Link
+              href="/profile"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                textDecoration: 'none',
+                color: 'black',
+                border: '1px solid rgba(0,0,0,0.12)',
+                borderRadius: 999,
+                padding: '6px 10px',
+                background: 'white',
+              }}
+              title="Profile"
+            >
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 999,
+                  overflow: 'hidden',
+                  background: 'rgba(0,0,0,0.06)',
+                  border: '1px solid rgba(0,0,0,0.10)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  fontWeight: 950,
+                }}
+              >
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  (displayLabel?.[0] ?? 'P').toUpperCase()
+                )}
+              </div>
+
+              <div style={{ fontSize: 13, fontWeight: 950 }}>Profile</div>
+            </Link>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Menu"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              border: '1px solid rgba(0,0,0,0.12)',
+              background: 'white',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <MenuIcon />
+          </button>
+        </div>
       </div>
 
       {menuOpen ? (
-        <div
-          ref={panelRef}
-          style={{
-            maxWidth: 1100,
-            margin: '0 auto',
-            padding: '0 16px 14px 16px',
-          }}
-        >
-          <div
-            style={{
-              border: '1px solid rgba(0,0,0,0.10)',
-              background: 'white',
-              borderRadius: 16,
-              padding: 12,
-              boxShadow: '0 12px 30px rgba(0,0,0,0.10)',
-              display: 'grid',
-              gap: 8,
-            }}
-          >
-            <Link href="/browse" style={navLinkStyle(isActive('/browse'))}>
-              Browse
-            </Link>
-
-            {!authReady ? (
-              <div style={{ fontSize: 13, fontWeight: 850, color: 'rgba(0,0,0,0.6)', padding: '10px 12px' }}>
-                Loading…
-              </div>
-            ) : userId ? (
-              <>
-                <Link href="/messages" style={navLinkStyle(isActive('/messages'))}>
-                  Messages
-                </Link>
-
-                {roleReady ? (
-                  <Link href={dashboardHref} style={navLinkStyle(isActive('/dashboard'))}>
-                    {dashboardLabel}
-                  </Link>
-                ) : (
-                  <div
+        <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto', padding: 16 }}>
+            <div
+              style={{
+                border: '1px solid rgba(0,0,0,0.10)',
+                borderRadius: 16,
+                background: 'white',
+                padding: 12,
+              }}
+            >
+              <div style={{ display: 'grid', gap: 8 }}>
+                {nav.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
                     style={{
-                      padding: '10px 12px',
-                      borderRadius: 12,
-                      fontSize: 13,
-                      fontWeight: 850,
-                      color: 'rgba(0,0,0,0.6)',
-                      border: '1px solid rgba(0,0,0,0.10)',
-                      background: 'rgba(0,0,0,0.03)',
+                      textDecoration: 'none',
+                      color: 'black',
+                      fontWeight: 950,
+                      fontSize: 14,
+                      padding: 12,
+                      borderRadius: 14,
+                      background: 'rgba(0,0,0,0.04)',
                     }}
                   >
-                    {roleLoading ? 'Setting up dashboard…' : 'Dashboard will appear once your role is set.'}
-                  </div>
-                )}
+                    {item.label}
+                  </Link>
+                ))}
 
-                <Link href="/profile" style={navLinkStyle(isActive('/profile'))}>
-                  Profile
-                </Link>
-
-                <button
-                  onClick={logout}
-                  style={{
-                    marginTop: 4,
-                    padding: '10px 12px',
-                    borderRadius: 12,
-                    border: '1px solid rgba(0,0,0,0.14)',
-                    background: 'white',
-                    cursor: 'pointer',
-                    fontWeight: 950,
-                    fontSize: 13,
-                    textAlign: 'left',
-                  }}
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link href="/login" style={navLinkStyle(isActive('/login'))}>
-                  Login
-                </Link>
-
-                <Link href="/signup" style={primaryButtonStyle()}>
-                  Sign Up
-                </Link>
-              </>
-            )}
+                {user ? (
+                  <button
+                    onClick={logout}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      fontWeight: 950,
+                      fontSize: 14,
+                      padding: 12,
+                      borderRadius: 14,
+                      border: '1px solid rgba(0,0,0,0.12)',
+                      background: 'white',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Logout
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
