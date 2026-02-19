@@ -10,18 +10,29 @@ import { supabase } from "@/lib/supabaseClient";
 type HorseRow = {
   id: string;
   owner_id: string;
-  name: string | null;
-  location: string | null;
-  lat: number | null;
-  lng: number | null;
-  image_url: string | null;
-  breed: string | null;
-  age: string | null;
-  height: string | null;
-  temperament: string | null;
-  description: string | null;
-  is_active: boolean | null;
+  name: any;
+  location: any;
+  lat: any;
+  lng: any;
+  image_url: any;
+  breed: any;
+  age: any;
+  height: any;
+  temperament: any;
+  description: any;
+  is_active: any;
 };
+
+function asString(v: unknown): string {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+function asBool(v: unknown, fallback = true): boolean {
+  if (typeof v === "boolean") return v;
+  if (v === 0) return false;
+  if (v === 1) return true;
+  return fallback;
+}
 
 function input(): React.CSSProperties {
   return {
@@ -31,6 +42,7 @@ function input(): React.CSSProperties {
     fontSize: 14,
     outline: "none",
     background: "white",
+    width: "100%",
   };
 }
 
@@ -47,42 +59,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/**
- * ✅ Accepts Promises OR "thenables" (Supabase query builders).
- * This fixes: "PostgrestFilterBuilder ... is not assignable to Promise"
- */
-function withTimeout<T>(thenable: { then: Function }, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = window.setTimeout(() => reject(new Error(`${label} timed out`)), ms);
-
-    Promise.resolve(thenable as any)
-      .then((v: T) => {
-        window.clearTimeout(t);
-        resolve(v);
-      })
-      .catch((e: any) => {
-        window.clearTimeout(t);
-        reject(e);
-      });
-  });
-}
-
 export default function EditHorsePage() {
-  const params = useParams() as { id?: string | string[] };
-  const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
-
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [horse, setHorse] = useState<HorseRow | null>(null);
-
+  // keep ALL these as strings (safe for .trim + inputs)
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
+  const [lat, setLat] = useState(""); // string
+  const [lng, setLng] = useState(""); // string
 
   const [breed, setBreed] = useState("");
   const [age, setAge] = useState("");
@@ -96,62 +86,46 @@ export default function EditHorsePage() {
     let cancelled = false;
 
     async function load() {
-      setLoading(true);
-      setError(null);
-
       if (!id) {
-        setHorse(null);
-        setError("Missing horse id in URL. Folder must be: edit/[id]/page.tsx");
+        setError("Missing horse id in URL.");
         setLoading(false);
         return;
       }
 
+      setLoading(true);
+      setError(null);
+
       try {
-        // ✅ Use .single() and catch 406 or RLS nicely
-        const res = await withTimeout<any>(
-          supabase
-            .from("horses")
-            .select("id,owner_id,name,location,lat,lng,image_url,breed,age,height,temperament,description,is_active")
-            .eq("id", id)
-            .single(),
-          8000,
-          "Load horse"
-        );
+        const { data, error } = await supabase
+          .from("horses")
+          .select("id,owner_id,name,location,lat,lng,image_url,breed,age,height,temperament,description,is_active")
+          .eq("id", id)
+          .single();
 
         if (cancelled) return;
-
-        const { data, error } = res;
         if (error) throw error;
-
-        if (!data) {
-          setHorse(null);
-          setError("Horse not found (or blocked by RLS).");
-          setLoading(false);
-          return;
-        }
 
         const h = data as HorseRow;
 
-        setHorse(h);
-        setName(h.name ?? "");
-        setLocation(h.location ?? "");
-        setLat(h.lat ?? null);
-        setLng(h.lng ?? null);
-        setImageUrl(h.image_url ?? "");
-        setBreed(h.breed ?? "");
-        setAge(h.age ?? "");
-        setHeight(h.height ?? "");
-        setTemperament(h.temperament ?? "");
-        setDescription(h.description ?? "");
-        setIsActive(h.is_active !== false);
+        // sanitize incoming values (prevents `.trim` crashes later)
+        setName(asString(h.name));
+        setLocation(asString(h.location));
 
-        setLoading(false);
+        // lat/lng from DB might be number or null
+        setLat(h.lat == null ? "" : String(h.lat));
+        setLng(h.lng == null ? "" : String(h.lng));
+
+        setImageUrl(asString(h.image_url));
+        setBreed(asString(h.breed));
+        setAge(asString(h.age));
+        setHeight(asString(h.height));
+        setTemperament(asString(h.temperament));
+        setDescription(asString(h.description));
+        setIsActive(asBool(h.is_active, true));
       } catch (e: any) {
-        if (!cancelled) {
-          setHorse(null);
-          setError(e?.message ?? "Failed to load horse");
-          setLoading(false);
-        }
+        if (!cancelled) setError(e?.message ?? "Failed to load horse");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -170,17 +144,24 @@ export default function EditHorsePage() {
     try {
       setSaving(true);
 
+      // convert lat/lng strings -> numbers or null
+      const latNum = lat.trim() ? Number(lat) : null;
+      const lngNum = lng.trim() ? Number(lng) : null;
+
+      if (latNum != null && !Number.isFinite(latNum)) throw new Error("Latitude must be a number");
+      if (lngNum != null && !Number.isFinite(lngNum)) throw new Error("Longitude must be a number");
+
       const payload: any = {
-        name: name.trim() ? name.trim() : null,
-        location: location.trim() ? location.trim() : null,
-        lat,
-        lng,
-        image_url: imageUrl.trim() ? imageUrl.trim() : null,
-        breed: breed.trim() ? breed.trim() : null,
-        age: age.trim() ? age.trim() : null,
-        height: height.trim() ? height.trim() : null,
-        temperament: temperament.trim() ? temperament.trim() : null,
-        description: description.trim() ? description.trim() : null,
+        name: name.trim() || null,
+        location: location.trim() || null,
+        lat: latNum,
+        lng: lngNum,
+        image_url: imageUrl.trim() || null,
+        breed: breed.trim() || null,
+        age: age.trim() || null,
+        height: height.trim() || null,
+        temperament: temperament.trim() || null,
+        description: description.trim() || null,
         is_active: isActive,
       };
 
@@ -227,104 +208,100 @@ export default function EditHorsePage() {
           </div>
         ) : null}
 
-        {!horse ? null : (
-          <div
+        <div
+          style={{
+            marginTop: 14,
+            border: "1px solid rgba(15,23,42,0.10)",
+            borderRadius: 16,
+            background: "white",
+            padding: 14,
+            display: "grid",
+            gap: 12,
+          }}
+        >
+          <Field label="Horse name">
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={input()} />
+          </Field>
+
+          <Field label="Location">
+            <LocationAutocomplete
+              value={location}
+              onChange={setLocation}
+              onPlaceSelected={({ locationText, lat, lng }) => {
+                setLocation(locationText);
+                setLat(String(lat));
+                setLng(String(lng));
+              }}
+              placeholder="Type a location and select a suggestion…"
+            />
+          </Field>
+
+          <div style={{ fontSize: 12, opacity: 0.65 }}>
+            {lat.trim() && lng.trim() ? (
+              <span>
+                Pin set: <b>{Number(lat).toFixed(5)}</b>, <b>{Number(lng).toFixed(5)}</b>
+              </span>
+            ) : (
+              <span>Select a location from Google suggestions to set the map pin.</span>
+            )}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Field label="Breed">
+              <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
+            </Field>
+            <Field label="Age">
+              <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} />
+            </Field>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Field label="Height (hh)">
+              <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
+            </Field>
+            <Field label="Temperament">
+              <input value={temperament} onChange={(e) => setTemperament(e.target.value)} placeholder="Calm, forward…" style={input()} />
+            </Field>
+          </div>
+
+          <Field label="Description">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              placeholder="Describe your horse"
+              style={{ ...input(), resize: "vertical" }}
+            />
+          </Field>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={labelStyle()}>Photo</div>
+
+            <HorseImageUploader bucket="horses" value={imageUrl} onChange={(url: string) => setImageUrl(url)} />
+          </div>
+
+          <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 900 }}>
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+            Active listing
+          </label>
+
+          <button
+            onClick={save}
+            disabled={!canSave}
             style={{
-              marginTop: 14,
-              border: "1px solid rgba(15,23,42,0.10)",
-              borderRadius: 16,
-              background: "white",
-              padding: 14,
-              display: "grid",
-              gap: 12,
+              marginTop: 4,
+              border: "none",
+              borderRadius: 12,
+              padding: "12px 14px",
+              background: !canSave ? "rgba(0,0,0,0.10)" : "black",
+              color: !canSave ? "rgba(0,0,0,0.55)" : "white",
+              fontWeight: 950,
+              cursor: !canSave ? "not-allowed" : "pointer",
             }}
           >
-            <Field label="Horse name">
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={input()} />
-            </Field>
-
-            <Field label="Location">
-              <LocationAutocomplete
-                value={location}
-                onChange={setLocation}
-                onPlaceSelected={({ locationText, lat, lng }) => {
-                  setLocation(locationText);
-                  setLat(lat);
-                  setLng(lng);
-                }}
-                placeholder="Type a location and select a suggestion…"
-              />
-            </Field>
-
-            <div style={{ fontSize: 12, opacity: 0.65 }}>
-              {lat != null && lng != null ? (
-                <span>
-                  Pin set: <b>{lat.toFixed(5)}</b>, <b>{lng.toFixed(5)}</b>
-                </span>
-              ) : (
-                <span>Select a location from Google suggestions to set the map pin.</span>
-              )}
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Field label="Breed">
-                <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
-              </Field>
-              <Field label="Age">
-                <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} />
-              </Field>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Field label="Height (hh)">
-                <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
-              </Field>
-              <Field label="Temperament">
-                <input value={temperament} onChange={(e) => setTemperament(e.target.value)} placeholder="Calm, forward…" style={input()} />
-              </Field>
-            </div>
-
-            <Field label="Description">
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                placeholder="Describe your horse"
-                style={{ ...input(), resize: "vertical" }}
-              />
-            </Field>
-
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={labelStyle()}>Photo</div>
-              <HorseImageUploader bucket="horses" value={imageUrl} onChange={(url: string) => setImageUrl(url)} />
-              <Field label="Image URL (auto-filled on upload)">
-                <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." style={input()} />
-              </Field>
-            </div>
-
-            <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 900 }}>
-              <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-              Active listing
-            </label>
-
-            <button
-              onClick={save}
-              disabled={!canSave}
-              style={{
-                marginTop: 4,
-                border: "none",
-                borderRadius: 12,
-                padding: "12px 14px",
-                background: !canSave ? "rgba(0,0,0,0.10)" : "black",
-                color: !canSave ? "rgba(0,0,0,0.55)" : "white",
-                fontWeight: 950,
-                cursor: !canSave ? "not-allowed" : "pointer",
-              }}
-            >
-              {saving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
-        )}
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
       </div>
     </DashboardShell>
   );
