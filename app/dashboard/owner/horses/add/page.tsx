@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
 import HorseImageUploader from "@/components/HorseImageUploader";
+import LocationAutocomplete from "@/components/LocationAutocomplete";
 import { supabase } from "@/lib/supabaseClient";
 
 function input(): React.CSSProperties {
@@ -38,15 +39,15 @@ export default function AddHorsePage() {
 
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+
   const [breed, setBreed] = useState("");
   const [age, setAge] = useState("");
   const [height, setHeight] = useState("");
   const [temperament, setTemperament] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
 
   const canSave = useMemo(() => !saving && name.trim().length > 0, [saving, name]);
 
@@ -62,24 +63,18 @@ export default function AddHorsePage() {
       const ownerId = userRes.user?.id;
       if (!ownerId) throw new Error("Not authenticated");
 
-      const latNum = lat.trim() ? Number(lat) : null;
-      const lngNum = lng.trim() ? Number(lng) : null;
-
-      if (latNum != null && !Number.isFinite(latNum)) throw new Error("Latitude must be a number");
-      if (lngNum != null && !Number.isFinite(lngNum)) throw new Error("Longitude must be a number");
-
       const payload: any = {
         owner_id: ownerId,
         is_active: true,
         name: name.trim() ? name.trim() : null,
         location: location.trim() ? location.trim() : null,
+        lat: lat,
+        lng: lng,
         breed: breed.trim() ? breed.trim() : null,
         age: age.trim() ? age.trim() : null,
         height: height.trim() ? height.trim() : null,
         temperament: temperament.trim() ? temperament.trim() : null,
         description: description.trim() ? description.trim() : null,
-        lat: latNum,
-        lng: lngNum,
       };
 
       if (imageUrl.trim()) payload.image_url = imageUrl.trim();
@@ -99,9 +94,9 @@ export default function AddHorsePage() {
   return (
     <DashboardShell>
       <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
-        <h1 style={{ margin: 0, fontSize: 28 }}>Add Horse</h1>
+        <div style={{ margin: 0, fontSize: 24, fontWeight: 950 }}>Add Horse</div>
         <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
-          Add a listing. Include a photo so it shows on the map.
+          Add a listing. Choose a location from the dropdown so the map pin works.
         </div>
 
         {error ? (
@@ -135,19 +130,32 @@ export default function AddHorsePage() {
           </Field>
 
           <Field label="Location">
-            <input
+            <LocationAutocomplete
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g. Buckhurst Hill IG9, UK"
-              style={input()}
+              onChange={setLocation}
+              onPlaceSelected={({ locationText, lat, lng }) => {
+                setLocation(locationText);
+                setLat(lat);
+                setLng(lng);
+              }}
+              placeholder="Type a location and select a suggestion…"
             />
           </Field>
+
+          <div style={{ fontSize: 12, opacity: 0.65 }}>
+            {lat != null && lng != null ? (
+              <span>
+                Pin set: <b>{lat.toFixed(5)}</b>, <b>{lng.toFixed(5)}</b>
+              </span>
+            ) : (
+              <span>Select a location from Google suggestions to set the map pin.</span>
+            )}
+          </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Field label="Breed">
               <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
             </Field>
-
             <Field label="Age">
               <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} />
             </Field>
@@ -157,14 +165,8 @@ export default function AddHorsePage() {
             <Field label="Height (hh)">
               <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
             </Field>
-
             <Field label="Temperament">
-              <input
-                value={temperament}
-                onChange={(e) => setTemperament(e.target.value)}
-                placeholder="Calm, forward, etc."
-                style={input()}
-              />
+              <input value={temperament} onChange={(e) => setTemperament(e.target.value)} placeholder="Calm, forward…" style={input()} />
             </Field>
           </div>
 
@@ -181,29 +183,10 @@ export default function AddHorsePage() {
           <div style={{ display: "grid", gap: 8 }}>
             <div style={labelStyle()}>Photo</div>
 
-            <HorseImageUploader
-              bucket="horses"
-              value={imageUrl}
-              onChange={(url: string) => setImageUrl(url)}
-            />
-
-            <div style={{ fontSize: 12, opacity: 0.65 }}>Uploads to storage bucket <b>horses</b> and saves a public URL.</div>
+            <HorseImageUploader bucket="horses" value={imageUrl} onChange={(url: string) => setImageUrl(url)} />
 
             <Field label="Image URL (auto-filled on upload)">
               <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." style={input()} />
-            </Field>
-          </div>
-
-          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.65 }}>
-            Optional: set lat/lng to place the pin precisely (otherwise map can fallback to location).
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Latitude (optional)">
-              <input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="51.5072" style={input()} />
-            </Field>
-            <Field label="Longitude (optional)">
-              <input value={lng} onChange={(e) => setLng(e.target.value)} placeholder="-0.1276" style={input()} />
             </Field>
           </div>
 
