@@ -21,19 +21,6 @@ function pickName(p: ProfileMini | null) {
   return dn || fn || "User";
 }
 
-async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
-    p.then((v) => {
-      clearTimeout(t);
-      resolve(v);
-    }).catch((e) => {
-      clearTimeout(t);
-      reject(e);
-    });
-  });
-}
-
 function useOutsideClick<T extends HTMLElement>(ref: React.RefObject<T | null>, onOutside: () => void) {
   useEffect(() => {
     function onDown(e: MouseEvent) {
@@ -52,7 +39,6 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const router = useRouter();
-
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(menuWrapRef, () => setMenuOpen(false));
 
@@ -65,28 +51,24 @@ export default function Header() {
         .select("id,role,display_name,full_name,avatar_url")
         .eq("id", uid)
         .maybeSingle();
+
       if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
     }
 
     async function init() {
-      try {
-        const { data } = await withTimeout(supabase.auth.getUser(), 2500, "getUser");
-        if (cancelled) return;
+      // ✅ Fast, local read
+      const { data } = await supabase.auth.getSession();
+      const u = data.session?.user ?? null;
 
-        const u = data.user ?? null;
-        setUser(u);
+      if (cancelled) return;
 
-        if (u) {
-          registerPushForCurrentUser();
-          await loadProfile(u.id);
-        } else {
-          setProfile(null);
-        }
-      } catch {
-        if (!cancelled) {
-          setUser(null);
-          setProfile(null);
-        }
+      setUser(u);
+
+      if (u) {
+        registerPushForCurrentUser();
+        await loadProfile(u.id);
+      } else {
+        setProfile(null);
       }
     }
 
@@ -114,7 +96,7 @@ export default function Header() {
   const logout = async () => {
     await supabase.auth.signOut();
     setMenuOpen(false);
-    router.push("/");
+    router.push("/login");
     router.refresh();
   };
 
@@ -173,7 +155,6 @@ export default function Header() {
         </Link>
 
         <div ref={menuWrapRef} style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
-          {/* Make bell and menu feel like one system: same sizing/shape */}
           {user ? (
             <div style={{ display: "flex", alignItems: "center" }}>
               <NotificationBell />
@@ -226,7 +207,6 @@ export default function Header() {
                     </Link>
                   )}
 
-                  {/* Always just say Profile */}
                   <Link href="/profile" onClick={() => setMenuOpen(false)} style={menuItem()}>
                     Profile
                   </Link>

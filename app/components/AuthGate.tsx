@@ -5,11 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 const PUBLIC_ROUTES = new Set([
+  "/", // ✅ public marketing homepage
   "/login",
   "/signup",
   "/signup/borrower",
   "/signup/owner",
-  // If you add email-confirm/callback pages later, add them here.
 ]);
 
 function isPublic(pathname: string) {
@@ -19,12 +19,16 @@ function isPublic(pathname: string) {
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-
   const [ready, setReady] = useState(false);
 
   const loginHref = useMemo(() => {
-    const to = pathname ? `?redirectTo=${encodeURIComponent(pathname)}` : "";
-    return `/login${to}`;
+    const current =
+      typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : pathname;
+
+    const redirectTo = current ? `?redirectTo=${encodeURIComponent(current)}` : "";
+    return `/login${redirectTo}`;
   }, [pathname]);
 
   useEffect(() => {
@@ -36,18 +40,18 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (!data.user) {
-          router.replace(loginHref);
-          return;
-        }
-        if (mounted) setReady(true);
-      } catch {
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
+
+      if (!session?.user) {
         router.replace(loginHref);
+        return;
       }
+
+      if (mounted) setReady(true);
     }
 
+    setReady(false);
     check();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -64,6 +68,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, router, loginHref]);
 
+  // Only show loading state for protected pages
   if (!ready && !isPublic(pathname)) {
     return (
       <div style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: 24 }}>
