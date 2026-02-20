@@ -6,10 +6,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 function sanitizeRedirectTo(v: string | null): string {
-  if (!v) return "/browse";
-  if (!v.startsWith("/")) return "/browse";
-  if (v.startsWith("//")) return "/browse";
-  if (v === "/login" || v === "/signup") return "/browse";
+  if (!v) return "/";
+  if (!v.startsWith("/")) return "/";
+  if (v.startsWith("//")) return "/";
+  if (v === "/login" || v === "/signup") return "/";
   return v;
 }
 
