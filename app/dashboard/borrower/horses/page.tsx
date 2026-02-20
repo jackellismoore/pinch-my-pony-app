@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import RequestsTable from '@/components/RequestsTable';
 
 type HorseRow = {
   id: string;
@@ -11,11 +12,31 @@ type HorseRow = {
   owner_id: string;
 };
 
+type ProfileMini = {
+  id: string;
+  display_name: string | null;
+  full_name: string | null;
+};
+
+function ownerLabel(p?: ProfileMini | null) {
+  const dn = p?.display_name?.trim();
+  const fn = p?.full_name?.trim();
+  return dn || fn || 'Owner';
+}
+
 export default function BorrowerHorsesPage() {
   const [horses, setHorses] = useState<HorseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Active borrows state
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [borrowsLoading, setBorrowsLoading] = useState(true);
+  const [borrowsError, setBorrowsError] = useState<string | null>(null);
+  const [activeBorrows, setActiveBorrows] = useState<any[]>([]);
+  const [canReviewByRequestId, setCanReviewByRequestId] = useState<Record<string, boolean>>({});
+
+  // ---- Load browse horses (existing behavior) ----
   useEffect(() => {
     let cancelled = false;
 
@@ -47,6 +68,155 @@ export default function BorrowerHorsesPage() {
     };
   }, []);
 
+  // ---- Load active borrows + review eligibility ----
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBorrows() {
+      setBorrowsLoading(true);
+      setBorrowsError(null);
+
+      try {
+        const { data: auth, error: authErr } = await supabase.auth.getUser();
+        if (authErr) throw authErr;
+
+        const uid = auth?.user?.id ?? null;
+
+        if (!uid) {
+          if (!cancelled) {
+            setMyUserId(null);
+            setActiveBorrows([]);
+            setCanReviewByRequestId({});
+            setBorrowsLoading(false);
+          }
+          return;
+        }
+
+        if (!cancelled) setMyUserId(uid);
+
+        // Pull borrower requests that are accepted/approved
+        const { data: reqs, error: reqErr } = await supabase
+          .from('borrow_requests')
+          .select(
+            `
+            id,
+            status,
+            start_date,
+            end_date,
+            message,
+            horse:horses (
+              id,
+              name,
+              owner_id
+            )
+          `
+          )
+          .eq('borrower_id', uid)
+          .in('status', ['accepted', 'approved'])
+          .order('created_at', { ascending: false });
+
+        if (reqErr) throw reqErr;
+
+        const reqRows: any[] = (reqs ?? []) as any[];
+
+        // Gather owner ids from joined horse.owner_id
+        const ownerIds = Array.from(
+          new Set(
+            reqRows
+              .map((r) => r?.horse?.owner_id)
+              .filter((v) => typeof v === 'string' && v.length > 0)
+          )
+        ) as string[];
+
+        // Fetch owner profiles (batch)
+        let ownersById: Record<string, ProfileMini> = {};
+        if (ownerIds.length > 0) {
+          const { data: owners, error: ownersErr } = await supabase
+            .from('profiles')
+            .select('id,display_name,full_name')
+            .in('id', ownerIds);
+
+          if (!ownersErr) {
+            ownersById = {};
+            for (const p of (owners ?? []) as ProfileMini[]) ownersById[p.id] = p;
+          }
+        }
+
+        // Normalize into RequestsTable row shape
+        const tableRows = reqRows.map((r) => {
+          const requestId = String(r?.id ?? '');
+          const status = String(r?.status ?? 'pending');
+          const horse = r?.horse ?? null;
+          const horseId = horse?.id ? String(horse.id) : null;
+          const ownerId = horse?.owner_id ? String(horse.owner_id) : '';
+          const owner = ownerId ? ownersById[ownerId] ?? null : null;
+
+          return {
+            id: requestId,
+            status,
+            start_date: r?.start_date ?? null,
+            end_date: r?.end_date ?? null,
+            message: r?.message ?? null,
+
+            horse: horseId ? { id: horseId, name: horse?.name ?? null } : null,
+            horse_id: horseId,
+
+            // RequestsTable second column uses getBorrowerLabel();
+            // in borrower mode we want to show OWNER name there.
+            borrower_name: ownerLabel(owner),
+          };
+        }).filter((x) => x.id);
+
+        // Batch check existing reviews for these request IDs
+        const requestIds = tableRows.map((r) => String(r.id));
+        let reviewed = new Set<string>();
+
+        if (requestIds.length > 0) {
+          const { data: revs, error: revErr } = await supabase
+            .from('reviews')
+            .select('request_id')
+            .eq('borrower_id', uid)
+            .in('request_id', requestIds);
+
+          if (revErr) {
+            // fail closed: if we can't verify, disable review CTAs
+            reviewed = new Set(requestIds);
+          } else {
+            reviewed = new Set((revs ?? []).map((x: any) => String(x.request_id)));
+          }
+        }
+
+        const canMap: Record<string, boolean> = {};
+        for (const row of tableRows) {
+          const id = String(row.id);
+          const s = String(row.status ?? '');
+          const eligibleStatus = s === 'accepted' || s === 'approved';
+          canMap[id] = eligibleStatus && !reviewed.has(id);
+        }
+
+        if (!cancelled) {
+          setActiveBorrows(tableRows);
+          setCanReviewByRequestId(canMap);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setBorrowsError(e?.message ?? 'Failed to load your active borrows.');
+          setActiveBorrows([]);
+          setCanReviewByRequestId({});
+        }
+      } finally {
+        if (!cancelled) setBorrowsLoading(false);
+      }
+    }
+
+    loadBorrows();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const showActiveBorrows = useMemo(() => Boolean(myUserId), [myUserId]);
+
   return (
     <div style={{ padding: 16, maxWidth: 1000, margin: '0 auto' }}>
       <div>
@@ -56,6 +226,41 @@ export default function BorrowerHorsesPage() {
         </div>
       </div>
 
+      {/* Active Borrows */}
+      {showActiveBorrows ? (
+        <div style={{ marginTop: 16 }}>
+          {borrowsError ? (
+            <div
+              style={{
+                marginBottom: 12,
+                border: '1px solid rgba(255,0,0,0.25)',
+                background: 'rgba(255,0,0,0.06)',
+                padding: 12,
+                borderRadius: 12,
+                fontSize: 13,
+              }}
+            >
+              {borrowsError}
+            </div>
+          ) : null}
+
+          <RequestsTable
+            mode="borrower"
+            title="Active borrows"
+            subtitle="Accepted/approved requests. Leave a review once you’ve been accepted."
+            emptyLabel={borrowsLoading ? 'Loading…' : 'No active borrows yet.'}
+            requests={activeBorrows}
+            showReviewCTA
+            canReviewByRequestId={canReviewByRequestId}
+          />
+        </div>
+      ) : (
+        <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+          Log in to see your active borrows.
+        </div>
+      )}
+
+      {/* Existing browse list */}
       {loading ? (
         <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>Loading…</div>
       ) : null}

@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 
 export type RequestRow = {
   id: string;
-  status: 'pending' | 'approved' | 'rejected' | string;
+  status: 'pending' | 'approved' | 'rejected' | 'accepted' | string;
   start_date: string | null;
   end_date: string | null;
   message?: string | null;
@@ -49,6 +49,14 @@ type Props = {
   approveRequest?: (row: any) => void;
   rejectRequest?: (row: any) => void;
   deleteRequest?: (row: any) => void;
+
+  /**
+   * NEW (optional): Borrower review CTA support.
+   * Backward compatible: if you don’t pass these props, nothing changes.
+   */
+  mode?: 'owner' | 'borrower';
+  showReviewCTA?: boolean;
+  canReviewByRequestId?: Record<string, boolean>; // requestId -> true if eligible
 };
 
 function pillStyle(kind: string): React.CSSProperties {
@@ -63,7 +71,8 @@ function pillStyle(kind: string): React.CSSProperties {
     whiteSpace: 'nowrap',
   };
 
-  if (kind === 'approved') return { ...base, background: 'rgba(0,160,60,0.10)', color: 'rgba(0,120,45,0.95)' };
+  if (kind === 'approved' || kind === 'accepted')
+    return { ...base, background: 'rgba(0,160,60,0.10)', color: 'rgba(0,120,45,0.95)' };
   if (kind === 'rejected') return { ...base, background: 'rgba(220,0,0,0.08)', color: 'rgba(170,0,0,0.95)' };
   if (kind === 'pending') return { ...base, background: 'rgba(255,180,0,0.14)', color: 'rgba(125,80,0,0.95)' };
   return { ...base, background: 'rgba(0,0,0,0.04)', color: 'rgba(0,0,0,0.70)' };
@@ -88,7 +97,8 @@ function btnStyle(kind: 'primary' | 'secondary' | 'danger'): React.CSSProperties
   };
 
   if (kind === 'primary') return { ...common, background: 'black', color: 'white' };
-  if (kind === 'danger') return { ...common, border: '1px solid rgba(200,0,0,0.25)', color: 'rgba(170,0,0,0.95)' };
+  if (kind === 'danger')
+    return { ...common, border: '1px solid rgba(200,0,0,0.25)', color: 'rgba(170,0,0,0.95)' };
   return common;
 }
 
@@ -135,6 +145,10 @@ function getBorrowerLabel(r: any): string {
   return r?.borrower_name ?? r?.borrower?.display_name ?? r?.borrower?.full_name ?? r?.borrowerName ?? 'Borrower';
 }
 
+function getRequestId(r: any): string | null {
+  return r?.id ?? r?.request_id ?? r?.requestId ?? null;
+}
+
 function RequestsTableImpl(props: Props) {
   const requests: any[] = (props.requests ?? props.rows ?? props.data ?? []) as any[];
 
@@ -147,6 +161,10 @@ function RequestsTableImpl(props: Props) {
   const emptyLabel = props.emptyLabel ?? 'No requests.';
 
   const rows = useMemo(() => requests ?? [], [requests]);
+
+  const mode = props.mode ?? 'owner';
+  const showReviewCTA = Boolean(props.showReviewCTA);
+  const canReviewByRequestId = props.canReviewByRequestId ?? {};
 
   return (
     <div style={{ border: '1px solid rgba(0,0,0,0.10)', borderRadius: 14, background: 'white', overflow: 'hidden' }}>
@@ -163,7 +181,7 @@ function RequestsTableImpl(props: Props) {
             <thead>
               <tr>
                 <th style={thStyle()}>Horse</th>
-                <th style={thStyle()}>Borrower</th>
+                <th style={thStyle()}>{mode === 'borrower' ? 'Owner / Other' : 'Borrower'}</th>
                 <th style={thStyle()}>Dates</th>
                 <th style={thStyle()}>Status</th>
                 <th style={{ ...thStyle(), textAlign: 'right' }}>Actions</th>
@@ -174,7 +192,7 @@ function RequestsTableImpl(props: Props) {
               {rows.map((r) => {
                 const status = String(r?.status ?? 'pending');
                 const horseId = getHorseId(r);
-                const requestId = r?.id ?? r?.request_id ?? r?.requestId ?? null;
+                const requestId = getRequestId(r);
 
                 const requestHref = requestId ? `/dashboard/owner/${requestId}` : null;
                 const availabilityHref = horseId ? `/dashboard/owner/horses/${horseId}/availability` : null;
@@ -182,6 +200,12 @@ function RequestsTableImpl(props: Props) {
                 const canApprove = typeof onApprove === 'function' && status === 'pending';
                 const canReject = typeof onReject === 'function' && status === 'pending';
                 const canDelete = typeof onDelete === 'function';
+
+                const eligibleForReview =
+                  showReviewCTA &&
+                  requestId &&
+                  (status === 'accepted' || status === 'approved') &&
+                  Boolean(canReviewByRequestId[String(requestId)]);
 
                 return (
                   <tr key={String(requestId ?? `${horseId}-${Math.random()}`)}>
@@ -213,6 +237,14 @@ function RequestsTableImpl(props: Props) {
 
                     <td style={{ ...tdStyle(), textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {/* NEW: Borrower review CTA (only appears when parent passes eligibility map) */}
+                        {eligibleForReview ? (
+                          <Link href={`/review/${requestId}`} style={btnStyle('secondary')}>
+                            Leave a review →
+                          </Link>
+                        ) : null}
+
+                        {/* Existing owner actions preserved */}
                         {availabilityHref ? (
                           <Link href={availabilityHref} style={btnStyle('secondary')}>
                             Availability
