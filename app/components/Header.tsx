@@ -14,6 +14,7 @@ type ProfileMini = {
   display_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  verification_status?: string | null; // new (optional so it won't crash if column missing temporarily)
 };
 
 function displayNameOrNull(p: ProfileMini | null) {
@@ -52,7 +53,7 @@ export default function Header() {
       try {
         const { data: p, error } = await supabase
           .from("profiles")
-          .select("id,role,display_name,full_name,avatar_url")
+          .select("id,role,display_name,full_name,avatar_url,verification_status")
           .eq("id", uid)
           .maybeSingle();
         if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
@@ -108,6 +109,7 @@ export default function Header() {
   };
 
   const isOwner = profile?.role === "owner";
+  const isVerified = profile?.verification_status === "verified";
 
   const signedInLabel = useMemo(() => {
     if (!user) return null;
@@ -120,7 +122,6 @@ export default function Header() {
   const brand = useMemo(() => {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {/* Premium logo badge */}
         <div
           style={{
             width: 44,
@@ -135,14 +136,7 @@ export default function Header() {
           }}
           aria-hidden="true"
         >
-          <Image
-            src="/pmp-logo.png"
-            alt=""
-            width={34}
-            height={34}
-            priority
-            style={{ width: 34, height: 34, objectFit: "contain" }}
-          />
+          <Image src="/pmp-logo.png" alt="" width={34} height={34} priority style={{ width: 34, height: 34, objectFit: "contain" }} />
         </div>
 
         <div style={{ lineHeight: 1.05 }}>
@@ -181,17 +175,31 @@ export default function Header() {
 
         <div ref={menuWrapRef} style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
           {user ? (
-            <div style={{ display: "flex", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {!isVerified ? (
+                <Link
+                  href="/verify"
+                  style={{
+                    textDecoration: "none",
+                    fontWeight: 950,
+                    fontSize: 12,
+                    padding: "8px 10px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(200,162,77,0.35)",
+                    background: "rgba(200,162,77,0.14)",
+                    color: "#0f172a",
+                  }}
+                  title="Verification required"
+                >
+                  Verification required
+                </Link>
+              ) : null}
+
               <NotificationBell />
             </div>
           ) : null}
 
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            style={iconButtonStyle(menuOpen)}
-            aria-label="Menu"
-            title="Menu"
-          >
+          <button onClick={() => setMenuOpen((v) => !v)} style={iconButtonStyle(menuOpen)} aria-label="Menu" title="Menu">
             ☰
           </button>
 
@@ -215,6 +223,12 @@ export default function Header() {
             >
               {user ? (
                 <>
+                  {!isVerified ? (
+                    <Link href="/verify" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                      Verify Identity
+                    </Link>
+                  ) : null}
+
                   <Link href="/browse" onClick={() => setMenuOpen(false)} style={menuItem()}>
                     Browse
                   </Link>
