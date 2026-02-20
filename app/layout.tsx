@@ -1,6 +1,6 @@
 import "./globals.css";
 import Header from "./components/Header";
-import AuthGate from "./components/AuthGate";
+import LayoutGate from "./components/LayoutGate";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,7 +8,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ margin: 0, minHeight: "100vh" }}>
         <Header />
         <main style={{ minHeight: "calc(100vh - 60px)" }}>
-          <AuthGate>{children}</AuthGate>
+          <LayoutGate>{children}</LayoutGate>
         </main>
       </body>
     </html>
