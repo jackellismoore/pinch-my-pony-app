@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
@@ -77,6 +78,11 @@ export default function MessageThreadPage() {
   const [otherTyping, setOtherTyping] = useState(false)
   const [otherLastSeenAt, setOtherLastSeenAt] = useState<string | null>(null)
 
+  // NEW: review eligibility state
+  const [requestStatus, setRequestStatus] = useState<string | null>(null)
+  const [isBorrower, setIsBorrower] = useState(false)
+  const [reviewExists, setReviewExists] = useState(false)
+
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -111,7 +117,7 @@ export default function MessageThreadPage() {
     }
   }, [])
 
-  // ---- Header (horse + other profile) ----
+  // ---- Header (horse + other profile) + review eligibility ----
   useEffect(() => {
     if (!requestId || !myUserId) return
     let cancelled = false
@@ -121,7 +127,7 @@ export default function MessageThreadPage() {
 
       const { data: req, error: reqErr } = await supabase
         .from("borrow_requests")
-        .select("id, horse_id, borrower_id")
+        .select("id, horse_id, borrower_id, status")
         .eq("id", requestId)
         .single()
 
@@ -131,6 +137,30 @@ export default function MessageThreadPage() {
         setHeader(null)
         setHeaderLoading(false)
         return
+      }
+
+      setRequestStatus(req.status ?? null)
+      setIsBorrower(req.borrower_id === myUserId)
+
+      // check existing review (only for borrower UX; RLS also enforces)
+      if (req.borrower_id === myUserId) {
+        const { data: existing, error: exErr } = await supabase
+          .from("reviews")
+          .select("id")
+          .eq("request_id", requestId)
+          .eq("borrower_id", myUserId)
+          .maybeSingle()
+
+        if (!cancelled) {
+          if (exErr) {
+            // fail closed: don't show CTA if we can't confirm
+            setReviewExists(true)
+          } else {
+            setReviewExists(Boolean(existing?.id))
+          }
+        }
+      } else {
+        setReviewExists(true) // not borrower => hide CTA
       }
 
       const { data: horse, error: horseErr } = await supabase
@@ -487,6 +517,8 @@ export default function MessageThreadPage() {
 
   const statusText = otherOnline ? "Online" : otherLastSeenAt ? `Last seen ${timeAgo(otherLastSeenAt)}` : "Offline"
 
+  const showReviewCTA = isBorrower && requestStatus === "approved" && !reviewExists
+
   return (
     <div style={{ height: "calc(100vh - 60px)", display: "flex", flexDirection: "column", background: "#f6f7fb" }}>
       {/* Header */}
@@ -516,6 +548,26 @@ export default function MessageThreadPage() {
         >
           ← Back
         </button>
+
+        {/* NEW: review CTA (only when eligible) */}
+        {showReviewCTA ? (
+          <Link
+            href={`/review/${requestId}`}
+            style={{
+              border: "1px solid rgba(15,23,42,0.12)",
+              background: "rgba(15,23,42,0.04)",
+              color: "#0f172a",
+              padding: "6px 10px",
+              borderRadius: 10,
+              fontWeight: 900,
+              fontSize: 12,
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Leave a review →
+          </Link>
+        ) : null}
 
         <button
           onClick={deleteChatForMe}

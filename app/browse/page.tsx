@@ -7,6 +7,7 @@ import Link from "next/link";
 import HorseMap from "@/components/HorseMap";
 import { supabase } from "@/lib/supabaseClient";
 import { AvailabilityBadge } from "@/components/AvailabilityBadge";
+import StarRating from "@/components/StarRating";
 
 type HorseRow = {
   id: string;
@@ -47,6 +48,12 @@ type NextRange = {
   label: string;
 };
 
+type RatingAggRow = {
+  owner_id: string;
+  avg: number | null;
+  count: number | null;
+};
+
 function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -58,6 +65,7 @@ export default function BrowsePage() {
   const [horses, setHorses] = useState<HorseRow[]>([]);
   const [profilesById, setProfilesById] = useState<Record<string, ProfileMini>>({});
   const [nextByHorseId, setNextByHorseId] = useState<Record<string, NextRange | null>>({});
+  const [ratingByOwnerId, setRatingByOwnerId] = useState<Record<string, { avg: number; count: number }>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +90,7 @@ export default function BrowsePage() {
         const ownerIds = Array.from(new Set(horseRows.map((h) => h.owner_id).filter(Boolean)));
         const horseIds = horseRows.map((h) => h.id);
 
+        // ---- Profiles mini (existing behavior preserved) ----
         if (ownerIds.length > 0) {
           const { data: profData, error: profErr } = await supabase
             .from("profiles")
@@ -95,6 +104,27 @@ export default function BrowsePage() {
           }
         }
 
+        // ---- Ratings aggregates (NEW; batch by owner) ----
+        if (ownerIds.length > 0) {
+          const { data: aggData, error: aggErr } = await supabase
+            .from("reviews")
+            .select("owner_id, avg:rating.avg(), count:rating.count()")
+            .in("owner_id", ownerIds);
+
+          if (!cancelled && !aggErr) {
+            const map: Record<string, { avg: number; count: number }> = {};
+            for (const row of (aggData ?? []) as RatingAggRow[]) {
+              if (!row.owner_id) continue;
+              map[row.owner_id] = {
+                avg: Number(row.avg ?? 0),
+                count: Number(row.count ?? 0),
+              };
+            }
+            setRatingByOwnerId(map);
+          }
+        }
+
+        // ---- Availability merge (existing behavior preserved) ----
         if (horseIds.length > 0) {
           const today = todayISODate();
 
@@ -215,13 +245,16 @@ export default function BrowsePage() {
       ) : null}
 
       <div style={{ marginTop: 14 }}>
-        {/* ✅ no more `as any` */}
+        {/* ✅ keep your map exactly as-is */}
         <HorseMap horses={mapHorses} userLocation={null} highlightedId={null} />
       </div>
 
       <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
         {horses.map((h) => {
           const next = nextByHorseId[h.id] ?? null;
+
+          const rating = ratingByOwnerId[h.owner_id] ?? { avg: 0, count: 0 };
+          const hasRating = rating.count > 0;
 
           return (
             <div
@@ -274,6 +307,22 @@ export default function BrowsePage() {
                     <Link href={`/owner/${h.owner_id}`} style={{ color: "black", fontWeight: 800 }}>
                       {ownerLabel(h.owner_id)}
                     </Link>
+                  </div>
+
+                  {/* NEW: rating snippet (non-invasive, matches your compact row style) */}
+                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <StarRating value={hasRating ? Number(rating.avg.toFixed(1)) : 0} readOnly size={18} />
+                      <div style={{ fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
+                        {hasRating ? (
+                          <>
+                            <span style={{ fontWeight: 850 }}>{rating.avg.toFixed(1)}</span> ({rating.count})
+                          </>
+                        ) : (
+                          "No reviews"
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

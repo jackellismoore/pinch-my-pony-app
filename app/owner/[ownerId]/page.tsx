@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+import StarRating from '@/components/StarRating';
 
 type ProfileRow = {
   id: string;
@@ -22,6 +23,20 @@ type HorseRow = {
   owner_id: string;
   name: string | null;
   is_active: boolean | null;
+};
+
+type ReviewRow = {
+  id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  borrower_id: string;
+};
+
+type ProfileMini = {
+  id: string;
+  display_name: string | null;
+  full_name: string | null;
 };
 
 function fmtDate(d: string | null) {
@@ -54,6 +69,12 @@ export default function OwnerPublicProfilePage() {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [horses, setHorses] = useState<HorseRow[]>([]);
 
+  // NEW: rating + reviews
+  const [ratingAvg, setRatingAvg] = useState<number>(0);
+  const [ratingCount, setRatingCount] = useState<number>(0);
+  const [reviews, setReviews] = useState<ReviewRow[]>([]);
+  const [reviewersById, setReviewersById] = useState<Record<string, ProfileMini>>({});
+
   useEffect(() => {
     let cancelled = false;
 
@@ -64,7 +85,7 @@ export default function OwnerPublicProfilePage() {
       setError(null);
 
       try {
-        const [profRes, horsesRes] = await Promise.all([
+        const [profRes, horsesRes, aggRes, reviewsRes] = await Promise.all([
           supabase
             .from('profiles')
             .select('id,display_name,full_name,avatar_url,last_seen_at,created_at,role')
@@ -77,6 +98,21 @@ export default function OwnerPublicProfilePage() {
             .eq('owner_id', ownerId)
             .eq('is_active', true)
             .order('created_at', { ascending: false }),
+
+          // rating aggregate
+          supabase
+            .from('reviews')
+            .select('avg:rating.avg(), count:rating.count()')
+            .eq('owner_id', ownerId)
+            .maybeSingle(),
+
+          // latest reviews
+          supabase
+            .from('reviews')
+            .select('id,rating,comment,created_at,borrower_id')
+            .eq('owner_id', ownerId)
+            .order('created_at', { ascending: false })
+            .limit(50),
         ]);
 
         if (cancelled) return;
@@ -86,10 +122,49 @@ export default function OwnerPublicProfilePage() {
 
         setProfile((profRes.data ?? null) as ProfileRow | null);
         setHorses((horsesRes.data ?? []) as HorseRow[]);
+
+        if (!aggRes.error) {
+          const avg = Number((aggRes.data as any)?.avg ?? 0);
+          const count = Number((aggRes.data as any)?.count ?? 0);
+          setRatingAvg(avg);
+          setRatingCount(count);
+        } else {
+          setRatingAvg(0);
+          setRatingCount(0);
+        }
+
+        if (!reviewsRes.error) {
+          const list = (reviewsRes.data ?? []) as ReviewRow[];
+          setReviews(list);
+
+          // batch fetch reviewer names
+          const borrowerIds = Array.from(new Set(list.map((r) => r.borrower_id).filter(Boolean)));
+          if (borrowerIds.length > 0) {
+            const { data: reviewerData, error: reviewerErr } = await supabase
+              .from('profiles')
+              .select('id,display_name,full_name')
+              .in('id', borrowerIds);
+
+            if (!cancelled && !reviewerErr) {
+              const map: Record<string, ProfileMini> = {};
+              for (const p of (reviewerData ?? []) as ProfileMini[]) map[p.id] = p;
+              setReviewersById(map);
+            }
+          } else {
+            setReviewersById({});
+          }
+        } else {
+          setReviews([]);
+          setReviewersById({});
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? 'Failed to load owner profile.');
         setProfile(null);
         setHorses([]);
+        setRatingAvg(0);
+        setRatingCount(0);
+        setReviews([]);
+        setReviewersById({});
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -115,6 +190,13 @@ export default function OwnerPublicProfilePage() {
   }, [profile]);
 
   const isOwner = profile?.role === 'owner';
+
+  function reviewerLabel(id: string) {
+    const p = reviewersById[id];
+    const dn = p?.display_name?.trim();
+    const fn = p?.full_name?.trim();
+    return dn || fn || 'Borrower';
+  }
 
   return (
     <div style={{ padding: 16, maxWidth: 1000, margin: '0 auto' }}>
@@ -252,6 +334,14 @@ export default function OwnerPublicProfilePage() {
               <h1 style={{ margin: 0, fontSize: 22 }}>{displayName}</h1>
               <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>{subtitle}</div>
 
+              {/* NEW: Rating summary */}
+              <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <StarRating value={ratingCount > 0 ? Number(ratingAvg.toFixed(1)) : 0} readOnly size={18} />
+                <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.70)', fontWeight: 800 }}>
+                  {ratingCount > 0 ? `${ratingAvg.toFixed(1)} (${ratingCount})` : 'No reviews yet'}
+                </div>
+              </div>
+
               {!isOwner ? (
                 <div style={{ marginTop: 10, fontSize: 13, color: 'rgba(180,0,0,0.9)', fontWeight: 800 }}>
                   This user is not listed as an owner.
@@ -331,6 +421,55 @@ export default function OwnerPublicProfilePage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* NEW: Reviews */}
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontWeight: 900, fontSize: 16 }}>Reviews</div>
+            <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+              Latest feedback from borrowers.
+            </div>
+
+            {reviews.length === 0 ? (
+              <div style={{ marginTop: 10, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>No reviews yet.</div>
+            ) : (
+              <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
+                {reviews.map((r) => (
+                  <div
+                    key={r.id}
+                    style={{
+                      border: '1px solid rgba(0,0,0,0.10)',
+                      borderRadius: 14,
+                      padding: 14,
+                      background: 'white',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.70)', fontWeight: 850 }}>
+                          {reviewerLabel(r.borrower_id)} · {fmtDate(r.created_at)}
+                        </div>
+                        {r.comment?.trim() ? (
+                          <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(0,0,0,0.85)', whiteSpace: 'pre-wrap' }}>
+                            {r.comment}
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(0,0,0,0.55)' }}>No comment.</div>
+                        )}
+                      </div>
+
+                      <div style={{ flexShrink: 0 }}>
+                        <StarRating value={r.rating} readOnly size={18} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {reviews.length >= 50 ? (
+              <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>Showing latest 50 reviews.</div>
+            ) : null}
           </div>
         </>
       ) : null}
