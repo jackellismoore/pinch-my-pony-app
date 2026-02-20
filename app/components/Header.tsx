@@ -15,10 +15,10 @@ type ProfileMini = {
   avatar_url: string | null;
 };
 
-function pickName(p: ProfileMini | null) {
+function displayNameOrNull(p: ProfileMini | null) {
   const dn = (p?.display_name ?? "").trim();
   const fn = (p?.full_name ?? "").trim();
-  return dn || fn || "User";
+  return dn || fn || null;
 }
 
 function useOutsideClick<T extends HTMLElement>(ref: React.RefObject<T | null>, onOutside: () => void) {
@@ -36,9 +36,11 @@ function useOutsideClick<T extends HTMLElement>(ref: React.RefObject<T | null>, 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const router = useRouter();
+
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(menuWrapRef, () => setMenuOpen(false));
 
@@ -46,17 +48,21 @@ export default function Header() {
     let cancelled = false;
 
     async function loadProfile(uid: string) {
-      const { data: p, error } = await supabase
-        .from("profiles")
-        .select("id,role,display_name,full_name,avatar_url")
-        .eq("id", uid)
-        .maybeSingle();
+      setProfileLoading(true);
+      try {
+        const { data: p, error } = await supabase
+          .from("profiles")
+          .select("id,role,display_name,full_name,avatar_url")
+          .eq("id", uid)
+          .maybeSingle();
 
-      if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
+        if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
+      } finally {
+        if (!cancelled) setProfileLoading(false);
+      }
     }
 
     async function init() {
-      // ✅ Fast, local read
       const { data } = await supabase.auth.getSession();
       const u = data.session?.user ?? null;
 
@@ -69,6 +75,7 @@ export default function Header() {
         await loadProfile(u.id);
       } else {
         setProfile(null);
+        setProfileLoading(false);
       }
     }
 
@@ -84,6 +91,7 @@ export default function Header() {
         await loadProfile(u.id);
       } else {
         setProfile(null);
+        setProfileLoading(false);
       }
     });
 
@@ -127,6 +135,15 @@ export default function Header() {
       </div>
     );
   }, []);
+
+  // ✅ Strict: if user exists, we show either (name) OR (email) OR ("Loading…")
+  const signedInLabel = useMemo(() => {
+    if (!user) return null;
+    const name = displayNameOrNull(profile);
+    if (name) return name;
+    if (profileLoading) return "Loading…";
+    return user.email ?? "Signed in";
+  }, [user, profile, profileLoading]);
 
   return (
     <header
@@ -215,8 +232,11 @@ export default function Header() {
                     Logout
                   </button>
 
-                  <div style={{ marginTop: 4, fontSize: 12, opacity: 0.6, padding: "0 2px" }}>
-                    Signed in as <span style={{ fontWeight: 900 }}>{pickName(profile)}</span>
+                  <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7, padding: "0 2px" }}>
+                    Signed in as{" "}
+                    <span style={{ fontWeight: 950 }}>
+                      {signedInLabel}
+                    </span>
                   </div>
                 </>
               ) : (
