@@ -5,95 +5,115 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type AuthedUser = { id: string } | null;
+type ProfileMini = {
+  id: string;
+  role: "owner" | "borrower" | null;
+  display_name: string | null;
+  full_name: string | null;
+};
+
+const palette = {
+  forest: "#1F3D2B",
+  saddle: "#8B5E3C",
+  cream: "#F5F1E8",
+  navy: "#1F2A44",
+  gold: "#C8A24D",
+};
+
+function pickName(p: ProfileMini | null) {
+  const dn = (p?.display_name ?? "").trim();
+  const fn = (p?.full_name ?? "").trim();
+  return dn || fn || "there";
+}
 
 export default function HomePage() {
-  const [user, setUser] = useState<AuthedUser>(null);
+  const [profile, setProfile] = useState<ProfileMini | null>(null);
 
   useEffect(() => {
-    let mounted = true;
+    let cancelled = false;
 
-    async function init() {
+    async function load() {
       try {
         const { data } = await supabase.auth.getUser();
-        if (!mounted) return;
-        setUser((data.user ? { id: data.user.id } : null) as AuthedUser);
+        const user = data.user;
+        if (!user || cancelled) return;
+
+        const { data: p, error } = await supabase
+          .from("profiles")
+          .select("id,role,display_name,full_name")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
       } catch {
-        if (mounted) setUser(null);
+        // non-fatal
       }
     }
 
-    init();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ? { id: session.user.id } : null);
-    });
-
+    load();
     return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
+      cancelled = true;
     };
   }, []);
 
-  const primaryCtaHref = "/browse";
-  const secondaryCtaHref = user ? "/dashboard/owner" : "/signup";
+  const isOwner = profile?.role === "owner";
+  const dashboardHref = isOwner ? "/dashboard/owner" : "/dashboard/borrower";
+  const roleLabel = isOwner ? "Owner" : "Borrower";
 
-  const heroSubcopy = useMemo(() => {
-    return user
-      ? "Welcome back — browse available horses, send a request, and ride with confidence."
-      : "Pinch My Pony is a trusted horse-borrowing marketplace. Owners list horses, borrowers request dates, and everyone rides with clear rules and reviews.";
-  }, [user]);
+  const welcomeLine = useMemo(() => {
+    const name = pickName(profile);
+    return `Welcome back, ${name}.`;
+  }, [profile]);
 
   return (
     <div style={fullBleedWrap}>
-      {/* Page-local styles (no globals changes needed) */}
       <style>{css}</style>
 
-      {/* HERO */}
-      <section style={heroSection} aria-label="Pinch My Pony home">
+      {/* HERO / WELCOME HUB */}
+      <section style={heroSection} aria-label="Home">
         <div style={heroBg} aria-hidden="true" />
 
         <div style={container}>
           <div style={heroGrid}>
+            {/* Left: headline + quick actions */}
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={eyebrowPill}>
                 <span aria-hidden="true">🐴</span>
-                <span>Borrow • Share • Ride — with trust built in</span>
+                <span>Signed in • {roleLabel} experience unlocked</span>
               </div>
 
               <h1 style={heroTitle}>
-                The warm, modern way to{" "}
-                <span style={heroAccent}>borrow</span> or{" "}
-                <span style={heroAccent}>share</span> a horse.
+                {welcomeLine}{" "}
+                <span style={heroAccent}>Let’s plan a great ride.</span>
               </h1>
 
-              <p style={heroParagraph}>{heroSubcopy}</p>
+              <p style={heroParagraph}>
+                Pinch My Pony helps owners and borrowers connect with clear dates, built-in messaging, and reviews that
+                keep everyone confident.
+              </p>
 
-              <div style={ctaRow}>
-                <Link href={primaryCtaHref} style={{ textDecoration: "none" }}>
-                  <span style={primaryButton}>Browse Horses</span>
-                </Link>
+              <div style={quickActionsWrap}>
+                <div style={quickActionsTitle}>Quick actions</div>
 
-                <Link href={secondaryCtaHref} style={{ textDecoration: "none" }}>
-                  <span style={secondaryButton}>
-                    List Your Horse
-                    <span style={{ opacity: 0.7, fontWeight: 800, marginLeft: 8 }}>
-                      {user ? "(Owner dashboard)" : "(Create account)"}
-                    </span>
-                  </span>
-                </Link>
+                <div style={quickActionsRow}>
+                  <ActionButton href="/browse" variant="primary" title="Browse Horses" desc="Find available listings" />
+                  <ActionButton href="/messages" variant="secondary" title="Messages" desc="Continue conversations" />
+                  <ActionButton href={dashboardHref} variant="tertiary" title="My Dashboard" desc="Requests & schedule" />
+                </div>
 
-                {!user ? (
-                  <div style={smallAuthRow}>
-                    <Link href="/login" style={smallLink}>
-                      Login
-                    </Link>
-                    <span style={{ opacity: 0.4 }}>•</span>
-                    <Link href="/signup" style={smallLink}>
-                      Sign Up
-                    </Link>
-                  </div>
-                ) : null}
+                <div style={tinyLinksRow}>
+                  <Link href="/profile" style={tinyLink}>
+                    Profile
+                  </Link>
+                  <span style={{ opacity: 0.35 }}>•</span>
+                  <Link href="/browse" style={tinyLink}>
+                    Browse
+                  </Link>
+                  <span style={{ opacity: 0.35 }}>•</span>
+                  <Link href={dashboardHref} style={tinyLink}>
+                    {isOwner ? "Owner dashboard" : "Borrower dashboard"}
+                  </Link>
+                </div>
               </div>
 
               <div style={heroStatsRow}>
@@ -103,12 +123,11 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Logo / Visual */}
-            <div style={heroVisualCard} aria-label="Brand mark">
+            {/* Right: logo + how it works mini */}
+            <div style={heroVisualCard} aria-label="How it works">
               <div style={heroVisualInner}>
                 <div style={logoRow}>
                   <div style={logoBadge}>
-                    {/* Save your uploaded image to: /public/pmp-logo.png */}
                     <Image
                       src="/pmp-logo.png"
                       alt="Pinch My Pony logo"
@@ -118,10 +137,9 @@ export default function HomePage() {
                       style={{ width: 88, height: 88, objectFit: "contain" }}
                     />
                   </div>
+
                   <div style={{ lineHeight: 1.15 }}>
-                    <div style={{ fontWeight: 950, fontSize: 20, color: palette.navy }}>
-                      Pinch My Pony
-                    </div>
+                    <div style={{ fontWeight: 950, fontSize: 20, color: palette.navy }}>Pinch My Pony</div>
                     <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.7 }}>
                       Horse borrowing marketplace
                     </div>
@@ -133,19 +151,27 @@ export default function HomePage() {
                 <div style={{ display: "grid", gap: 10 }}>
                   <MiniCard
                     icon="🧭"
-                    title="Find the right horse"
-                    copy="Browse nearby listings, read profiles, and check details before you request."
+                    title="Browse listings"
+                    copy="Explore horses, read profiles, and check details before you request."
                   />
                   <MiniCard
                     icon="📅"
-                    title="Request specific dates"
-                    copy="Send a date range request. Availability rules prevent conflicts."
+                    title="Request dates"
+                    copy="Send a date range request — availability rules prevent conflicts."
                   />
                   <MiniCard
-                    icon="🤝"
-                    title="Ride, review, repeat"
-                    copy="Owners approve trusted riders. Reviews help everyone feel secure."
+                    icon="💬"
+                    title="Coordinate & ride"
+                    copy="Message inside the app, then leave a review to help the community."
                   />
+                </div>
+
+                <div style={softBand}>
+                  <div style={{ fontWeight: 950, color: palette.navy }}>Tip</div>
+                  <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.55 }}>
+                    Start by browsing horses, then use Messages to confirm details. Your dashboard keeps requests and
+                    dates organized.
+                  </div>
                 </div>
               </div>
             </div>
@@ -153,13 +179,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
+      {/* HOW IT WORKS (FULL) */}
       <section style={section}>
         <div style={container}>
           <header style={sectionHeader}>
             <h2 style={sectionTitle}>How it works</h2>
             <p style={sectionSubtitle}>
-              Built for both borrowers and owners — clear steps, clear expectations.
+              Simple steps, clear rules. Built for both borrowers and owners.
             </p>
           </header>
 
@@ -179,28 +205,22 @@ export default function HomePage() {
                 <Step
                   number="2"
                   title="Request your dates"
-                  copy="Pick a date range and send a request. If dates overlap, conflicts are blocked."
+                  copy="Pick a date range and send a request. Overlaps are blocked to prevent conflicts."
                 />
                 <Step
                   number="3"
                   title="Ride & review"
-                  copy="Coordinate via built-in messaging, then leave a review to help the community."
+                  copy="Coordinate via messaging, then leave a review to build trust for others."
                 />
               </ol>
 
               <div style={cardCtas}>
                 <Link href="/browse" style={{ textDecoration: "none" }}>
-                  <span style={primaryButtonSmall}>Start browsing</span>
+                  <span style={primaryButtonSmall}>Browse horses</span>
                 </Link>
-                {!user ? (
-                  <Link href="/signup" style={{ textDecoration: "none" }}>
-                    <span style={secondaryButtonSmall}>Create an account</span>
-                  </Link>
-                ) : (
-                  <Link href="/dashboard/borrower" style={{ textDecoration: "none" }}>
-                    <span style={secondaryButtonSmall}>Go to borrower dashboard</span>
-                  </Link>
-                )}
+                <Link href="/dashboard/borrower" style={{ textDecoration: "none" }}>
+                  <span style={secondaryButtonSmall}>Borrower dashboard</span>
+                </Link>
               </div>
             </div>
 
@@ -219,7 +239,7 @@ export default function HomePage() {
                 <Step
                   number="2"
                   title="Approve trusted riders"
-                  copy="Review requests, chat with borrowers, and approve or decline."
+                  copy="Review requests, chat with borrowers, then approve or decline."
                 />
                 <Step
                   number="3"
@@ -229,8 +249,8 @@ export default function HomePage() {
               </ol>
 
               <div style={cardCtas}>
-                <Link href={secondaryCtaHref} style={{ textDecoration: "none" }}>
-                  <span style={primaryButtonSmall}>List a horse</span>
+                <Link href="/dashboard/owner" style={{ textDecoration: "none" }}>
+                  <span style={primaryButtonSmall}>Owner dashboard</span>
                 </Link>
                 <Link href="/messages" style={{ textDecoration: "none" }}>
                   <span style={secondaryButtonSmall}>Open messages</span>
@@ -241,95 +261,58 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* TRUST / SAFETY */}
+      {/* TRUST */}
       <section style={sectionAlt}>
         <div style={container}>
           <header style={sectionHeader}>
             <h2 style={sectionTitle}>Trust & safety, baked in</h2>
             <p style={sectionSubtitle}>
-              Feel confident — with profiles, messaging, and guardrails that keep things clear.
+              Profiles, messaging, and availability guardrails help keep things clear and comfortable.
             </p>
           </header>
 
           <div style={featureGrid}>
-            <FeatureCard
-              icon="⭐"
-              title="Reviews & ratings"
-              copy="Transparent feedback helps owners and borrowers build trust over time."
-            />
+            <FeatureCard icon="⭐" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
             <FeatureCard
               icon="🗓️"
               title="Date conflict enforcement"
               copy="Availability blocks prevent overlapping requests so schedules stay reliable."
             />
-            <FeatureCard
-              icon="💬"
-              title="Built-in messaging"
-              copy="Coordinate details without switching apps — keep everything in one place."
-            />
-            <FeatureCard
-              icon="🪪"
-              title="Profiles that matter"
-              copy="See who you’re riding with (or hosting) before you confirm a request."
-            />
+            <FeatureCard icon="💬" title="Messaging built-in" copy="Coordinate details without switching apps." />
+            <FeatureCard icon="🪪" title="Profiles that matter" copy="See who you’re riding with before you confirm." />
           </div>
 
           <div style={trustCtaBand}>
             <div>
               <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>
-                Ready to ride — or ready to share?
+                Where do you want to go next?
               </div>
               <div style={{ opacity: 0.75, marginTop: 4 }}>
-                Choose your path and get started in minutes.
+                Browse listings, check messages, or manage requests on your dashboard.
               </div>
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
               <Link href="/browse" style={{ textDecoration: "none" }}>
-                <span style={primaryButtonSmall}>Browse horses</span>
+                <span style={primaryButtonSmall}>Browse</span>
               </Link>
-              <Link href={secondaryCtaHref} style={{ textDecoration: "none" }}>
-                <span style={secondaryButtonSmall}>List your horse</span>
+              <Link href="/messages" style={{ textDecoration: "none" }}>
+                <span style={secondaryButtonSmall}>Messages</span>
               </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FINAL CTA */}
-      <section style={finalSection}>
-        <div style={container}>
-          <div style={finalCard}>
-            <div style={{ display: "grid", gap: 10 }}>
-              <h2 style={{ margin: 0, fontSize: 26, color: palette.navy, letterSpacing: -0.2 }}>
-                A marketplace that feels human.
-              </h2>
-              <p style={{ margin: 0, opacity: 0.8, lineHeight: 1.65 }}>
-                Warm design. Clear steps. Real guardrails. Pinch My Pony helps riders and owners connect with confidence.
-              </p>
-            </div>
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <Link href="/browse" style={{ textDecoration: "none" }}>
-                <span style={primaryButton}>Browse Horses</span>
-              </Link>
-              <Link href={secondaryCtaHref} style={{ textDecoration: "none" }}>
-                <span style={secondaryButton}>List Your Horse</span>
+              <Link href={dashboardHref} style={{ textDecoration: "none" }}>
+                <span style={secondaryButtonSmall}>Dashboard</span>
               </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Bottom padding so it breathes */}
       <div style={{ height: 26 }} />
     </div>
   );
 }
 
-/* -------------------------
-   Small presentational pieces
--------------------------- */
+/* ---------- small components ---------- */
 
 function InfoChip({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -380,26 +363,39 @@ function FeatureCard({ icon, title, copy }: { icon: string; title: string; copy:
   );
 }
 
-/* -------------------------
-   Styling (inline + tiny CSS)
--------------------------- */
+function ActionButton({
+  href,
+  variant,
+  title,
+  desc,
+}: {
+  href: string;
+  variant: "primary" | "secondary" | "tertiary";
+  title: string;
+  desc: string;
+}) {
+  const style =
+    variant === "primary" ? actionPrimary : variant === "secondary" ? actionSecondary : actionTertiary;
 
-const palette = {
-  forest: "#1F3D2B",
-  saddle: "#8B5E3C",
-  cream: "#F5F1E8",
-  navy: "#1F2A44",
-  gold: "#C8A24D",
-};
+  return (
+    <Link href={href} style={{ textDecoration: "none" }}>
+      <div style={style}>
+        <div style={{ fontWeight: 950, fontSize: 15 }}>{title}</div>
+        <div style={{ opacity: 0.8, fontSize: 12.5, marginTop: 3 }}>{desc}</div>
+      </div>
+    </Link>
+  );
+}
+
+/* ---------- styling ---------- */
 
 const css = `
-  /* Improve tap highlights and text rendering */
   :root { -webkit-tap-highlight-color: transparent; }
 `;
 
 const fullBleedWrap: React.CSSProperties = {
   width: "100vw",
-  marginLeft: "calc(50% - 50vw)", // break out of main max-width: 900px safely
+  marginLeft: "calc(50% - 50vw)", // escape main max-width: 900px
 };
 
 const container: React.CSSProperties = {
@@ -446,7 +442,7 @@ const eyebrowPill: React.CSSProperties = {
 
 const heroTitle: React.CSSProperties = {
   margin: 0,
-  fontSize: 44,
+  fontSize: 42,
   lineHeight: 1.06,
   letterSpacing: -0.6,
   color: palette.navy,
@@ -465,68 +461,70 @@ const heroParagraph: React.CSSProperties = {
   fontSize: 16.5,
   lineHeight: 1.75,
   opacity: 0.9,
-  maxWidth: 640,
+  maxWidth: 680,
 };
 
-const ctaRow: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  alignItems: "center",
-  flexWrap: "wrap",
+const quickActionsWrap: React.CSSProperties = {
   marginTop: 6,
+  padding: 14,
+  borderRadius: 20,
+  border: "1px solid rgba(31,42,68,0.12)",
+  background: "rgba(255,255,255,0.72)",
+  boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
 };
 
-const smallAuthRow: React.CSSProperties = {
+const quickActionsTitle: React.CSSProperties = {
+  fontWeight: 950,
+  color: palette.navy,
+  marginBottom: 10,
+};
+
+const quickActionsRow: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 10,
+};
+
+const actionBase: React.CSSProperties = {
+  borderRadius: 18,
+  padding: "12px 12px",
+  border: "1px solid rgba(31,42,68,0.12)",
+  boxShadow: "0 12px 30px rgba(31,42,68,0.06)",
+};
+
+const actionPrimary: React.CSSProperties = {
+  ...actionBase,
+  background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
+  color: "white",
+  border: "1px solid rgba(0,0,0,0.10)",
+};
+
+const actionSecondary: React.CSSProperties = {
+  ...actionBase,
+  background: "rgba(255,255,255,0.78)",
+  color: palette.navy,
+};
+
+const actionTertiary: React.CSSProperties = {
+  ...actionBase,
+  background: "rgba(200,162,77,0.14)",
+  color: palette.navy,
+  border: "1px solid rgba(200,162,77,0.22)",
+};
+
+const tinyLinksRow: React.CSSProperties = {
   display: "flex",
   gap: 10,
   alignItems: "center",
-  marginLeft: 6,
-  fontWeight: 800,
+  marginTop: 10,
+  fontSize: 13,
+  fontWeight: 850,
 };
 
-const smallLink: React.CSSProperties = {
+const tinyLink: React.CSSProperties = {
   textDecoration: "none",
   color: palette.navy,
   opacity: 0.85,
-};
-
-const primaryButton: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "12px 16px",
-  borderRadius: 14,
-  background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
-  color: "white",
-  fontWeight: 950,
-  border: "1px solid rgba(0,0,0,0.10)",
-  boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
-};
-
-const secondaryButton: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "12px 16px",
-  borderRadius: 14,
-  background: "rgba(255,255,255,0.75)",
-  color: palette.navy,
-  fontWeight: 950,
-  border: "1px solid rgba(31,42,68,0.18)",
-  boxShadow: "0 14px 34px rgba(31,42,68,0.08)",
-};
-
-const primaryButtonSmall: React.CSSProperties = {
-  ...primaryButton,
-  padding: "10px 14px",
-  borderRadius: 12,
-  boxShadow: "0 10px 26px rgba(31,61,43,0.16)",
-};
-
-const secondaryButtonSmall: React.CSSProperties = {
-  ...secondaryButton,
-  padding: "10px 14px",
-  borderRadius: 12,
 };
 
 const heroStatsRow: React.CSSProperties = {
@@ -602,6 +600,14 @@ const miniIcon: React.CSSProperties = {
   display: "grid",
   placeItems: "center",
   fontSize: 18,
+};
+
+const softBand: React.CSSProperties = {
+  marginTop: 4,
+  padding: 12,
+  borderRadius: 18,
+  border: "1px solid rgba(31,42,68,0.10)",
+  background: "rgba(31,61,43,0.06)",
 };
 
 const section: React.CSSProperties = {
@@ -722,6 +728,32 @@ const cardCtas: React.CSSProperties = {
   alignItems: "center",
 };
 
+const primaryButtonSmall: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "10px 14px",
+  borderRadius: 12,
+  background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
+  color: "white",
+  fontWeight: 950,
+  border: "1px solid rgba(0,0,0,0.10)",
+  boxShadow: "0 10px 26px rgba(31,61,43,0.16)",
+};
+
+const secondaryButtonSmall: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "10px 14px",
+  borderRadius: 12,
+  background: "rgba(255,255,255,0.75)",
+  color: palette.navy,
+  fontWeight: 950,
+  border: "1px solid rgba(31,42,68,0.18)",
+  boxShadow: "0 10px 26px rgba(31,42,68,0.08)",
+};
+
 const featureGrid: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
@@ -762,36 +794,3 @@ const trustCtaBand: React.CSSProperties = {
   gap: 12,
   flexWrap: "wrap",
 };
-
-const finalSection: React.CSSProperties = {
-  padding: "34px 0 10px",
-  background: "#fafafa",
-};
-
-const finalCard: React.CSSProperties = {
-  borderRadius: 26,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background:
-    "radial-gradient(900px 420px at 15% 0%, rgba(200,162,77,0.18), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,241,232,0.62) 100%)",
-  boxShadow: "0 22px 60px rgba(31,42,68,0.12)",
-  padding: 18,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 14,
-  flexWrap: "wrap",
-};
-
-/* Responsive tweaks (purely via inline-friendly approach):
-   We can’t use media queries in inline styles, so we use a small trick:
-   Keep the layout decent even when columns wrap naturally.
-*/
-const responsiveHints: React.CSSProperties = {};
-
-/* -------------------------
-   Tiny runtime-safe layout handling (optional)
-   The layout still looks fine without this, but you can keep it simple.
--------------------------- */
-// NOTE: If you want, I can add a minimal "useWindowWidth" hook to switch to 1-col at < 900px.
-// For now, the grids are okay; the main one is the only 2-col. If you see it feel tight,
-// tell me your target breakpoint and I’ll add it (still no deps).
