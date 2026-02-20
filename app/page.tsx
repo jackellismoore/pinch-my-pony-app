@@ -41,7 +41,6 @@ export default function HomePage() {
     unreadMessages: 0,
   });
 
-  // ✅ Always use getSession for fast, reliable "am I signed in?"
   useEffect(() => {
     let cancelled = false;
 
@@ -54,7 +53,6 @@ export default function HomePage() {
       setSessionUserId(u?.id ?? null);
 
       if (u?.id) {
-        // Load profile (role/name)
         const { data: p } = await supabase
           .from("profiles")
           .select("id,role,display_name,full_name")
@@ -63,7 +61,6 @@ export default function HomePage() {
 
         if (!cancelled) setProfile((p ?? null) as ProfileMini | null);
 
-        // Live stats (safe if tables/columns match your schema)
         try {
           const [{ count: activeHorses }, { count: myPendingRequests }] = await Promise.all([
             supabase.from("horses").select("*", { count: "exact", head: true }).eq("is_active", true),
@@ -78,12 +75,10 @@ export default function HomePage() {
             setStats({
               activeHorses: activeHorses ?? 0,
               myPendingRequests: myPendingRequests ?? 0,
-              unreadMessages: 0, // wire later if you track unread
+              unreadMessages: 0,
             });
           }
-        } catch {
-          // non-fatal
-        }
+        } catch {}
       } else {
         setProfile(null);
       }
@@ -95,7 +90,6 @@ export default function HomePage() {
       const u = sess?.user ?? null;
       setSessionUserId(u?.id ?? null);
 
-      // If they log out while on homepage, reset hub data
       if (!u) {
         setProfile(null);
         setStats({ activeHorses: 0, myPendingRequests: 0, unreadMessages: 0 });
@@ -112,15 +106,12 @@ export default function HomePage() {
   const isOwner = profile?.role === "owner";
   const dashboardHref = isOwner ? "/dashboard/owner" : "/dashboard/borrower";
 
-  const welcomeLine = useMemo(() => {
-    return `Welcome back, ${pickName(profile)}.`;
-  }, [profile]);
+  const welcomeLine = useMemo(() => `Welcome back, ${pickName(profile)}.`, [profile]);
 
   return (
     <div style={fullBleedWrap}>
       <style>{css}</style>
 
-      {/* HERO */}
       <section style={heroSection} aria-label="Pinch My Pony home">
         <div style={heroBg} aria-hidden="true" />
 
@@ -152,7 +143,6 @@ export default function HomePage() {
                   : "Pinch My Pony is a trusted horse-borrowing marketplace. Owners list horses, borrowers request dates, and everyone rides with clear rules and reviews."}
               </p>
 
-              {/* CTA ROW */}
               {isAuthed ? (
                 <>
                   <div style={ctaRow}>
@@ -185,10 +175,6 @@ export default function HomePage() {
                     <Link href="/signup" style={{ textDecoration: "none" }}>
                       <span style={secondaryButton}>Sign Up</span>
                     </Link>
-
-                    <Link href="/browse" style={{ textDecoration: "none" }}>
-                      <span style={secondaryButton}>Browse Horses</span>
-                    </Link>
                   </div>
 
                   <div style={heroStatsRow}>
@@ -208,127 +194,117 @@ export default function HomePage() {
                     <Image
                       src="/pmp-logo.png"
                       alt="Pinch My Pony logo"
-                      width={88}
-                      height={88}
+                      width={84}
+                      height={84}
                       priority
-                      style={{ width: 88, height: 88, objectFit: "contain" }}
+                      style={{ width: 60, height: 60, objectFit: "contain" }}
                     />
                   </div>
+
                   <div style={{ lineHeight: 1.15 }}>
-                    <div style={{ fontWeight: 950, fontSize: 20, color: palette.navy }}>
-                      Pinch My Pony
-                    </div>
-                    <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.7 }}>
-                      Horse borrowing marketplace
-                    </div>
+                    <div style={{ fontWeight: 950, fontSize: 20, color: palette.navy }}>Pinch My Pony</div>
+                    <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.7 }}>Horse borrowing marketplace</div>
                   </div>
                 </div>
 
                 <div style={divider} />
 
                 <div style={{ display: "grid", gap: 10 }}>
-                  <MiniCard
-                    icon="🧭"
-                    title="Browse listings"
-                    copy="Explore horses, read profiles, and check details before you request."
-                  />
-                  <MiniCard
-                    icon="📅"
-                    title="Request dates"
-                    copy="Send a date range request — availability rules prevent conflicts."
-                  />
-                  <MiniCard
-                    icon="💬"
-                    title="Coordinate & ride"
-                    copy="Message inside the app, then leave a review to help the community."
-                  />
+                  <MiniCard icon="🧭" title="Browse listings" copy="Explore horses and profiles before you request." />
+                  <MiniCard icon="📅" title="Request dates" copy="Date conflicts are blocked automatically." />
+                  <MiniCard icon="💬" title="Coordinate & ride" copy="Message in-app, then leave a review." />
+                </div>
+
+                <div style={softBand}>
+                  <div style={{ fontWeight: 950, color: palette.navy }}>{isAuthed ? "Tip" : "New here?"}</div>
+                  <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.55 }}>
+                    {isAuthed
+                      ? "Start by browsing horses, then use Messages to confirm details. Your dashboard keeps requests and dates organized."
+                      : "Create an account to request dates, message owners, and access your dashboard."}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Logged out: show the longer marketing sections below */}
+          {!isAuthed ? (
+            <>
+              <section style={section}>
+                <header style={sectionHeader}>
+                  <h2 style={sectionTitle}>How it works</h2>
+                  <p style={sectionSubtitle}>Built for both borrowers and owners — clear steps, clear expectations.</p>
+                </header>
+
+                <div style={twoColumn}>
+                  <div style={card}>
+                    <div style={cardTopRow}>
+                      <span style={rolePillBorrower}>For Borrowers</span>
+                      <span style={mutedPill}>3 steps</span>
+                    </div>
+
+                    <ol style={stepList}>
+                      <Step number="1" title="Browse active horses" copy="Explore listings and check details." />
+                      <Step number="2" title="Request your dates" copy="Pick a date range. Conflicts are blocked." />
+                      <Step number="3" title="Ride & review" copy="Coordinate via messaging and leave a review." />
+                    </ol>
+                  </div>
+
+                  <div style={card}>
+                    <div style={cardTopRow}>
+                      <span style={rolePillOwner}>For Owners</span>
+                      <span style={mutedPill}>3 steps</span>
+                    </div>
+
+                    <ol style={stepList}>
+                      <Step number="1" title="List your horse" copy="Create a listing with clear expectations." />
+                      <Step number="2" title="Approve trusted riders" copy="Review requests and chat before approving." />
+                      <Step number="3" title="Manage availability" copy="Block dates and avoid overlaps automatically." />
+                    </ol>
+                  </div>
+                </div>
+              </section>
+
+              <section style={sectionAlt}>
+                <header style={sectionHeader}>
+                  <h2 style={sectionTitle}>Trust & safety, baked in</h2>
+                  <p style={sectionSubtitle}>Profiles, messaging, and guardrails help keep things clear and comfortable.</p>
+                </header>
+
+                <div style={featureGrid}>
+                  <FeatureCard icon="⭐" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
+                  <FeatureCard icon="🗓️" title="Date conflict enforcement" copy="Overlaps are blocked to keep schedules reliable." />
+                  <FeatureCard icon="💬" title="Messaging built-in" copy="Coordinate details without switching apps." />
+                  <FeatureCard icon="🪪" title="Profiles that matter" copy="See who you’re riding with before confirming." />
+                </div>
+
+                <div style={trustCtaBand}>
+                  <div>
+                    <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>Ready to get started?</div>
+                    <div style={{ opacity: 0.75, marginTop: 4 }}>Create an account and start browsing today.</div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <Link href="/login" style={{ textDecoration: "none" }}>
+                      <span style={primaryButtonSmall}>Login</span>
+                    </Link>
+                    <Link href="/signup" style={{ textDecoration: "none" }}>
+                      <span style={secondaryButtonSmall}>Sign Up</span>
+                    </Link>
+                  </div>
+                </div>
+              </section>
+            </>
+          ) : null}
         </div>
       </section>
-
-      {/* Marketing sections only for logged-out users */}
-      {!isAuthed ? (
-        <>
-          <section style={section}>
-            <div style={container}>
-              <header style={sectionHeader}>
-                <h2 style={sectionTitle}>How it works</h2>
-                <p style={sectionSubtitle}>Built for both borrowers and owners — clear steps, clear expectations.</p>
-              </header>
-
-              <div style={twoColumn}>
-                <div style={card}>
-                  <div style={cardTopRow}>
-                    <span style={rolePillBorrower}>For Borrowers</span>
-                    <span style={mutedPill}>3 steps</span>
-                  </div>
-
-                  <ol style={stepList}>
-                    <Step number="1" title="Browse active horses" copy="Explore listings and check details." />
-                    <Step number="2" title="Request your dates" copy="Pick a date range. Conflicts are blocked." />
-                    <Step number="3" title="Ride & review" copy="Coordinate via messaging and leave a review." />
-                  </ol>
-                </div>
-
-                <div style={card}>
-                  <div style={cardTopRow}>
-                    <span style={rolePillOwner}>For Owners</span>
-                    <span style={mutedPill}>3 steps</span>
-                  </div>
-
-                  <ol style={stepList}>
-                    <Step number="1" title="List your horse" copy="Create a listing with clear expectations." />
-                    <Step number="2" title="Approve trusted riders" copy="Review requests and chat before approving." />
-                    <Step number="3" title="Manage availability" copy="Block dates and avoid overlaps automatically." />
-                  </ol>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section style={sectionAlt}>
-            <div style={container}>
-              <header style={sectionHeader}>
-                <h2 style={sectionTitle}>Trust & safety, baked in</h2>
-                <p style={sectionSubtitle}>Profiles, messaging, and guardrails help keep things clear and comfortable.</p>
-              </header>
-
-              <div style={featureGrid}>
-                <FeatureCard icon="⭐" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
-                <FeatureCard icon="🗓️" title="Date conflict enforcement" copy="Overlaps are blocked to keep schedules reliable." />
-                <FeatureCard icon="💬" title="Messaging built-in" copy="Coordinate details without switching apps." />
-                <FeatureCard icon="🪪" title="Profiles that matter" copy="See who you’re riding with before confirming." />
-              </div>
-
-              <div style={trustCtaBand}>
-                <div>
-                  <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>Ready to get started?</div>
-                  <div style={{ opacity: 0.75, marginTop: 4 }}>Create an account and start browsing today.</div>
-                </div>
-
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <Link href="/login" style={{ textDecoration: "none" }}>
-                    <span style={primaryButtonSmall}>Login</span>
-                  </Link>
-                  <Link href="/signup" style={{ textDecoration: "none" }}>
-                    <span style={secondaryButtonSmall}>Sign Up</span>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </section>
-        </>
-      ) : null}
 
       <div style={{ height: 26 }} />
     </div>
   );
 }
 
-/* ---------- small pieces ---------- */
+/* ---------- components ---------- */
 
 function InfoChip({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -388,12 +364,16 @@ function FeatureCard({ icon, title, copy }: { icon: string; title: string; copy:
   );
 }
 
-/* ---------- styling ---------- */
+/* ---------- styles ---------- */
 
 const css = `
   :root { -webkit-tap-highlight-color: transparent; }
-  @media (max-width: 900px) {
-    .pmp-break { display: none; }
+  @media (max-width: 980px) {
+    .pmp-hero-grid { grid-template-columns: 1fr !important; }
+  }
+  @media (max-width: 820px) {
+    .pmp-stats { grid-template-columns: 1fr !important; }
+    .pmp-title { font-size: 34px !important; }
   }
 `;
 
@@ -428,7 +408,9 @@ const heroGrid: React.CSSProperties = {
   gridTemplateColumns: "1.05fr 0.95fr",
   gap: 18,
   alignItems: "stretch",
-};
+} as any;
+
+(heroGrid as any).className = "pmp-hero-grid"; // harmless in runtime? (ignored) but TS might warn
 
 const eyebrowPill: React.CSSProperties = {
   display: "inline-flex",
@@ -520,7 +502,9 @@ const heroStatsRow: React.CSSProperties = {
   gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
   gap: 10,
   marginTop: 14,
-};
+} as any;
+
+(heroStatsRow as any).className = "pmp-stats";
 
 const infoChip: React.CSSProperties = {
   padding: "12px 12px",
@@ -555,11 +539,12 @@ const logoBadge: React.CSSProperties = {
   width: 92,
   height: 92,
   borderRadius: 20,
-  background: "rgba(255,255,255,0.92)",
-  border: "1px solid rgba(31,42,68,0.12)",
-  boxShadow: "0 14px 36px rgba(31,42,68,0.10)",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,241,232,0.85))",
+  border: "1px solid rgba(15,23,42,0.10)",
+  boxShadow: "0 14px 36px rgba(15,23,42,0.10)",
   display: "grid",
   placeItems: "center",
+  overflow: "hidden",
 };
 
 const divider: React.CSSProperties = {
@@ -589,6 +574,14 @@ const miniIcon: React.CSSProperties = {
   fontSize: 18,
 };
 
+const softBand: React.CSSProperties = {
+  marginTop: 4,
+  padding: 12,
+  borderRadius: 18,
+  border: "1px solid rgba(31,42,68,0.10)",
+  background: "rgba(31,61,43,0.06)",
+};
+
 const section: React.CSSProperties = {
   padding: "40px 0",
   background: "#fafafa",
@@ -602,7 +595,7 @@ const sectionAlt: React.CSSProperties = {
 const sectionHeader: React.CSSProperties = {
   display: "grid",
   gap: 8,
-  marginBottom: 16,
+  margin: "26px 0 16px",
 };
 
 const sectionTitle: React.CSSProperties = {

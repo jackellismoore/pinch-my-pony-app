@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -40,7 +41,6 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const router = useRouter();
-
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(menuWrapRef, () => setMenuOpen(false));
 
@@ -55,7 +55,6 @@ export default function Header() {
           .select("id,role,display_name,full_name,avatar_url")
           .eq("id", uid)
           .maybeSingle();
-
         if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
       } finally {
         if (!cancelled) setProfileLoading(false);
@@ -110,33 +109,6 @@ export default function Header() {
 
   const isOwner = profile?.role === "owner";
 
-  const brand = useMemo(() => {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            background: "black",
-            color: "white",
-            display: "grid",
-            placeItems: "center",
-            fontWeight: 950,
-          }}
-          aria-hidden="true"
-        >
-          🐴
-        </div>
-        <div style={{ lineHeight: 1.1 }}>
-          <div style={{ fontWeight: 950, fontSize: 16 }}>Pinch My Pony</div>
-          <div style={{ fontSize: 12, opacity: 0.6 }}>Marketplace</div>
-        </div>
-      </div>
-    );
-  }, []);
-
-  // ✅ Strict: if user exists, we show either (name) OR (email) OR ("Loading…")
   const signedInLabel = useMemo(() => {
     if (!user) return null;
     const name = displayNameOrNull(profile);
@@ -144,6 +116,42 @@ export default function Header() {
     if (profileLoading) return "Loading…";
     return user.email ?? "Signed in";
   }, [user, profile, profileLoading]);
+
+  const brand = useMemo(() => {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Premium logo badge */}
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 14,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,241,232,0.85))",
+            border: "1px solid rgba(15,23,42,0.10)",
+            boxShadow: "0 10px 28px rgba(15,23,42,0.10)",
+            display: "grid",
+            placeItems: "center",
+            overflow: "hidden",
+          }}
+          aria-hidden="true"
+        >
+          <Image
+            src="/pmp-logo.png"
+            alt=""
+            width={34}
+            height={34}
+            priority
+            style={{ width: 34, height: 34, objectFit: "contain" }}
+          />
+        </div>
+
+        <div style={{ lineHeight: 1.05 }}>
+          <div style={{ fontWeight: 950, fontSize: 16, letterSpacing: -0.2 }}>Pinch My Pony</div>
+          <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 800 }}>Marketplace</div>
+        </div>
+      </div>
+    );
+  }, []);
 
   return (
     <header
@@ -233,10 +241,7 @@ export default function Header() {
                   </button>
 
                   <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7, padding: "0 2px" }}>
-                    Signed in as{" "}
-                    <span style={{ fontWeight: 950 }}>
-                      {signedInLabel}
-                    </span>
+                    Signed in as <span style={{ fontWeight: 950 }}>{signedInLabel}</span>
                   </div>
                 </>
               ) : (
