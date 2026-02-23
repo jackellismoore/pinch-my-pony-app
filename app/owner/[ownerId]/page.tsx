@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import StarRating from "@/components/StarRating";
 import { VerificationBadge } from "@/components/VerificationBadge";
 
 type ProfileRow = {
@@ -18,7 +17,6 @@ type ProfileRow = {
   created_at: string | null;
   role: "owner" | "borrower" | null;
 
-  // ✅ verification fields
   verification_status: string | null;
   verified_at: string | null;
   verification_provider: string | null;
@@ -64,6 +62,36 @@ function initials(name: string) {
   return (a + b).toUpperCase() || "U";
 }
 
+/** Simple read-only stars that are ALWAYS yellow when filled */
+function StarsReadOnly({ value, size = 18 }: { value: number; size?: number }) {
+  const clamped = Math.max(0, Math.min(5, value));
+  const full = Math.floor(clamped);
+  const half = clamped - full >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+
+  const starStyle: React.CSSProperties = {
+    fontSize: size,
+    lineHeight: 1,
+    letterSpacing: 2,
+    userSelect: "none",
+  };
+
+  const filledColor = "#f59e0b"; // amber/yellow
+  const emptyColor = "rgba(0,0,0,0.22)";
+
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+      <span style={{ ...starStyle, color: filledColor }}>
+        {"★".repeat(full)}
+        {half ? "★" : ""}
+      </span>
+      <span style={{ ...starStyle, color: emptyColor }}>
+        {"☆".repeat(empty)}
+      </span>
+    </div>
+  );
+}
+
 export default function OwnerPublicProfilePage() {
   const params = useParams<{ ownerId: string }>();
   const router = useRouter();
@@ -77,6 +105,7 @@ export default function OwnerPublicProfilePage() {
 
   const [ratingAvg, setRatingAvg] = useState<number>(0);
   const [ratingCount, setRatingCount] = useState<number>(0);
+
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [reviewersById, setReviewersById] = useState<Record<string, ProfileMini>>({});
 
@@ -90,7 +119,7 @@ export default function OwnerPublicProfilePage() {
       setError(null);
 
       try {
-        const [profRes, horsesRes, aggRes, reviewsRes] = await Promise.all([
+        const [profRes, horsesRes, reviewsRes] = await Promise.all([
           supabase
             .from("profiles")
             .select(
@@ -106,12 +135,7 @@ export default function OwnerPublicProfilePage() {
             .eq("is_active", true)
             .order("created_at", { ascending: false }),
 
-          supabase
-            .from("reviews")
-            .select("avg:rating.avg(), count:rating.count()")
-            .eq("owner_id", ownerId)
-            .maybeSingle(),
-
+          // ✅ Single source of truth: load latest reviews, then compute avg/count from them
           supabase
             .from("reviews")
             .select("id,rating,comment,created_at,borrower_id")
@@ -128,20 +152,19 @@ export default function OwnerPublicProfilePage() {
         setProfile((profRes.data ?? null) as ProfileRow | null);
         setHorses((horsesRes.data ?? []) as HorseRow[]);
 
-        if (!aggRes.error) {
-          const avg = Number((aggRes.data as any)?.avg ?? 0);
-          const count = Number((aggRes.data as any)?.count ?? 0);
-          setRatingAvg(avg);
-          setRatingCount(count);
-        } else {
-          setRatingAvg(0);
-          setRatingCount(0);
-        }
-
         if (!reviewsRes.error) {
           const list = (reviewsRes.data ?? []) as ReviewRow[];
           setReviews(list);
 
+          // ✅ compute rating summary reliably from list
+          const count = list.length;
+          const sum = list.reduce((acc, r) => acc + Number(r.rating ?? 0), 0);
+          const avg = count > 0 ? sum / count : 0;
+
+          setRatingCount(count);
+          setRatingAvg(avg);
+
+          // fetch reviewer names (batch)
           const borrowerIds = Array.from(new Set(list.map((r) => r.borrower_id).filter(Boolean)));
           if (borrowerIds.length > 0) {
             const { data: reviewerData, error: reviewerErr } = await supabase
@@ -153,6 +176,8 @@ export default function OwnerPublicProfilePage() {
               const map: Record<string, ProfileMini> = {};
               for (const p of (reviewerData ?? []) as ProfileMini[]) map[p.id] = p;
               setReviewersById(map);
+            } else if (!cancelled) {
+              setReviewersById({});
             }
           } else {
             setReviewersById({});
@@ -160,6 +185,8 @@ export default function OwnerPublicProfilePage() {
         } else {
           setReviews([]);
           setReviewersById({});
+          setRatingAvg(0);
+          setRatingCount(0);
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load owner profile.");
@@ -251,25 +278,10 @@ export default function OwnerPublicProfilePage() {
           }}
         >
           <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 999,
-                background: "rgba(0,0,0,0.06)",
-              }}
-            />
+            <div style={{ width: 64, height: 64, borderRadius: 999, background: "rgba(0,0,0,0.06)" }} />
             <div style={{ flex: 1 }}>
               <div style={{ height: 14, width: 220, background: "rgba(0,0,0,0.06)", borderRadius: 8 }} />
-              <div
-                style={{
-                  marginTop: 10,
-                  height: 12,
-                  width: 320,
-                  background: "rgba(0,0,0,0.05)",
-                  borderRadius: 8,
-                }}
-              />
+              <div style={{ marginTop: 10, height: 12, width: 320, background: "rgba(0,0,0,0.05)", borderRadius: 8 }} />
             </div>
           </div>
 
@@ -339,7 +351,7 @@ export default function OwnerPublicProfilePage() {
               <h1 style={{ margin: 0, fontSize: 22 }}>{displayName}</h1>
               <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>{subtitle}</div>
 
-              {/* ✅ Verification badge */}
+              {/* Verification badge */}
               <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <VerificationBadge
                   status={profile.verification_status ?? "unverified"}
@@ -349,9 +361,9 @@ export default function OwnerPublicProfilePage() {
                 />
               </div>
 
-              {/* Rating summary */}
+              {/* ✅ Rating summary (now always matches reviews list) */}
               <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <StarRating value={ratingCount > 0 ? Number(ratingAvg.toFixed(1)) : 0} readOnly size={18} />
+                <StarsReadOnly value={ratingCount > 0 ? Number(ratingAvg.toFixed(1)) : 0} size={18} />
                 <div style={{ fontSize: 13, color: "rgba(0,0,0,0.70)", fontWeight: 800 }}>
                   {ratingCount > 0 ? `${ratingAvg.toFixed(1)} (${ratingCount})` : "No reviews yet"}
                 </div>
@@ -478,7 +490,7 @@ export default function OwnerPublicProfilePage() {
                       </div>
 
                       <div style={{ flexShrink: 0 }}>
-                        <StarRating value={r.rating} readOnly size={18} />
+                        <StarsReadOnly value={Number(r.rating ?? 0)} size={18} />
                       </div>
                     </div>
                   </div>

@@ -211,17 +211,11 @@ export default function HomePage() {
             <div style={heroVisualCard} aria-label="Brand and how it works">
               <div style={heroVisualInner}>
                 <div style={logoRow}>
-                  {/* Logo badge: bigger + warm paper tone */}
                   <div style={logoBadge}>
                     <img
                       src="/pmp-logo.png"
                       alt="Pinch My Pony logo"
-                      style={{
-                        width: "92%",
-                        height: "92%",
-                        objectFit: "contain",
-                        display: "block",
-                      }}
+                      style={{ width: "92%", height: "92%", objectFit: "contain", display: "block" }}
                     />
                   </div>
 
@@ -250,82 +244,86 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-
-          {/* Logged out marketing */}
-          {!isAuthed ? (
-            <>
-              <section style={section}>
-                <header style={sectionHeader}>
-                  <h2 style={sectionTitle}>How it works</h2>
-                  <p style={sectionSubtitle}>Built for both borrowers and owners — clear steps, clear expectations.</p>
-                </header>
-
-                <div className="pmp-two-col" style={twoColumn}>
-                  <div style={card}>
-                    <div style={cardTopRow}>
-                      <span style={rolePillBorrower}>For Borrowers</span>
-                      <span style={mutedPill}>3 steps</span>
-                    </div>
-
-                    <ol style={stepList}>
-                      <Step number="1" title="Browse active horses" copy="Explore listings and check details." />
-                      <Step number="2" title="Request your dates" copy="Pick a date range. Conflicts are blocked." />
-                      <Step number="3" title="Ride & review" copy="Coordinate via messaging and leave a review." />
-                    </ol>
-                  </div>
-
-                  <div style={card}>
-                    <div style={cardTopRow}>
-                      <span style={rolePillOwner}>For Owners</span>
-                      <span style={mutedPill}>3 steps</span>
-                    </div>
-
-                    <ol style={stepList}>
-                      <Step number="1" title="List your horse" copy="Create a listing with clear expectations." />
-                      <Step number="2" title="Approve trusted riders" copy="Review requests and chat before approving." />
-                      <Step number="3" title="Manage availability" copy="Block dates and avoid overlaps automatically." />
-                    </ol>
-                  </div>
-                </div>
-              </section>
-
-              <section style={sectionAlt}>
-                <header style={sectionHeader}>
-                  <h2 style={sectionTitle}>Trust & safety, baked in</h2>
-                  <p style={sectionSubtitle}>Profiles, messaging, and guardrails help keep things clear and comfortable.</p>
-                </header>
-
-                <div className="pmp-feature-grid" style={featureGrid}>
-                  <FeatureCard icon="⭐" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
-                  <FeatureCard icon="🗓️" title="Date conflict enforcement" copy="Overlaps are blocked to keep schedules reliable." />
-                  <FeatureCard icon="💬" title="Messaging built-in" copy="Coordinate details without switching apps." />
-                  <FeatureCard icon="🪪" title="Profiles that matter" copy="See who you’re riding with before confirming." />
-                </div>
-
-                <div style={trustCtaBand}>
-                  <div>
-                    <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>Ready to get started?</div>
-                    <div style={{ opacity: 0.75, marginTop: 4 }}>Create an account and start browsing today.</div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                    <Link href="/login" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta pmp-cta-primary" style={primaryButtonSmall}>
-                        Login
-                      </span>
-                    </Link>
-                    <Link href="/signup" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta" style={secondaryButtonSmall}>
-                        Sign Up
-                      </span>
-                    </Link>
-                  </div>
-                </div>
-              </section>
-            </>
-          ) : null}
         </div>
       </section>
+
+      {/* LOGGED OUT MARKETING (boxed + centered, no hover) */}
+      {!isAuthed ? (
+        <>
+          <section style={section}>
+            <div style={container}>
+              <header style={sectionHeaderTight}>
+                <h2 style={sectionTitle}>How it works</h2>
+                <p style={sectionSubtitle}>Built for both borrowers and owners — clear steps, clear expectations.</p>
+              </header>
+
+              <div className="pmp-two-col" style={twoColumn}>
+                <div style={card}>
+                  <div style={cardTopRow}>
+                    <span style={rolePillBorrower}>For Borrowers</span>
+                    <span style={mutedPill}>3 steps</span>
+                  </div>
+
+                  <ol style={stepList}>
+                    <Step number="1" title="Browse active horses" copy="Explore listings and check details." />
+                    <Step number="2" title="Request your dates" copy="Pick a date range. Conflicts are blocked." />
+                    <Step number="3" title="Ride & review" copy="Coordinate via messaging and leave a review." />
+                  </ol>
+                </div>
+
+                <div style={card}>
+                  <div style={cardTopRow}>
+                    <span style={rolePillOwner}>For Owners</span>
+                    <span style={mutedPill}>3 steps</span>
+                  </div>
+
+                  <ol style={stepList}>
+                    <Step number="1" title="List your horse" copy="Create a listing with clear expectations." />
+                    <Step number="2" title="Approve trusted riders" copy="Review requests and chat before approving." />
+                    <Step number="3" title="Manage availability" copy="Block dates and avoid overlaps automatically." />
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section style={sectionAlt}>
+            <div style={container}>
+              <header style={sectionHeaderTight}>
+                <h2 style={sectionTitle}>Trust & safety, baked in</h2>
+                <p style={sectionSubtitle}>Profiles, messaging, and guardrails help keep things clear and comfortable.</p>
+              </header>
+
+              <div className="pmp-feature-grid" style={featureGrid}>
+                <FeatureCard icon="⭐" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
+                <FeatureCard icon="🗓️" title="Date conflict enforcement" copy="Overlaps are blocked to keep schedules reliable." />
+                <FeatureCard icon="💬" title="Messaging built-in" copy="Coordinate details without switching apps." />
+                <FeatureCard icon="🪪" title="Profiles that matter" copy="See who you’re riding with before confirming." />
+              </div>
+
+              <div style={trustCtaBand}>
+                <div>
+                  <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>Ready to get started?</div>
+                  <div style={{ opacity: 0.75, marginTop: 4 }}>Create an account and start browsing today.</div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <Link href="/login" style={{ textDecoration: "none" }}>
+                    <span className="pmp-cta pmp-cta-primary" style={primaryButtonSmall}>
+                      Login
+                    </span>
+                  </Link>
+                  <Link href="/signup" style={{ textDecoration: "none" }}>
+                    <span className="pmp-cta" style={secondaryButtonSmall}>
+                      Sign Up
+                    </span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
+        </>
+      ) : null}
 
       <div style={{ height: 26 }} />
     </div>
@@ -397,36 +395,27 @@ function FeatureCard({ icon, title, copy }: { icon: string; title: string; copy:
 const css = `
   :root { -webkit-tap-highlight-color: transparent; }
 
-  /* Accessibility: respect reduced motion */
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
 
-  /* Fade-up sequencing */
   @keyframes pmpFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   .pmp-fade { animation: pmpFadeUp 520ms ease both; }
   .pmp-fade-delayed { animation: pmpFadeUp 620ms ease both; animation-delay: 90ms; }
   .pmp-fade-delayed2 { animation: pmpFadeUp 720ms ease both; animation-delay: 160ms; }
   .pmp-fade-delayed3 { animation: pmpFadeUp 820ms ease both; animation-delay: 220ms; }
 
-  /* ✅ Mobile-friendly: NO hover motion on cards */
+  /* ✅ No hover motion */
   .pmp-lift, .pmp-lift-soft { transition: none !important; }
   .pmp-lift:hover, .pmp-lift-soft:hover { transform: none !important; }
 
-  /* ✅ Buttons: keep subtle press feedback only */
+  /* ✅ Buttons: subtle hover only */
   .pmp-cta { transition: filter 140ms ease; display: inline-flex; }
   @media (hover: hover) and (pointer: fine) {
     .pmp-cta:hover { filter: brightness(1.01); }
   }
   .pmp-cta:active { filter: brightness(0.99); }
 
-  /* Background drift (very subtle) */
-  @keyframes pmpDriftA { 0% { transform: translate3d(0,0,0) } 50% { transform: translate3d(10px,-8px,0) } 100% { transform: translate3d(0,0,0) } }
-  @keyframes pmpDriftB { 0% { transform: translate3d(0,0,0) } 50% { transform: translate3d(-12px,10px,0) } 100% { transform: translate3d(0,0,0) } }
-  .pmp-driftA { animation: pmpDriftA 12s ease-in-out infinite; }
-  .pmp-driftB { animation: pmpDriftB 14s ease-in-out infinite; }
-
-  /* Responsive */
   @media (max-width: 980px) {
     .pmp-hero-grid { grid-template-columns: 1fr !important; }
     .pmp-feature-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
@@ -438,8 +427,6 @@ const css = `
     .pmp-feature-grid { grid-template-columns: 1fr !important; }
   }
 `;
-
-/* ----- original inline styles (unchanged) ----- */
 
 const fullBleedWrap: React.CSSProperties = {
   width: "100vw",
@@ -678,10 +665,10 @@ const sectionAlt: React.CSSProperties = {
   background: `linear-gradient(180deg, #fafafa 0%, rgba(245,241,232,0.7) 100%)`,
 };
 
-const sectionHeader: React.CSSProperties = {
+const sectionHeaderTight: React.CSSProperties = {
   display: "grid",
   gap: 8,
-  margin: "26px 0 16px",
+  margin: "0 0 16px",
 };
 
 const sectionTitle: React.CSSProperties = {
