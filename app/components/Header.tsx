@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { registerPushForCurrentUser } from "@/lib/push/registerPush";
 import NotificationBell from "@/components/NotificationBell";
+import { VerificationBadge } from "@/components/VerificationBadge";
 
 type ProfileMini = {
   id: string;
@@ -14,7 +15,10 @@ type ProfileMini = {
   display_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
-  verification_status?: string | null; // new (optional so it won't crash if column missing temporarily)
+
+  verification_status: string | null;
+  verified_at: string | null;
+  verification_provider: string | null;
 };
 
 function displayNameOrNull(p: ProfileMini | null) {
@@ -53,9 +57,10 @@ export default function Header() {
       try {
         const { data: p, error } = await supabase
           .from("profiles")
-          .select("id,role,display_name,full_name,avatar_url,verification_status")
+          .select("id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider")
           .eq("id", uid)
           .maybeSingle();
+
         if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
       } finally {
         if (!cancelled) setProfileLoading(false);
@@ -109,7 +114,7 @@ export default function Header() {
   };
 
   const isOwner = profile?.role === "owner";
-  const isVerified = profile?.verification_status === "verified";
+  const isVerified = (profile?.verification_status ?? "unverified") === "verified";
 
   const signedInLabel = useMemo(() => {
     if (!user) return null;
@@ -136,7 +141,14 @@ export default function Header() {
           }}
           aria-hidden="true"
         >
-          <Image src="/pmp-logo.png" alt="" width={34} height={34} priority style={{ width: 34, height: 34, objectFit: "contain" }} />
+          <Image
+            src="/pmp-logo.png"
+            alt=""
+            width={34}
+            height={34}
+            priority
+            style={{ width: 34, height: 34, objectFit: "contain" }}
+          />
         </div>
 
         <div style={{ lineHeight: 1.05 }}>
@@ -176,24 +188,26 @@ export default function Header() {
         <div ref={menuWrapRef} style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
           {user ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {/* ✅ Verification badge (links to /verify if needed) */}
               {!isVerified ? (
-                <Link
-                  href="/verify"
-                  style={{
-                    textDecoration: "none",
-                    fontWeight: 950,
-                    fontSize: 12,
-                    padding: "8px 10px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(200,162,77,0.35)",
-                    background: "rgba(200,162,77,0.14)",
-                    color: "#0f172a",
-                  }}
-                  title="Verification required"
-                >
-                  Verification required
+                <Link href="/verify" style={{ textDecoration: "none" }} title="Verification required">
+                  <VerificationBadge
+                    status={profile?.verification_status ?? "unverified"}
+                    verifiedAt={profile?.verified_at ?? null}
+                    provider={profile?.verification_provider ?? null}
+                    compact
+                  />
                 </Link>
-              ) : null}
+              ) : (
+                <div title="Verified">
+                  <VerificationBadge
+                    status={profile?.verification_status ?? "verified"}
+                    verifiedAt={profile?.verified_at ?? null}
+                    provider={profile?.verification_provider ?? null}
+                    compact
+                  />
+                </div>
+              )}
 
               <NotificationBell />
             </div>
@@ -232,6 +246,7 @@ export default function Header() {
                   <Link href="/browse" onClick={() => setMenuOpen(false)} style={menuItem()}>
                     Browse
                   </Link>
+
                   <Link href="/messages" onClick={() => setMenuOpen(false)} style={menuItem()}>
                     Messages
                   </Link>
