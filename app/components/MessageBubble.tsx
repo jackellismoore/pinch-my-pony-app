@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 type UIMessage = {
   id: string
@@ -16,6 +16,8 @@ type UIMessage = {
   attachment_url?: string | null
   attachment_preview_url?: string | null
   attachment_path?: string | null
+  attachment_width?: number | null
+  attachment_height?: number | null
 }
 
 type GroupPos = "single" | "start" | "middle" | "end"
@@ -54,6 +56,10 @@ function statusText(m: UIMessage) {
   return "✓"
 }
 
+function clamp(n: number, a: number, b: number) {
+  return Math.max(a, Math.min(b, n))
+}
+
 export default function MessageBubble({
   message,
   isMine,
@@ -69,6 +75,14 @@ export default function MessageBubble({
 }) {
   const mine = Boolean(isMine)
   const [open, setOpen] = useState(false)
+
+  // ✅ modal swipe-to-close (mobile)
+  const dragRef = useRef<{ startY: number; lastY: number; dragging: boolean }>({
+    startY: 0,
+    lastY: 0,
+    dragging: false,
+  })
+  const modalCardRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -98,6 +112,14 @@ export default function MessageBubble({
         ? "1px solid rgba(255,255,255,0.16)"
         : "1px solid rgba(15,23,42,0.10)"
 
+  // ✅ preserve aspect ratio using metadata (if available)
+  const ratio = useMemo(() => {
+    const w = Number(message.attachment_width ?? 0)
+    const h = Number(message.attachment_height ?? 0)
+    if (!w || !h) return null
+    return w / h
+  }, [message.attachment_width, message.attachment_height])
+
   const imageBoxStyle: React.CSSProperties = useMemo(
     () => ({
       marginTop: message.content?.trim() ? 10 : 2,
@@ -109,14 +131,71 @@ export default function MessageBubble({
       cursor: imageSrc ? "pointer" : "default",
       maxWidth: 360,
       transition: "transform 140ms ease, box-shadow 140ms ease",
+      transform: "translateZ(0)",
     }),
     [mine, imageSrc, message.content]
   )
+
+  const imageInnerStyle: React.CSSProperties = useMemo(() => {
+    // If we know ratio, reserve space so it doesn't jump when it loads
+    if (ratio) {
+      // limit height to keep bubbles comfy
+      const maxW = 360
+      const computedH = maxW / ratio
+      const targetH = clamp(computedH, 180, 320)
+      return {
+        width: "100%",
+        height: targetH,
+        position: "relative",
+        background: "rgba(15,23,42,0.20)",
+      }
+    }
+    return { width: "100%" }
+  }, [ratio])
+
+  const onModalPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // only start drag if they start on the card (not on the close button)
+    if (!modalCardRef.current) return
+    dragRef.current.dragging = true
+    dragRef.current.startY = e.clientY
+    dragRef.current.lastY = e.clientY
+    try {
+      ;(e.currentTarget as any).setPointerCapture?.(e.pointerId)
+    } catch {}
+  }
+
+  const onModalPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.dragging) return
+    dragRef.current.lastY = e.clientY
+    const dy = e.clientY - dragRef.current.startY
+    if (!modalCardRef.current) return
+    if (dy < 0) return // only allow downward drag
+    const damp = Math.min(1, dy / 420)
+    modalCardRef.current.style.transform = `translateY(${dy}px) scale(${1 - damp * 0.04})`
+    modalCardRef.current.style.opacity = String(1 - damp * 0.35)
+  }
+
+  const onModalPointerUp = () => {
+    if (!dragRef.current.dragging) return
+    dragRef.current.dragging = false
+    const dy = dragRef.current.lastY - dragRef.current.startY
+    if (!modalCardRef.current) return
+
+    if (dy > 120) {
+      setOpen(false)
+      return
+    }
+
+    // snap back
+    modalCardRef.current.style.transform = "translateY(0px) scale(1)"
+    modalCardRef.current.style.opacity = "1"
+  }
 
   return (
     <>
       <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
         <div
+          className="pmp-msgIn"
           style={{
             maxWidth: 580,
             padding: "10px 12px",
@@ -140,8 +219,7 @@ export default function MessageBubble({
                 if (!imageSrc) return
                 const el = e.currentTarget
                 el.style.transform = "scale(1.015)"
-                el.style.boxShadow =
-                  "0 20px 40px rgba(0,0,0,0.16), 0 0 0 2px rgba(202,162,77,0.22)"
+                el.style.boxShadow = "0 20px 40px rgba(0,0,0,0.16), 0 0 0 2px rgba(202,162,77,0.22)"
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget
@@ -152,19 +230,25 @@ export default function MessageBubble({
                 if (imageSrc) setOpen(true)
               }}
               role={imageSrc ? "button" : undefined}
+              aria-label={imageSrc ? "Open image" : "Image"}
+              title={imageSrc ? "Click to view" : "Loading image…"}
             >
               {imageSrc ? (
-                <img
-                  src={imageSrc}
-                  alt="Attachment"
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    height: "auto",
-                    maxHeight: 280,
-                    objectFit: "cover",
-                  }}
-                />
+                <div style={imageInnerStyle}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imageSrc}
+                    alt="Attachment"
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      height: ratio ? "100%" : "auto",
+                      maxHeight: ratio ? undefined : 300,
+                      objectFit: ratio ? "cover" : "cover",
+                      transform: "translateZ(0)",
+                    }}
+                  />
+                </div>
               ) : (
                 <div style={{ padding: 12 }}>
                   <div className="pmp-shimmer" style={{ height: 16, borderRadius: 10, width: "62%" }} />
@@ -191,7 +275,7 @@ export default function MessageBubble({
             }}
           >
             <span>{formatTime(message.created_at)}</span>
-            {mine && showStatus ? <span>{statusText(message)}</span> : null}
+            {mine && showStatus ? <span style={{ letterSpacing: 0.5 }}>{statusText(message)}</span> : null}
           </div>
 
           {message.client_status === "error" && mine ? (
@@ -231,22 +315,31 @@ export default function MessageBubble({
             alignItems: "center",
             justifyContent: "center",
             padding: 20,
-            animation: "pmpFadeInUp 140ms ease-out",
+            animation: "pmpModalFade 150ms ease-out",
           }}
+          aria-modal="true"
+          role="dialog"
         >
           <div
+            ref={modalCardRef}
+            onPointerDown={onModalPointerDown}
+            onPointerMove={onModalPointerMove}
+            onPointerUp={onModalPointerUp}
             style={{
-              width: "min(1000px, 100%)",
+              width: "min(1020px, 100%)",
               borderRadius: 22,
               overflow: "hidden",
               border: "1px solid rgba(255,255,255,0.22)",
               background: "rgba(255,255,255,0.08)",
-              boxShadow: "0 40px 100px rgba(0,0,0,0.45)",
+              boxShadow: "0 40px 110px rgba(0,0,0,0.45)",
               position: "relative",
+              animation: "pmpModalPop 150ms ease-out",
+              touchAction: "none",
             }}
           >
             <button
               onClick={() => setOpen(false)}
+              className="pmp-hoverLift"
               style={{
                 position: "absolute",
                 top: 12,
@@ -260,11 +353,28 @@ export default function MessageBubble({
                 cursor: "pointer",
                 fontWeight: 950,
                 boxShadow: "0 14px 30px rgba(0,0,0,0.28)",
+                zIndex: 2,
               }}
+              aria-label="Close"
+              title="Close"
+              onPointerDown={(e) => e.stopPropagation()}
             >
               ✕
             </button>
 
+            {/* subtle top gradient like a premium viewer */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                background:
+                  "linear-gradient(180deg, rgba(0,0,0,0.32), transparent 24%, transparent 70%, rgba(0,0,0,0.28))",
+              }}
+            />
+
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={imageSrc}
               alt="Attachment full view"
@@ -276,7 +386,26 @@ export default function MessageBubble({
                 objectFit: "contain",
                 background: "rgba(15,23,42,0.35)",
               }}
+              draggable={false}
             />
+
+            <div
+              style={{
+                position: "absolute",
+                left: 14,
+                bottom: 12,
+                fontSize: 12,
+                fontWeight: 900,
+                color: "rgba(255,255,255,0.88)",
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(15,23,42,0.30)",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              Swipe down or tap outside to close
+            </div>
           </div>
         </div>
       ) : null}

@@ -53,9 +53,18 @@ label {
   font-weight: 600;
 }
 
+/* -----------------------------
+   Pinch My Pony Motion Helpers
+------------------------------ */
 @keyframes pmpFadeInUp {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes pmpTyping {
@@ -64,40 +73,44 @@ label {
 }
 
 .pmp-hoverLift {
-  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
-  will-change: transform;
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
 }
 .pmp-hoverLift:hover {
   transform: translateY(-1px);
+  filter: saturate(1.02);
 }
 
+/* subtle in-message arrival */
+@keyframes pmpMsgIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.pmp-msgIn {
+  animation: pmpMsgIn 160ms ease-out;
+}
+
+/* shimmer (used for image loading skeletons) */
 @keyframes pmpShimmer {
-  0% { background-position: 0% 0; }
-  100% { background-position: 160% 0; }
+  0% { background-position: -500px 0; }
+  100% { background-position: 500px 0; }
 }
 .pmp-shimmer {
   background: linear-gradient(
     90deg,
     rgba(15,23,42,0.06) 0%,
-    rgba(202,162,77,0.18) 45%,
-    rgba(15,23,42,0.06) 100%
+    rgba(15,23,42,0.12) 20%,
+    rgba(15,23,42,0.06) 40%
   );
-  background-size: 160% 100%;
-  animation: pmpShimmer 1.2s ease-in-out infinite;
+  background-size: 1000px 100%;
+  animation: pmpShimmer 1.15s ease-in-out infinite;
 }
 
-/* Mobile: give messages more room */
-@media (max-width: 520px) {
-  .pmp-chatHeader {
-    padding: 10px 10px !important;
-    gap: 10px !important;
-  }
-
-  .pmp-chatScroller {
-    padding: 12px !important;
-  }
-
-  .pmp-chatComposer {
-    padding: 10px !important;
-  }
+/* modal feel */
+@keyframes pmpModalFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pmpModalPop {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
