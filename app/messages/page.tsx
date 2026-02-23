@@ -18,12 +18,8 @@ type ThreadUI = ThreadRow & {
   other_avatar_url: string | null
   horse_image_url: string | null
   subtitle: string | null
-
-  // ✅ last message attachment signal
   last_is_photo?: boolean
   last_attachment_url?: string | null
-
-  // ✅ role pill for "other user"
   other_role?: "Owner" | "Borrower" | null
 }
 
@@ -137,9 +133,9 @@ function PhotoPill() {
   )
 }
 
-/** ✅ Swipe-to-delete wrapper (mobile-friendly, no libs)
- * - swipe left reveals Delete button
- * - prevents accidental navigation if user swipes
+/** ✅ FIXED SwipeRow
+ * - tap opens link reliably
+ * - only blocks click if the user moved horizontally past threshold
  */
 function SwipeRow({
   requestId,
@@ -149,28 +145,36 @@ function SwipeRow({
 }: {
   requestId: string
   onDelete: () => void
-  children: (opts: { translateX: number; isOpen: boolean; close: () => void; isSwiping: boolean }) => React.ReactNode
+  children: (opts: { translateX: number; isOpen: boolean; close: () => void; clickShouldOpen: () => boolean }) => React.ReactNode
   disabled?: boolean
 }) {
   const MAX = 86 // px reveal
-  const [tx, setTx] = useState(0) // negative = left
-  const [open, setOpen] = useState(false)
-  const [swiping, setSwiping] = useState(false)
+  const SWIPE_START_PX = 14 // require actual movement
+  const SWIPE_LOCK_PX = 18  // once past, treat as swipe gesture
 
+  const [tx, setTx] = useState(0)
+  const [open, setOpen] = useState(false)
+
+  // gesture refs to avoid stale state during click
   const startRef = useRef<{ x: number; y: number; tx: number; active: boolean }>({ x: 0, y: 0, tx: 0, active: false })
+  const didSwipeRef = useRef(false)
+  const swipingRef = useRef(false)
 
   const close = () => {
     setOpen(false)
     setTx(0)
   }
 
+  const clickShouldOpen = () => {
+    // allow navigation only if we did NOT swipe
+    return !didSwipeRef.current
+  }
+
   useEffect(() => {
-    // close any open row when clicking elsewhere
     const onDown = (e: MouseEvent) => {
       if (!open) return
       const target = e.target as HTMLElement | null
       if (!target) return
-      // if click inside this row, ignore
       const el = document.getElementById(`swipe-row-${requestId}`)
       if (el && el.contains(target)) return
       close()
@@ -181,35 +185,36 @@ function SwipeRow({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (disabled) return
-    // Only enable swipe for touch/pen; still works on mouse but less needed.
+    didSwipeRef.current = false
+    swipingRef.current = false
     startRef.current = { x: e.clientX, y: e.clientY, tx, active: true }
-    setSwiping(false)
-    try {
-      ;(e.currentTarget as any).setPointerCapture?.(e.pointerId)
-    } catch {}
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!startRef.current.active || disabled) return
+
     const dx = e.clientX - startRef.current.x
     const dy = e.clientY - startRef.current.y
 
-    // If mostly vertical scroll, abort swipe
-    if (!swiping && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+    // If vertical intent, abort (don’t block scroll)
+    if (!swipingRef.current && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
       startRef.current.active = false
       return
     }
 
-    // start swiping when horizontal intent is clear
-    if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
-      setSwiping(true)
+    // Start swiping only after threshold
+    if (!swipingRef.current) {
+      if (Math.abs(dx) < SWIPE_START_PX) return
+      if (Math.abs(dx) <= Math.abs(dy)) return
+      swipingRef.current = true
     }
-    if (!swiping) return
+
+    // Once we’ve committed to swipe, mark didSwipe when meaningful
+    if (Math.abs(dx) > SWIPE_LOCK_PX) didSwipeRef.current = true
 
     // dragging left reveals actions; dragging right closes
     let next = startRef.current.tx + dx
     next = clamp(next, -MAX, 0)
-
     setTx(next)
   }
 
@@ -218,7 +223,10 @@ function SwipeRow({
     if (!startRef.current.active) return
     startRef.current.active = false
 
-    if (!swiping) return
+    if (!swipingRef.current) {
+      // pure tap, do nothing (navigation should work)
+      return
+    }
 
     const shouldOpen = tx <= -MAX * 0.55
     if (shouldOpen) {
@@ -228,8 +236,11 @@ function SwipeRow({
       close()
     }
 
-    // allow click again after release
-    setTimeout(() => setSwiping(false), 0)
+    // reset swipe flags shortly after click phase
+    window.setTimeout(() => {
+      swipingRef.current = false
+      didSwipeRef.current = false
+    }, 0)
   }
 
   return (
@@ -241,7 +252,7 @@ function SwipeRow({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      {/* Actions behind */}
+      {/* actions behind */}
       <div
         style={{
           position: "absolute",
@@ -249,8 +260,7 @@ function SwipeRow({
           display: "flex",
           justifyContent: "flex-end",
           alignItems: "stretch",
-          background:
-            "linear-gradient(180deg, rgba(239,68,68,0.16), rgba(239,68,68,0.10))",
+          background: "linear-gradient(180deg, rgba(239,68,68,0.16), rgba(239,68,68,0.10))",
         }}
         aria-hidden="true"
       >
@@ -276,14 +286,9 @@ function SwipeRow({
         </button>
       </div>
 
-      {/* Foreground content slides */}
-      <div
-        style={{
-          transform: `translateX(${tx}px)`,
-          transition: swiping ? "none" : "transform 160ms ease",
-        }}
-      >
-        {children({ translateX: tx, isOpen: open, close, isSwiping: swiping })}
+      {/* content slides */}
+      <div style={{ transform: `translateX(${tx}px)`, transition: swipingRef.current ? "none" : "transform 160ms ease" }}>
+        {children({ translateX: tx, isOpen: open, close, clickShouldOpen })}
       </div>
     </div>
   )
@@ -295,7 +300,6 @@ export default function MessagesPage() {
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // controls
   const [q, setQ] = useState("")
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
   const [markingAllRead, setMarkingAllRead] = useState(false)
@@ -339,7 +343,7 @@ export default function MessagesPage() {
 
     const requestIds = base.map((t) => t.request_id)
 
-    // ✅ last message attachment (best effort)
+    // last message attachment (best effort)
     let lastMsgMap = new Map<string, LastMessageMini>()
     try {
       const { data: msgs, error: msgErr } = await supabase
@@ -425,21 +429,20 @@ export default function MessagesPage() {
           const p = otherId ? profMap.get(otherId) ?? null : null
           const display = cleanName(p?.display_name) || cleanName(p?.full_name) || t.other_display_name || "User"
 
-          // role label for other
           let role: "Owner" | "Borrower" | null = null
           if (otherId && ownerId && borrowerId) {
             role = otherId === ownerId ? "Owner" : otherId === borrowerId ? "Borrower" : null
           }
 
-          // photo pill + optional preview
           const last = lastMsgMap.get(t.request_id) ?? null
           const isPhoto = (last?.attachment_type ?? null) === "image"
+
           let signed: string | null = null
           if (isPhoto && last?.attachment_bucket && last?.attachment_path) {
             try {
               const { data: signedData, error: signedErr } = await supabase.storage
                 .from(last.attachment_bucket)
-                .createSignedUrl(last.attachment_path, 60 * 30) // 30 min
+                .createSignedUrl(last.attachment_path, 60 * 30)
               if (!signedErr) signed = signedData?.signedUrl ?? null
             } catch {}
           }
@@ -449,8 +452,8 @@ export default function MessagesPage() {
             other_user_id: otherId,
             other_avatar_url: p?.avatar_url ?? null,
             horse_image_url: horseImageFromRow(h),
-            other_display_name: display,
             subtitle: cleanName(h?.name) || t.horse_name || null,
+            other_display_name: display,
             other_role: role,
             last_is_photo: isPhoto,
             last_attachment_url: signed,
@@ -520,7 +523,26 @@ export default function MessagesPage() {
     }
   }
 
-  // ✅ Mark all read (only incoming, only unread, only threads currently shown by filters)
+  const filtered = useMemo(() => {
+    const query = norm(q)
+    return threads.filter((t) => {
+      if (showUnreadOnly && !(t.unread_count > 0)) return false
+      if (!query) return true
+      const hay = norm([t.other_display_name, t.subtitle ?? "", t.horse_name ?? "", t.last_message ?? ""].join(" "))
+      return hay.includes(query)
+    })
+  }, [threads, q, showUnreadOnly])
+
+  const counts = useMemo(() => {
+    const total = threads.length
+    const unread = threads.reduce((acc, t) => acc + ((t.unread_count ?? 0) > 0 ? 1 : 0), 0)
+    return { total, unread }
+  }, [threads])
+
+  const visibleUnreadCount = useMemo(() => {
+    return filtered.reduce((acc, t) => acc + (t.unread_count > 0 ? 1 : 0), 0)
+  }, [filtered])
+
   const markAllRead = async () => {
     if (!myUserId) return
     if (markingAllRead) return
@@ -544,34 +566,11 @@ export default function MessagesPage() {
         return
       }
 
-      // optimistic UI: clear unread counts on visible
-      setThreads((prev) =>
-        prev.map((t) => (visibleIds.includes(t.request_id) ? { ...t, unread_count: 0 } : t))
-      )
+      setThreads((prev) => prev.map((t) => (visibleIds.includes(t.request_id) ? { ...t, unread_count: 0 } : t)))
     } finally {
       setMarkingAllRead(false)
     }
   }
-
-  const counts = useMemo(() => {
-    const total = threads.length
-    const unread = threads.reduce((acc, t) => acc + ((t.unread_count ?? 0) > 0 ? 1 : 0), 0)
-    return { total, unread }
-  }, [threads])
-
-  const filtered = useMemo(() => {
-    const query = norm(q)
-    return threads.filter((t) => {
-      if (showUnreadOnly && !(t.unread_count > 0)) return false
-      if (!query) return true
-      const hay = norm([t.other_display_name, t.subtitle ?? "", t.horse_name ?? "", t.last_message ?? ""].join(" "))
-      return hay.includes(query)
-    })
-  }, [threads, q, showUnreadOnly])
-
-  const visibleUnreadCount = useMemo(() => {
-    return filtered.reduce((acc, t) => acc + (t.unread_count > 0 ? 1 : 0), 0)
-  }, [filtered])
 
   return (
     <div style={{ padding: 18, maxWidth: 900, margin: "0 auto" }}>
@@ -605,7 +604,6 @@ export default function MessagesPage() {
           </div>
         </div>
 
-        {/* ✅ Mark all read */}
         <button
           onClick={markAllRead}
           disabled={markingAllRead || visibleUnreadCount === 0 || loading}
@@ -616,9 +614,7 @@ export default function MessagesPage() {
             borderRadius: 14,
             border: "1px solid rgba(15,23,42,0.12)",
             background:
-              visibleUnreadCount === 0
-                ? "rgba(255,255,255,0.65)"
-                : "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
+              visibleUnreadCount === 0 ? "rgba(255,255,255,0.65)" : "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
             fontWeight: 950,
             cursor: markingAllRead || visibleUnreadCount === 0 || loading ? "not-allowed" : "pointer",
             boxShadow: "0 12px 26px rgba(15,23,42,0.06)",
@@ -700,28 +696,6 @@ export default function MessagesPage() {
               ? "When you request a pony or receive a request, your chat will appear here."
               : "Try a different search or turn off Unread only."}
           </div>
-
-          {threads.length > 0 ? (
-            <button
-              onClick={() => {
-                setQ("")
-                setShowUnreadOnly(false)
-              }}
-              className="pmp-hoverLift"
-              style={{
-                marginTop: 12,
-                height: 42,
-                padding: "0 12px",
-                borderRadius: 14,
-                border: "1px solid rgba(15,23,42,0.12)",
-                background: "white",
-                fontWeight: 950,
-                cursor: "pointer",
-              }}
-            >
-              Reset filters
-            </button>
-          ) : null}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -740,21 +714,16 @@ export default function MessagesPage() {
             }
 
             return (
-              <SwipeRow
-                key={t.request_id}
-                requestId={t.request_id}
-                onDelete={() => deleteChatForMe(t.request_id)}
-                disabled={deleting}
-              >
-                {({ isSwiping }) => (
+              <SwipeRow key={t.request_id} requestId={t.request_id} onDelete={() => deleteChatForMe(t.request_id)} disabled={deleting}>
+                {({ clickShouldOpen }) => (
                   <div className="pmp-hoverLift" style={cardBaseStyle}>
                     <Link
                       href={`/messages/${t.request_id}`}
                       prefetch={false}
                       style={{ textDecoration: "none", display: "block" }}
                       onClick={(e) => {
-                        // ✅ prevent navigation if user was swiping
-                        if (isSwiping) {
+                        // ✅ only block if the user actually swiped
+                        if (!clickShouldOpen()) {
                           e.preventDefault()
                           e.stopPropagation()
                         }
@@ -762,7 +731,6 @@ export default function MessagesPage() {
                     >
                       <div style={{ padding: 14, cursor: "pointer" }}>
                         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                          {/* Avatar stack */}
                           <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
                             <div
                               style={{
@@ -777,22 +745,9 @@ export default function MessagesPage() {
                             >
                               {t.other_avatar_url ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={t.other_avatar_url}
-                                  alt={t.other_display_name}
-                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                />
+                                <img src={t.other_avatar_url} alt={t.other_display_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               ) : (
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    display: "grid",
-                                    placeItems: "center",
-                                    fontWeight: 950,
-                                    color: "rgba(15,23,42,0.65)",
-                                  }}
-                                >
+                                <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", fontWeight: 950, color: "rgba(15,23,42,0.65)" }}>
                                   {t.other_display_name?.slice(0, 1)?.toUpperCase() ?? "U"}
                                 </div>
                               )}
@@ -812,15 +767,9 @@ export default function MessagesPage() {
                             >
                               {t.horse_image_url ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={t.horse_image_url}
-                                  alt={t.subtitle ?? "Horse"}
-                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                />
+                                <img src={t.horse_image_url} alt={t.subtitle ?? "Horse"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               ) : (
-                                <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", fontSize: 16 }}>
-                                  🐴
-                                </div>
+                                <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", fontSize: 16 }}>🐴</div>
                               )}
                             </div>
                           </div>
@@ -848,9 +797,7 @@ export default function MessagesPage() {
                               </div>
 
                               <div style={{ display: "flex", gap: 10, alignItems: "center", flex: "0 0 auto" }}>
-                                {time ? (
-                                  <div style={{ fontSize: 12, fontWeight: 850, color: "rgba(15,23,42,0.55)" }}>{time}</div>
-                                ) : null}
+                                {time ? <div style={{ fontSize: 12, fontWeight: 850, color: "rgba(15,23,42,0.55)" }}>{time}</div> : null}
 
                                 {hasUnread ? (
                                   <div
@@ -879,7 +826,6 @@ export default function MessagesPage() {
                               {t.subtitle ?? ""}
                             </div>
 
-                            {/* Preview row: message text + optional photo preview */}
                             <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
                               <div
                                 style={{
@@ -911,34 +857,15 @@ export default function MessagesPage() {
                                   title="Photo preview"
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={t.last_attachment_url}
-                                    alt="Last photo"
-                                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                  />
+                                  <img src={t.last_attachment_url} alt="Last photo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                                 </div>
                               ) : null}
-                            </div>
-
-                            {/* Swipe hint on small screens (subtle) */}
-                            <div
-                              style={{
-                                marginTop: 10,
-                                fontSize: 11,
-                                fontWeight: 850,
-                                color: "rgba(15,23,42,0.46)",
-                              }}
-                            >
-                              <span style={{ display: "inline-block", padding: "2px 6px", borderRadius: 999, border: "1px solid rgba(15,23,42,0.10)", background: "rgba(255,255,255,0.55)" }}>
-                                Swipe left to delete
-                              </span>
                             </div>
                           </div>
                         </div>
                       </div>
                     </Link>
 
-                    {/* Footer actions (still accessible even without swipe) */}
                     <div
                       style={{
                         borderTop: "1px solid rgba(15,23,42,0.06)",
