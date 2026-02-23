@@ -61,6 +61,10 @@ function groupPos(prev: UIMessage | null, cur: UIMessage, next: UIMessage | null
   return "end" as const
 }
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]) // add image/gif if you want
+const SEND_COOLDOWN_MS = 800
+
 export default function MessageThreadPage() {
   const router = useRouter()
 
@@ -78,13 +82,21 @@ export default function MessageThreadPage() {
   const [otherTyping, setOtherTyping] = useState(false)
   const [otherLastSeenAt, setOtherLastSeenAt] = useState<string | null>(null)
 
-  // NEW: review eligibility state
+  // review eligibility state
   const [requestStatus, setRequestStatus] = useState<string | null>(null)
   const [isBorrower, setIsBorrower] = useState(false)
   const [reviewExists, setReviewExists] = useState(false)
 
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // NEW: attachment state
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [pickedFile, setPickedFile] = useState<File | null>(null)
+  const [pickedPreviewUrl, setPickedPreviewUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [composerError, setComposerError] = useState<string | null>(null)
+  const lastSendAtRef = useRef<number>(0)
 
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const typingStopTimerRef = useRef<number | null>(null)
@@ -94,8 +106,16 @@ export default function MessageThreadPage() {
   const didAutoScrollRef = useRef(false)
   const [isNearBottom, setIsNearBottom] = useState(true)
 
-  const { messages, loadMore, hasMore, loadingMore, loadingInitial, sendOptimistic, retryOptimistic } =
-    usePaginatedMessages(requestId)
+  const {
+    messages,
+    loadMore,
+    hasMore,
+    loadingMore,
+    loadingInitial,
+    sendOptimistic,
+    sendOptimisticWithImage,
+    retryOptimistic,
+  } = usePaginatedMessages(requestId)
 
   // ---- Auth ----
   useEffect(() => {
@@ -153,7 +173,6 @@ export default function MessageThreadPage() {
 
         if (!cancelled) {
           if (exErr) {
-            // fail closed: don't show CTA if we can't confirm
             setReviewExists(true)
           } else {
             setReviewExists(Boolean(existing?.id))
@@ -364,7 +383,7 @@ export default function MessageThreadPage() {
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // ✅ Read receipts (throttled + deduped)
+  // Read receipts (throttled + deduped)
   const unreadIds = useMemo(() => {
     if (!myUserId) return []
     return messages
@@ -382,11 +401,8 @@ export default function MessageThreadPage() {
     if (!requestId || !myUserId) return
     if (!unreadKey) return
     if (document.visibilityState !== "visible") return
-
-    // Don’t repeat same set
     if (unreadKey === lastMarkedKeyRef.current) return
 
-    // Debounce rapid realtime bursts
     if (debounceRef.current) window.clearTimeout(debounceRef.current)
     debounceRef.current = window.setTimeout(async () => {
       if (inFlightRef.current) return
@@ -396,11 +412,7 @@ export default function MessageThreadPage() {
         const idsNow = unreadIds
         if (idsNow.length === 0) return
 
-        const { error } = await supabase
-          .from("messages")
-          .update({ read_at: new Date().toISOString() })
-          .in("id", idsNow)
-
+        const { error } = await supabase.from("messages").update({ read_at: new Date().toISOString() }).in("id", idsNow)
         if (error) {
           console.error("mark read error:", error)
           return
@@ -414,7 +426,6 @@ export default function MessageThreadPage() {
 
     const onVis = () => {
       if (document.visibilityState === "visible") {
-        // re-run by nudging the ref, next effect pass will run
         lastMarkedKeyRef.current = ""
       }
     }
@@ -426,7 +437,7 @@ export default function MessageThreadPage() {
     }
   }, [unreadKey, unreadIds, myUserId, requestId])
 
-  // ---- Group rendering ----
+  // Group rendering
   const grouped = useMemo(() => {
     return messages.map((m, i) => {
       const prev = i > 0 ? messages[i - 1] : null
@@ -435,47 +446,11 @@ export default function MessageThreadPage() {
     })
   }, [messages])
 
-  const lastOutgoingId = useMemo(() => {
-    if (!myUserId) return null
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i]!.sender_id === myUserId) return messages[i]!.id
-    }
-    return null
-  }, [messages, myUserId])
-
   const retry = async (tempId: string) => {
     await retryOptimistic(tempId)
   }
 
-  const send = async () => {
-    if (!myUserId || !requestId) return
-    const text = draft.trim()
-    if (!text) return
-
-    setDraft("")
-    broadcastTyping(false)
-
-    const result = await sendOptimistic(myUserId, text)
-
-    // 🔔 Only push if recipient exists and they're offline
-    if (result.ok && otherUserId && !otherOnline) {
-      fetch("/api/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: otherUserId,
-          title: "New message",
-          body: text,
-          url: `/messages/${requestId}`,
-        }),
-      }).catch(() => {})
-    }
-
-    const scroller = scrollerRef.current
-    if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight))
-  }
-
-  // ✅ Delete chat (hide for current user only)
+  // Delete chat (hide for current user only)
   const [deleting, setDeleting] = useState(false)
   const deleteChatForMe = async () => {
     if (!myUserId || !requestId) return
@@ -507,6 +482,119 @@ export default function MessageThreadPage() {
     router.refresh()
   }
 
+  // ---- Attachment picking helpers ----
+  const clearPicked = () => {
+    setComposerError(null)
+    setPickedFile(null)
+    if (pickedPreviewUrl) URL.revokeObjectURL(pickedPreviewUrl)
+    setPickedPreviewUrl(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pickedPreviewUrl) URL.revokeObjectURL(pickedPreviewUrl)
+    }
+  }, [pickedPreviewUrl])
+
+  const onPickFile = (file: File | null) => {
+    setComposerError(null)
+    if (!file) return
+
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      setComposerError("Please choose a JPG, PNG, or WebP image.")
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setComposerError("That image is too large. Max size is 5MB.")
+      return
+    }
+
+    // replace any existing preview
+    if (pickedPreviewUrl) URL.revokeObjectURL(pickedPreviewUrl)
+
+    setPickedFile(file)
+    setPickedPreviewUrl(URL.createObjectURL(file))
+  }
+
+  const canSend = useMemo(() => {
+    const hasText = Boolean(draft.trim())
+    const hasImg = Boolean(pickedFile)
+    if (!hasText && !hasImg) return false
+    if (uploading) return false
+    return true
+  }, [draft, pickedFile, uploading])
+
+  const send = async () => {
+    if (!myUserId || !requestId) return
+    setComposerError(null)
+
+    // cooldown (basic rate limiting)
+    const now = Date.now()
+    if (now - lastSendAtRef.current < SEND_COOLDOWN_MS) return
+    lastSendAtRef.current = now
+
+    const text = draft.trim()
+    const file = pickedFile
+
+    if (!text && !file) return
+
+    setDraft("")
+    broadcastTyping(false)
+
+    // If image exists, upload then insert
+    if (file) {
+      setUploading(true)
+      const fallbackText = text || "📷 Photo"
+
+      const result = await sendOptimisticWithImage(myUserId, fallbackText, file, { bucket: "message-attachments" })
+      setUploading(false)
+
+      if (!result.ok) {
+        setComposerError("Couldn’t send that image. Please try again.")
+        return
+      }
+
+      clearPicked()
+
+      // push if offline
+      if (otherUserId && !otherOnline) {
+        fetch("/api/push/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: otherUserId,
+            title: "New message",
+            body: text ? text : "Sent a photo",
+            url: `/messages/${requestId}`,
+          }),
+        }).catch(() => {})
+      }
+
+      const scroller = scrollerRef.current
+      if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight))
+      return
+    }
+
+    // Text-only
+    const result = await sendOptimistic(myUserId, text)
+    if (result.ok && otherUserId && !otherOnline) {
+      fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: otherUserId,
+          title: "New message",
+          body: text,
+          url: `/messages/${requestId}`,
+        }),
+      }).catch(() => {})
+    }
+
+    const scroller = scrollerRef.current
+    if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight))
+  }
+
   if (!requestId) return <div style={{ padding: 20 }}>Missing requestId in URL</div>
   if (authLoading) return <div style={{ padding: 20, opacity: 0.75 }}>Loading session…</div>
   if (!myUserId) return <div style={{ padding: 20 }}>You’re not logged in.</div>
@@ -516,7 +604,6 @@ export default function MessageThreadPage() {
   const avatarUrl = header?.other_user?.avatar_url ?? ""
 
   const statusText = otherOnline ? "Online" : otherLastSeenAt ? `Last seen ${timeAgo(otherLastSeenAt)}` : "Offline"
-
   const showReviewCTA = isBorrower && requestStatus === "approved" && !reviewExists
 
   return (
@@ -549,7 +636,6 @@ export default function MessageThreadPage() {
           ← Back
         </button>
 
-        {/* NEW: review CTA (only when eligible) */}
         {showReviewCTA ? (
           <Link
             href={`/review/${requestId}`}
@@ -658,13 +744,125 @@ export default function MessageThreadPage() {
 
       {/* Composer */}
       <div style={{ padding: 12, borderTop: "1px solid rgba(15,23,42,0.10)", background: "white" }}>
+        {/* Hidden input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null
+            onPickFile(f)
+          }}
+        />
+
+        {/* Attachment preview */}
+        {pickedFile && pickedPreviewUrl ? (
+          <div
+            style={{
+              marginBottom: 10,
+              border: "1px solid rgba(15,23,42,0.10)",
+              borderRadius: 14,
+              background: "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,241,232,0.75))",
+              boxShadow: "0 12px 26px rgba(15,23,42,0.08)",
+              padding: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <div
+              style={{
+                width: 62,
+                height: 62,
+                borderRadius: 14,
+                overflow: "hidden",
+                border: "1px solid rgba(15,23,42,0.12)",
+                background: "rgba(15,23,42,0.04)",
+                flex: "0 0 auto",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={pickedPreviewUrl} alt="Selected" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </div>
+
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontWeight: 950, fontSize: 13, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {pickedFile.name}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.72, color: "#0f172a", marginTop: 2 }}>
+                {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • {pickedFile.type || "image"}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.75, color: "#0f172a", marginTop: 4 }}>
+                {uploading ? "Uploading…" : "Ready to send"}
+              </div>
+            </div>
+
+            <button
+              onClick={clearPicked}
+              disabled={uploading}
+              style={{
+                border: "1px solid rgba(239,68,68,0.25)",
+                background: uploading ? "rgba(239,68,68,0.18)" : "rgba(239,68,68,0.10)",
+                color: "#b91c1c",
+                cursor: uploading ? "not-allowed" : "pointer",
+                fontWeight: 950,
+                fontSize: 12,
+                padding: "8px 10px",
+                borderRadius: 12,
+                flex: "0 0 auto",
+              }}
+            >
+              Remove
+            </button>
+          </div>
+        ) : null}
+
+        {composerError ? <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c", fontWeight: 900 }}>{composerError}</div> : null}
+
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              border: "1px solid rgba(15,23,42,0.12)",
+              background: "rgba(15,23,42,0.03)",
+              cursor: uploading ? "not-allowed" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 10px 20px rgba(0,0,0,0.04)",
+              transition: "transform 120ms ease, box-shadow 120ms ease",
+              padding: 0,
+            }}
+            title="Attach image"
+            aria-label="Attach image"
+          >
+            {/* inline SVG paperclip/camera-ish */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M9 7h6l1 2h3a2 2 0 0 1 2 2v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-6a2 2 0 0 1 2-2h3l1-2z"
+                stroke="rgba(15,23,42,0.85)"
+                strokeWidth="1.7"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 18a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 18z"
+                stroke="rgba(15,23,42,0.85)"
+                strokeWidth="1.7"
+              />
+            </svg>
+          </button>
+
           <textarea
             ref={inputRef}
             value={draft}
             onChange={(e) => onDraftChange(e.target.value)}
             onBlur={() => broadcastTyping(false)}
-            placeholder="Message…"
+            placeholder={pickedFile ? "Add a caption (optional)…" : "Message…"}
             rows={1}
             style={{
               flex: 1,
@@ -681,26 +879,30 @@ export default function MessageThreadPage() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
-                send()
+                if (canSend) void send()
               }
             }}
+            disabled={uploading}
           />
 
           <button
-            onClick={send}
-            disabled={!draft.trim()}
+            onClick={() => void send()}
+            disabled={!canSend}
             style={{
               height: 44,
               padding: "0 14px",
               borderRadius: 12,
               border: "none",
               fontWeight: 900,
-              cursor: !draft.trim() ? "not-allowed" : "pointer",
-              background: !draft.trim() ? "rgba(37,99,235,0.35)" : "rgba(37,99,235,0.95)",
+              cursor: !canSend ? "not-allowed" : "pointer",
+              background: !canSend ? "rgba(37,99,235,0.35)" : "rgba(37,99,235,0.95)",
               color: "white",
+              boxShadow: !canSend ? "none" : "0 10px 26px rgba(37,99,235,0.20)",
+              transition: "transform 120ms ease, box-shadow 120ms ease",
             }}
+            title={uploading ? "Uploading…" : "Send"}
           >
-            Send
+            {uploading ? "Sending…" : "Send"}
           </button>
         </div>
       </div>
