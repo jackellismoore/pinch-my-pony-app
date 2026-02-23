@@ -207,8 +207,8 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* RIGHT */}
-            <div className="pmp-lift" style={heroVisualCard} aria-label="Brand and how it works">
+            {/* RIGHT (no hover motion) */}
+            <div style={heroVisualCard} aria-label="Brand and how it works">
               <div style={heroVisualInner}>
                 <div style={logoRow}>
                   {/* Logo badge: bigger + warm paper tone */}
@@ -261,7 +261,7 @@ export default function HomePage() {
                 </header>
 
                 <div className="pmp-two-col" style={twoColumn}>
-                  <div className="pmp-lift" style={card}>
+                  <div style={card}>
                     <div style={cardTopRow}>
                       <span style={rolePillBorrower}>For Borrowers</span>
                       <span style={mutedPill}>3 steps</span>
@@ -274,7 +274,7 @@ export default function HomePage() {
                     </ol>
                   </div>
 
-                  <div className="pmp-lift" style={card}>
+                  <div style={card}>
                     <div style={cardTopRow}>
                       <span style={rolePillOwner}>For Owners</span>
                       <span style={mutedPill}>3 steps</span>
@@ -302,7 +302,7 @@ export default function HomePage() {
                   <FeatureCard icon="🪪" title="Profiles that matter" copy="See who you’re riding with before confirming." />
                 </div>
 
-                <div className="pmp-lift" style={trustCtaBand}>
+                <div style={trustCtaBand}>
                   <div>
                     <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>Ready to get started?</div>
                     <div style={{ opacity: 0.75, marginTop: 4 }}>Create an account and start browsing today.</div>
@@ -336,7 +336,7 @@ export default function HomePage() {
 
 function InfoChip({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="pmp-lift-soft" style={infoChip}>
+    <div style={infoChip}>
       <div style={{ fontWeight: 950, fontSize: 13, color: palette.navy }}>{title}</div>
       <div style={{ fontSize: 12, opacity: 0.75 }}>{subtitle}</div>
     </div>
@@ -345,7 +345,7 @@ function InfoChip({ title, subtitle }: { title: string; subtitle: string }) {
 
 function StatChip({ title, value }: { title: string; value: number }) {
   return (
-    <div className="pmp-lift-soft" style={infoChip}>
+    <div style={infoChip}>
       <div style={{ fontWeight: 950, fontSize: 22, color: palette.navy, lineHeight: 1 }}>{value}</div>
       <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>{title}</div>
     </div>
@@ -354,7 +354,7 @@ function StatChip({ title, value }: { title: string; value: number }) {
 
 function MiniCard({ icon, title, copy }: { icon: string; title: string; copy: string }) {
   return (
-    <div className="pmp-lift-soft" style={miniCard}>
+    <div style={miniCard}>
       <div style={miniIcon} aria-hidden="true">
         {icon}
       </div>
@@ -382,7 +382,7 @@ function Step({ number, title, copy }: { number: string; title: string; copy: st
 
 function FeatureCard({ icon, title, copy }: { icon: string; title: string; copy: string }) {
   return (
-    <div className="pmp-lift" style={featureCard}>
+    <div style={featureCard}>
       <div style={featureIcon} aria-hidden="true">
         {icon}
       </div>
@@ -409,16 +409,16 @@ const css = `
   .pmp-fade-delayed2 { animation: pmpFadeUp 720ms ease both; animation-delay: 160ms; }
   .pmp-fade-delayed3 { animation: pmpFadeUp 820ms ease both; animation-delay: 220ms; }
 
-  /* Gentle hover lift */
-  .pmp-lift { transition: transform 160ms ease, box-shadow 160ms ease; }
-  .pmp-lift:hover { transform: translateY(-2px); }
-  .pmp-lift-soft { transition: transform 140ms ease; }
-  .pmp-lift-soft:hover { transform: translateY(-1px); }
+  /* ✅ Mobile-friendly: NO hover motion on cards */
+  .pmp-lift, .pmp-lift-soft { transition: none !important; }
+  .pmp-lift:hover, .pmp-lift-soft:hover { transform: none !important; }
 
-  /* CTA hover */
-  .pmp-cta { transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease; display: inline-flex; }
-  .pmp-cta:hover { transform: translateY(-1px); filter: brightness(1.01); }
-  .pmp-cta:active { transform: translateY(0px); }
+  /* ✅ Buttons: keep subtle press feedback only */
+  .pmp-cta { transition: filter 140ms ease; display: inline-flex; }
+  @media (hover: hover) and (pointer: fine) {
+    .pmp-cta:hover { filter: brightness(1.01); }
+  }
+  .pmp-cta:active { filter: brightness(0.99); }
 
   /* Background drift (very subtle) */
   @keyframes pmpDriftA { 0% { transform: translate3d(0,0,0) } 50% { transform: translate3d(10px,-8px,0) } 100% { transform: translate3d(0,0,0) } }
@@ -438,6 +438,8 @@ const css = `
     .pmp-feature-grid { grid-template-columns: 1fr !important; }
   }
 `;
+
+/* ----- original inline styles (unchanged) ----- */
 
 const fullBleedWrap: React.CSSProperties = {
   width: "100vw",
@@ -475,7 +477,6 @@ const heroBgFloatA: React.CSSProperties = {
   filter: "blur(2px)",
   opacity: 0.9,
   pointerEvents: "none",
-  // we attach class in JSX via className on a wrapper div, but for inline-only we rely on CSS? We'll just keep static; drift handled by a helper div below
 };
 
 const heroBgFloatB: React.CSSProperties = {
