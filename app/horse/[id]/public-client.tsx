@@ -54,9 +54,9 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function HorsePublicClient() {
-  // ✅ IMPORTANT: route is /horse/[horseId] so the param key is horseId
-  const params = useParams<{ horseId: string }>();
-  const horseId = params?.horseId;
+  // ✅ Robust: works if your folder is [horseId] OR [id]
+  const params = useParams() as { horseId?: string; id?: string };
+  const horseId = params?.horseId ?? params?.id;
 
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
 
@@ -78,8 +78,15 @@ export default function HorsePublicClient() {
       }
     }
 
-    async function load() {
-      if (!horseId) return;
+    async function loadHorse() {
+      // ✅ Never hang: if no param, stop loading and show helpful error
+      if (!horseId) {
+        if (!cancelled) {
+          setLoading(false);
+          setError("Missing horse id in route. Check your folder name: /horse/[id] or /horse/[horseId].");
+        }
+        return;
+      }
 
       setLoading(true);
       setError(null);
@@ -101,23 +108,21 @@ export default function HorsePublicClient() {
           return;
         }
 
-        setHorse(h as HorseRow);
+        const horseRow = h as HorseRow;
+        setHorse(horseRow);
 
-        const ownerId = (h as any).owner_id as string | undefined;
-        if (!ownerId) {
-          setOwner(null);
-          setLoading(false);
-          return;
-        }
+        if (horseRow?.owner_id) {
+          const { data: p, error: pErr } = await supabase
+            .from("profiles")
+            .select("id,display_name,full_name,avatar_url")
+            .eq("id", horseRow.owner_id)
+            .maybeSingle();
 
-        const { data: p, error: pErr } = await supabase
-          .from("profiles")
-          .select("id,display_name,full_name,avatar_url")
-          .eq("id", ownerId)
-          .maybeSingle();
-
-        if (!cancelled) {
-          if (!pErr) setOwner((p ?? null) as ProfileMini | null);
+          if (!cancelled) {
+            if (!pErr) setOwner((p ?? null) as ProfileMini | null);
+          }
+        } else {
+          if (!cancelled) setOwner(null);
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load horse.");
@@ -127,7 +132,7 @@ export default function HorsePublicClient() {
     }
 
     loadSession();
-    load();
+    loadHorse();
 
     return () => {
       cancelled = true;
@@ -144,25 +149,15 @@ export default function HorsePublicClient() {
 
   const ctaLabel = sessionUserId ? "Request dates →" : "Log in to request →";
 
-  if (loading)
+  if (loading) {
     return (
-      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
-        <div style={shell}>
-          <div className="pmp-shimmer" style={{ height: 260, borderRadius: 18 }} />
-          <div style={{ padding: 16 }}>
-            <div className="pmp-shimmer" style={{ height: 18, width: "55%", borderRadius: 10 }} />
-            <div style={{ height: 10 }} />
-            <div className="pmp-shimmer" style={{ height: 14, width: "38%", borderRadius: 10 }} />
-            <div style={{ height: 16 }} />
-            <div className="pmp-shimmer" style={{ height: 14, width: "90%", borderRadius: 10 }} />
-            <div style={{ height: 8 }} />
-            <div className="pmp-shimmer" style={{ height: 14, width: "86%", borderRadius: 10 }} />
-          </div>
-        </div>
+      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto", opacity: 0.75 }}>
+        Loading…
       </div>
     );
+  }
 
-  if (error)
+  if (error) {
     return (
       <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
         <div
@@ -176,28 +171,37 @@ export default function HorsePublicClient() {
         >
           {error}
         </div>
-      </div>
-    );
 
-  if (!horse)
-    return (
-      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto", opacity: 0.75 }}>
-        Horse not found.
-      </div>
-    );
-
-  if (horse.is_active === false)
-    return (
-      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>{horse.name ?? "Horse"}</div>
-        <div style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>This listing is not active.</div>
         <div style={{ marginTop: 12 }}>
-          <Link href="/browse" style={{ textDecoration: "none", fontWeight: 900, color: palette.navy }}>
+          <Link href="/browse" style={{ textDecoration: "none", fontWeight: 950, color: palette.navy }}>
             ← Back to browse
           </Link>
         </div>
       </div>
     );
+  }
+
+  if (!horse) {
+    return (
+      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto", opacity: 0.75 }}>
+        Horse not found.
+      </div>
+    );
+  }
+
+  if (horse.is_active === false) {
+    return (
+      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>{horse.name ?? "Horse"}</div>
+        <div style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>This listing is not active.</div>
+        <div style={{ marginTop: 12 }}>
+          <Link href="/browse" style={{ textDecoration: "none", fontWeight: 950, color: palette.navy }}>
+            ← Back to browse
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
@@ -214,20 +218,13 @@ export default function HorsePublicClient() {
       </div>
 
       <div className="pmp-horse-grid" style={grid}>
-        {/* Main card */}
         <div style={shell}>
           {horse.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={horse.image_url}
               alt={horse.name ?? "Horse"}
-              style={{
-                width: "100%",
-                height: 360,
-                objectFit: "cover",
-                display: "block",
-                background: "rgba(15,23,42,0.04)",
-              }}
+              style={{ width: "100%", height: 360, objectFit: "cover", display: "block" }}
             />
           ) : (
             <div
@@ -248,9 +245,7 @@ export default function HorsePublicClient() {
 
                 <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
                   Owner:{" "}
-                  <Link href={`/owner/${horse.owner_id}`} style={{ fontWeight: 950, color: palette.navy, textDecoration: "none" }}>
-                    {ownerName}
-                  </Link>
+                  <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
                   {horse.location ? <span> • {horse.location}</span> : null}
                 </div>
               </div>
@@ -262,10 +257,9 @@ export default function HorsePublicClient() {
 
             <div style={divider} />
 
-            {/* Details list (replaces bubbles) */}
             <div style={sectionHeader}>
               <div style={sectionTitle}>Details</div>
-              <div style={sectionSubtitle}>A clean spec-style layout for easy scanning.</div>
+              <div style={sectionSubtitle}>Readable, spec-style layout (no bubbles).</div>
             </div>
 
             <div style={detailsCard}>
@@ -295,7 +289,6 @@ export default function HorsePublicClient() {
           </div>
         </div>
 
-        {/* Side rail */}
         <aside style={sideRail}>
           <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Ready to request?</div>
           <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
@@ -372,7 +365,6 @@ const primaryCta: React.CSSProperties = {
   color: "white",
   padding: "12px 14px",
   borderRadius: 14,
-  textDecoration: "none",
   fontSize: 13,
   fontWeight: 950,
   whiteSpace: "nowrap",
@@ -432,7 +424,6 @@ const detailValue: React.CSSProperties = {
   fontWeight: 900,
   color: palette.navy,
   lineHeight: 1.55,
-  minWidth: 0,
   overflowWrap: "anywhere",
 };
 
