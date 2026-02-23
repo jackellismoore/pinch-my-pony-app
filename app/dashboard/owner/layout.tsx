@@ -1,175 +1,33 @@
-'use client';
+"use client";
 
-import { ReactNode, useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { supabase } from '@/lib/supabaseClient';
+import * as React from "react";
+import DashboardShell from "@/components/DashboardShell";
 
-export default function OwnerDashboardLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  const router = useRouter();
-  const pathname = usePathname();
+const palette = {
+  forest: "#1F3D2B",
+  saddle: "#8B5E3C",
+  cream: "#F5F1E8",
+  navy: "#1F2A44",
+  gold: "#C8A24D",
+};
 
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function checkRole() {
-      const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser();
-
-      if (userErr || !user) {
-        if (!cancelled) {
-          router.replace('/');
-        }
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (cancelled) return;
-
-      if (error || !data || data.role !== 'owner') {
-        router.replace('/dashboard');
-        return;
-      }
-
-      setAuthorized(true);
-      setLoading(false);
-    }
-
-    checkRole();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
-
-  if (loading) {
-    return (
-      <div
-        style={{
-          padding: 40,
-          textAlign: 'center',
-          fontSize: 14,
-          color: 'rgba(0,0,0,0.6)',
-        }}
-      >
-        Loading dashboard…
-      </div>
-    );
-  }
-
-  if (!authorized) {
-    return null;
-  }
-
-  function NavLink({
-    href,
-    label,
-  }: {
-    href: string;
-    label: string;
-  }) {
-    const active =
-      pathname === href || pathname.startsWith(href + '/');
-
-    return (
-      <Link
-        href={href}
-        style={{
-          display: 'block',
-          padding: '10px 12px',
-          borderRadius: 12,
-          textDecoration: 'none',
-          fontWeight: 600,
-          fontSize: 14,
-          color: 'black',
-          background: active ? 'rgba(0,0,0,0.06)' : 'transparent',
-          border: '1px solid rgba(0,0,0,0.10)',
-        }}
-      >
-        {label}
-      </Link>
-    );
-  }
-
+export default function OwnerDashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        background: 'rgba(0,0,0,0.02)',
-      }}
-    >
-      {/* Sidebar */}
+    <DashboardShell>
+      {/* Brand background for ALL /dashboard/owner pages */}
       <div
         style={{
-          width: 240,
-          padding: 16,
-          borderRight: '1px solid rgba(0,0,0,0.08)',
-          background: 'white',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
+          width: "100%",
+          minHeight: "calc(100vh - 64px)",
+          background: `radial-gradient(900px 420px at 20% 0%, rgba(200,162,77,0.18), transparent 55%),
+                       radial-gradient(900px 420px at 90% 20%, rgba(31,61,43,0.14), transparent 58%),
+                       linear-gradient(180deg, ${palette.cream} 0%, rgba(250,250,250,1) 70%)`,
+          padding: "18px 0 28px",
         }}
       >
-        <div
-          style={{
-            fontSize: 16,
-            fontWeight: 700,
-            marginBottom: 12,
-          }}
-        >
-          Owner Dashboard
-        </div>
-
-        <NavLink href="/dashboard/owner" label="Overview" />
-        <NavLink href="/dashboard/owner/requests" label="Requests" />
-        <NavLink href="/dashboard/owner/horses" label="Horses" />
-
-        <div style={{ marginTop: 'auto' }}>
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              router.replace('/');
-            }}
-            style={{
-              width: '100%',
-              border: '1px solid rgba(0,0,0,0.14)',
-              background: 'white',
-              padding: '10px 12px',
-              borderRadius: 12,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Sign Out
-          </button>
-        </div>
+        {/* Standard page container */}
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 16px" }}>{children}</div>
       </div>
-
-      {/* Main Content */}
-      <div
-        style={{
-          flex: 1,
-          padding: 24,
-        }}
-      >
-        {children}
-      </div>
-    </div>
+    </DashboardShell>
   );
 }
