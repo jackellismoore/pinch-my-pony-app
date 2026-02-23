@@ -270,7 +270,7 @@ export default function HorsePublicClient() {
 
             <div style={sectionHeader}>
               <div style={sectionTitle}>Details</div>
-              <div style={sectionSubtitle}>Readable, spec-style layout (no bubbles).</div>
+            
             </div>
 
             <div style={detailsCard}>
