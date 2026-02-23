@@ -711,7 +711,7 @@ export default function MessageThreadPage() {
           flexDirection: "column",
           gap: 6,
           background:
-            "radial-gradient(900px 600px at 20% 10%, rgba(59,130,246,0.12), transparent 60%), radial-gradient(700px 500px at 90% 20%, rgba(14,165,233,0.10), transparent 60%), #f6f7fb",
+          "radial-gradient(900px 650px at 12% 8%, rgba(202,162,77,0.16), transparent 60%), radial-gradient(900px 650px at 92% 14%, rgba(11,59,46,0.12), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.85), rgba(250,250,250,0.95))",
         }}
       >
         <div ref={topSentinelRef} style={{ height: 1 }} />

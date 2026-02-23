@@ -80,18 +80,18 @@ export default function MessageBubble({
   }, [open])
 
   const bg =
-    message.client_status === "error"
-      ? "rgba(239,68,68,0.12)"
-      : mine
-        ? "rgba(37,99,235,0.92)"
-        : "rgba(255,255,255,0.86)"
+  message.client_status === "error"
+    ? "rgba(239,68,68,0.12)"
+    : mine
+      ? "linear-gradient(180deg, rgba(11,59,46,0.96), rgba(15,23,42,0.92))" // forest -> navy
+      : "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))" // cream card
 
-  const fg = mine ? "white" : "#0f172a"
+const fg = mine ? "white" : "var(--pmp-navy)"
 
   const hasImage = message.attachment_type === "image" && (message.attachment_url || message.attachment_path)
 
-  const bubbleBorder = mine ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(15,23,42,0.08)"
-
+  const bubbleBorder = mine ? "1px solid rgba(255,255,255,0.16)" : "1px solid rgba(15,23,42,0.10)"
+  
   const imageBoxStyle: React.CSSProperties = useMemo(
     () => ({
       marginTop: message.content?.trim() ? 10 : 2,
