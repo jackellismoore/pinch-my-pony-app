@@ -43,6 +43,74 @@ type ProfileMini = {
   full_name: string | null;
 };
 
+const palette = {
+  forest: "#1F3D2B",
+  saddle: "#8B5E3C",
+  cream: "#F5F1E8",
+  navy: "#1F2A44",
+  gold: "#C8A24D",
+};
+
+function pageWrap(): React.CSSProperties {
+  return {
+    width: "100%",
+    minHeight: "calc(100vh - 64px)",
+    background: `linear-gradient(180deg, ${palette.cream} 0%, rgba(250,250,250,1) 70%)`,
+    padding: "18px 0 28px",
+  };
+}
+
+const container: React.CSSProperties = {
+  padding: 16,
+  maxWidth: 1000,
+  margin: "0 auto",
+};
+
+function card(): React.CSSProperties {
+  return {
+    border: "1px solid rgba(31,42,68,0.12)",
+    borderRadius: 18,
+    padding: 16,
+    background: "rgba(255,255,255,0.82)",
+    boxShadow: "0 16px 44px rgba(31,42,68,0.08)",
+    backdropFilter: "blur(6px)",
+  };
+}
+
+function btn(kind: "primary" | "secondary"): React.CSSProperties {
+  const base: React.CSSProperties = {
+    borderRadius: 14,
+    padding: "10px 12px",
+    fontSize: 13,
+    fontWeight: 950,
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+    border: "1px solid rgba(0,0,0,0.10)",
+  };
+
+  if (kind === "primary") {
+    return {
+      ...base,
+      background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
+      color: "white",
+      boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
+    };
+  }
+
+  return {
+    ...base,
+    background: "rgba(255,255,255,0.78)",
+    color: palette.navy,
+    border: "1px solid rgba(31,42,68,0.18)",
+    boxShadow: "0 12px 30px rgba(31,42,68,0.06)",
+  };
+}
+
 function fmtDate(d: string | null) {
   if (!d) return "—";
   try {
@@ -62,7 +130,7 @@ function initials(name: string) {
   return (a + b).toUpperCase() || "U";
 }
 
-/** Simple read-only stars that are ALWAYS yellow when filled */
+/** Always-yellow read-only stars */
 function StarsReadOnly({ value, size = 18 }: { value: number; size?: number }) {
   const clamped = Math.max(0, Math.min(5, value));
   const full = Math.floor(clamped);
@@ -76,8 +144,8 @@ function StarsReadOnly({ value, size = 18 }: { value: number; size?: number }) {
     userSelect: "none",
   };
 
-  const filledColor = "#f59e0b"; // amber/yellow
-  const emptyColor = "rgba(0,0,0,0.22)";
+  const filledColor = "#f59e0b";
+  const emptyColor = "rgba(31,42,68,0.22)";
 
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
@@ -85,9 +153,7 @@ function StarsReadOnly({ value, size = 18 }: { value: number; size?: number }) {
         {"★".repeat(full)}
         {half ? "★" : ""}
       </span>
-      <span style={{ ...starStyle, color: emptyColor }}>
-        {"☆".repeat(empty)}
-      </span>
+      <span style={{ ...starStyle, color: emptyColor }}>{"☆".repeat(empty)}</span>
     </div>
   );
 }
@@ -135,7 +201,6 @@ export default function OwnerPublicProfilePage() {
             .eq("is_active", true)
             .order("created_at", { ascending: false }),
 
-          // ✅ Single source of truth: load latest reviews, then compute avg/count from them
           supabase
             .from("reviews")
             .select("id,rating,comment,created_at,borrower_id")
@@ -156,7 +221,6 @@ export default function OwnerPublicProfilePage() {
           const list = (reviewsRes.data ?? []) as ReviewRow[];
           setReviews(list);
 
-          // ✅ compute rating summary reliably from list
           const count = list.length;
           const sum = list.reduce((acc, r) => acc + Number(r.rating ?? 0), 0);
           const avg = count > 0 ? sum / count : 0;
@@ -164,7 +228,6 @@ export default function OwnerPublicProfilePage() {
           setRatingCount(count);
           setRatingAvg(avg);
 
-          // fetch reviewer names (batch)
           const borrowerIds = Array.from(new Set(list.map((r) => r.borrower_id).filter(Boolean)));
           if (borrowerIds.length > 0) {
             const { data: reviewerData, error: reviewerErr } = await supabase
@@ -229,281 +292,192 @@ export default function OwnerPublicProfilePage() {
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: 1000, margin: "0 auto" }}>
-      {/* Top Bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <button
-          onClick={() => router.push("/browse")}
-          style={{
-            border: "1px solid rgba(0,0,0,0.14)",
-            background: "white",
-            padding: "9px 10px",
-            borderRadius: 12,
-            fontWeight: 900,
-            fontSize: 13,
-            cursor: "pointer",
-          }}
-        >
-          ← Browse
-        </button>
+    <div style={pageWrap()}>
+      <div style={container}>
+        {/* Top Bar */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <button onClick={() => router.push("/browse")} style={btn("secondary")}>
+            ← Browse
+          </button>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <Link
-            href="/messages"
-            style={{
-              border: "1px solid rgba(0,0,0,0.14)",
-              background: "white",
-              padding: "9px 10px",
-              borderRadius: 12,
-              fontWeight: 900,
-              fontSize: 13,
-              textDecoration: "none",
-              color: "black",
-            }}
-          >
-            Messages
-          </Link>
-        </div>
-      </div>
-
-      {/* Loading / Error */}
-      {loading ? (
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid rgba(0,0,0,0.08)",
-            borderRadius: 14,
-            padding: 14,
-            background: "white",
-          }}
-        >
-          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <div style={{ width: 64, height: 64, borderRadius: 999, background: "rgba(0,0,0,0.06)" }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ height: 14, width: 220, background: "rgba(0,0,0,0.06)", borderRadius: 8 }} />
-              <div style={{ marginTop: 10, height: 12, width: 320, background: "rgba(0,0,0,0.05)", borderRadius: 8 }} />
-            </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Link href="/messages" style={btn("secondary")}>
+              Messages
+            </Link>
           </div>
-
-          <div style={{ marginTop: 18, height: 12, width: 260, background: "rgba(0,0,0,0.04)", borderRadius: 8 }} />
-          <div style={{ marginTop: 10, height: 80, background: "rgba(0,0,0,0.03)", borderRadius: 12 }} />
         </div>
-      ) : null}
 
-      {error ? (
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid rgba(255,0,0,0.25)",
-            background: "rgba(255,0,0,0.06)",
-            padding: 12,
-            borderRadius: 12,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
+        {loading ? (
+          <div style={{ marginTop: 14, ...card(), fontSize: 13, color: "rgba(31,42,68,0.70)" }}>Loading…</div>
+        ) : null}
 
-      {!loading && !error && !profile ? (
-        <div style={{ marginTop: 14, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>Owner not found.</div>
-      ) : null}
-
-      {/* Profile Card */}
-      {!loading && profile ? (
-        <>
+        {error ? (
           <div
             style={{
               marginTop: 14,
-              border: "1px solid rgba(0,0,0,0.10)",
+              border: "1px solid rgba(255,0,0,0.25)",
+              background: "rgba(255,0,0,0.06)",
+              padding: 12,
               borderRadius: 14,
-              padding: 14,
-              background: "white",
-              display: "flex",
-              gap: 14,
-              alignItems: "center",
+              fontSize: 13,
             }}
           >
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 999,
-                overflow: "hidden",
-                background: "rgba(0,0,0,0.06)",
-                border: "1px solid rgba(0,0,0,0.10)",
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 950,
-              }}
-            >
-              {profile.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={profile.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                <span style={{ fontSize: 16, color: "rgba(0,0,0,0.75)" }}>{initials(displayName)}</span>
-              )}
-            </div>
-
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <h1 style={{ margin: 0, fontSize: 22 }}>{displayName}</h1>
-              <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>{subtitle}</div>
-
-              {/* Verification badge */}
-              <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <VerificationBadge
-                  status={profile.verification_status ?? "unverified"}
-                  verifiedAt={profile.verified_at ?? null}
-                  provider={profile.verification_provider ?? null}
-                  compact
-                />
-              </div>
-
-              {/* ✅ Rating summary (now always matches reviews list) */}
-              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <StarsReadOnly value={ratingCount > 0 ? Number(ratingAvg.toFixed(1)) : 0} size={18} />
-                <div style={{ fontSize: 13, color: "rgba(0,0,0,0.70)", fontWeight: 800 }}>
-                  {ratingCount > 0 ? `${ratingAvg.toFixed(1)} (${ratingCount})` : "No reviews yet"}
-                </div>
-              </div>
-
-              {!isOwner ? (
-                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(180,0,0,0.9)", fontWeight: 800 }}>
-                  This user is not listed as an owner.
-                </div>
-              ) : null}
-            </div>
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <div
-                style={{
-                  border: "1px solid rgba(0,0,0,0.10)",
-                  background: "rgba(0,0,0,0.03)",
-                  padding: "8px 10px",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 900,
-                }}
-              >
-                {horses.length} active horse{horses.length === 1 ? "" : "s"}
-              </div>
-            </div>
+            {error}
           </div>
+        ) : null}
 
-          {/* Listings */}
-          <div style={{ marginTop: 18 }}>
-            <div style={{ fontWeight: 900, fontSize: 16 }}>Available horses</div>
-            <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-              Click request to choose dates (availability enforced).
-            </div>
+        {!loading && !error && !profile ? (
+          <div style={{ marginTop: 14, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>Owner not found.</div>
+        ) : null}
 
-            {horses.length === 0 ? (
-              <div style={{ marginTop: 10, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-                No active horses listed right now.
-              </div>
-            ) : null}
-
-            <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
-              {horses.map((h) => (
+        {!loading && profile ? (
+          <>
+            {/* Profile Card */}
+            <div style={{ marginTop: 14, ...card() }}>
+              <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
                 <div
-                  key={h.id}
                   style={{
-                    border: "1px solid rgba(0,0,0,0.10)",
-                    borderRadius: 14,
-                    padding: 14,
-                    background: "white",
+                    width: 68,
+                    height: 68,
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    background: "rgba(31,42,68,0.06)",
+                    border: "1px solid rgba(31,42,68,0.12)",
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "center",
-                    gap: 12,
+                    justifyContent: "center",
+                    fontWeight: 950,
+                    flexShrink: 0,
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 900, fontSize: 15 }}>{h.name ?? "Horse"}</div>
-                    <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>Status: Active</div>
+                  {profile.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={profile.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span style={{ fontSize: 16, color: "rgba(31,42,68,0.75)" }}>{initials(displayName)}</span>
+                  )}
+                </div>
+
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h1 style={{ margin: 0, fontSize: 22, color: palette.navy }}>{displayName}</h1>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>{subtitle}</div>
+
+                  <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    <VerificationBadge
+                      status={profile.verification_status ?? "unverified"}
+                      verifiedAt={profile.verified_at ?? null}
+                      provider={profile.verification_provider ?? null}
+                      compact
+                    />
                   </div>
 
-                  <Link
-                    href={`/request?horseId=${h.id}`}
-                    style={{
-                      border: "1px solid rgba(0,0,0,0.14)",
-                      background: "black",
-                      color: "white",
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      textDecoration: "none",
-                      fontSize: 13,
-                      fontWeight: 900,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Request →
-                  </Link>
+                  <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <StarsReadOnly value={ratingCount > 0 ? Number(ratingAvg.toFixed(1)) : 0} size={18} />
+                    <div style={{ fontSize: 13, color: "rgba(31,42,68,0.72)", fontWeight: 900 }}>
+                      {ratingCount > 0 ? `${ratingAvg.toFixed(1)} (${ratingCount})` : "No reviews yet"}
+                    </div>
+                  </div>
+
+                  {!isOwner ? (
+                    <div style={{ marginTop: 10, fontSize: 13, color: "rgba(180,0,0,0.9)", fontWeight: 850 }}>
+                      This user is not listed as an owner.
+                    </div>
+                  ) : null}
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* Reviews */}
-          <div style={{ marginTop: 18 }}>
-            <div style={{ fontWeight: 900, fontSize: 16 }}>Reviews</div>
-            <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-              Latest feedback from borrowers.
-            </div>
-
-            {reviews.length === 0 ? (
-              <div style={{ marginTop: 10, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>No reviews yet.</div>
-            ) : (
-              <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
-                {reviews.map((r) => (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
                   <div
-                    key={r.id}
                     style={{
-                      border: "1px solid rgba(0,0,0,0.10)",
-                      borderRadius: 14,
-                      padding: 14,
-                      background: "white",
+                      border: "1px solid rgba(31,42,68,0.12)",
+                      background: "rgba(31,42,68,0.04)",
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 950,
+                      color: palette.navy,
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                    {horses.length} active horse{horses.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Listings */}
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Available horses</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+                Click request to choose dates (availability enforced).
+              </div>
+
+              {horses.length === 0 ? (
+                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+                  No active horses listed right now.
+                </div>
+              ) : null}
+
+              <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+                {horses.map((h) => (
+                  <div key={h.id} style={card()}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, color: "rgba(0,0,0,0.70)", fontWeight: 850 }}>
-                          {reviewerLabel(r.borrower_id)} · {fmtDate(r.created_at)}
-                        </div>
-
-                        {r.comment?.trim() ? (
-                          <div
-                            style={{
-                              marginTop: 8,
-                              fontSize: 13,
-                              color: "rgba(0,0,0,0.85)",
-                              whiteSpace: "pre-wrap",
-                            }}
-                          >
-                            {r.comment}
-                          </div>
-                        ) : (
-                          <div style={{ marginTop: 8, fontSize: 13, color: "rgba(0,0,0,0.55)" }}>No comment.</div>
-                        )}
+                        <div style={{ fontWeight: 950, fontSize: 15, color: palette.navy }}>{h.name ?? "Horse"}</div>
+                        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>Status: Active</div>
                       </div>
 
-                      <div style={{ flexShrink: 0 }}>
-                        <StarsReadOnly value={Number(r.rating ?? 0)} size={18} />
-                      </div>
+                      <Link href={`/request?horseId=${h.id}`} style={btn("primary")}>
+                        Request →
+                      </Link>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
 
-            {reviews.length >= 50 ? (
-              <div style={{ marginTop: 10, fontSize: 12, color: "rgba(0,0,0,0.55)" }}>Showing latest 50 reviews.</div>
-            ) : null}
-          </div>
-        </>
-      ) : null}
+            {/* Reviews */}
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Reviews</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+                Latest feedback from borrowers.
+              </div>
+
+              {reviews.length === 0 ? (
+                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>No reviews yet.</div>
+              ) : (
+                <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
+                  {reviews.map((r) => (
+                    <div key={r.id} style={card()}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: "rgba(31,42,68,0.72)", fontWeight: 900 }}>
+                            {reviewerLabel(r.borrower_id)} · {fmtDate(r.created_at)}
+                          </div>
+
+                          {r.comment?.trim() ? (
+                            <div style={{ marginTop: 8, fontSize: 13, color: "rgba(31,42,68,0.88)", whiteSpace: "pre-wrap", lineHeight: 1.65 }}>
+                              {r.comment}
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: 8, fontSize: 13, color: "rgba(31,42,68,0.55)" }}>No comment.</div>
+                          )}
+                        </div>
+
+                        <div style={{ flexShrink: 0 }}>
+                          <StarsReadOnly value={Number(r.rating ?? 0)} size={18} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {reviews.length >= 50 ? (
+                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(31,42,68,0.55)" }}>Showing latest 50 reviews.</div>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }
