@@ -1,8 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 type HorseRow = {
@@ -26,31 +26,39 @@ type ProfileMini = {
   avatar_url: string | null;
 };
 
+const palette = {
+  forest: "#1F3D2B",
+  cream: "#F5F1E8",
+  navy: "#0f172a",
+  gold: "#C8A24D",
+};
+
 function pickName(p: ProfileMini | null) {
   const dn = (p?.display_name ?? "").trim();
   const fn = (p?.full_name ?? "").trim();
   return dn || fn || "Owner";
 }
 
-function pill(label: string): React.CSSProperties {
-  return {
-    border: "1px solid rgba(15,23,42,0.12)",
-    borderRadius: 999,
-    padding: "8px 10px",
-    fontSize: 12,
-    fontWeight: 900,
-    background: "rgba(15,23,42,0.03)",
-    color: "#0f172a",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    whiteSpace: "nowrap",
-  };
+function fmt(v: string | null | undefined) {
+  const t = (v ?? "").trim();
+  return t.length ? t : "—";
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={detailRow}>
+      <div style={detailLabel}>{label}</div>
+      <div style={detailValue}>{value}</div>
+    </div>
+  );
 }
 
 export default function HorsePublicClient() {
-  const params = useParams<{ id: string }>();
-  const horseId = params?.id;
+  // ✅ IMPORTANT: route is /horse/[horseId] so the param key is horseId
+  const params = useParams<{ horseId: string }>();
+  const horseId = params?.horseId;
+
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +68,15 @@ export default function HorsePublicClient() {
 
   useEffect(() => {
     let cancelled = false;
+
+    async function loadSession() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!cancelled) setSessionUserId(data.session?.user?.id ?? null);
+      } catch {
+        if (!cancelled) setSessionUserId(null);
+      }
+    }
 
     async function load() {
       if (!horseId) return;
@@ -86,10 +103,17 @@ export default function HorsePublicClient() {
 
         setHorse(h as HorseRow);
 
+        const ownerId = (h as any).owner_id as string | undefined;
+        if (!ownerId) {
+          setOwner(null);
+          setLoading(false);
+          return;
+        }
+
         const { data: p, error: pErr } = await supabase
           .from("profiles")
           .select("id,display_name,full_name,avatar_url")
-          .eq("id", (h as any).owner_id)
+          .eq("id", ownerId)
           .maybeSingle();
 
         if (!cancelled) {
@@ -102,7 +126,9 @@ export default function HorsePublicClient() {
       }
     }
 
+    loadSession();
     load();
+
     return () => {
       cancelled = true;
     };
@@ -110,17 +136,41 @@ export default function HorsePublicClient() {
 
   const ownerName = useMemo(() => pickName(owner), [owner]);
 
-  if (loading) return <div style={{ padding: 16, maxWidth: 1000, margin: "0 auto", opacity: 0.7 }}>Loading…</div>;
+  const ctaHref = useMemo(() => {
+    if (!horseId) return "/browse";
+    if (!sessionUserId) return `/login?redirectTo=${encodeURIComponent(`/horse/${horseId}`)}`;
+    return `/dashboard/borrower/horses/${horseId}/request`;
+  }, [horseId, sessionUserId]);
+
+  const ctaLabel = sessionUserId ? "Request dates →" : "Log in to request →";
+
+  if (loading)
+    return (
+      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
+        <div style={shell}>
+          <div className="pmp-shimmer" style={{ height: 260, borderRadius: 18 }} />
+          <div style={{ padding: 16 }}>
+            <div className="pmp-shimmer" style={{ height: 18, width: "55%", borderRadius: 10 }} />
+            <div style={{ height: 10 }} />
+            <div className="pmp-shimmer" style={{ height: 14, width: "38%", borderRadius: 10 }} />
+            <div style={{ height: 16 }} />
+            <div className="pmp-shimmer" style={{ height: 14, width: "90%", borderRadius: 10 }} />
+            <div style={{ height: 8 }} />
+            <div className="pmp-shimmer" style={{ height: 14, width: "86%", borderRadius: 10 }} />
+          </div>
+        </div>
+      </div>
+    );
 
   if (error)
     return (
-      <div style={{ padding: 16, maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
         <div
           style={{
             border: "1px solid rgba(255,0,0,0.25)",
             background: "rgba(255,0,0,0.06)",
             padding: 12,
-            borderRadius: 12,
+            borderRadius: 14,
             fontSize: 13,
           }}
         >
@@ -131,83 +181,301 @@ export default function HorsePublicClient() {
 
   if (!horse)
     return (
-      <div style={{ padding: 16, maxWidth: 1000, margin: "0 auto", opacity: 0.75 }}>
+      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto", opacity: 0.75 }}>
         Horse not found.
       </div>
     );
 
   if (horse.is_active === false)
     return (
-      <div style={{ padding: 16, maxWidth: 1000, margin: "0 auto" }}>
-        <div style={{ fontWeight: 950, fontSize: 18 }}>{horse.name ?? "Horse"}</div>
+      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>{horse.name ?? "Horse"}</div>
         <div style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>This listing is not active.</div>
+        <div style={{ marginTop: 12 }}>
+          <Link href="/browse" style={{ textDecoration: "none", fontWeight: 900, color: palette.navy }}>
+            ← Back to browse
+          </Link>
+        </div>
       </div>
     );
 
   return (
-    <div style={{ padding: 16, maxWidth: 1000, margin: "0 auto" }}>
-      <div
-        style={{
-          border: "1px solid rgba(15,23,42,0.10)",
-          borderRadius: 18,
-          background: "white",
-          overflow: "hidden",
-        }}
-      >
-        {horse.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={horse.image_url} alt={horse.name ?? "Horse"} style={{ width: "100%", height: 360, objectFit: "cover" }} />
-        ) : (
-          <div style={{ height: 220, background: "rgba(15,23,42,0.04)" }} />
-        )}
+    <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
+      <style>{responsiveCss}</style>
 
-        <div style={{ padding: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ minWidth: 0 }}>
-              <h1 style={{ margin: 0, fontSize: 22 }}>{horse.name ?? "Horse"}</h1>
-              <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
-                Owner:{" "}
-                <Link href={`/owner/${horse.owner_id}`} style={{ fontWeight: 900, color: "black" }}>
-                  {ownerName}
-                </Link>
-                {horse.location ? <> • {horse.location}</> : null}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <Link href="/browse" style={topLink}>
+          ← Back to browse
+        </Link>
+
+        <Link href="/contact" style={topLink}>
+          Need help? Contact us →
+        </Link>
+      </div>
+
+      <div className="pmp-horse-grid" style={grid}>
+        {/* Main card */}
+        <div style={shell}>
+          {horse.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={horse.image_url}
+              alt={horse.name ?? "Horse"}
+              style={{
+                width: "100%",
+                height: 360,
+                objectFit: "cover",
+                display: "block",
+                background: "rgba(15,23,42,0.04)",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                height: 240,
+                background:
+                  "radial-gradient(900px 300px at 18% 0%, rgba(200,162,77,0.18), transparent 60%), radial-gradient(700px 260px at 92% 12%, rgba(31,61,43,0.12), transparent 60%), rgba(15,23,42,0.03)",
+              }}
+            />
+          )}
+
+          <div style={{ padding: 16 }}>
+            <div style={titleRow}>
+              <div style={{ minWidth: 0 }}>
+                <h1 style={{ margin: 0, fontSize: 26, letterSpacing: -0.2, color: palette.navy }}>
+                  {horse.name ?? "Horse"}
+                </h1>
+
+                <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
+                  Owner:{" "}
+                  <Link href={`/owner/${horse.owner_id}`} style={{ fontWeight: 950, color: palette.navy, textDecoration: "none" }}>
+                    {ownerName}
+                  </Link>
+                  {horse.location ? <span> • {horse.location}</span> : null}
+                </div>
               </div>
-            </div>
 
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <Link
-                href={`/request?horseId=${horse.id}`}
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  background: "black",
-                  color: "white",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  textDecoration: "none",
-                  fontSize: 13,
-                  fontWeight: 950,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Request →
+              <Link href={ctaHref} style={{ textDecoration: "none" }}>
+                <div style={primaryCta}>{ctaLabel}</div>
               </Link>
             </div>
-          </div>
 
-          <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {horse.breed ? <span style={pill("Breed")}>{horse.breed}</span> : null}
-            {horse.age ? <span style={pill("Age")}>{horse.age}</span> : null}
-            {horse.height ? <span style={pill("Height")}>{horse.height}</span> : null}
-            {horse.temperament ? <span style={pill("Temperament")}>{horse.temperament}</span> : null}
-          </div>
+            <div style={divider} />
 
-          {horse.description ? (
-            <div style={{ marginTop: 12, fontSize: 14, lineHeight: 1.5, opacity: 0.9 }}>{horse.description}</div>
-          ) : (
-            <div style={{ marginTop: 12, fontSize: 13, opacity: 0.7 }}>No description yet.</div>
-          )}
+            {/* Details list (replaces bubbles) */}
+            <div style={sectionHeader}>
+              <div style={sectionTitle}>Details</div>
+              <div style={sectionSubtitle}>A clean spec-style layout for easy scanning.</div>
+            </div>
+
+            <div style={detailsCard}>
+              <DetailRow label="Breed" value={fmt(horse.breed)} />
+              <DetailRow label="Age" value={fmt(horse.age)} />
+              <DetailRow label="Height" value={fmt(horse.height)} />
+              <DetailRow label="Temperament" value={fmt(horse.temperament)} />
+              <DetailRow label="Location" value={fmt(horse.location)} />
+            </div>
+
+            <div style={{ height: 12 }} />
+
+            <div style={sectionHeader}>
+              <div style={sectionTitle}>Description</div>
+              <div style={sectionSubtitle}>What to expect when riding.</div>
+            </div>
+
+            <div style={descCard}>
+              {horse.description?.trim() ? (
+                <div style={{ fontSize: 14.5, lineHeight: 1.75, color: palette.navy, opacity: 0.92 }}>
+                  {horse.description.trim()}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, opacity: 0.7 }}>No description yet.</div>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Side rail */}
+        <aside style={sideRail}>
+          <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Ready to request?</div>
+          <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
+            Choose your dates and we’ll automatically prevent availability conflicts.
+          </div>
+
+          <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+            <Link href={ctaHref} style={{ textDecoration: "none" }}>
+              <div style={primaryCtaSmall}>{ctaLabel}</div>
+            </Link>
+
+            <Link href="/faq" style={{ textDecoration: "none" }}>
+              <div style={secondaryCtaSmall}>Read FAQs →</div>
+            </Link>
+
+            <div style={tipCard}>
+              <div style={{ fontWeight: 950, color: palette.navy }}>Tip</div>
+              <div style={{ marginTop: 6, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
+                Share your experience level and preferred times in the message — owners love clarity.
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );
 }
+
+/* ---------- styles ---------- */
+
+const responsiveCss = `
+  @media (max-width: 980px) {
+    .pmp-horse-grid { grid-template-columns: 1fr !important; }
+  }
+`;
+
+const topLink: React.CSSProperties = {
+  textDecoration: "none",
+  fontWeight: 950,
+  color: palette.navy,
+  border: "1px solid rgba(15,23,42,0.10)",
+  background: "rgba(255,255,255,0.72)",
+  padding: "10px 12px",
+  borderRadius: 14,
+};
+
+const grid: React.CSSProperties = {
+  marginTop: 12,
+  display: "grid",
+  gridTemplateColumns: "1.15fr 0.85fr",
+  gap: 12,
+  alignItems: "start",
+};
+
+const shell: React.CSSProperties = {
+  border: "1px solid rgba(15,23,42,0.10)",
+  borderRadius: 22,
+  background: "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.65))",
+  overflow: "hidden",
+  boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
+};
+
+const titleRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const primaryCta: React.CSSProperties = {
+  border: "1px solid rgba(0,0,0,0.10)",
+  background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
+  color: "white",
+  padding: "12px 14px",
+  borderRadius: 14,
+  textDecoration: "none",
+  fontSize: 13,
+  fontWeight: 950,
+  whiteSpace: "nowrap",
+  boxShadow: "0 14px 34px rgba(31,61,43,0.16)",
+};
+
+const divider: React.CSSProperties = {
+  height: 1,
+  background: "rgba(15,23,42,0.10)",
+  margin: "14px 0",
+};
+
+const sectionHeader: React.CSSProperties = {
+  display: "grid",
+  gap: 4,
+  marginBottom: 10,
+};
+
+const sectionTitle: React.CSSProperties = {
+  fontWeight: 950,
+  fontSize: 16,
+  color: palette.navy,
+};
+
+const sectionSubtitle: React.CSSProperties = {
+  fontSize: 13,
+  opacity: 0.75,
+  lineHeight: 1.55,
+};
+
+const detailsCard: React.CSSProperties = {
+  border: "1px solid rgba(15,23,42,0.10)",
+  borderRadius: 18,
+  background: "rgba(255,255,255,0.72)",
+  padding: 12,
+  display: "grid",
+  gap: 0,
+};
+
+const detailRow: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "160px 1fr",
+  gap: 12,
+  padding: "10px 6px",
+  alignItems: "start",
+  borderBottom: "1px solid rgba(15,23,42,0.06)",
+};
+
+const detailLabel: React.CSSProperties = {
+  fontSize: 12.5,
+  fontWeight: 950,
+  color: "rgba(15,23,42,0.70)",
+};
+
+const detailValue: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 900,
+  color: palette.navy,
+  lineHeight: 1.55,
+  minWidth: 0,
+  overflowWrap: "anywhere",
+};
+
+const descCard: React.CSSProperties = {
+  border: "1px solid rgba(15,23,42,0.10)",
+  borderRadius: 18,
+  background: "rgba(255,255,255,0.72)",
+  padding: 12,
+};
+
+const sideRail: React.CSSProperties = {
+  border: "1px solid rgba(15,23,42,0.10)",
+  borderRadius: 22,
+  background: "white",
+  boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
+  padding: 16,
+};
+
+const primaryCtaSmall: React.CSSProperties = {
+  ...primaryCta,
+  width: "100%",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+
+const secondaryCtaSmall: React.CSSProperties = {
+  border: "1px solid rgba(15,23,42,0.10)",
+  background: "rgba(15,23,42,0.03)",
+  color: palette.navy,
+  padding: "12px 14px",
+  borderRadius: 14,
+  fontSize: 13,
+  fontWeight: 950,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+
+const tipCard: React.CSSProperties = {
+  marginTop: 4,
+  padding: 12,
+  borderRadius: 18,
+  border: "1px solid rgba(15,23,42,0.10)",
+  background: `linear-gradient(90deg, rgba(31,61,43,0.08) 0%, rgba(200,162,77,0.10) 55%, rgba(15,23,42,0.06) 100%)`,
+};
