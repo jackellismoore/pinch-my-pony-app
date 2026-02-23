@@ -104,26 +104,36 @@ export default function BrowsePage() {
           }
         }
 
-        // ---- Ratings aggregates (NEW; batch by owner) ----
-        if (ownerIds.length > 0) {
-          const { data: aggData, error: aggErr } = await supabase
-            .from("reviews")
-            .select("owner_id, avg:rating.avg(), count:rating.count()")
-            .in("owner_id", ownerIds);
+        // ---- Ratings aggregates (reliable grouped version) ----
+      if (ownerIds.length > 0) {
+        const { data: aggData, error: aggErr } = await supabase
+        .from("reviews")
+    .    select("owner_id, rating")
+        .in("owner_id", ownerIds);
 
-          if (!cancelled && !aggErr) {
-            const map: Record<string, { avg: number; count: number }> = {};
-            for (const row of (aggData ?? []) as RatingAggRow[]) {
-              if (!row.owner_id) continue;
-              map[row.owner_id] = {
-                avg: Number(row.avg ?? 0),
-                count: Number(row.count ?? 0),
-              };
-            }
-            setRatingByOwnerId(map);
-          }
-        }
+  if (!cancelled && !aggErr) {
+    const map: Record<string, { avg: number; count: number }> = {};
 
+    for (const row of (aggData ?? []) as { owner_id: string; rating: number }[]) {
+      if (!row.owner_id) continue;
+
+      if (!map[row.owner_id]) {
+        map[row.owner_id] = { avg: 0, count: 0 };
+      }
+
+      map[row.owner_id].avg += Number(row.rating ?? 0);
+      map[row.owner_id].count += 1;
+    }
+
+    // finalize averages
+    for (const ownerId of Object.keys(map)) {
+      const entry = map[ownerId];
+      entry.avg = entry.count > 0 ? entry.avg / entry.count : 0;
+    }
+
+    setRatingByOwnerId(map);
+  }
+}
         // ---- Availability merge (existing behavior preserved) ----
         if (horseIds.length > 0) {
           const today = todayISODate();

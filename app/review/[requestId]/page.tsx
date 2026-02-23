@@ -91,9 +91,16 @@ export default function ReviewPage() {
           .single();
 
         if (reqErr) throw reqErr;
+
         const r = (reqData ?? null) as BorrowRequestRow | null;
         if (!r) throw new Error("Request not found.");
         if (r.borrower_id !== uid) throw new Error("You can only review requests you borrowed.");
+
+        // Must be accepted/approved to review (UI check; RLS should also enforce)
+        const s = String(r.status ?? "");
+        if (s !== "accepted" && s !== "approved") {
+          throw new Error("You can only review accepted/approved requests.");
+        }
 
         // If already reviewed, detect and short-circuit
         const { data: existing, error: exErr } = await supabase
@@ -104,10 +111,11 @@ export default function ReviewPage() {
           .maybeSingle();
 
         if (exErr) {
-          // fail closed: assume exists to avoid spam
-          setExistingReviewId("unknown");
+          // Don’t block the UI; let insert/RLS/unique constraint handle duplicates
+          console.warn("existing review check error:", exErr);
+          if (!cancelled) setExistingReviewId(null);
         } else {
-          setExistingReviewId(existing?.id ?? null);
+          if (!cancelled) setExistingReviewId(existing?.id ?? null);
         }
 
         const { data: horseData, error: horseErr } = await supabase
@@ -119,11 +127,12 @@ export default function ReviewPage() {
         if (horseErr) throw horseErr;
 
         const h = (horseData ?? null) as HorseRow | null;
+        if (!h) throw new Error("Horse not found for this request.");
 
         const { data: ownerData, error: ownerErr } = await supabase
           .from("profiles")
           .select("id,display_name,full_name")
-          .eq("id", h?.owner_id ?? "")
+          .eq("id", h.owner_id)
           .maybeSingle();
 
         if (ownerErr) {
@@ -138,6 +147,11 @@ export default function ReviewPage() {
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load review page.");
+        if (!cancelled) {
+          setReq(null);
+          setHorse(null);
+          setOwner(null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -150,18 +164,39 @@ export default function ReviewPage() {
   }, [requestId]);
 
   const submit = async () => {
-    if (!myUserId || !req) return;
+    if (!myUserId || !req || !horse) return;
+
+    const s = String(req.status ?? "");
+    if (s !== "accepted" && s !== "approved") {
+      setError("You can only review accepted/approved requests.");
+      return;
+    }
+
+    // basic validation
+    const cleanComment = comment.trim();
+    if (cleanComment.length > 1200) {
+      setError("Comment is too long (max 1200 characters).");
+      return;
+    }
+    if (rating < 1 || rating > 5) {
+      setError("Rating must be between 1 and 5.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
     try {
-      const { error: insertErr } = await supabase.from("reviews").insert({
+      const payload = {
         request_id: req.id,
         borrower_id: myUserId,
+        owner_id: horse.owner_id, // ✅ needed for owner profile aggregates
+        horse_id: horse.id, // ✅ useful for horse/browse linkage
         rating,
-        comment: comment.trim() ? comment.trim() : null,
-      });
+        comment: cleanComment ? cleanComment : null,
+      };
 
+      const { error: insertErr } = await supabase.from("reviews").insert(payload);
       if (insertErr) throw insertErr;
 
       // After success, go back to messages thread
@@ -177,7 +212,7 @@ export default function ReviewPage() {
   if (loading) {
     return (
       <div style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
-        <div style={{ fontSize: 18, fontWeight: 900 }}>Leave a review</div>
+        <div style={{ fontSize: 18, fontWeight: 950 }}>Leave a review</div>
         <div style={{ marginTop: 12, opacity: 0.7, fontSize: 13 }}>Loading…</div>
       </div>
     );
@@ -187,7 +222,7 @@ export default function ReviewPage() {
     return (
       <div style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 900 }}>Review already submitted</div>
+          <div style={{ fontSize: 18, fontWeight: 950 }}>Review already submitted</div>
           <Link href="/messages" style={{ textDecoration: "none", color: "#2563eb", fontWeight: 900, fontSize: 13 }}>
             Back to messages
           </Link>
@@ -196,7 +231,7 @@ export default function ReviewPage() {
         <div
           style={{
             marginTop: 14,
-            border: "1px solid rgba(0,0,0,0.10)",
+            border: "1px solid rgba(15,23,42,0.10)",
             borderRadius: 14,
             padding: 14,
             background: "white",
@@ -219,7 +254,7 @@ export default function ReviewPage() {
                 borderRadius: 12,
                 textDecoration: "none",
                 fontSize: 13,
-                fontWeight: 900,
+                fontWeight: 950,
                 display: "inline-block",
               }}
             >
@@ -234,7 +269,7 @@ export default function ReviewPage() {
   return (
     <div style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-        <div style={{ fontSize: 18, fontWeight: 900 }}>Leave a review</div>
+        <div style={{ fontSize: 18, fontWeight: 950 }}>Leave a review</div>
         <Link href="/messages" style={{ textDecoration: "none", color: "#2563eb", fontWeight: 900, fontSize: 13 }}>
           Back
         </Link>
@@ -258,40 +293,47 @@ export default function ReviewPage() {
       <div
         style={{
           marginTop: 14,
-          border: "1px solid rgba(0,0,0,0.10)",
+          border: "1px solid rgba(15,23,42,0.10)",
           borderRadius: 14,
           padding: 14,
           background: "white",
+          boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
         }}
       >
         <div style={{ fontWeight: 950, fontSize: 15 }}>{horse?.name ?? "Horse"}</div>
-        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-          Owner: <span style={{ fontWeight: 900 }}>{ownerLabel}</span>
+        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(15,23,42,0.70)" }}>
+          Owner: <span style={{ fontWeight: 950 }}>{ownerLabel}</span>
         </div>
-        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-          Dates: <span style={{ fontWeight: 900 }}>{fmtDate(req?.start_date ?? null)} → {fmtDate(req?.end_date ?? null)}</span>
+        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(15,23,42,0.70)" }}>
+          Dates:{" "}
+          <span style={{ fontWeight: 950 }}>
+            {fmtDate(req?.start_date ?? null)} → {fmtDate(req?.end_date ?? null)}
+          </span>
         </div>
-        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-          Status: <span style={{ fontWeight: 900 }}>{req?.status ?? "—"}</span>
+        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(15,23,42,0.70)" }}>
+          Status: <span style={{ fontWeight: 950 }}>{req?.status ?? "—"}</span>
         </div>
       </div>
 
       <div
         style={{
           marginTop: 14,
-          border: "1px solid rgba(0,0,0,0.10)",
+          border: "1px solid rgba(15,23,42,0.10)",
           borderRadius: 14,
           padding: 14,
           background: "white",
+          boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
         }}
       >
-        <div style={{ fontWeight: 900, fontSize: 13, color: "rgba(0,0,0,0.80)" }}>Rating</div>
+        <div style={{ fontWeight: 950, fontSize: 13, color: "rgba(15,23,42,0.85)" }}>Rating</div>
         <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <StarRating value={rating} onChange={setRating} size={22} />
-          <div style={{ fontSize: 13, color: "rgba(0,0,0,0.70)", fontWeight: 850 }}>{rating}/5</div>
+          <div style={{ fontSize: 13, color: "rgba(15,23,42,0.70)", fontWeight: 900 }}>{rating}/5</div>
         </div>
 
-        <div style={{ marginTop: 14, fontWeight: 900, fontSize: 13, color: "rgba(0,0,0,0.80)" }}>Comment (optional)</div>
+        <div style={{ marginTop: 14, fontWeight: 950, fontSize: 13, color: "rgba(15,23,42,0.85)" }}>
+          Comment (optional)
+        </div>
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
@@ -300,14 +342,19 @@ export default function ReviewPage() {
           style={{
             width: "100%",
             marginTop: 8,
-            border: "1px solid rgba(0,0,0,0.12)",
+            border: "1px solid rgba(15,23,42,0.12)",
             borderRadius: 12,
             padding: 12,
             fontSize: 13,
             outline: "none",
-            background: "rgba(0,0,0,0.02)",
+            background: "rgba(15,23,42,0.02)",
+            resize: "vertical",
           }}
         />
+
+        <div style={{ marginTop: 10, fontSize: 12, color: "rgba(15,23,42,0.55)" }}>
+          {comment.trim().length}/1200
+        </div>
 
         <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button
@@ -339,17 +386,36 @@ export default function ReviewPage() {
                 borderRadius: 12,
                 textDecoration: "none",
                 fontSize: 13,
-                fontWeight: 900,
+                fontWeight: 950,
                 whiteSpace: "nowrap",
               }}
             >
               View owner
             </Link>
           ) : null}
+
+          {req?.id ? (
+            <Link
+              href={`/messages/${req.id}`}
+              style={{
+                border: "1px solid rgba(15,23,42,0.14)",
+                background: "rgba(15,23,42,0.03)",
+                color: "black",
+                padding: "10px 12px",
+                borderRadius: 12,
+                textDecoration: "none",
+                fontSize: 13,
+                fontWeight: 950,
+                whiteSpace: "nowrap",
+              }}
+            >
+              View thread
+            </Link>
+          ) : null}
         </div>
 
-        <div style={{ marginTop: 10, fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
-          Reviews can only be submitted for <span style={{ fontWeight: 900 }}>approved</span> requests (enforced by Supabase RLS).
+        <div style={{ marginTop: 10, fontSize: 12, color: "rgba(15,23,42,0.55)" }}>
+          Reviews can only be submitted for <span style={{ fontWeight: 950 }}>accepted/approved</span> requests.
         </div>
       </div>
     </div>
