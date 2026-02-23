@@ -62,7 +62,7 @@ function groupPos(prev: UIMessage | null, cur: UIMessage, next: UIMessage | null
 }
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"])
 const SEND_COOLDOWN_MS = 800
 
 export default function MessageThreadPage() {
@@ -739,7 +739,7 @@ export default function MessageThreadPage() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
           style={{ display: "none" }}
           onChange={(e) => {
             const f = e.target.files?.[0] ?? null

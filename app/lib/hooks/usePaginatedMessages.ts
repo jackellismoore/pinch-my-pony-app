@@ -12,7 +12,6 @@ export type Message = {
   read_at: string | null
   client_temp_id?: string | null
 
-  // attachments (nullable)
   attachment_type?: string | null
   attachment_bucket?: string | null
   attachment_path?: string | null
@@ -24,7 +23,6 @@ export type Message = {
 
 export type UIMessage = Message & {
   client_status?: "pending" | "sent" | "error"
-  // resolved signed url for rendering
   attachment_url?: string | null
 }
 
@@ -42,11 +40,18 @@ function tempId() {
   return `temp-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`
 }
 
+function normalizeImageMime(mime: string) {
+  const m = (mime || "").toLowerCase().trim()
+  if (m === "image/jpg") return "image/jpeg"
+  return m
+}
+
 function extFromMime(mime: string) {
-  if (mime === "image/jpeg") return "jpg"
-  if (mime === "image/png") return "png"
-  if (mime === "image/webp") return "webp"
-  if (mime === "image/gif") return "gif"
+  const m = normalizeImageMime(mime)
+  if (m === "image/jpeg") return "jpg"
+  if (m === "image/png") return "png"
+  if (m === "image/webp") return "webp"
+  if (m === "image/gif") return "gif"
   return "bin"
 }
 
@@ -70,7 +75,6 @@ export function usePaginatedMessages(requestId: string) {
   const [version, setVersion] = useState(0)
   const oldestCursorRef = useRef<{ created_at: string; id: string } | null>(null)
 
-  // signed-url cache: key = `${bucket}:${path}` => { url, expMs }
   const signedCacheRef = useRef<Map<string, { url: string; expMs: number }>>(new Map())
   const signingInFlightRef = useRef<Set<string>>(new Set())
 
@@ -106,10 +110,7 @@ export function usePaginatedMessages(requestId: string) {
 
       try {
         const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL_SECONDS)
-        if (error || !data?.signedUrl) {
-          // leave as-is; bubble will show "Loading image…"
-          return
-        }
+        if (error || !data?.signedUrl) return
 
         signedCacheRef.current.set(key, { url: data.signedUrl, expMs: now + SIGNED_URL_TTL_SECONDS * 1000 })
 
@@ -161,9 +162,7 @@ export function usePaginatedMessages(requestId: string) {
       if (changed) bump()
 
       for (const m of msgs) {
-        if (m.attachment_type === "image" && m.attachment_path) {
-          void maybeHydrateSignedUrl(m)
-        }
+        if (m.attachment_type === "image" && m.attachment_path) void maybeHydrateSignedUrl(m)
       }
     },
     [bump, maybeHydrateSignedUrl]
@@ -245,7 +244,6 @@ export function usePaginatedMessages(requestId: string) {
     setLoadingMore(false)
   }, [hasMore, loadingMore, mergeMessages, requestId, setOldestCursorFromCurrent])
 
-  // ---- Optimistic send (text-only) ----
   const sendOptimistic = useCallback(
     async (senderId: string, content: string): Promise<{ ok: boolean; tempId?: string; errorMessage?: string }> => {
       const tId = tempId()
@@ -286,7 +284,6 @@ export function usePaginatedMessages(requestId: string) {
     [bump, requestId]
   )
 
-  // ---- Optimistic send WITH image attachment ----
   const sendOptimisticWithImage = useCallback(
     async (
       senderId: string,
@@ -298,8 +295,9 @@ export function usePaginatedMessages(requestId: string) {
       const nowIso = new Date().toISOString()
 
       const bucket = (opts?.bucket ?? DEFAULT_BUCKET).trim() || DEFAULT_BUCKET
-      const safeContentType = file.type || "application/octet-stream"
-      const ext = extFromMime(safeContentType)
+
+      const normalizedType = normalizeImageMime(file.type || "application/octet-stream")
+      const ext = extFromMime(normalizedType)
 
       if (!requestId) {
         const em = "Missing requestId"
@@ -308,10 +306,8 @@ export function usePaginatedMessages(requestId: string) {
 
       const attachmentPath = `${requestId}/${tId}_${senderId}.${ext}`
 
-      // helpful debug (kept — safe in production, but you can remove later)
-      console.log("[pmp] upload", { bucket, attachmentPath, requestId, fileType: safeContentType, size: file.size })
+      console.log("[pmp] upload", { bucket, attachmentPath, requestId, fileType: file.type, normalizedType, size: file.size })
 
-      // Optimistic UI message
       mapRef.current.set(tId, {
         id: tId,
         request_id: requestId,
@@ -325,15 +321,14 @@ export function usePaginatedMessages(requestId: string) {
         attachment_type: "image",
         attachment_bucket: bucket,
         attachment_path: attachmentPath,
-        attachment_content_type: safeContentType,
+        attachment_content_type: normalizedType,
         attachment_size_bytes: file.size,
         attachment_url: null,
       })
       bump()
 
-      // 1) Upload file
       const { error: upErr } = await supabase.storage.from(bucket).upload(attachmentPath, file, {
-        contentType: safeContentType,
+        contentType: normalizedType,
         upsert: false,
       })
 
@@ -342,17 +337,12 @@ export function usePaginatedMessages(requestId: string) {
         const em = safeMsg(upErr)
         const existing = mapRef.current.get(tId)
         if (existing) {
-          mapRef.current.set(tId, {
-            ...existing,
-            client_status: "error",
-            content: `Upload failed: ${em}`,
-          })
+          mapRef.current.set(tId, { ...existing, client_status: "error", content: `Upload failed: ${em}` })
           bump()
         }
         return { ok: false, tempId: tId, attachmentPath, errorMessage: em }
       }
 
-      // 2) Insert message row
       const { error: insErr } = await supabase.from("messages").insert({
         request_id: requestId,
         sender_id: senderId,
@@ -362,7 +352,7 @@ export function usePaginatedMessages(requestId: string) {
         attachment_type: "image",
         attachment_bucket: bucket,
         attachment_path: attachmentPath,
-        attachment_content_type: safeContentType,
+        attachment_content_type: normalizedType,
         attachment_size_bytes: file.size,
       })
 
@@ -370,16 +360,11 @@ export function usePaginatedMessages(requestId: string) {
         console.error("[pmp] insert w/attachment error:", insErr)
         const em = safeMsg(insErr)
 
-        // cleanup orphaned upload (best effort)
         await supabase.storage.from(bucket).remove([attachmentPath]).catch(() => {})
 
         const existing = mapRef.current.get(tId)
         if (existing) {
-          mapRef.current.set(tId, {
-            ...existing,
-            client_status: "error",
-            content: `Send failed: ${em}`,
-          })
+          mapRef.current.set(tId, { ...existing, client_status: "error", content: `Send failed: ${em}` })
           bump()
         }
 
@@ -397,7 +382,6 @@ export function usePaginatedMessages(requestId: string) {
       if (!msg) return
       if (!msg.sender_id) return
 
-      // For image messages, retry should be re-selecting file (safer).
       if (msg.attachment_type === "image") {
         mapRef.current.set(tempMessageId, { ...msg, client_status: "error" })
         bump()
@@ -426,7 +410,6 @@ export function usePaginatedMessages(requestId: string) {
     [bump, requestId]
   )
 
-  // ---- Realtime: INSERT + UPDATE ----
   useEffect(() => {
     if (!requestId) return
 
@@ -441,21 +424,14 @@ export function usePaginatedMessages(requestId: string) {
         (payload) => {
           const row = payload.new as Message
 
-          // reconcile optimistic temp id
           if (row.client_temp_id && mapRef.current.has(row.client_temp_id)) {
             const temp = mapRef.current.get(row.client_temp_id)!
             mapRef.current.delete(row.client_temp_id)
-            mapRef.current.set(row.id, {
-              ...temp,
-              ...(row as any),
-              client_status: "sent",
-            })
+            mapRef.current.set(row.id, { ...temp, ...(row as any), client_status: "sent" })
             bump()
             setOldestCursorFromCurrent()
 
-            if (row.attachment_type === "image" && row.attachment_path) {
-              void maybeHydrateSignedUrl({ ...(row as any), client_status: "sent" })
-            }
+            if (row.attachment_type === "image" && row.attachment_path) void maybeHydrateSignedUrl({ ...(row as any), client_status: "sent" })
             return
           }
 
