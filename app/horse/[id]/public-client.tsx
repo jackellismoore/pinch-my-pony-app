@@ -11,18 +11,18 @@ type HorseRow = {
   name: string | null;
   image_url: string | null;
   location: string | null;
-  breed: string | null;
-  age: string | null;
-  height: string | null;
-  temperament: string | null;
-  description: string | null;
+  breed: any; // <- don't trust runtime types
+  age: any;
+  height: any;
+  temperament: any;
+  description: any;
   is_active: boolean | null;
 };
 
 type ProfileMini = {
   id: string;
-  display_name: string | null;
-  full_name: string | null;
+  display_name: any;
+  full_name: any;
   avatar_url: string | null;
 };
 
@@ -33,15 +33,29 @@ const palette = {
   gold: "#C8A24D",
 };
 
-function pickName(p: ProfileMini | null) {
-  const dn = (p?.display_name ?? "").trim();
-  const fn = (p?.full_name ?? "").trim();
-  return dn || fn || "Owner";
+function safeText(v: any): string {
+  // Handles string/number/null/undefined safely
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  // last resort for objects
+  try {
+    return String(v);
+  } catch {
+    return "";
+  }
 }
 
-function fmt(v: string | null | undefined) {
-  const t = (v ?? "").trim();
+function fmt(v: any) {
+  const t = safeText(v).trim();
   return t.length ? t : "—";
+}
+
+function pickName(p: ProfileMini | null) {
+  const dn = safeText(p?.display_name).trim();
+  const fn = safeText(p?.full_name).trim();
+  return dn || fn || "Owner";
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -190,7 +204,7 @@ export default function HorsePublicClient() {
   if (horse.is_active === false) {
     return (
       <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>{horse.name ?? "Horse"}</div>
+        <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>{fmt(horse.name)}</div>
         <div style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>This listing is not active.</div>
         <div style={{ marginTop: 12 }}>
           <Link href="/browse" style={{ textDecoration: "none", fontWeight: 950, color: palette.navy }}>
@@ -216,13 +230,12 @@ export default function HorsePublicClient() {
       </div>
 
       <div className="pmp-horse-grid" style={grid}>
-        {/* Main card */}
         <div style={shell}>
           {horse.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={horse.image_url}
-              alt={horse.name ?? "Horse"}
+              src={safeText(horse.image_url)}
+              alt={fmt(horse.name)}
               style={{ width: "100%", height: 360, objectFit: "cover", display: "block" }}
             />
           ) : (
@@ -239,12 +252,12 @@ export default function HorsePublicClient() {
             <div style={titleRow}>
               <div style={{ minWidth: 0 }}>
                 <h1 style={{ margin: 0, fontSize: 26, letterSpacing: -0.2, color: palette.navy }}>
-                  {horse.name ?? "Horse"}
+                  {fmt(horse.name)}
                 </h1>
 
                 <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
                   Owner: <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
-                  {horse.location ? <span> • {horse.location}</span> : null}
+                  {safeText(horse.location).trim() ? <span> • {fmt(horse.location)}</span> : null}
                 </div>
               </div>
 
@@ -255,7 +268,6 @@ export default function HorsePublicClient() {
 
             <div style={divider} />
 
-            {/* Details list */}
             <div style={sectionHeader}>
               <div style={sectionTitle}>Details</div>
               <div style={sectionSubtitle}>Readable, spec-style layout (no bubbles).</div>
@@ -277,9 +289,9 @@ export default function HorsePublicClient() {
             </div>
 
             <div style={descCard}>
-              {horse.description?.trim() ? (
+              {safeText(horse.description).trim() ? (
                 <div style={{ fontSize: 14.5, lineHeight: 1.75, color: palette.navy, opacity: 0.92 }}>
-                  {horse.description.trim()}
+                  {safeText(horse.description).trim()}
                 </div>
               ) : (
                 <div style={{ fontSize: 13, opacity: 0.7 }}>No description yet.</div>
@@ -288,7 +300,6 @@ export default function HorsePublicClient() {
           </div>
         </div>
 
-        {/* Side rail */}
         <aside style={sideRail}>
           <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Ready to request?</div>
           <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
