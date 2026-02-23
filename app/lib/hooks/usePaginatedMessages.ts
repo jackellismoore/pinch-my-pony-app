@@ -12,7 +12,7 @@ export type Message = {
   read_at: string | null
   client_temp_id?: string | null
 
-  // NEW attachment fields
+  // attachments (nullable)
   attachment_type?: string | null
   attachment_bucket?: string | null
   attachment_path?: string | null
@@ -24,8 +24,7 @@ export type Message = {
 
 export type UIMessage = Message & {
   client_status?: "pending" | "sent" | "error"
-
-  // NEW: resolved signed url for rendering (not stored in DB)
+  // resolved signed url for rendering
   attachment_url?: string | null
 }
 
@@ -49,6 +48,17 @@ function extFromMime(mime: string) {
   if (mime === "image/webp") return "webp"
   if (mime === "image/gif") return "gif"
   return "bin"
+}
+
+function safeMsg(err: any) {
+  return (
+    err?.message ||
+    err?.error_description ||
+    err?.hint ||
+    err?.details ||
+    (typeof err === "string" ? err : null) ||
+    "Unknown error"
+  )
 }
 
 export function usePaginatedMessages(requestId: string) {
@@ -83,7 +93,6 @@ export function usePaginatedMessages(requestId: string) {
       const now = Date.now()
 
       if (cached && cached.expMs > now + 10_000) {
-        // still valid (keep a little buffer)
         const existing = mapRef.current.get(m.id)
         if (existing && existing.attachment_url !== cached.url) {
           mapRef.current.set(m.id, { ...existing, attachment_url: cached.url })
@@ -97,7 +106,10 @@ export function usePaginatedMessages(requestId: string) {
 
       try {
         const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL_SECONDS)
-        if (error || !data?.signedUrl) return
+        if (error || !data?.signedUrl) {
+          // leave as-is; bubble will show "Loading image…"
+          return
+        }
 
         signedCacheRef.current.set(key, { url: data.signedUrl, expMs: now + SIGNED_URL_TTL_SECONDS * 1000 })
 
@@ -148,7 +160,6 @@ export function usePaginatedMessages(requestId: string) {
 
       if (changed) bump()
 
-      // kick off signed-url hydration for any messages that need it
       for (const m of msgs) {
         if (m.attachment_type === "image" && m.attachment_path) {
           void maybeHydrateSignedUrl(m)
@@ -236,7 +247,7 @@ export function usePaginatedMessages(requestId: string) {
 
   // ---- Optimistic send (text-only) ----
   const sendOptimistic = useCallback(
-    async (senderId: string, content: string): Promise<{ ok: boolean; tempId?: string }> => {
+    async (senderId: string, content: string): Promise<{ ok: boolean; tempId?: string; errorMessage?: string }> => {
       const tId = tempId()
       const nowIso = new Date().toISOString()
 
@@ -261,12 +272,13 @@ export function usePaginatedMessages(requestId: string) {
 
       if (error) {
         console.error("sendOptimistic insert error:", error)
+        const em = safeMsg(error)
         const existing = mapRef.current.get(tId)
         if (existing) {
-          mapRef.current.set(tId, { ...existing, client_status: "error" })
+          mapRef.current.set(tId, { ...existing, client_status: "error", content: `Send failed: ${em}` })
           bump()
         }
-        return { ok: false, tempId: tId }
+        return { ok: false, tempId: tId, errorMessage: em }
       }
 
       return { ok: true, tempId: tId }
@@ -281,16 +293,25 @@ export function usePaginatedMessages(requestId: string) {
       content: string,
       file: File,
       opts?: { bucket?: string }
-    ): Promise<{ ok: boolean; tempId?: string; attachmentPath?: string }> => {
+    ): Promise<{ ok: boolean; tempId?: string; attachmentPath?: string; errorMessage?: string }> => {
       const tId = tempId()
       const nowIso = new Date().toISOString()
 
       const bucket = (opts?.bucket ?? DEFAULT_BUCKET).trim() || DEFAULT_BUCKET
       const safeContentType = file.type || "application/octet-stream"
       const ext = extFromMime(safeContentType)
+
+      if (!requestId) {
+        const em = "Missing requestId"
+        return { ok: false, tempId: tId, errorMessage: em }
+      }
+
       const attachmentPath = `${requestId}/${tId}_${senderId}.${ext}`
 
-      // Optimistic UI message (shows as pending)
+      // helpful debug (kept — safe in production, but you can remove later)
+      console.log("[pmp] upload", { bucket, attachmentPath, requestId, fileType: safeContentType, size: file.size })
+
+      // Optimistic UI message
       mapRef.current.set(tId, {
         id: tId,
         request_id: requestId,
@@ -310,23 +331,28 @@ export function usePaginatedMessages(requestId: string) {
       })
       bump()
 
-      // 1) Upload file to storage
+      // 1) Upload file
       const { error: upErr } = await supabase.storage.from(bucket).upload(attachmentPath, file, {
         contentType: safeContentType,
         upsert: false,
       })
 
       if (upErr) {
-        console.error("upload error:", upErr)
+        console.error("[pmp] upload error:", upErr)
+        const em = safeMsg(upErr)
         const existing = mapRef.current.get(tId)
         if (existing) {
-          mapRef.current.set(tId, { ...existing, client_status: "error" })
+          mapRef.current.set(tId, {
+            ...existing,
+            client_status: "error",
+            content: `Upload failed: ${em}`,
+          })
           bump()
         }
-        return { ok: false, tempId: tId, attachmentPath }
+        return { ok: false, tempId: tId, attachmentPath, errorMessage: em }
       }
 
-      // 2) Insert message row referencing the uploaded attachment
+      // 2) Insert message row
       const { error: insErr } = await supabase.from("messages").insert({
         request_id: requestId,
         sender_id: senderId,
@@ -341,17 +367,23 @@ export function usePaginatedMessages(requestId: string) {
       })
 
       if (insErr) {
-        console.error("insert w/attachment error:", insErr)
+        console.error("[pmp] insert w/attachment error:", insErr)
+        const em = safeMsg(insErr)
 
-        // best-effort cleanup to prevent orphaned uploads
+        // cleanup orphaned upload (best effort)
         await supabase.storage.from(bucket).remove([attachmentPath]).catch(() => {})
 
         const existing = mapRef.current.get(tId)
         if (existing) {
-          mapRef.current.set(tId, { ...existing, client_status: "error" })
+          mapRef.current.set(tId, {
+            ...existing,
+            client_status: "error",
+            content: `Send failed: ${em}`,
+          })
           bump()
         }
-        return { ok: false, tempId: tId, attachmentPath }
+
+        return { ok: false, tempId: tId, attachmentPath, errorMessage: em }
       }
 
       return { ok: true, tempId: tId, attachmentPath }
@@ -365,7 +397,7 @@ export function usePaginatedMessages(requestId: string) {
       if (!msg) return
       if (!msg.sender_id) return
 
-      // If it's an attachment message, retry is handled in UI by re-selecting the image (simpler + safer)
+      // For image messages, retry should be re-selecting file (safer).
       if (msg.attachment_type === "image") {
         mapRef.current.set(tempMessageId, { ...msg, client_status: "error" })
         bump()
@@ -386,7 +418,8 @@ export function usePaginatedMessages(requestId: string) {
 
       if (error) {
         console.error("retryOptimistic insert error:", error)
-        mapRef.current.set(tempMessageId, { ...msg, client_status: "error" })
+        const em = safeMsg(error)
+        mapRef.current.set(tempMessageId, { ...msg, client_status: "error", content: `Send failed: ${em}` })
         bump()
       }
     },
@@ -408,7 +441,7 @@ export function usePaginatedMessages(requestId: string) {
         (payload) => {
           const row = payload.new as Message
 
-          // Reconcile optimistic temp id if present
+          // reconcile optimistic temp id
           if (row.client_temp_id && mapRef.current.has(row.client_temp_id)) {
             const temp = mapRef.current.get(row.client_temp_id)!
             mapRef.current.delete(row.client_temp_id)

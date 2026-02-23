@@ -62,7 +62,7 @@ function groupPos(prev: UIMessage | null, cur: UIMessage, next: UIMessage | null
 }
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]) // add image/gif if you want
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
 const SEND_COOLDOWN_MS = 800
 
 export default function MessageThreadPage() {
@@ -90,7 +90,7 @@ export default function MessageThreadPage() {
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // NEW: attachment state
+  // attachment state
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [pickedFile, setPickedFile] = useState<File | null>(null)
   const [pickedPreviewUrl, setPickedPreviewUrl] = useState<string | null>(null)
@@ -137,7 +137,7 @@ export default function MessageThreadPage() {
     }
   }, [])
 
-  // ---- Header (horse + other profile) + review eligibility ----
+  // ---- Header + review eligibility ----
   useEffect(() => {
     if (!requestId || !myUserId) return
     let cancelled = false
@@ -162,7 +162,6 @@ export default function MessageThreadPage() {
       setRequestStatus(req.status ?? null)
       setIsBorrower(req.borrower_id === myUserId)
 
-      // check existing review (only for borrower UX; RLS also enforces)
       if (req.borrower_id === myUserId) {
         const { data: existing, error: exErr } = await supabase
           .from("reviews")
@@ -172,14 +171,11 @@ export default function MessageThreadPage() {
           .maybeSingle()
 
         if (!cancelled) {
-          if (exErr) {
-            setReviewExists(true)
-          } else {
-            setReviewExists(Boolean(existing?.id))
-          }
+          if (exErr) setReviewExists(true)
+          else setReviewExists(Boolean(existing?.id))
         }
       } else {
-        setReviewExists(true) // not borrower => hide CTA
+        setReviewExists(true)
       }
 
       const { data: horse, error: horseErr } = await supabase
@@ -231,7 +227,7 @@ export default function MessageThreadPage() {
 
   const otherUserId = header?.other_user?.id ?? null
 
-  // ---- Presence online indicator ----
+  // ---- Presence ----
   useEffect(() => {
     if (!requestId || !myUserId) return
 
@@ -261,7 +257,7 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // ---- Typing broadcast (global channel; filter by requestId) ----
+  // ---- Typing broadcast ----
   useEffect(() => {
     if (!myUserId) return
 
@@ -312,7 +308,7 @@ export default function MessageThreadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ---- Infinite scroll (older messages) ----
+  // ---- Infinite scroll ----
   useEffect(() => {
     const sentinel = topSentinelRef.current
     const scroller = scrollerRef.current
@@ -383,7 +379,7 @@ export default function MessageThreadPage() {
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // Read receipts (throttled + deduped)
+  // ---- read receipts ----
   const unreadIds = useMemo(() => {
     if (!myUserId) return []
     return messages
@@ -392,7 +388,6 @@ export default function MessageThreadPage() {
   }, [messages, myUserId])
 
   const unreadKey = useMemo(() => unreadIds.join("|"), [unreadIds])
-
   const lastMarkedKeyRef = useRef<string>("")
   const inFlightRef = useRef(false)
   const debounceRef = useRef<number | null>(null)
@@ -425,9 +420,7 @@ export default function MessageThreadPage() {
     }, 250)
 
     const onVis = () => {
-      if (document.visibilityState === "visible") {
-        lastMarkedKeyRef.current = ""
-      }
+      if (document.visibilityState === "visible") lastMarkedKeyRef.current = ""
     }
 
     document.addEventListener("visibilitychange", onVis)
@@ -437,7 +430,7 @@ export default function MessageThreadPage() {
     }
   }, [unreadKey, unreadIds, myUserId, requestId])
 
-  // Group rendering
+  // ---- grouping ----
   const grouped = useMemo(() => {
     return messages.map((m, i) => {
       const prev = i > 0 ? messages[i - 1] : null
@@ -450,7 +443,7 @@ export default function MessageThreadPage() {
     await retryOptimistic(tempId)
   }
 
-  // Delete chat (hide for current user only)
+  // delete chat
   const [deleting, setDeleting] = useState(false)
   const deleteChatForMe = async () => {
     if (!myUserId || !requestId) return
@@ -462,11 +455,7 @@ export default function MessageThreadPage() {
     const { error } = await supabase
       .from("message_thread_deletions")
       .upsert(
-        {
-          user_id: myUserId,
-          request_id: requestId,
-          deleted_at: new Date().toISOString(),
-        },
+        { user_id: myUserId, request_id: requestId, deleted_at: new Date().toISOString() },
         { onConflict: "user_id,request_id" }
       )
 
@@ -482,7 +471,7 @@ export default function MessageThreadPage() {
     router.refresh()
   }
 
-  // ---- Attachment picking helpers ----
+  // ---- Attachment picking ----
   const clearPicked = () => {
     setComposerError(null)
     setPickedFile(null)
@@ -510,7 +499,6 @@ export default function MessageThreadPage() {
       return
     }
 
-    // replace any existing preview
     if (pickedPreviewUrl) URL.revokeObjectURL(pickedPreviewUrl)
 
     setPickedFile(file)
@@ -529,7 +517,6 @@ export default function MessageThreadPage() {
     if (!myUserId || !requestId) return
     setComposerError(null)
 
-    // cooldown (basic rate limiting)
     const now = Date.now()
     if (now - lastSendAtRef.current < SEND_COOLDOWN_MS) return
     lastSendAtRef.current = now
@@ -542,22 +529,23 @@ export default function MessageThreadPage() {
     setDraft("")
     broadcastTyping(false)
 
-    // If image exists, upload then insert
     if (file) {
       setUploading(true)
       const fallbackText = text || "📷 Photo"
 
+      // IMPORTANT: bucket name must match where you created policies
       const result = await sendOptimisticWithImage(myUserId, fallbackText, file, { bucket: "message-attachments" })
+
       setUploading(false)
 
       if (!result.ok) {
-        setComposerError("Couldn’t send that image. Please try again.")
+        setComposerError(`Couldn’t send image: ${result.errorMessage ?? "Unknown error"}`)
+        // keep the preview so user can retry
         return
       }
 
       clearPicked()
 
-      // push if offline
       if (otherUserId && !otherOnline) {
         fetch("/api/push/send", {
           method: "POST",
@@ -576,9 +564,13 @@ export default function MessageThreadPage() {
       return
     }
 
-    // Text-only
     const result = await sendOptimistic(myUserId, text)
-    if (result.ok && otherUserId && !otherOnline) {
+    if (!result.ok) {
+      setComposerError(`Couldn’t send message: ${result.errorMessage ?? "Unknown error"}`)
+      return
+    }
+
+    if (otherUserId && !otherOnline) {
       fetch("/api/push/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -711,7 +703,7 @@ export default function MessageThreadPage() {
           flexDirection: "column",
           gap: 6,
           background:
-          "radial-gradient(900px 650px at 12% 8%, rgba(202,162,77,0.16), transparent 60%), radial-gradient(900px 650px at 92% 14%, rgba(11,59,46,0.12), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.85), rgba(250,250,250,0.95))",
+            "radial-gradient(900px 650px at 12% 8%, rgba(202,162,77,0.16), transparent 60%), radial-gradient(900px 650px at 92% 14%, rgba(11,59,46,0.12), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.85), rgba(250,250,250,0.95))",
         }}
       >
         <div ref={topSentinelRef} style={{ height: 1 }} />
@@ -744,7 +736,6 @@ export default function MessageThreadPage() {
 
       {/* Composer */}
       <div style={{ padding: 12, borderTop: "1px solid rgba(15,23,42,0.10)", background: "white" }}>
-        {/* Hidden input */}
         <input
           ref={fileInputRef}
           type="file"
@@ -756,7 +747,6 @@ export default function MessageThreadPage() {
           }}
         />
 
-        {/* Attachment preview */}
         {pickedFile && pickedPreviewUrl ? (
           <div
             style={{
@@ -793,9 +783,7 @@ export default function MessageThreadPage() {
               <div style={{ fontSize: 12, opacity: 0.72, color: "#0f172a", marginTop: 2 }}>
                 {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • {pickedFile.type || "image"}
               </div>
-              <div style={{ fontSize: 12, opacity: 0.75, color: "#0f172a", marginTop: 4 }}>
-                {uploading ? "Uploading…" : "Ready to send"}
-              </div>
+              <div style={{ fontSize: 12, opacity: 0.75, color: "#0f172a", marginTop: 4 }}>{uploading ? "Uploading…" : "Ready to send"}</div>
             </div>
 
             <button
@@ -818,7 +806,11 @@ export default function MessageThreadPage() {
           </div>
         ) : null}
 
-        {composerError ? <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c", fontWeight: 900 }}>{composerError}</div> : null}
+        {composerError ? (
+          <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c", fontWeight: 900, whiteSpace: "pre-wrap" }}>
+            {composerError}
+          </div>
+        ) : null}
 
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
           <button
@@ -835,13 +827,11 @@ export default function MessageThreadPage() {
               alignItems: "center",
               justifyContent: "center",
               boxShadow: "0 10px 20px rgba(0,0,0,0.04)",
-              transition: "transform 120ms ease, box-shadow 120ms ease",
               padding: 0,
             }}
             title="Attach image"
             aria-label="Attach image"
           >
-            {/* inline SVG paperclip/camera-ish */}
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
                 d="M9 7h6l1 2h3a2 2 0 0 1 2 2v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-6a2 2 0 0 1 2-2h3l1-2z"
@@ -849,11 +839,7 @@ export default function MessageThreadPage() {
                 strokeWidth="1.7"
                 strokeLinejoin="round"
               />
-              <path
-                d="M12 18a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 18z"
-                stroke="rgba(15,23,42,0.85)"
-                strokeWidth="1.7"
-              />
+              <path d="M12 18a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 18z" stroke="rgba(15,23,42,0.85)" strokeWidth="1.7" />
             </svg>
           </button>
 
@@ -898,7 +884,6 @@ export default function MessageThreadPage() {
               background: !canSend ? "rgba(37,99,235,0.35)" : "rgba(37,99,235,0.95)",
               color: "white",
               boxShadow: !canSend ? "none" : "0 10px 26px rgba(37,99,235,0.20)",
-              transition: "transform 120ms ease, box-shadow 120ms ease",
             }}
             title={uploading ? "Uploading…" : "Send"}
           >
