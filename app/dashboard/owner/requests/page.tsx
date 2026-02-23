@@ -1,262 +1,181 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import DashboardShell from "@/components/DashboardShell";
 import { supabase } from "@/lib/supabaseClient";
+import RequestsTable from "@/components/RequestsTable";
 
-type Status = "pending" | "approved" | "rejected";
-type StatusFilter = "all" | Status;
-
-type Row = {
+type RequestRow = {
   id: string;
-  horse_id: string;
-  borrower_id: string;
+  status: string | null;
   start_date: string | null;
   end_date: string | null;
-  status: Status;
-  created_at: string | null;
+  message?: string | null;
 
-  horse_name: string | null;
-  borrower_name: string | null;
+  horse_id?: string | null;
+  borrower_id?: string | null;
+
+  // joins (optional)
+  horse?: { id?: string; name?: string | null } | null;
+  borrower?: { id?: string; display_name?: string | null; full_name?: string | null } | null;
 };
 
-function normalizeStatus(raw: any): Status {
-  const s = String(raw ?? "").toLowerCase();
-  if (s === "approved") return "approved";
-  if (s === "rejected" || s === "declined" || s === "denied") return "rejected";
-  return "pending";
+function pageWrap(): React.CSSProperties {
+  return { padding: 16, maxWidth: 1100, margin: "0 auto" };
 }
 
-function chip(active: boolean): React.CSSProperties {
-  return {
-    border: "1px solid rgba(15,23,42,0.14)",
-    borderRadius: 999,
-    padding: "8px 10px",
+function topBar(): React.CSSProperties {
+  return { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" };
+}
+
+function h1Style(): React.CSSProperties {
+  return { margin: 0, fontSize: 22, fontWeight: 950 };
+}
+
+function subStyle(): React.CSSProperties {
+  return { marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" };
+}
+
+function btn(kind: "primary" | "secondary"): React.CSSProperties {
+  const base: React.CSSProperties = {
+    border: "1px solid rgba(0,0,0,0.14)",
+    borderRadius: 12,
+    padding: "10px 12px",
     fontSize: 13,
     fontWeight: 950,
-    background: active ? "#0f172a" : "white",
-    color: active ? "white" : "#0f172a",
-    cursor: "pointer",
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    whiteSpace: "nowrap",
   };
-}
-
-function statusPill(status: Status): React.CSSProperties {
-  if (status === "approved")
-    return { background: "rgba(34,197,94,0.12)", color: "#15803d", border: "1px solid rgba(34,197,94,0.22)" };
-  if (status === "rejected")
-    return { background: "rgba(239,68,68,0.10)", color: "#b91c1c", border: "1px solid rgba(239,68,68,0.22)" };
-  return { background: "rgba(245,158,11,0.14)", color: "#92400e", border: "1px solid rgba(245,158,11,0.24)" };
+  if (kind === "primary") return { ...base, background: "black", color: "white" };
+  return { ...base, background: "white", color: "black" };
 }
 
 export default function OwnerRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [rows, setRows] = useState<Row[]>([]);
-  const [filter, setFilter] = useState<StatusFilter>("all");
 
-  async function load() {
-    setLoading(true);
-    setError(null);
-
-    const { data: u, error: uErr } = await supabase.auth.getUser();
-    if (uErr) {
-      setError(uErr.message);
-      setRows([]);
-      setLoading(false);
-      return;
-    }
-
-    const uid = u.user?.id;
-    if (!uid) {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // 1) My horses
-      const { data: horses, error: hErr } = await supabase.from("horses").select("id,name").eq("owner_id", uid);
-      if (hErr) throw hErr;
-
-      const horseIds = (horses ?? []).map((h: any) => h.id).filter(Boolean);
-      const horseNameById: Record<string, string> = {};
-      for (const h of horses ?? []) horseNameById[h.id] = h.name ?? "Horse";
-
-      if (!horseIds.length) {
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-
-      // 2) Requests for my horses
-      const { data: reqs, error: rErr } = await supabase
-        .from("borrow_requests")
-        .select("id,horse_id,borrower_id,start_date,end_date,status,created_at")
-        .in("horse_id", horseIds)
-        .order("created_at", { ascending: false });
-
-      if (rErr) throw rErr;
-
-      const borrowerIds = Array.from(new Set((reqs ?? []).map((r: any) => r.borrower_id).filter(Boolean)));
-
-      // 3) Borrower names
-      const { data: profs, error: pErr } = borrowerIds.length
-        ? await supabase.from("profiles").select("id,display_name,full_name").in("id", borrowerIds)
-        : ({ data: [], error: null } as any);
-
-      if (pErr) throw pErr;
-
-      const borrowerNameById: Record<string, string> = {};
-      for (const p of profs ?? []) {
-        const dn = (p.display_name ?? "").trim();
-        const fn = (p.full_name ?? "").trim();
-        borrowerNameById[p.id] = dn || fn || "Borrower";
-      }
-
-      const mapped: Row[] = (reqs ?? []).map((r: any) => ({
-        id: r.id,
-        horse_id: r.horse_id,
-        borrower_id: r.borrower_id,
-        start_date: r.start_date ?? null,
-        end_date: r.end_date ?? null,
-        status: normalizeStatus(r.status),
-        created_at: r.created_at ?? null,
-        horse_name: horseNameById[r.horse_id] ?? "Horse",
-        borrower_name: borrowerNameById[r.borrower_id] ?? "Borrower",
-      }));
-
-      setRows(mapped);
-      setLoading(false);
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to load requests.");
-      setRows([]);
-      setLoading(false);
-    }
-  }
+  const [rows, setRows] = useState<RequestRow[]>([]);
 
   useEffect(() => {
-    let mounted = true;
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const {
+          data: { user },
+          error: userErr,
+        } = await supabase.auth.getUser();
+
+        if (userErr) throw userErr;
+        if (!user) throw new Error("Not authenticated.");
+
+        // Pull requests for horses owned by me.
+        // This assumes borrow_requests has horse_id + borrower_id and RLS allows owner to read.
+        // We fetch horses separately to filter by owner_id safely if needed.
+        const { data: myHorses, error: horsesErr } = await supabase
+          .from("horses")
+          .select("id")
+          .eq("owner_id", user.id);
+
+        if (horsesErr) throw horsesErr;
+
+        const horseIds = (myHorses ?? []).map((h: any) => h.id).filter(Boolean);
+
+        if (horseIds.length === 0) {
+          if (!cancelled) setRows([]);
+          return;
+        }
+
+        // Requests + joins for display (horse name + borrower label)
+        const { data: reqData, error: reqErr } = await supabase
+          .from("borrow_requests")
+          .select(
+            `
+            id,status,start_date,end_date,message,horse_id,borrower_id,
+            horse:horses(id,name),
+            borrower:profiles(id,display_name,full_name)
+          `
+          )
+          .in("horse_id", horseIds)
+          .order("created_at", { ascending: false });
+
+        if (reqErr) throw reqErr;
+
+        if (!cancelled) setRows((reqData ?? []) as RequestRow[]);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message ?? "Failed to load owner requests.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
 
     load();
-
-    // Live refresh on changes
-    const ch = supabase
-      .channel("rt:owner_requests_page")
-      .on("postgres_changes", { event: "*", schema: "public", table: "borrow_requests" }, () => mounted && load())
-      .subscribe();
-
     return () => {
-      mounted = false;
-      supabase.removeChannel(ch);
+      cancelled = true;
     };
   }, []);
 
-  const filtered = useMemo(() => {
-    if (filter === "all") return rows;
-    return rows.filter((r) => r.status === filter);
-  }, [rows, filter]);
+  const subtitle = useMemo(() => {
+    if (loading) return "Loading your incoming requests…";
+    if (rows.length === 0) return "No requests yet.";
+    return "Review incoming requests and approve or reject.";
+  }, [loading, rows.length]);
 
   return (
-    <DashboardShell>
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 950 }}>Requests</h1>
-        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
-          Manage incoming borrow requests. Click a row to open the message thread.
+    <div style={pageWrap()}>
+      <div style={topBar()}>
+        <div>
+          <h1 style={h1Style()}>Owner Requests</h1>
+          <div style={subStyle()}>{subtitle}</div>
         </div>
 
-        <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button onClick={() => setFilter("all")} style={chip(filter === "all")}>
-            All
-          </button>
-          <button onClick={() => setFilter("pending")} style={chip(filter === "pending")}>
-            Pending
-          </button>
-          <button onClick={() => setFilter("approved")} style={chip(filter === "approved")}>
-            Approved
-          </button>
-          <button onClick={() => setFilter("rejected")} style={chip(filter === "rejected")}>
-            Rejected
-          </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <Link href="/dashboard/owner" style={btn("secondary")}>
+            ← Overview
+          </Link>
+          <Link href="/dashboard/owner/horses" style={btn("primary")}>
+            Manage Horses →
+          </Link>
         </div>
+      </div>
 
-        {loading ? <div style={{ marginTop: 14, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
-
-        {error ? (
-          <div
-            style={{
-              marginTop: 14,
-              border: "1px solid rgba(255,0,0,0.25)",
-              background: "rgba(255,0,0,0.06)",
-              padding: 12,
-              borderRadius: 12,
-              fontSize: 13,
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
-
+      {error ? (
         <div
           style={{
             marginTop: 14,
-            border: "1px solid rgba(15,23,42,0.10)",
-            borderRadius: 16,
-            background: "white",
-            overflow: "hidden",
+            border: "1px solid rgba(255,0,0,0.25)",
+            background: "rgba(255,0,0,0.06)",
+            padding: 12,
+            borderRadius: 12,
+            fontSize: 13,
           }}
         >
-          <div style={{ padding: 14, fontWeight: 950 }}>Borrow requests</div>
-
-          {filtered.length === 0 ? (
-            <div style={{ padding: 14, fontSize: 13, opacity: 0.7 }}>No requests.</div>
-          ) : (
-            <div style={{ display: "grid" }}>
-              {filtered.map((r, idx) => (
-                <Link
-                  key={r.id}
-                  href={`/messages/${r.id}`}
-                  style={{
-                    textDecoration: "none",
-                    color: "#0f172a",
-                    padding: 14,
-                    borderTop: "1px solid rgba(15,23,42,0.08)",
-                    display: "grid",
-                    gap: 6,
-                    background: idx % 2 === 0 ? "rgba(15,23,42,0.02)" : "white",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                    <div style={{ fontWeight: 950 }}>{r.horse_name}</div>
-                    <span
-                      style={{
-                        ...statusPill(r.status),
-                        fontSize: 12,
-                        fontWeight: 950,
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                      }}
-                    >
-                      {r.status.toUpperCase()}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: 13, opacity: 0.85 }}>
-                    Borrower: <span style={{ fontWeight: 900 }}>{r.borrower_name}</span>
-                  </div>
-
-                  <div style={{ fontSize: 13, opacity: 0.85 }}>
-                    Dates:{" "}
-                    <span style={{ fontWeight: 900 }}>
-                      {r.start_date ?? "—"} → {r.end_date ?? "—"}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
+          {error}
         </div>
+      ) : null}
+
+      <div style={{ marginTop: 14 }}>
+        <RequestsTable
+          mode="owner"
+          title="Incoming requests"
+          subtitle="Approve/reject pending requests. View details to message the borrower."
+          loading={loading}
+          requests={rows}
+          emptyLabel="No requests yet."
+        />
       </div>
-    </DashboardShell>
+
+      {/* subtle spacing */}
+      <div style={{ height: 18 }} />
+    </div>
   );
 }
