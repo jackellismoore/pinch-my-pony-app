@@ -48,12 +48,6 @@ type NextRange = {
   label: string;
 };
 
-type RatingAggRow = {
-  owner_id: string;
-  avg: number | null;
-  count: number | null;
-};
-
 function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -104,36 +98,36 @@ export default function BrowsePage() {
           }
         }
 
-        // ---- Ratings aggregates (reliable grouped version) ----
-      if (ownerIds.length > 0) {
-        const { data: aggData, error: aggErr } = await supabase
-        .from("reviews")
-    .    select("owner_id, rating")
-        .in("owner_id", ownerIds);
+        // ---- Ratings aggregates (reliable JS grouped version) ----
+        if (ownerIds.length > 0) {
+          const { data: reviewRows, error: reviewErr } = await supabase
+            .from("reviews")
+            .select("owner_id,rating")
+            .in("owner_id", ownerIds);
 
-  if (!cancelled && !aggErr) {
-    const map: Record<string, { avg: number; count: number }> = {};
+          if (!cancelled && !reviewErr) {
+            const map: Record<string, { avg: number; count: number }> = {};
 
-    for (const row of (aggData ?? []) as { owner_id: string; rating: number }[]) {
-      if (!row.owner_id) continue;
+            for (const row of (reviewRows ?? []) as Array<{ owner_id: string; rating: number }>) {
+              const oid = row?.owner_id;
+              if (!oid) continue;
 
-      if (!map[row.owner_id]) {
-        map[row.owner_id] = { avg: 0, count: 0 };
-      }
+              if (!map[oid]) map[oid] = { avg: 0, count: 0 };
 
-      map[row.owner_id].avg += Number(row.rating ?? 0);
-      map[row.owner_id].count += 1;
-    }
+              map[oid].avg += Number(row.rating ?? 0);
+              map[oid].count += 1;
+            }
 
-    // finalize averages
-    for (const ownerId of Object.keys(map)) {
-      const entry = map[ownerId];
-      entry.avg = entry.count > 0 ? entry.avg / entry.count : 0;
-    }
+            // finalize averages
+            for (const oid of Object.keys(map)) {
+              const entry = map[oid];
+              entry.avg = entry.count > 0 ? entry.avg / entry.count : 0;
+            }
 
-    setRatingByOwnerId(map);
-  }
-}
+            setRatingByOwnerId(map);
+          }
+        }
+
         // ---- Availability merge (existing behavior preserved) ----
         if (horseIds.length > 0) {
           const today = todayISODate();
@@ -216,18 +210,25 @@ export default function BrowsePage() {
     return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || "Owner";
   }
 
+  // ✅ IMPORTANT: pass rating_avg + rating_count into HorseMap pins
   const mapHorses = useMemo(
     () =>
-      horses.map((h) => ({
-        id: h.id,
-        owner_id: h.owner_id,
-        name: h.name,
-        location: h.location,
-        lat: h.lat,
-        lng: h.lng,
-        image_url: h.image_url,
-      })),
-    [horses]
+      horses.map((h) => {
+        const rating = ratingByOwnerId[h.owner_id] ?? { avg: 0, count: 0 };
+        return {
+          id: h.id,
+          owner_id: h.owner_id,
+          name: h.name,
+          location: h.location,
+          lat: h.lat,
+          lng: h.lng,
+          image_url: h.image_url,
+
+          rating_avg: rating.avg,
+          rating_count: rating.count,
+        };
+      }),
+    [horses, ratingByOwnerId]
   );
 
   return (
@@ -255,7 +256,6 @@ export default function BrowsePage() {
       ) : null}
 
       <div style={{ marginTop: 14 }}>
-        {/* ✅ keep your map exactly as-is */}
         <HorseMap horses={mapHorses} userLocation={null} highlightedId={null} />
       </div>
 
@@ -319,7 +319,6 @@ export default function BrowsePage() {
                     </Link>
                   </div>
 
-                  {/* NEW: rating snippet (non-invasive, matches your compact row style) */}
                   <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <StarRating value={hasRating ? Number(rating.avg.toFixed(1)) : 0} readOnly size={18} />
