@@ -39,7 +39,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-
 input,
 select,
 textarea {
@@ -53,6 +52,7 @@ textarea {
 label {
   font-weight: 600;
 }
+
 @keyframes pmpFadeInUp {
   from {
     opacity: 0;
@@ -64,19 +64,33 @@ label {
   }
 }
 
+/* Existing typing keyframes (kept) */
 @keyframes pmpTyping {
   0%, 100% { transform: translateY(0); opacity: 0.55; }
   50% { transform: translateY(-4px); opacity: 1; }
 }
-:root {
-  /* Pinch My Pony palette (warm/premium) */
-  --pmp-navy: #0f172a;
-  --pmp-forest: #0b3b2e;
-  --pmp-cream: #f5f1e8;
-  --pmp-gold: #caa24d;
-  --pmp-sky: #2b6cb0;
 
-  --pmp-card: rgba(255,255,255,0.92);
-  --pmp-border: rgba(15,23,42,0.10);
-  --pmp-shadow: 0 18px 50px rgba(15,23,42,0.10);
+/* Premium hover lift utility */
+.pmp-hoverLift {
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+  will-change: transform;
+}
+.pmp-hoverLift:hover {
+  transform: translateY(-1px);
+}
+
+/* Shimmer utility for image loading */
+@keyframes pmpShimmer {
+  0% { background-position: 0% 0; }
+  100% { background-position: 160% 0; }
+}
+.pmp-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(15,23,42,0.06) 0%,
+    rgba(202,162,77,0.18) 45%,
+    rgba(15,23,42,0.06) 100%
+  );
+  background-size: 160% 100%;
+  animation: pmpShimmer 1.2s ease-in-out infinite;
 }

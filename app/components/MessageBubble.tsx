@@ -25,8 +25,8 @@ function formatTime(iso: string) {
 }
 
 function radius(isMine: boolean, pos: GroupPos) {
-  const r = 16
-  const tight = 8
+  const r = 18
+  const tight = 10
 
   if (pos === "single") return { borderRadius: r }
 
@@ -99,13 +99,14 @@ export default function MessageBubble({
   const imageBoxStyle: React.CSSProperties = useMemo(
     () => ({
       marginTop: message.content?.trim() ? 10 : 2,
-      borderRadius: 14,
+      borderRadius: 16,
       overflow: "hidden",
       border: mine ? "1px solid rgba(255,255,255,0.22)" : "1px solid rgba(15,23,42,0.10)",
       background: mine ? "rgba(255,255,255,0.10)" : "rgba(15,23,42,0.04)",
-      boxShadow: "0 10px 20px rgba(0,0,0,0.10)",
+      boxShadow: "0 14px 28px rgba(0,0,0,0.12)",
       cursor: message.attachment_url ? "pointer" : "default",
       maxWidth: 360,
+      transition: "transform 140ms ease, box-shadow 140ms ease",
     }),
     [mine, message.attachment_url, message.content]
   )
@@ -115,15 +116,15 @@ export default function MessageBubble({
       <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
         <div
           style={{
-            maxWidth: 560,
+            maxWidth: 580,
             padding: "10px 12px",
             ...radius(mine, groupPos),
             background: bg,
             color: fg,
             border: bubbleBorder,
-            boxShadow: "0 10px 20px rgba(0,0,0,0.08)",
+            boxShadow: "0 14px 30px rgba(0,0,0,0.10)",
             wordBreak: "break-word",
-            opacity: message.client_status === "pending" ? 0.82 : 1,
+            opacity: message.client_status === "pending" ? 0.86 : 1,
           }}
         >
           {message.content?.trim() ? (
@@ -133,6 +134,17 @@ export default function MessageBubble({
           {hasImage ? (
             <div
               style={imageBoxStyle}
+              onMouseEnter={(e) => {
+                const el = e.currentTarget
+                if (!message.attachment_url) return
+                el.style.transform = "scale(1.01)"
+                el.style.boxShadow = "0 18px 34px rgba(0,0,0,0.16), 0 0 0 2px rgba(202,162,77,0.18)"
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget
+                el.style.transform = "scale(1)"
+                el.style.boxShadow = "0 14px 28px rgba(0,0,0,0.12)"
+              }}
               onClick={() => {
                 if (message.attachment_url) setOpen(true)
               }}
@@ -149,14 +161,20 @@ export default function MessageBubble({
                     display: "block",
                     width: "100%",
                     height: "auto",
-                    maxHeight: 260,
+                    maxHeight: 280,
                     objectFit: "cover",
                     transform: "translateZ(0)",
                   }}
                 />
               ) : (
-                <div style={{ padding: 12, fontSize: 12, opacity: 0.92 }}>
-                  {message.client_status === "pending" ? "Uploading…" : "Loading image…"}
+                <div style={{ padding: 12 }}>
+                  <div className="pmp-shimmer" style={{ height: 16, borderRadius: 10, width: "62%" }} />
+                  <div style={{ height: 10 }} />
+                  <div className="pmp-shimmer" style={{ height: 12, borderRadius: 10, width: "86%" }} />
+                  <div style={{ height: 10 }} />
+                  <div style={{ fontSize: 12, opacity: mine ? 0.85 : 0.75 }}>
+                    {message.client_status === "pending" ? "Uploading…" : "Loading image…"}
+                  </div>
                 </div>
               )}
             </div>
@@ -164,12 +182,12 @@ export default function MessageBubble({
 
           <div
             style={{
-              marginTop: 6,
+              marginTop: 7,
               display: "flex",
               justifyContent: "flex-end",
               gap: 8,
               fontSize: 11,
-              opacity: 0.72,
+              opacity: mine ? 0.70 : 0.62,
               alignItems: "center",
             }}
           >
@@ -182,13 +200,13 @@ export default function MessageBubble({
               <button
                 onClick={() => onRetry?.(message.id)}
                 style={{
-                  border: "none",
+                  border: "1px solid rgba(255,255,255,0.20)",
                   background: "rgba(255,255,255,0.14)",
                   color: fg,
-                  fontWeight: 900,
+                  fontWeight: 950,
                   fontSize: 12,
                   padding: "6px 10px",
-                  borderRadius: 10,
+                  borderRadius: 12,
                   cursor: "pointer",
                 }}
               >
@@ -208,8 +226,8 @@ export default function MessageBubble({
             position: "fixed",
             inset: 0,
             zIndex: 1000,
-            background: "rgba(15,23,42,0.60)",
-            backdropFilter: "blur(6px)",
+            background: "rgba(15,23,42,0.62)",
+            backdropFilter: "blur(7px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -222,16 +240,17 @@ export default function MessageBubble({
           <div
             style={{
               width: "min(980px, 100%)",
-              borderRadius: 18,
+              borderRadius: 20,
               overflow: "hidden",
               border: "1px solid rgba(255,255,255,0.22)",
               background: "rgba(255,255,255,0.08)",
-              boxShadow: "0 26px 80px rgba(0,0,0,0.35)",
+              boxShadow: "0 30px 90px rgba(0,0,0,0.40)",
               position: "relative",
             }}
           >
             <button
               onClick={() => setOpen(false)}
+              className="pmp-hoverLift"
               style={{
                 position: "absolute",
                 top: 10,
@@ -244,7 +263,7 @@ export default function MessageBubble({
                 color: "white",
                 cursor: "pointer",
                 fontWeight: 950,
-                boxShadow: "0 10px 20px rgba(0,0,0,0.25)",
+                boxShadow: "0 12px 26px rgba(0,0,0,0.28)",
               }}
               aria-label="Close"
               title="Close"

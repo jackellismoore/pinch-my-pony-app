@@ -45,7 +45,6 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleString()
 }
 
-// grouping: same sender within 5 minutes
 function sameGroup(a: UIMessage, b: UIMessage) {
   if (a.sender_id !== b.sender_id) return false
   const dt = Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -82,7 +81,6 @@ export default function MessageThreadPage() {
   const [otherTyping, setOtherTyping] = useState(false)
   const [otherLastSeenAt, setOtherLastSeenAt] = useState<string | null>(null)
 
-  // review eligibility state
   const [requestStatus, setRequestStatus] = useState<string | null>(null)
   const [isBorrower, setIsBorrower] = useState(false)
   const [reviewExists, setReviewExists] = useState(false)
@@ -90,7 +88,6 @@ export default function MessageThreadPage() {
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // attachment state
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [pickedFile, setPickedFile] = useState<File | null>(null)
   const [pickedPreviewUrl, setPickedPreviewUrl] = useState<string | null>(null)
@@ -117,7 +114,7 @@ export default function MessageThreadPage() {
     retryOptimistic,
   } = usePaginatedMessages(requestId)
 
-  // ---- Auth ----
+  // Auth
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -137,7 +134,7 @@ export default function MessageThreadPage() {
     }
   }, [])
 
-  // ---- Header + review eligibility ----
+  // Header + review eligibility
   useEffect(() => {
     if (!requestId || !myUserId) return
     let cancelled = false
@@ -227,7 +224,7 @@ export default function MessageThreadPage() {
 
   const otherUserId = header?.other_user?.id ?? null
 
-  // ---- Presence ----
+  // Presence
   useEffect(() => {
     if (!requestId || !myUserId) return
 
@@ -257,7 +254,7 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // ---- Typing broadcast ----
+  // Typing broadcast
   useEffect(() => {
     if (!myUserId) return
 
@@ -308,7 +305,7 @@ export default function MessageThreadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ---- Infinite scroll ----
+  // Infinite scroll
   useEffect(() => {
     const sentinel = topSentinelRef.current
     const scroller = scrollerRef.current
@@ -336,20 +333,20 @@ export default function MessageThreadPage() {
     return () => obs.disconnect()
   }, [hasMore, loadingMore, loadMore])
 
-  // ---- near-bottom detection ----
+  // near-bottom detection
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
     const onScroll = () => {
       const dist = scroller.scrollHeight - (scroller.scrollTop + scroller.clientHeight)
-      setIsNearBottom(dist < 120)
+      setIsNearBottom(dist < 140)
     }
     onScroll()
     scroller.addEventListener("scroll", onScroll, { passive: true })
     return () => scroller.removeEventListener("scroll", onScroll)
   }, [])
 
-  // ---- initial autoscroll ----
+  // initial autoscroll
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
@@ -361,8 +358,10 @@ export default function MessageThreadPage() {
     })
   }, [loadingInitial])
 
-  // ---- autoscroll on new messages if near bottom ----
-  const lastMsgKey = messages.length ? `${messages[messages.length - 1]!.id}:${messages[messages.length - 1]!.created_at}` : ""
+  // autoscroll on new messages if near bottom
+  const lastMsgKey = messages.length
+    ? `${messages[messages.length - 1]!.id}:${messages[messages.length - 1]!.created_at}`
+    : ""
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
@@ -373,13 +372,13 @@ export default function MessageThreadPage() {
     })
   }, [lastMsgKey, isNearBottom])
 
-  // ---- autofocus input ----
+  // autofocus input
   useEffect(() => {
     if (!myUserId) return
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // ---- read receipts ----
+  // Read receipts
   const unreadIds = useMemo(() => {
     if (!myUserId) return []
     return messages
@@ -388,6 +387,7 @@ export default function MessageThreadPage() {
   }, [messages, myUserId])
 
   const unreadKey = useMemo(() => unreadIds.join("|"), [unreadIds])
+
   const lastMarkedKeyRef = useRef<string>("")
   const inFlightRef = useRef(false)
   const debounceRef = useRef<number | null>(null)
@@ -408,12 +408,8 @@ export default function MessageThreadPage() {
         if (idsNow.length === 0) return
 
         const { error } = await supabase.from("messages").update({ read_at: new Date().toISOString() }).in("id", idsNow)
-        if (error) {
-          console.error("mark read error:", error)
-          return
-        }
-
-        lastMarkedKeyRef.current = unreadKey
+        if (error) console.error("mark read error:", error)
+        else lastMarkedKeyRef.current = unreadKey
       } finally {
         inFlightRef.current = false
       }
@@ -430,7 +426,7 @@ export default function MessageThreadPage() {
     }
   }, [unreadKey, unreadIds, myUserId, requestId])
 
-  // ---- grouping ----
+  // grouping
   const grouped = useMemo(() => {
     return messages.map((m, i) => {
       const prev = i > 0 ? messages[i - 1] : null
@@ -471,7 +467,7 @@ export default function MessageThreadPage() {
     router.refresh()
   }
 
-  // ---- Attachment picking ----
+  // attachment picking
   const clearPicked = () => {
     setComposerError(null)
     setPickedFile(null)
@@ -500,7 +496,6 @@ export default function MessageThreadPage() {
     }
 
     if (pickedPreviewUrl) URL.revokeObjectURL(pickedPreviewUrl)
-
     setPickedFile(file)
     setPickedPreviewUrl(URL.createObjectURL(file))
   }
@@ -523,7 +518,6 @@ export default function MessageThreadPage() {
 
     const text = draft.trim()
     const file = pickedFile
-
     if (!text && !file) return
 
     setDraft("")
@@ -533,14 +527,13 @@ export default function MessageThreadPage() {
       setUploading(true)
       const fallbackText = text || "📷 Photo"
 
-      // IMPORTANT: bucket name must match where you created policies
+      // IMPORTANT: keep in sync with your bucket policies
       const result = await sendOptimisticWithImage(myUserId, fallbackText, file, { bucket: "message-attachments" })
 
       setUploading(false)
 
       if (!result.ok) {
         setComposerError(`Couldn’t send image: ${result.errorMessage ?? "Unknown error"}`)
-        // keep the preview so user can retry
         return
       }
 
@@ -608,7 +601,8 @@ export default function MessageThreadPage() {
           gap: 12,
           padding: "12px 14px",
           borderBottom: "1px solid rgba(15,23,42,0.10)",
-          background: "white",
+          background: "rgba(255,255,255,0.94)",
+          backdropFilter: "blur(10px)",
           color: "#0f172a",
         }}
       >
@@ -618,12 +612,13 @@ export default function MessageThreadPage() {
             border: "none",
             background: "transparent",
             cursor: "pointer",
-            fontWeight: 900,
-            color: "#2563eb",
+            fontWeight: 950,
+            color: "#0b3b2e",
             fontSize: 13,
-            padding: "6px 8px",
-            borderRadius: 10,
+            padding: "6px 10px",
+            borderRadius: 12,
           }}
+          className="pmp-hoverLift"
         >
           ← Back
         </button>
@@ -633,15 +628,16 @@ export default function MessageThreadPage() {
             href={`/review/${requestId}`}
             style={{
               border: "1px solid rgba(15,23,42,0.12)",
-              background: "rgba(15,23,42,0.04)",
+              background: "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
               color: "#0f172a",
               padding: "6px 10px",
-              borderRadius: 10,
-              fontWeight: 900,
+              borderRadius: 12,
+              fontWeight: 950,
               fontSize: 12,
               textDecoration: "none",
               whiteSpace: "nowrap",
             }}
+            className="pmp-hoverLift"
           >
             Leave a review →
           </Link>
@@ -653,19 +649,29 @@ export default function MessageThreadPage() {
           style={{
             marginLeft: 2,
             border: "1px solid rgba(239,68,68,0.25)",
-            background: deleting ? "rgba(239,68,68,0.25)" : "rgba(239,68,68,0.10)",
+            background: deleting ? "rgba(239,68,68,0.22)" : "rgba(239,68,68,0.10)",
             color: "#b91c1c",
             cursor: deleting ? "not-allowed" : "pointer",
-            fontWeight: 900,
+            fontWeight: 950,
             fontSize: 12,
             padding: "6px 10px",
-            borderRadius: 10,
+            borderRadius: 12,
           }}
         >
           {deleting ? "Deleting…" : "Delete"}
         </button>
 
-        <div style={{ width: 40, height: 40, borderRadius: 999, overflow: "hidden", background: "rgba(15,23,42,0.06)" }}>
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 999,
+            overflow: "hidden",
+            background: "rgba(15,23,42,0.06)",
+            border: "2px solid rgba(202,162,77,0.35)",
+            boxShadow: "0 10px 20px rgba(15,23,42,0.10)",
+          }}
+        >
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt={otherName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -673,9 +679,11 @@ export default function MessageThreadPage() {
         </div>
 
         <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ fontWeight: 900, lineHeight: 1.2, fontSize: 14 }}>{headerLoading ? "Loading…" : otherName}</div>
+          <div style={{ fontWeight: 950, lineHeight: 1.15, fontSize: 14 }}>{headerLoading ? "Loading…" : otherName}</div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <div style={{ opacity: 0.75, fontSize: 12, whiteSpace: "nowrap" }}>{horseName}</div>
+            <div style={{ opacity: 0.78, fontSize: 12, whiteSpace: "nowrap", color: "#0b3b2e", fontWeight: 850 }}>
+              {horseName}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.85 }}>
               <span
                 style={{
@@ -701,60 +709,82 @@ export default function MessageThreadPage() {
           padding: 16,
           display: "flex",
           flexDirection: "column",
-          gap: 6,
+          gap: 8,
+          position: "relative",
           background:
-            "radial-gradient(900px 650px at 12% 8%, rgba(202,162,77,0.16), transparent 60%), radial-gradient(900px 650px at 92% 14%, rgba(11,59,46,0.12), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.85), rgba(250,250,250,0.95))",
+            "radial-gradient(1000px 680px at 12% 6%, rgba(202,162,77,0.14), transparent 60%), radial-gradient(1000px 680px at 92% 10%, rgba(11,59,46,0.10), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.88), rgba(250,250,250,0.96))",
         }}
       >
-        <div ref={topSentinelRef} style={{ height: 1 }} />
+        {/* soft texture overlay */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.18), transparent 25%, rgba(255,255,255,0.14)), radial-gradient(1200px 600px at 50% 0%, rgba(15,23,42,0.04), transparent 60%)",
+            mixBlendMode: "soft-light",
+          }}
+        />
+
+        <div ref={topSentinelRef} style={{ height: 1, position: "relative" }} />
 
         {hasMore && (
-          <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a" }}>
+          <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
             {loadingMore ? "Loading…" : "Scroll up for older messages"}
           </div>
         )}
 
         {loadingInitial && (
-          <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a" }}>
+          <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
             Loading messages…
           </div>
         )}
 
-        {grouped.map(({ m, pos }) => (
-          <MessageBubble
-            key={m.id}
-            message={m}
-            isMine={m.sender_id === myUserId}
-            groupPos={pos}
-            showStatus={false}
-            onRetry={(id) => retry(id)}
-          />
-        ))}
+        <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 8 }}>
+          {grouped.map(({ m, pos }) => (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              isMine={m.sender_id === myUserId}
+              groupPos={pos}
+              showStatus={false}
+              onRetry={(id) => retry(id)}
+            />
+          ))}
 
-        <TypingBubbleInline show={otherTyping} />
+          <TypingBubbleInline show={otherTyping} />
+        </div>
       </div>
 
       {/* Composer */}
-      <div style={{ padding: 12, borderTop: "1px solid rgba(15,23,42,0.10)", background: "white" }}>
+      <div
+        style={{
+          padding: 12,
+          borderTop: "1px solid rgba(15,23,42,0.10)",
+          background: "rgba(255,255,255,0.94)",
+          backdropFilter: "blur(10px)",
+        }}
+      >
         <input
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/jpg,image/png,image/webp"
           style={{ display: "none" }}
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null
-            onPickFile(f)
-          }}
+          onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
         />
 
         {pickedFile && pickedPreviewUrl ? (
           <div
+            className="pmp-hoverLift"
             style={{
               marginBottom: 10,
               border: "1px solid rgba(15,23,42,0.10)",
-              borderRadius: 14,
-              background: "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,241,232,0.75))",
-              boxShadow: "0 12px 26px rgba(15,23,42,0.08)",
+              borderRadius: 18,
+              background:
+                "radial-gradient(700px 180px at 10% 0%, rgba(202,162,77,0.16), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,241,232,0.78))",
+              boxShadow: "0 14px 40px rgba(15,23,42,0.10)",
               padding: 10,
               display: "flex",
               alignItems: "center",
@@ -765,7 +795,7 @@ export default function MessageThreadPage() {
               style={{
                 width: 62,
                 height: 62,
-                borderRadius: 14,
+                borderRadius: 16,
                 overflow: "hidden",
                 border: "1px solid rgba(15,23,42,0.12)",
                 background: "rgba(15,23,42,0.04)",
@@ -777,13 +807,24 @@ export default function MessageThreadPage() {
             </div>
 
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontWeight: 950, fontSize: 13, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div
+                style={{
+                  fontWeight: 950,
+                  fontSize: 13,
+                  color: "#0f172a",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {pickedFile.name}
               </div>
               <div style={{ fontSize: 12, opacity: 0.72, color: "#0f172a", marginTop: 2 }}>
                 {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • {pickedFile.type || "image"}
               </div>
-              <div style={{ fontSize: 12, opacity: 0.75, color: "#0f172a", marginTop: 4 }}>{uploading ? "Uploading…" : "Ready to send"}</div>
+              <div style={{ fontSize: 12, opacity: 0.80, color: "#0b3b2e", marginTop: 4, fontWeight: 850 }}>
+                {uploading ? "Uploading…" : "Ready to send"}
+              </div>
             </div>
 
             <button
@@ -797,7 +838,7 @@ export default function MessageThreadPage() {
                 fontWeight: 950,
                 fontSize: 12,
                 padding: "8px 10px",
-                borderRadius: 12,
+                borderRadius: 14,
                 flex: "0 0 auto",
               }}
             >
@@ -807,7 +848,7 @@ export default function MessageThreadPage() {
         ) : null}
 
         {composerError ? (
-          <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c", fontWeight: 900, whiteSpace: "pre-wrap" }}>
+          <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c", fontWeight: 950, whiteSpace: "pre-wrap" }}>
             {composerError}
           </div>
         ) : null}
@@ -816,17 +857,18 @@ export default function MessageThreadPage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
+            className="pmp-hoverLift"
             style={{
               width: 44,
               height: 44,
-              borderRadius: 12,
+              borderRadius: 14,
               border: "1px solid rgba(15,23,42,0.12)",
-              background: "rgba(15,23,42,0.03)",
+              background: "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
               cursor: uploading ? "not-allowed" : "pointer",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 10px 20px rgba(0,0,0,0.04)",
+              boxShadow: "0 12px 24px rgba(15,23,42,0.08)",
               padding: 0,
             }}
             title="Attach image"
@@ -839,7 +881,11 @@ export default function MessageThreadPage() {
                 strokeWidth="1.7"
                 strokeLinejoin="round"
               />
-              <path d="M12 18a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 18z" stroke="rgba(15,23,42,0.85)" strokeWidth="1.7" />
+              <path
+                d="M12 18a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 18z"
+                stroke="rgba(15,23,42,0.85)"
+                strokeWidth="1.7"
+              />
             </svg>
           </button>
 
@@ -854,13 +900,14 @@ export default function MessageThreadPage() {
               flex: 1,
               resize: "none",
               padding: "12px 12px",
-              borderRadius: 12,
+              borderRadius: 16,
               border: "1px solid rgba(15,23,42,0.12)",
               background: "rgba(15,23,42,0.03)",
               color: "#0f172a",
               outline: "none",
               lineHeight: 1.35,
               minHeight: 44,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.65)",
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -874,16 +921,19 @@ export default function MessageThreadPage() {
           <button
             onClick={() => void send()}
             disabled={!canSend}
+            className={!canSend ? "" : "pmp-hoverLift"}
             style={{
               height: 44,
               padding: "0 14px",
-              borderRadius: 12,
-              border: "none",
-              fontWeight: 900,
+              borderRadius: 16,
+              border: "1px solid rgba(15,23,42,0.12)",
+              fontWeight: 950,
               cursor: !canSend ? "not-allowed" : "pointer",
-              background: !canSend ? "rgba(37,99,235,0.35)" : "rgba(37,99,235,0.95)",
+              background: !canSend
+                ? "rgba(11,59,46,0.18)"
+                : "linear-gradient(180deg, rgba(11,59,46,0.96), rgba(15,23,42,0.92))",
               color: "white",
-              boxShadow: !canSend ? "none" : "0 10px 26px rgba(37,99,235,0.20)",
+              boxShadow: !canSend ? "none" : "0 14px 30px rgba(15,23,42,0.18)",
             }}
             title={uploading ? "Uploading…" : "Send"}
           >

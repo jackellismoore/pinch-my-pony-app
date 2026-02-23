@@ -7,17 +7,29 @@ import { supabase } from "@/lib/supabaseClient"
 type ThreadRow = {
   request_id: string
   horse_name: string
-  other_display_name: string
   other_user_id: string
+  other_display_name: string
   other_avatar_url: string | null
   unread_count: number
   last_message: string | null
   last_message_at: string | null
 }
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).slice(0, 2)
-  return parts.map((p) => p.slice(0, 1).toUpperCase()).join("")
+function formatWhen(iso: string | null) {
+  if (!iso) return ""
+  const d = new Date(iso)
+  const now = new Date()
+  const sameDay =
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" })
+}
+
+function clamp(s: string | null | undefined, n: number) {
+  const t = (s ?? "").trim()
+  if (!t) return ""
+  return t.length > n ? t.slice(0, n - 1) + "…" : t
 }
 
 export default function MessagesPage() {
@@ -35,7 +47,9 @@ export default function MessagesPage() {
 
     const { data, error } = await supabase
       .from("message_threads")
-      .select("request_id, horse_name, other_display_name, other_user_id, other_avatar_url, unread_count, last_message, last_message_at")
+      .select(
+        "request_id, horse_name, other_user_id, other_display_name, other_avatar_url, unread_count, last_message, last_message_at"
+      )
       .order("last_message_at", { ascending: false })
 
     if (error) {
@@ -69,7 +83,6 @@ export default function MessagesPage() {
       alert("Please log in again.")
       return
     }
-
     const ok = window.confirm("Delete this chat for you? It will reappear if a new message is sent.")
     if (!ok) return
 
@@ -93,188 +106,156 @@ export default function MessagesPage() {
     }
   }
 
-  const heroBg = useMemo(
-    () =>
-      "radial-gradient(900px 600px at 15% 0%, rgba(202,162,77,0.18), transparent 60%), radial-gradient(900px 700px at 95% 10%, rgba(11,59,46,0.14), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.90), rgba(250,250,250,0.95))",
+  const header = useMemo(
+    () => (
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 18, fontWeight: 950, margin: 0, letterSpacing: -0.2, color: "#0b3b2e" }}>
+            Messages
+          </h1>
+          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.78, color: "#0f172a" }}>
+            Private chats with verified members
+          </div>
+        </div>
+      </div>
+    ),
     []
   )
 
   return (
-    <div
-      style={{
-        padding: 18,
-        maxWidth: 860,
-        margin: "0 auto",
-        minHeight: "calc(100vh - 60px)",
-      }}
-    >
-      <div
-        style={{
-          borderRadius: 20,
-          padding: "16px 16px",
-          border: "1px solid var(--pmp-border)",
-          background: heroBg,
-          boxShadow: "var(--pmp-shadow)",
-          marginBottom: 14,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 950, margin: 0, color: "var(--pmp-navy)" }}>Messages</h1>
-            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75, fontWeight: 800, color: "var(--pmp-navy)" }}>
-              Your private conversations — polished, secure, and ready for real riders.
-            </div>
-          </div>
-        </div>
-      </div>
+    <div style={{ padding: 18, maxWidth: 900, margin: "0 auto" }}>
+      {header}
+
+      <div style={{ height: 14 }} />
 
       {loading ? (
-        <div style={{ opacity: 0.75, color: "var(--pmp-navy)" }}>Loading…</div>
+        <div style={{ opacity: 0.75, color: "#0f172a" }}>Loading…</div>
       ) : threads.length === 0 ? (
         <div
           style={{
-            border: "1px dashed rgba(15,23,42,0.18)",
+            border: "1px solid rgba(15,23,42,0.10)",
             borderRadius: 18,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.94), rgba(245,241,232,0.78))",
+            boxShadow: "0 16px 40px rgba(15,23,42,0.10)",
             padding: 16,
-            background: "rgba(245,241,232,0.55)",
-            color: "var(--pmp-navy)",
-            opacity: 0.9,
-            fontWeight: 800,
+            color: "#0f172a",
           }}
         >
-          No conversations yet.
+          <div style={{ fontWeight: 950 }}>No conversations yet.</div>
+          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.78 }}>
+            When you request a pony (or approve a request), your chat will appear here.
+          </div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {threads.map((t) => {
-            const when = t.last_message_at ? new Date(t.last_message_at).toLocaleString() : ""
-            const last = t.last_message ?? ""
-            const showUnread = t.unread_count > 0
+            const when = formatWhen(t.last_message_at)
+            const last = clamp(t.last_message, 120)
+            const isDeleting = deletingId === t.request_id
 
             return (
               <div
                 key={t.request_id}
+                className="pmp-hoverLift"
                 style={{
-                  border: "1px solid var(--pmp-border)",
+                  border: "1px solid rgba(15,23,42,0.10)",
                   borderRadius: 18,
-                  background: "var(--pmp-card)",
-                  boxShadow: "0 14px 34px rgba(15,23,42,0.08)",
+                  background:
+                    "radial-gradient(700px 220px at 12% 0%, rgba(202,162,77,0.18), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,241,232,0.78))",
+                  boxShadow: "0 16px 44px rgba(15,23,42,0.10)",
                   overflow: "hidden",
-                  transition: "transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
                 }}
               >
-                <Link href={`/messages/${t.request_id}`} prefetch={false} style={{ textDecoration: "none", display: "block" }}>
-                  <div
-                    style={{
-                      padding: 14,
-                      cursor: "pointer",
-                      display: "flex",
-                      gap: 12,
-                      alignItems: "center",
-                    }}
-                  >
-                    {/* Avatar */}
-                    <div
-                      style={{
-                        width: 46,
-                        height: 46,
-                        borderRadius: 16,
-                        overflow: "hidden",
-                        border: "1px solid rgba(15,23,42,0.12)",
-                        background: "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,241,232,0.85))",
-                        boxShadow: "0 12px 24px rgba(15,23,42,0.10)",
-                        flex: "0 0 auto",
-                        display: "grid",
-                        placeItems: "center",
-                        color: "var(--pmp-forest)",
-                        fontWeight: 950,
-                      }}
-                      aria-label={`${t.other_display_name} avatar`}
-                    >
-                      {t.other_avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={t.other_avatar_url} alt={t.other_display_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      ) : (
-                        <span style={{ fontSize: 14 }}>{initials(t.other_display_name || "U")}</span>
-                      )}
-                    </div>
-
-                    {/* Main */}
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                        <div style={{ fontWeight: 950, color: "var(--pmp-navy)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {t.other_display_name}
-                        </div>
-
-                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                          {showUnread ? (
-                            <div
-                              style={{
-                                minWidth: 28,
-                                height: 22,
-                                borderRadius: 999,
-                                padding: "0 8px",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 12,
-                                fontWeight: 950,
-                                background: "rgba(202,162,77,0.92)",
-                                color: "var(--pmp-navy)",
-                                border: "1px solid rgba(15,23,42,0.10)",
-                                boxShadow: "0 10px 20px rgba(202,162,77,0.18)",
-                              }}
-                            >
-                              {t.unread_count}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 900,
-                            color: "var(--pmp-forest)",
-                            background: "rgba(11,59,46,0.08)",
-                            border: "1px solid rgba(11,59,46,0.14)",
-                            padding: "4px 8px",
-                            borderRadius: 999,
-                          }}
-                        >
-                          {t.horse_name}
-                        </span>
-
-                        <span style={{ fontSize: 11, opacity: 0.65, color: "var(--pmp-navy)", fontWeight: 800 }}>{when}</span>
-                      </div>
-
+                <Link
+                  href={`/messages/${t.request_id}`}
+                  prefetch={false}
+                  style={{ textDecoration: "none", display: "block", color: "inherit" }}
+                >
+                  <div style={{ padding: 14, cursor: "pointer" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      {/* Avatar */}
                       <div
                         style={{
-                          marginTop: 8,
-                          fontSize: 13,
-                          color: "var(--pmp-navy)",
-                          opacity: 0.9,
+                          width: 46,
+                          height: 46,
+                          borderRadius: 999,
                           overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          background: "rgba(15,23,42,0.06)",
+                          border: "2px solid rgba(202,162,77,0.35)",
+                          boxShadow: "0 10px 22px rgba(15,23,42,0.10)",
+                          flex: "0 0 auto",
                         }}
-                        title={last}
                       >
-                        {last}
+                        {t.other_avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={t.other_avatar_url}
+                            alt={t.other_display_name}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                        ) : null}
+                      </div>
+
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                          <div
+                            style={{
+                              fontWeight: 950,
+                              color: "#0f172a",
+                              letterSpacing: -0.2,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {t.other_display_name}
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
+                            {when ? (
+                              <div style={{ fontSize: 11, opacity: 0.65, color: "#0f172a" }}>{when}</div>
+                            ) : null}
+
+                            {t.unread_count > 0 ? (
+                              <div
+                                style={{
+                                  minWidth: 30,
+                                  height: 22,
+                                  borderRadius: 999,
+                                  padding: "0 9px",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 12,
+                                  fontWeight: 950,
+                                  background: "linear-gradient(180deg, rgba(202,162,77,0.95), rgba(164,123,44,0.95))",
+                                  color: "white",
+                                  boxShadow: "0 10px 18px rgba(202,162,77,0.22)",
+                                }}
+                                title="Unread"
+                              >
+                                {t.unread_count}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: 4, fontSize: 12, opacity: 0.78, color: "#0b3b2e", fontWeight: 850 }}>
+                          {t.horse_name}
+                        </div>
+
+                        <div style={{ marginTop: 8, fontSize: 13, opacity: 0.92, color: "#0f172a" }}>{last}</div>
                       </div>
                     </div>
                   </div>
                 </Link>
 
-                {/* Footer actions */}
                 <div
                   style={{
                     borderTop: "1px solid rgba(15,23,42,0.06)",
                     padding: "10px 14px",
                     display: "flex",
                     justifyContent: "flex-end",
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.65), rgba(245,241,232,0.35))",
                   }}
                 >
                   <button
@@ -283,19 +264,19 @@ export default function MessagesPage() {
                       e.stopPropagation()
                       deleteChatForMe(t.request_id)
                     }}
-                    disabled={deletingId === t.request_id}
+                    disabled={isDeleting}
                     style={{
                       border: "1px solid rgba(239,68,68,0.25)",
-                      background: deletingId === t.request_id ? "rgba(239,68,68,0.25)" : "rgba(239,68,68,0.10)",
+                      background: isDeleting ? "rgba(239,68,68,0.20)" : "rgba(239,68,68,0.10)",
                       color: "#b91c1c",
-                      cursor: deletingId === t.request_id ? "not-allowed" : "pointer",
+                      cursor: isDeleting ? "not-allowed" : "pointer",
                       fontWeight: 950,
                       fontSize: 12,
                       padding: "7px 10px",
                       borderRadius: 12,
                     }}
                   >
-                    {deletingId === t.request_id ? "Deleting…" : "Delete"}
+                    {isDeleting ? "Deleting…" : "Delete"}
                   </button>
                 </div>
               </div>
