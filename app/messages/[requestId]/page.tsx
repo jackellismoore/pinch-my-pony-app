@@ -45,6 +45,7 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleString()
 }
 
+// grouping: same sender within 5 minutes
 function sameGroup(a: UIMessage, b: UIMessage) {
   if (a.sender_id !== b.sender_id) return false
   const dt = Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -58,6 +59,25 @@ function groupPos(prev: UIMessage | null, cur: UIMessage, next: UIMessage | null
   if (!prevSame && nextSame) return "start" as const
   if (prevSame && nextSame) return "middle" as const
   return "end" as const
+}
+
+function dateKey(iso: string) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+}
+
+function dayLabel(iso: string) {
+  const d = new Date(iso)
+  const now = new Date()
+
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const dd = startOf(d)
+  const nn = startOf(now)
+
+  const diffDays = Math.round((nn - dd) / (24 * 60 * 60 * 1000))
+  if (diffDays === 0) return "Today"
+  if (diffDays === 1) return "Yesterday"
+  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })
 }
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -81,6 +101,7 @@ export default function MessageThreadPage() {
   const [otherTyping, setOtherTyping] = useState(false)
   const [otherLastSeenAt, setOtherLastSeenAt] = useState<string | null>(null)
 
+  // review eligibility state
   const [requestStatus, setRequestStatus] = useState<string | null>(null)
   const [isBorrower, setIsBorrower] = useState(false)
   const [reviewExists, setReviewExists] = useState(false)
@@ -88,12 +109,17 @@ export default function MessageThreadPage() {
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
+  // attachment UI
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [pickedFile, setPickedFile] = useState<File | null>(null)
   const [pickedPreviewUrl, setPickedPreviewUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [composerError, setComposerError] = useState<string | null>(null)
   const lastSendAtRef = useRef<number>(0)
+
+  // ✅ NEW: "New messages" divider anchor (sticky for this page session)
+  const [firstUnreadId, setFirstUnreadId] = useState<string | null>(null)
+  const [firstUnreadCount, setFirstUnreadCount] = useState<number>(0)
 
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const typingStopTimerRef = useRef<number | null>(null)
@@ -114,7 +140,7 @@ export default function MessageThreadPage() {
     retryOptimistic,
   } = usePaginatedMessages(requestId)
 
-  // Auth
+  // ---- Auth ----
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -134,7 +160,7 @@ export default function MessageThreadPage() {
     }
   }, [])
 
-  // Header + review eligibility
+  // ---- Header (horse + other profile) + review eligibility ----
   useEffect(() => {
     if (!requestId || !myUserId) return
     let cancelled = false
@@ -159,6 +185,7 @@ export default function MessageThreadPage() {
       setRequestStatus(req.status ?? null)
       setIsBorrower(req.borrower_id === myUserId)
 
+      // check existing review (only for borrower UX; RLS also enforces)
       if (req.borrower_id === myUserId) {
         const { data: existing, error: exErr } = await supabase
           .from("reviews")
@@ -172,7 +199,7 @@ export default function MessageThreadPage() {
           else setReviewExists(Boolean(existing?.id))
         }
       } else {
-        setReviewExists(true)
+        setReviewExists(true) // not borrower => hide CTA
       }
 
       const { data: horse, error: horseErr } = await supabase
@@ -224,7 +251,7 @@ export default function MessageThreadPage() {
 
   const otherUserId = header?.other_user?.id ?? null
 
-  // Presence
+  // ---- Presence online indicator ----
   useEffect(() => {
     if (!requestId || !myUserId) return
 
@@ -254,7 +281,7 @@ export default function MessageThreadPage() {
     }
   }, [requestId, myUserId])
 
-  // Typing broadcast
+  // ---- Typing broadcast (global channel; filter by requestId) ----
   useEffect(() => {
     if (!myUserId) return
 
@@ -305,7 +332,7 @@ export default function MessageThreadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Infinite scroll
+  // ---- Infinite scroll (older messages) ----
   useEffect(() => {
     const sentinel = topSentinelRef.current
     const scroller = scrollerRef.current
@@ -333,7 +360,7 @@ export default function MessageThreadPage() {
     return () => obs.disconnect()
   }, [hasMore, loadingMore, loadMore])
 
-  // near-bottom detection
+  // ---- near-bottom detection ----
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
@@ -346,7 +373,7 @@ export default function MessageThreadPage() {
     return () => scroller.removeEventListener("scroll", onScroll)
   }, [])
 
-  // initial autoscroll
+  // ---- initial autoscroll ----
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
@@ -358,7 +385,7 @@ export default function MessageThreadPage() {
     })
   }, [loadingInitial])
 
-  // autoscroll on new messages if near bottom
+  // ---- autoscroll on new messages if near bottom ----
   const lastMsgKey = messages.length
     ? `${messages[messages.length - 1]!.id}:${messages[messages.length - 1]!.created_at}`
     : ""
@@ -372,13 +399,13 @@ export default function MessageThreadPage() {
     })
   }, [lastMsgKey, isNearBottom])
 
-  // autofocus input
+  // ---- autofocus input ----
   useEffect(() => {
     if (!myUserId) return
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [myUserId, requestId])
 
-  // Read receipts
+  // ✅ Read receipts (throttled + deduped)
   const unreadIds = useMemo(() => {
     if (!myUserId) return []
     return messages
@@ -387,6 +414,21 @@ export default function MessageThreadPage() {
   }, [messages, myUserId])
 
   const unreadKey = useMemo(() => unreadIds.join("|"), [unreadIds])
+
+  // ✅ NEW: lock the first unread message ONCE (divider stays even after read_at updates)
+  useEffect(() => {
+    if (!myUserId) return
+    if (firstUnreadId) return
+    if (!messages.length) return
+
+    const unread = messages.filter(
+      (m) => m.sender_id !== myUserId && !m.read_at && !String(m.id).startsWith("temp-")
+    )
+    if (!unread.length) return
+
+    setFirstUnreadId(unread[0]!.id)
+    setFirstUnreadCount(unread.length)
+  }, [messages, myUserId, firstUnreadId])
 
   const lastMarkedKeyRef = useRef<string>("")
   const inFlightRef = useRef(false)
@@ -408,8 +450,11 @@ export default function MessageThreadPage() {
         if (idsNow.length === 0) return
 
         const { error } = await supabase.from("messages").update({ read_at: new Date().toISOString() }).in("id", idsNow)
-        if (error) console.error("mark read error:", error)
-        else lastMarkedKeyRef.current = unreadKey
+        if (error) {
+          console.error("mark read error:", error)
+          return
+        }
+        lastMarkedKeyRef.current = unreadKey
       } finally {
         inFlightRef.current = false
       }
@@ -426,7 +471,7 @@ export default function MessageThreadPage() {
     }
   }, [unreadKey, unreadIds, myUserId, requestId])
 
-  // grouping
+  // ---- Group rendering ----
   const grouped = useMemo(() => {
     return messages.map((m, i) => {
       const prev = i > 0 ? messages[i - 1] : null
@@ -439,7 +484,7 @@ export default function MessageThreadPage() {
     await retryOptimistic(tempId)
   }
 
-  // delete chat
+  // ✅ Delete chat (hide for current user only)
   const [deleting, setDeleting] = useState(false)
   const deleteChatForMe = async () => {
     if (!myUserId || !requestId) return
@@ -451,7 +496,11 @@ export default function MessageThreadPage() {
     const { error } = await supabase
       .from("message_thread_deletions")
       .upsert(
-        { user_id: myUserId, request_id: requestId, deleted_at: new Date().toISOString() },
+        {
+          user_id: myUserId,
+          request_id: requestId,
+          deleted_at: new Date().toISOString(),
+        },
         { onConflict: "user_id,request_id" }
       )
 
@@ -527,9 +576,7 @@ export default function MessageThreadPage() {
       setUploading(true)
       const fallbackText = text || "📷 Photo"
 
-      // IMPORTANT: keep in sync with your bucket policies
       const result = await sendOptimisticWithImage(myUserId, fallbackText, file, { bucket: "message-attachments" })
-
       setUploading(false)
 
       if (!result.ok) {
@@ -595,6 +642,7 @@ export default function MessageThreadPage() {
     <div style={{ height: "calc(100vh - 60px)", display: "flex", flexDirection: "column", background: "#f6f7fb" }}>
       {/* Header */}
       <div
+        className="pmp-chatHeader"
         style={{
           display: "flex",
           alignItems: "center",
@@ -679,7 +727,9 @@ export default function MessageThreadPage() {
         </div>
 
         <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ fontWeight: 950, lineHeight: 1.15, fontSize: 14 }}>{headerLoading ? "Loading…" : otherName}</div>
+          <div style={{ fontWeight: 950, lineHeight: 1.15, fontSize: 14 }}>
+            {headerLoading ? "Loading…" : otherName}
+          </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div style={{ opacity: 0.78, fontSize: 12, whiteSpace: "nowrap", color: "#0b3b2e", fontWeight: 850 }}>
               {horseName}
@@ -703,6 +753,7 @@ export default function MessageThreadPage() {
       {/* Messages */}
       <div
         ref={scrollerRef}
+        className="pmp-chatScroller"
         style={{
           flex: 1,
           overflowY: "auto",
@@ -715,7 +766,6 @@ export default function MessageThreadPage() {
             "radial-gradient(1000px 680px at 12% 6%, rgba(202,162,77,0.14), transparent 60%), radial-gradient(1000px 680px at 92% 10%, rgba(11,59,46,0.10), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.88), rgba(250,250,250,0.96))",
         }}
       >
-        {/* soft texture overlay */}
         <div
           aria-hidden="true"
           style={{
@@ -743,16 +793,64 @@ export default function MessageThreadPage() {
         )}
 
         <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 8 }}>
-          {grouped.map(({ m, pos }) => (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              isMine={m.sender_id === myUserId}
-              groupPos={pos}
-              showStatus={false}
-              onRetry={(id) => retry(id)}
-            />
-          ))}
+          {grouped.map(({ m, pos }, idx) => {
+            const prev = idx > 0 ? grouped[idx - 1]!.m : null
+            const showDaySeparator = !prev || dateKey(prev.created_at) !== dateKey(m.created_at)
+            const showNewDivider = firstUnreadId && m.id === firstUnreadId
+
+            return (
+              <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {showDaySeparator ? (
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 950,
+                        color: "rgba(15,23,42,0.72)",
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        border: "1px solid rgba(15,23,42,0.10)",
+                        background: "rgba(255,255,255,0.66)",
+                        boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
+                        backdropFilter: "blur(8px)",
+                      }}
+                    >
+                      {dayLabel(m.created_at)}
+                    </div>
+                  </div>
+                ) : null}
+
+                {showNewDivider ? (
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 950,
+                        color: "rgba(15,23,42,0.78)",
+                        padding: "7px 12px",
+                        borderRadius: 999,
+                        border: "1px solid rgba(202,162,77,0.38)",
+                        background:
+                          "radial-gradient(600px 160px at 15% 0%, rgba(202,162,77,0.20), transparent 60%), rgba(255,255,255,0.72)",
+                        boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
+                        backdropFilter: "blur(8px)",
+                      }}
+                    >
+                      New messages{firstUnreadCount > 0 ? ` (${firstUnreadCount})` : ""}
+                    </div>
+                  </div>
+                ) : null}
+
+                <MessageBubble
+                  message={m}
+                  isMine={m.sender_id === myUserId}
+                  groupPos={pos}
+                  showStatus={false}
+                  onRetry={(id) => retry(id)}
+                />
+              </div>
+            )
+          })}
 
           <TypingBubbleInline show={otherTyping} />
         </div>
@@ -760,6 +858,7 @@ export default function MessageThreadPage() {
 
       {/* Composer */}
       <div
+        className="pmp-chatComposer"
         style={{
           padding: 12,
           borderTop: "1px solid rgba(15,23,42,0.10)",
@@ -874,19 +973,9 @@ export default function MessageThreadPage() {
             title="Attach image"
             aria-label="Attach image"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M9 7h6l1 2h3a2 2 0 0 1 2 2v6a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-6a2 2 0 0 1 2-2h3l1-2z"
-                stroke="rgba(15,23,42,0.85)"
-                strokeWidth="1.7"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M12 18a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 18z"
-                stroke="rgba(15,23,42,0.85)"
-                strokeWidth="1.7"
-              />
-            </svg>
+            <span style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true">
+              📷
+            </span>
           </button>
 
           <textarea

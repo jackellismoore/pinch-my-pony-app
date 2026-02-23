@@ -14,6 +14,7 @@ type UIMessage = {
 
   attachment_type?: string | null
   attachment_url?: string | null
+  attachment_preview_url?: string | null
   attachment_path?: string | null
 }
 
@@ -78,14 +79,15 @@ export default function MessageBubble({
     return () => window.removeEventListener("keydown", onKey)
   }, [open])
 
-  const hasImage = message.attachment_type === "image" && (message.attachment_url || message.attachment_path)
+  const imageSrc = message.attachment_url || message.attachment_preview_url || null
+  const hasImage = message.attachment_type === "image"
 
   const bg =
     message.client_status === "error"
       ? "linear-gradient(180deg, rgba(239,68,68,0.14), rgba(239,68,68,0.08))"
       : mine
         ? "linear-gradient(180deg, rgba(11,59,46,0.96), rgba(15,23,42,0.92))"
-        : "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))"
+        : "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,241,232,0.82))"
 
   const fg = mine ? "white" : "#0f172a"
 
@@ -104,11 +106,11 @@ export default function MessageBubble({
       border: mine ? "1px solid rgba(255,255,255,0.22)" : "1px solid rgba(15,23,42,0.10)",
       background: mine ? "rgba(255,255,255,0.10)" : "rgba(15,23,42,0.04)",
       boxShadow: "0 14px 28px rgba(0,0,0,0.12)",
-      cursor: message.attachment_url ? "pointer" : "default",
+      cursor: imageSrc ? "pointer" : "default",
       maxWidth: 360,
       transition: "transform 140ms ease, box-shadow 140ms ease",
     }),
-    [mine, message.attachment_url, message.content]
+    [mine, imageSrc, message.content]
   )
 
   return (
@@ -135,10 +137,11 @@ export default function MessageBubble({
             <div
               style={imageBoxStyle}
               onMouseEnter={(e) => {
+                if (!imageSrc) return
                 const el = e.currentTarget
-                if (!message.attachment_url) return
-                el.style.transform = "scale(1.01)"
-                el.style.boxShadow = "0 18px 34px rgba(0,0,0,0.16), 0 0 0 2px rgba(202,162,77,0.18)"
+                el.style.transform = "scale(1.015)"
+                el.style.boxShadow =
+                  "0 20px 40px rgba(0,0,0,0.16), 0 0 0 2px rgba(202,162,77,0.22)"
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget
@@ -146,16 +149,13 @@ export default function MessageBubble({
                 el.style.boxShadow = "0 14px 28px rgba(0,0,0,0.12)"
               }}
               onClick={() => {
-                if (message.attachment_url) setOpen(true)
+                if (imageSrc) setOpen(true)
               }}
-              role={message.attachment_url ? "button" : undefined}
-              aria-label={message.attachment_url ? "Open image" : "Image"}
-              title={message.attachment_url ? "Click to view" : "Loading image…"}
+              role={imageSrc ? "button" : undefined}
             >
-              {message.attachment_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
+              {imageSrc ? (
                 <img
-                  src={message.attachment_url}
+                  src={imageSrc}
                   alt="Attachment"
                   style={{
                     display: "block",
@@ -163,7 +163,6 @@ export default function MessageBubble({
                     height: "auto",
                     maxHeight: 280,
                     objectFit: "cover",
-                    transform: "translateZ(0)",
                   }}
                 />
               ) : (
@@ -192,7 +191,7 @@ export default function MessageBubble({
             }}
           >
             <span>{formatTime(message.created_at)}</span>
-            {mine && showStatus ? <span style={{ letterSpacing: 0.5 }}>{statusText(message)}</span> : null}
+            {mine && showStatus ? <span>{statusText(message)}</span> : null}
           </div>
 
           {message.client_status === "error" && mine ? (
@@ -217,7 +216,7 @@ export default function MessageBubble({
         </div>
       </div>
 
-      {open && message.attachment_url ? (
+      {open && imageSrc ? (
         <div
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setOpen(false)
@@ -226,54 +225,48 @@ export default function MessageBubble({
             position: "fixed",
             inset: 0,
             zIndex: 1000,
-            background: "rgba(15,23,42,0.62)",
-            backdropFilter: "blur(7px)",
+            background: "rgba(15,23,42,0.65)",
+            backdropFilter: "blur(8px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: 18,
+            padding: 20,
             animation: "pmpFadeInUp 140ms ease-out",
           }}
-          aria-modal="true"
-          role="dialog"
         >
           <div
             style={{
-              width: "min(980px, 100%)",
-              borderRadius: 20,
+              width: "min(1000px, 100%)",
+              borderRadius: 22,
               overflow: "hidden",
               border: "1px solid rgba(255,255,255,0.22)",
               background: "rgba(255,255,255,0.08)",
-              boxShadow: "0 30px 90px rgba(0,0,0,0.40)",
+              boxShadow: "0 40px 100px rgba(0,0,0,0.45)",
               position: "relative",
             }}
           >
             <button
               onClick={() => setOpen(false)}
-              className="pmp-hoverLift"
               style={{
                 position: "absolute",
-                top: 10,
-                right: 10,
-                width: 44,
-                height: 44,
+                top: 12,
+                right: 12,
+                width: 46,
+                height: 46,
                 borderRadius: 14,
                 border: "1px solid rgba(255,255,255,0.22)",
-                background: "rgba(15,23,42,0.40)",
+                background: "rgba(15,23,42,0.45)",
                 color: "white",
                 cursor: "pointer",
                 fontWeight: 950,
-                boxShadow: "0 12px 26px rgba(0,0,0,0.28)",
+                boxShadow: "0 14px 30px rgba(0,0,0,0.28)",
               }}
-              aria-label="Close"
-              title="Close"
             >
               ✕
             </button>
 
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={message.attachment_url}
+              src={imageSrc}
               alt="Attachment full view"
               style={{
                 display: "block",

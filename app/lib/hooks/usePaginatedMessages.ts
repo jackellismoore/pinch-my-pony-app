@@ -12,7 +12,8 @@ export type Message = {
   read_at: string | null
   client_temp_id?: string | null
 
-  attachment_type?: string | null
+  // ✅ attachments (nullable)
+  attachment_type?: "image" | null
   attachment_bucket?: string | null
   attachment_path?: string | null
   attachment_content_type?: string | null
@@ -23,12 +24,15 @@ export type Message = {
 
 export type UIMessage = Message & {
   client_status?: "pending" | "sent" | "error"
+  delivered_at?: string | null
+
+  // ✅ derived for UI
   attachment_url?: string | null
+  attachment_preview_url?: string | null // local blob preview (optimistic)
 }
 
 const PAGE_SIZE = 40
-const DEFAULT_BUCKET = "message-attachments"
-const SIGNED_URL_TTL_SECONDS = 60 * 10 // 10 minutes
+const SIGNED_URL_TTL_SECONDS = 60 * 60 // 1 hour
 
 function compareAsc(a: UIMessage, b: UIMessage) {
   if (a.created_at < b.created_at) return -1
@@ -40,30 +44,43 @@ function tempId() {
   return `temp-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`
 }
 
-function normalizeImageMime(mime: string) {
-  const m = (mime || "").toLowerCase().trim()
-  if (m === "image/jpg") return "image/jpeg"
-  return m
-}
-
-function extFromMime(mime: string) {
-  const m = normalizeImageMime(mime)
-  if (m === "image/jpeg") return "jpg"
-  if (m === "image/png") return "png"
-  if (m === "image/webp") return "webp"
-  if (m === "image/gif") return "gif"
+function extFromType(type: string) {
+  const t = (type || "").toLowerCase()
+  if (t === "image/jpeg" || t === "image/jpg") return "jpg"
+  if (t === "image/png") return "png"
+  if (t === "image/webp") return "webp"
+  // fallback
   return "bin"
 }
 
-function safeMsg(err: any) {
-  return (
-    err?.message ||
-    err?.error_description ||
-    err?.hint ||
-    err?.details ||
-    (typeof err === "string" ? err : null) ||
-    "Unknown error"
-  )
+async function readImageDims(file: File): Promise<{ width: number; height: number } | null> {
+  try {
+    // Prefer createImageBitmap when available
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyWin = window as any
+    if (typeof anyWin.createImageBitmap === "function") {
+      const bmp = await anyWin.createImageBitmap(file)
+      const w = bmp.width
+      const h = bmp.height
+      try {
+        bmp.close?.()
+      } catch {}
+      if (w && h) return { width: w, height: h }
+    }
+
+    // Fallback: HTMLImageElement
+    const url = URL.createObjectURL(file)
+    const dims = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve({ width: img.naturalWidth || img.width, height: img.naturalHeight || img.height })
+      img.onerror = () => reject(new Error("Image decode failed"))
+      img.src = url
+    })
+    URL.revokeObjectURL(url)
+    return dims
+  } catch {
+    return null
+  }
 }
 
 export function usePaginatedMessages(requestId: string) {
@@ -75,8 +92,8 @@ export function usePaginatedMessages(requestId: string) {
   const [version, setVersion] = useState(0)
   const oldestCursorRef = useRef<{ created_at: string; id: string } | null>(null)
 
-  const signedCacheRef = useRef<Map<string, { url: string; expMs: number }>>(new Map())
-  const signingInFlightRef = useRef<Set<string>>(new Set())
+  // cache signed urls by "bucket|path"
+  const signedCacheRef = useRef<Map<string, { url: string; expiresAt: number }>>(new Map())
 
   const bump = useCallback(() => setVersion((v) => v + 1), [])
 
@@ -86,17 +103,44 @@ export function usePaginatedMessages(requestId: string) {
     return arr
   }, [version])
 
-  const maybeHydrateSignedUrl = useCallback(
+  const setOldestCursorFromCurrent = useCallback(() => {
+    const arr = Array.from(mapRef.current.values())
+    if (arr.length === 0) {
+      oldestCursorRef.current = null
+      return
+    }
+    arr.sort(compareAsc)
+    const oldest = arr[0]
+    oldestCursorRef.current = { created_at: oldest.created_at, id: oldest.id }
+  }, [])
+
+  const reset = useCallback(() => {
+    // Revoke any local blob previews to avoid leaks
+    for (const m of mapRef.current.values()) {
+      if (m.attachment_preview_url?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(m.attachment_preview_url)
+        } catch {}
+      }
+    }
+
+    mapRef.current = new Map()
+    oldestCursorRef.current = null
+    setHasMore(true)
+    bump()
+  }, [bump])
+
+  const ensureSignedUrl = useCallback(
     async (m: UIMessage) => {
-      const bucket = (m.attachment_bucket ?? DEFAULT_BUCKET).trim() || DEFAULT_BUCKET
-      const path = (m.attachment_path ?? "").trim()
-      if (!path) return
+      const bucket = m.attachment_bucket
+      const path = m.attachment_path
+      if (!bucket || !path) return
 
-      const key = `${bucket}:${path}`
-      const cached = signedCacheRef.current.get(key)
+      const key = `${bucket}|${path}`
       const now = Date.now()
-
-      if (cached && cached.expMs > now + 10_000) {
+      const cached = signedCacheRef.current.get(key)
+      if (cached && cached.expiresAt > now + 15_000) {
+        // already fresh
         const existing = mapRef.current.get(m.id)
         if (existing && existing.attachment_url !== cached.url) {
           mapRef.current.set(m.id, { ...existing, attachment_url: cached.url })
@@ -105,22 +149,21 @@ export function usePaginatedMessages(requestId: string) {
         return
       }
 
-      if (signingInFlightRef.current.has(key)) return
-      signingInFlightRef.current.add(key)
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL_SECONDS)
+      if (error || !data?.signedUrl) {
+        // fail silently (bubble can show fallback)
+        return
+      }
 
-      try {
-        const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL_SECONDS)
-        if (error || !data?.signedUrl) return
+      signedCacheRef.current.set(key, {
+        url: data.signedUrl,
+        expiresAt: now + SIGNED_URL_TTL_SECONDS * 1000,
+      })
 
-        signedCacheRef.current.set(key, { url: data.signedUrl, expMs: now + SIGNED_URL_TTL_SECONDS * 1000 })
-
-        const existing = mapRef.current.get(m.id)
-        if (existing) {
-          mapRef.current.set(m.id, { ...existing, attachment_url: data.signedUrl })
-          bump()
-        }
-      } finally {
-        signingInFlightRef.current.delete(key)
+      const existing = mapRef.current.get(m.id)
+      if (existing) {
+        mapRef.current.set(m.id, { ...existing, attachment_url: data.signedUrl })
+        bump()
       }
     },
     [bump]
@@ -140,17 +183,21 @@ export function usePaginatedMessages(requestId: string) {
             ...existing,
             ...m,
             read_at: m.read_at ?? existing.read_at,
+            attachment_url: m.attachment_url ?? existing.attachment_url ?? null,
+            attachment_preview_url: m.attachment_preview_url ?? existing.attachment_preview_url ?? null,
             client_status:
-              existing.client_status === "pending" ? (m.client_status ?? "sent") : (m.client_status ?? existing.client_status),
-            attachment_url: existing.attachment_url ?? m.attachment_url ?? null,
+              existing.client_status === "pending"
+                ? (m.client_status ?? "sent")
+                : (m.client_status ?? existing.client_status),
           }
 
           if (
             next.read_at !== existing.read_at ||
             next.content !== existing.content ||
             next.client_status !== existing.client_status ||
-            next.attachment_path !== existing.attachment_path ||
             next.attachment_type !== existing.attachment_type ||
+            next.attachment_bucket !== existing.attachment_bucket ||
+            next.attachment_path !== existing.attachment_path ||
             next.attachment_url !== existing.attachment_url
           ) {
             mapRef.current.set(m.id, next)
@@ -161,33 +208,18 @@ export function usePaginatedMessages(requestId: string) {
 
       if (changed) bump()
 
+      // Kick off signing for any message that needs it (async, no blocking)
       for (const m of msgs) {
-        if (m.attachment_type === "image" && m.attachment_path) void maybeHydrateSignedUrl(m)
+        if (m.attachment_bucket && m.attachment_path) {
+          const current = mapRef.current.get(m.id)
+          if (current && !current.attachment_url) {
+            void ensureSignedUrl(current)
+          }
+        }
       }
     },
-    [bump, maybeHydrateSignedUrl]
+    [bump, ensureSignedUrl]
   )
-
-  const setOldestCursorFromCurrent = useCallback(() => {
-    const arr = Array.from(mapRef.current.values())
-    if (arr.length === 0) {
-      oldestCursorRef.current = null
-      return
-    }
-    arr.sort(compareAsc)
-    const oldest = arr[0]
-    oldestCursorRef.current = { created_at: oldest.created_at, id: oldest.id }
-  }, [])
-
-  const reset = useCallback(() => {
-    mapRef.current = new Map()
-    oldestCursorRef.current = null
-    setHasMore(true)
-    bump()
-  }, [bump])
-
-  const baseSelect =
-    "id, request_id, sender_id, content, created_at, read_at, client_temp_id, attachment_type, attachment_bucket, attachment_path, attachment_content_type, attachment_size_bytes, attachment_width, attachment_height"
 
   const loadInitial = useCallback(async () => {
     if (!requestId) return
@@ -195,7 +227,25 @@ export function usePaginatedMessages(requestId: string) {
 
     const { data, error } = await supabase
       .from("messages")
-      .select(baseSelect)
+      .select(
+        [
+          "id",
+          "request_id",
+          "sender_id",
+          "content",
+          "created_at",
+          "read_at",
+          "client_temp_id",
+          // attachments:
+          "attachment_type",
+          "attachment_bucket",
+          "attachment_path",
+          "attachment_content_type",
+          "attachment_size_bytes",
+          "attachment_width",
+          "attachment_height",
+        ].join(", ")
+      )
       .eq("request_id", requestId)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
@@ -208,7 +258,7 @@ export function usePaginatedMessages(requestId: string) {
       return
     }
 
-    mergeMessages((data ?? []).map((m) => ({ ...(m as any), client_status: "sent" })))
+    mergeMessages((data ?? []).map((m: any) => ({ ...(m as UIMessage), client_status: "sent" })))
     setHasMore((data ?? []).length === PAGE_SIZE)
     setOldestCursorFromCurrent()
     setLoadingInitial(false)
@@ -224,7 +274,25 @@ export function usePaginatedMessages(requestId: string) {
 
     const { data, error } = await supabase
       .from("messages")
-      .select(baseSelect)
+      .select(
+        [
+          "id",
+          "request_id",
+          "sender_id",
+          "content",
+          "created_at",
+          "read_at",
+          "client_temp_id",
+          // attachments:
+          "attachment_type",
+          "attachment_bucket",
+          "attachment_path",
+          "attachment_content_type",
+          "attachment_size_bytes",
+          "attachment_width",
+          "attachment_height",
+        ].join(", ")
+      )
       .eq("request_id", requestId)
       .lt("created_at", cursor.created_at)
       .order("created_at", { ascending: false })
@@ -238,12 +306,13 @@ export function usePaginatedMessages(requestId: string) {
       return
     }
 
-    mergeMessages((data ?? []).map((m) => ({ ...(m as any), client_status: "sent" })))
+    mergeMessages((data ?? []).map((m: any) => ({ ...(m as UIMessage), client_status: "sent" })))
     setHasMore((data ?? []).length === PAGE_SIZE)
     setOldestCursorFromCurrent()
     setLoadingMore(false)
   }, [hasMore, loadingMore, mergeMessages, requestId, setOldestCursorFromCurrent])
 
+  // ---- Optimistic send (text only) ----
   const sendOptimistic = useCallback(
     async (senderId: string, content: string): Promise<{ ok: boolean; tempId?: string; errorMessage?: string }> => {
       const tId = tempId()
@@ -270,13 +339,12 @@ export function usePaginatedMessages(requestId: string) {
 
       if (error) {
         console.error("sendOptimistic insert error:", error)
-        const em = safeMsg(error)
         const existing = mapRef.current.get(tId)
         if (existing) {
-          mapRef.current.set(tId, { ...existing, client_status: "error", content: `Send failed: ${em}` })
+          mapRef.current.set(tId, { ...existing, client_status: "error" })
           bump()
         }
-        return { ok: false, tempId: tId, errorMessage: em }
+        return { ok: false, tempId: tId, errorMessage: error.message }
       }
 
       return { ok: true, tempId: tId }
@@ -284,30 +352,25 @@ export function usePaginatedMessages(requestId: string) {
     [bump, requestId]
   )
 
+  // ---- Optimistic send with image attachment ----
   const sendOptimisticWithImage = useCallback(
     async (
       senderId: string,
       content: string,
       file: File,
       opts?: { bucket?: string }
-    ): Promise<{ ok: boolean; tempId?: string; attachmentPath?: string; errorMessage?: string }> => {
+    ): Promise<{ ok: boolean; tempId?: string; errorMessage?: string }> => {
+      const bucket = opts?.bucket ?? "message-attachments"
       const tId = tempId()
       const nowIso = new Date().toISOString()
 
-      const bucket = (opts?.bucket ?? DEFAULT_BUCKET).trim() || DEFAULT_BUCKET
+      const previewUrl = URL.createObjectURL(file)
+      const dims = await readImageDims(file)
 
-      const normalizedType = normalizeImageMime(file.type || "application/octet-stream")
-      const ext = extFromMime(normalizedType)
+      const ext = extFromType(file.type)
+      const objectPath = `${requestId}/${tId}_${senderId}.${ext}`
 
-      if (!requestId) {
-        const em = "Missing requestId"
-        return { ok: false, tempId: tId, errorMessage: em }
-      }
-
-      const attachmentPath = `${requestId}/${tId}_${senderId}.${ext}`
-
-      console.log("[pmp] upload", { bucket, attachmentPath, requestId, fileType: file.type, normalizedType, size: file.size })
-
+      // optimistic bubble immediately
       mapRef.current.set(tId, {
         id: tId,
         request_id: requestId,
@@ -320,29 +383,33 @@ export function usePaginatedMessages(requestId: string) {
 
         attachment_type: "image",
         attachment_bucket: bucket,
-        attachment_path: attachmentPath,
-        attachment_content_type: normalizedType,
-        attachment_size_bytes: file.size,
-        attachment_url: null,
+        attachment_path: objectPath,
+        attachment_content_type: file.type || null,
+        attachment_size_bytes: file.size || null,
+        attachment_width: dims?.width ?? null,
+        attachment_height: dims?.height ?? null,
+        attachment_preview_url: previewUrl,
+        attachment_url: previewUrl, // bubble can use this until signed url arrives
       })
       bump()
 
-      const { error: upErr } = await supabase.storage.from(bucket).upload(attachmentPath, file, {
-        contentType: normalizedType,
+      // upload file first
+      const uploadRes = await supabase.storage.from(bucket).upload(objectPath, file, {
+        contentType: file.type,
         upsert: false,
       })
 
-      if (upErr) {
-        console.error("[pmp] upload error:", upErr)
-        const em = safeMsg(upErr)
+      if (uploadRes.error) {
+        console.error("upload error:", uploadRes.error)
         const existing = mapRef.current.get(tId)
         if (existing) {
-          mapRef.current.set(tId, { ...existing, client_status: "error", content: `Upload failed: ${em}` })
+          mapRef.current.set(tId, { ...existing, client_status: "error" })
           bump()
         }
-        return { ok: false, tempId: tId, attachmentPath, errorMessage: em }
+        return { ok: false, tempId: tId, errorMessage: uploadRes.error.message }
       }
 
+      // insert message row with attachment metadata
       const { error: insErr } = await supabase.from("messages").insert({
         request_id: requestId,
         sender_id: senderId,
@@ -351,27 +418,32 @@ export function usePaginatedMessages(requestId: string) {
 
         attachment_type: "image",
         attachment_bucket: bucket,
-        attachment_path: attachmentPath,
-        attachment_content_type: normalizedType,
+        attachment_path: objectPath,
+        attachment_content_type: file.type,
         attachment_size_bytes: file.size,
+        attachment_width: dims?.width ?? null,
+        attachment_height: dims?.height ?? null,
       })
 
       if (insErr) {
-        console.error("[pmp] insert w/attachment error:", insErr)
-        const em = safeMsg(insErr)
+        console.error("sendOptimisticWithImage insert error:", insErr)
 
-        await supabase.storage.from(bucket).remove([attachmentPath]).catch(() => {})
+        // best-effort cleanup to prevent orphaned storage
+        try {
+          await supabase.storage.from(bucket).remove([objectPath])
+        } catch {}
 
         const existing = mapRef.current.get(tId)
         if (existing) {
-          mapRef.current.set(tId, { ...existing, client_status: "error", content: `Send failed: ${em}` })
+          mapRef.current.set(tId, { ...existing, client_status: "error" })
           bump()
         }
-
-        return { ok: false, tempId: tId, attachmentPath, errorMessage: em }
+        return { ok: false, tempId: tId, errorMessage: insErr.message }
       }
 
-      return { ok: true, tempId: tId, attachmentPath }
+      // Realtime INSERT will reconcile temp -> real id.
+      // When it does, we also sign the URL.
+      return { ok: true, tempId: tId }
     },
     [bump, requestId]
   )
@@ -380,18 +452,18 @@ export function usePaginatedMessages(requestId: string) {
     async (tempMessageId: string) => {
       const msg = mapRef.current.get(tempMessageId)
       if (!msg) return
-      if (!msg.sender_id) return
+      if (!msg.sender_id || !msg.content) return
 
-      if (msg.attachment_type === "image") {
+      mapRef.current.set(tempMessageId, { ...msg, client_status: "pending" })
+      bump()
+
+      // If it's an image message, we can't reliably retry without the original File.
+      // So: retry only for text messages.
+      if (msg.attachment_type) {
         mapRef.current.set(tempMessageId, { ...msg, client_status: "error" })
         bump()
         return
       }
-
-      if (!msg.content) return
-
-      mapRef.current.set(tempMessageId, { ...msg, client_status: "pending" })
-      bump()
 
       const { error } = await supabase.from("messages").insert({
         request_id: requestId,
@@ -402,14 +474,14 @@ export function usePaginatedMessages(requestId: string) {
 
       if (error) {
         console.error("retryOptimistic insert error:", error)
-        const em = safeMsg(error)
-        mapRef.current.set(tempMessageId, { ...msg, client_status: "error", content: `Send failed: ${em}` })
+        mapRef.current.set(tempMessageId, { ...msg, client_status: "error" })
         bump()
       }
     },
     [bump, requestId]
   )
 
+  // ---- Realtime: INSERT + UPDATE ----
   useEffect(() => {
     if (!requestId) return
 
@@ -424,18 +496,32 @@ export function usePaginatedMessages(requestId: string) {
         (payload) => {
           const row = payload.new as Message
 
+          // Reconcile optimistic temp id if present
           if (row.client_temp_id && mapRef.current.has(row.client_temp_id)) {
             const temp = mapRef.current.get(row.client_temp_id)!
             mapRef.current.delete(row.client_temp_id)
-            mapRef.current.set(row.id, { ...temp, ...(row as any), client_status: "sent" })
+
+            // if temp had a blob preview, carry it over while we fetch signed url
+            const next: UIMessage = {
+              ...temp,
+              ...row,
+              client_status: "sent",
+              attachment_preview_url: temp.attachment_preview_url ?? null,
+              attachment_url: temp.attachment_preview_url ?? null, // temporary; will be replaced by signed url
+            }
+
+            mapRef.current.set(row.id, next)
             bump()
             setOldestCursorFromCurrent()
 
-            if (row.attachment_type === "image" && row.attachment_path) void maybeHydrateSignedUrl({ ...(row as any), client_status: "sent" })
+            // If attachment exists, sign it
+            if (row.attachment_bucket && row.attachment_path) {
+              void ensureSignedUrl(next)
+            }
             return
           }
 
-          mergeMessages([{ ...(row as any), client_status: "sent" }])
+          mergeMessages([{ ...(row as UIMessage), client_status: "sent" }])
           setOldestCursorFromCurrent()
         }
       )
@@ -443,7 +529,7 @@ export function usePaginatedMessages(requestId: string) {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages", filter: `request_id=eq.${requestId}` },
         (payload) => {
-          mergeMessages([{ ...((payload.new as Message) as any), client_status: "sent" }])
+          mergeMessages([{ ...(payload.new as Message), client_status: "sent" } as UIMessage])
         }
       )
       .subscribe()
@@ -451,7 +537,7 @@ export function usePaginatedMessages(requestId: string) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [requestId, loadInitial, mergeMessages, reset, bump, setOldestCursorFromCurrent, maybeHydrateSignedUrl])
+  }, [requestId, loadInitial, mergeMessages, reset, bump, setOldestCursorFromCurrent, ensureSignedUrl])
 
   return {
     messages,
