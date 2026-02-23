@@ -54,23 +54,15 @@ label {
 }
 
 @keyframes pmpFadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Existing typing keyframes (kept) */
 @keyframes pmpTyping {
   0%, 100% { transform: translateY(0); opacity: 0.55; }
   50% { transform: translateY(-4px); opacity: 1; }
 }
 
-/* Premium hover lift utility */
 .pmp-hoverLift {
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
   will-change: transform;
@@ -79,7 +71,6 @@ label {
   transform: translateY(-1px);
 }
 
-/* Shimmer utility for image loading */
 @keyframes pmpShimmer {
   0% { background-position: 0% 0; }
   100% { background-position: 160% 0; }
@@ -93,4 +84,20 @@ label {
   );
   background-size: 160% 100%;
   animation: pmpShimmer 1.2s ease-in-out infinite;
+}
+
+/* Mobile: give messages more room */
+@media (max-width: 520px) {
+  .pmp-chatHeader {
+    padding: 10px 10px !important;
+    gap: 10px !important;
+  }
+
+  .pmp-chatScroller {
+    padding: 12px !important;
+  }
+
+  .pmp-chatComposer {
+    padding: 10px !important;
+  }
 }

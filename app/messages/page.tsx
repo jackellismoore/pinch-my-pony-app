@@ -32,6 +32,18 @@ function clamp(s: string | null | undefined, n: number) {
   return t.length > n ? t.slice(0, n - 1) + "…" : t
 }
 
+// Heuristic: treat common “photo” placeholders as an image message.
+// (If you later add a boolean to message_threads view like last_message_is_image, swap to that.)
+function isPhotoLastMessage(last: string | null) {
+  const s = (last ?? "").trim().toLowerCase()
+  if (!s) return false
+  if (s === "📷 photo" || s === "photo" || s === "sent a photo") return true
+  if (s.includes("📷")) return true
+  // avoid false positives like “photography”
+  if (s === "image" || s === "photo attachment") return true
+  return false
+}
+
 export default function MessagesPage() {
   const [threads, setThreads] = useState<ThreadRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -125,7 +137,6 @@ export default function MessagesPage() {
   return (
     <div style={{ padding: 18, maxWidth: 900, margin: "0 auto" }}>
       {header}
-
       <div style={{ height: 14 }} />
 
       {loading ? (
@@ -150,7 +161,8 @@ export default function MessagesPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {threads.map((t) => {
             const when = formatWhen(t.last_message_at)
-            const last = clamp(t.last_message, 120)
+            const isPhoto = isPhotoLastMessage(t.last_message)
+            const last = isPhoto ? "Photo" : clamp(t.last_message, 120)
             const isDeleting = deletingId === t.request_id
 
             return (
@@ -173,7 +185,6 @@ export default function MessagesPage() {
                 >
                   <div style={{ padding: 14, cursor: "pointer" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      {/* Avatar */}
                       <div
                         style={{
                           width: 46,
@@ -212,9 +223,7 @@ export default function MessagesPage() {
                           </div>
 
                           <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
-                            {when ? (
-                              <div style={{ fontSize: 11, opacity: 0.65, color: "#0f172a" }}>{when}</div>
-                            ) : null}
+                            {when ? <div style={{ fontSize: 11, opacity: 0.65 }}>{when}</div> : null}
 
                             {t.unread_count > 0 ? (
                               <div
@@ -244,7 +253,33 @@ export default function MessagesPage() {
                           {t.horse_name}
                         </div>
 
-                        <div style={{ marginTop: 8, fontSize: 13, opacity: 0.92, color: "#0f172a" }}>{last}</div>
+                        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                          {isPhoto ? (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                fontSize: 12,
+                                fontWeight: 950,
+                                padding: "5px 10px",
+                                borderRadius: 999,
+                                border: "1px solid rgba(15,23,42,0.10)",
+                                background: "rgba(255,255,255,0.72)",
+                                boxShadow: "0 10px 16px rgba(15,23,42,0.06)",
+                              }}
+                              title="Photo"
+                            >
+                              <span aria-hidden="true">📷</span> Photo
+                            </span>
+                          ) : null}
+
+                          <div style={{ fontSize: 13, opacity: 0.92, color: "#0f172a", minWidth: 0 }}>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
+                              {last}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
