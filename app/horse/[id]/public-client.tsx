@@ -54,9 +54,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function HorsePublicClient() {
-  // ✅ Robust: works if your folder is [horseId] OR [id]
-  const params = useParams() as { horseId?: string; id?: string };
-  const horseId = params?.horseId ?? params?.id;
+  const params = useParams<{ id: string }>();
+  const horseId = params?.id;
 
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
 
@@ -79,11 +78,10 @@ export default function HorsePublicClient() {
     }
 
     async function loadHorse() {
-      // ✅ Never hang: if no param, stop loading and show helpful error
       if (!horseId) {
         if (!cancelled) {
           setLoading(false);
-          setError("Missing horse id in route. Check your folder name: /horse/[id] or /horse/[horseId].");
+          setError("Missing horse id in route.");
         }
         return;
       }
@@ -151,8 +149,8 @@ export default function HorsePublicClient() {
 
   if (loading) {
     return (
-      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto", opacity: 0.75 }}>
-        Loading…
+      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ opacity: 0.75 }}>Loading…</div>
       </div>
     );
   }
@@ -218,6 +216,7 @@ export default function HorsePublicClient() {
       </div>
 
       <div className="pmp-horse-grid" style={grid}>
+        {/* Main card */}
         <div style={shell}>
           {horse.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -244,8 +243,7 @@ export default function HorsePublicClient() {
                 </h1>
 
                 <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
-                  Owner:{" "}
-                  <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
+                  Owner: <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
                   {horse.location ? <span> • {horse.location}</span> : null}
                 </div>
               </div>
@@ -257,6 +255,7 @@ export default function HorsePublicClient() {
 
             <div style={divider} />
 
+            {/* Details list */}
             <div style={sectionHeader}>
               <div style={sectionTitle}>Details</div>
               <div style={sectionSubtitle}>Readable, spec-style layout (no bubbles).</div>
@@ -289,6 +288,7 @@ export default function HorsePublicClient() {
           </div>
         </div>
 
+        {/* Side rail */}
         <aside style={sideRail}>
           <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Ready to request?</div>
           <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
