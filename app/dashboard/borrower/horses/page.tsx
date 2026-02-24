@@ -8,6 +8,7 @@ import RequestsTable from '@/components/RequestsTable';
 type HorseRow = {
   id: string;
   name: string | null;
+  active: boolean | null;
   is_active: boolean | null;
   owner_id: string;
 };
@@ -36,7 +37,7 @@ export default function BorrowerHorsesPage() {
   const [activeBorrows, setActiveBorrows] = useState<any[]>([]);
   const [canReviewByRequestId, setCanReviewByRequestId] = useState<Record<string, boolean>>({});
 
-  // ---- Load browse horses (existing behavior) ----
+  // ---- Load browse horses ----
   useEffect(() => {
     let cancelled = false;
 
@@ -44,10 +45,11 @@ export default function BorrowerHorsesPage() {
       setLoading(true);
       setError(null);
 
+      // Robust "active horses" filter for mixed schema/data (active vs is_active)
       const { data, error } = await supabase
         .from('horses')
-        .select('id,name,is_active,owner_id')
-        .eq('is_active', true)
+        .select('id,name,active,is_active,owner_id')
+        .or('active.eq.true,is_active.eq.true')
         .order('created_at', { ascending: false });
 
       if (cancelled) return;
@@ -95,21 +97,24 @@ export default function BorrowerHorsesPage() {
         if (!cancelled) setMyUserId(uid);
 
         // Pull borrower requests that are accepted/approved
+        // IMPORTANT: disambiguate the horses embed because you have two FKs:
+        // - borrow_requests_horse_id_fkey
+        // - borrow_requests_horse_id_fkey1
         const { data: reqs, error: reqErr } = await supabase
           .from('borrow_requests')
           .select(
             `
-            id,
-            status,
-            start_date,
-            end_date,
-            message,
-            horse:horses (
               id,
-              name,
-              owner_id
-            )
-          `
+              status,
+              start_date,
+              end_date,
+              message,
+              horse:horses!borrow_requests_horse_id_fkey (
+                id,
+                name,
+                owner_id
+              )
+            `
           )
           .eq('borrower_id', uid)
           .in('status', ['accepted', 'approved'])
@@ -143,29 +148,31 @@ export default function BorrowerHorsesPage() {
         }
 
         // Normalize into RequestsTable row shape
-        const tableRows = reqRows.map((r) => {
-          const requestId = String(r?.id ?? '');
-          const status = String(r?.status ?? 'pending');
-          const horse = r?.horse ?? null;
-          const horseId = horse?.id ? String(horse.id) : null;
-          const ownerId = horse?.owner_id ? String(horse.owner_id) : '';
-          const owner = ownerId ? ownersById[ownerId] ?? null : null;
+        const tableRows = reqRows
+          .map((r) => {
+            const requestId = String(r?.id ?? '');
+            const status = String(r?.status ?? 'pending');
+            const horse = r?.horse ?? null;
+            const horseId = horse?.id ? String(horse.id) : null;
+            const ownerId = horse?.owner_id ? String(horse.owner_id) : '';
+            const owner = ownerId ? ownersById[ownerId] ?? null : null;
 
-          return {
-            id: requestId,
-            status,
-            start_date: r?.start_date ?? null,
-            end_date: r?.end_date ?? null,
-            message: r?.message ?? null,
+            return {
+              id: requestId,
+              status,
+              start_date: r?.start_date ?? null,
+              end_date: r?.end_date ?? null,
+              message: r?.message ?? null,
 
-            horse: horseId ? { id: horseId, name: horse?.name ?? null } : null,
-            horse_id: horseId,
+              horse: horseId ? { id: horseId, name: horse?.name ?? null } : null,
+              horse_id: horseId,
 
-            // RequestsTable second column uses getBorrowerLabel();
-            // in borrower mode we want to show OWNER name there.
-            borrower_name: ownerLabel(owner),
-          };
-        }).filter((x) => x.id);
+              // RequestsTable second column uses getBorrowerLabel();
+              // in borrower mode we want to show OWNER name there.
+              borrower_name: ownerLabel(owner),
+            };
+          })
+          .filter((x) => x.id);
 
         // Batch check existing reviews for these request IDs
         const requestIds = tableRows.map((r) => String(r.id));
@@ -287,47 +294,50 @@ export default function BorrowerHorsesPage() {
       ) : null}
 
       <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
-        {horses.map((h) => (
-          <div
-            key={h.id}
-            style={{
-              border: '1px solid rgba(0,0,0,0.10)',
-              borderRadius: 14,
-              padding: 14,
-              background: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {h.name ?? 'Unnamed horse'}
-              </div>
-              <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-                Status: {h.is_active ? 'Active' : 'Inactive'}
-              </div>
-            </div>
-
-            <Link
-              href={`/dashboard/borrower/horses/${h.id}/request`}
+        {horses.map((h) => {
+          const isActive = Boolean(h.active ?? h.is_active);
+          return (
+            <div
+              key={h.id}
               style={{
-                border: '1px solid rgba(0,0,0,0.14)',
-                background: 'black',
-                color: 'white',
-                padding: '10px 12px',
-                borderRadius: 12,
-                textDecoration: 'none',
-                fontSize: 13,
-                fontWeight: 650,
-                whiteSpace: 'nowrap',
+                border: '1px solid rgba(0,0,0,0.10)',
+                borderRadius: 14,
+                padding: 14,
+                background: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
               }}
             >
-              Request Dates →
-            </Link>
-          </div>
-        ))}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {h.name ?? 'Unnamed horse'}
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+                  Status: {isActive ? 'Active' : 'Inactive'}
+                </div>
+              </div>
+
+              <Link
+                href={`/dashboard/borrower/horses/${h.id}/request`}
+                style={{
+                  border: '1px solid rgba(0,0,0,0.14)',
+                  background: 'black',
+                  color: 'white',
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  textDecoration: 'none',
+                  fontSize: 13,
+                  fontWeight: 650,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Request Dates →
+              </Link>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
