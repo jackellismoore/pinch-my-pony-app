@@ -14,7 +14,8 @@ type HorseRow = {
   id: string;
   owner_id: string;
   name: string | null;
-  is_active: boolean | null;
+  active?: boolean | null;
+  is_active?: boolean | null;
   lat: number | null;
   lng: number | null;
 };
@@ -139,11 +140,20 @@ function hintPill(): React.CSSProperties {
   };
 }
 
+function isHorseActive(h: HorseRow | null) {
+  if (!h) return false;
+  if (typeof h.active === "boolean") return h.active;
+  if (typeof h.is_active === "boolean") return h.is_active;
+  return true;
+}
+
 export default function RequestClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const horseId = searchParams.get("horseId");
+
+  const [viewerId, setViewerId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +169,14 @@ export default function RequestClient() {
       setError(null);
 
       try {
+        // get viewer
+        const { data: userData, error: userErr } = await supabase.auth.getUser();
+        if (!cancelled) setViewerId(userData.user?.id ?? null);
+        if (userErr) {
+          // not fatal; just means logged out
+          console.warn("getUser error:", userErr.message);
+        }
+
         if (!horseId) {
           setHorse(null);
           setOwnerProfile(null);
@@ -168,7 +186,7 @@ export default function RequestClient() {
 
         const hRes = await supabase
           .from("horses")
-          .select("id,owner_id,name,is_active,lat,lng")
+          .select("id,owner_id,name,active,is_active,lat,lng")
           .eq("id", horseId)
           .single();
 
@@ -184,11 +202,7 @@ export default function RequestClient() {
           return;
         }
 
-        const pRes = await supabase
-          .from("profiles")
-          .select("id,display_name,full_name")
-          .eq("id", h.owner_id)
-          .single();
+        const pRes = await supabase.from("profiles").select("id,display_name,full_name").eq("id", h.owner_id).single();
 
         if (!cancelled) {
           if (!pRes.error) setOwnerProfile((pRes.data ?? null) as ProfileMini | null);
@@ -206,6 +220,8 @@ export default function RequestClient() {
     };
   }, [horseId]);
 
+  const isOwnHorse = !!viewerId && !!horse?.owner_id && viewerId === horse.owner_id;
+
   const mapHorses = useMemo(() => {
     if (!horse) return [];
     if (typeof horse.lat !== "number" || typeof horse.lng !== "number") return [];
@@ -218,9 +234,11 @@ export default function RequestClient() {
         lng: horse.lng,
         owner_id: horse.owner_id,
         owner_label: ownerLabel(ownerProfile),
+        is_own_listing: isOwnHorse,
+        can_request: !isOwnHorse,
       },
     ];
-  }, [horse, ownerProfile]);
+  }, [horse, ownerProfile, isOwnHorse]);
 
   if (!horseId) {
     return (
@@ -282,74 +300,124 @@ export default function RequestClient() {
           </div>
         ) : null}
 
-        {/* Horse/Owner header card */}
-        {horse ? (
+        {/* If horse exists but is inactive, show a friendly note */}
+        {horse && !isHorseActive(horse) ? (
           <div style={{ marginTop: 14, ...card() }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>{horse.name ?? "Horse"}</div>
-                <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.72)" }}>
-                  Owner: <span style={{ fontWeight: 950, color: palette.forest }}>{ownerLabel(ownerProfile)}</span>
-                </div>
-
-                {horse.owner_id ? (
-                  <div style={{ marginTop: 10 }}>
-                    <Link href={`/owner/${horse.owner_id}`} style={inlineLink()}>
-                      View owner profile →
-                    </Link>
-                  </div>
-                ) : null}
-              </div>
-
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <Link href={`/horse/${horse.id}`} style={btn("secondary")}>
-                  View horse →
-                </Link>
-              </div>
+            <div style={hintPill()}>ℹ️ Not available</div>
+            <h2 style={{ marginTop: 10, marginBottom: 0, fontSize: 16, fontWeight: 950, color: palette.navy }}>
+              This listing isn’t active
+            </h2>
+            <div style={{ marginTop: 8, fontSize: 13, color: "rgba(31,42,68,0.72)", lineHeight: 1.7 }}>
+              This horse is not currently available for requests.
             </div>
 
-            <div style={{ marginTop: 12, height: 1, background: "rgba(31,42,68,0.08)" }} />
-
-            <div style={{ marginTop: 12, fontSize: 13, color: "rgba(31,42,68,0.70)", lineHeight: 1.65 }}>
-              Choose your dates below. We’ll block conflicts automatically and route you into Messages after the request is sent.
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Link href={`/horse/${horse.id}`} style={btn("secondary")}>
+                View horse →
+              </Link>
+              <Link href="/browse" style={btn("primary")}>
+                ← Browse
+              </Link>
             </div>
           </div>
         ) : null}
 
-        {/* Map */}
-        <div style={{ marginTop: 14, ...softCard() }}>
-          <HorseMap horses={mapHorses as any} userLocation={null} highlightedId={null} />
-        </div>
+        {/* Owner trying to request own horse: block the whole flow */}
+        {horse && isHorseActive(horse) && isOwnHorse ? (
+          <div style={{ marginTop: 14, ...card() }}>
+            <div style={hintPill()}>✅ Your listing</div>
+            <h2 style={{ marginTop: 10, marginBottom: 0, fontSize: 16, fontWeight: 950, color: palette.navy }}>
+              Owners can’t request their own horses
+            </h2>
+            <div style={{ marginTop: 8, fontSize: 13, color: "rgba(31,42,68,0.72)", lineHeight: 1.7 }}>
+              This is your listing. To avoid confusion, requesting your own horse is disabled.
+            </div>
 
-        {/* Availability */}
-        <div style={{ marginTop: 14, ...card() }}>
-          <div style={{ fontWeight: 950, color: palette.navy }}>Availability</div>
-          <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
-            Unavailable ranges are shown below (blocks + approved bookings).
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Link href={`/horse/${horse.id}`} style={btn("secondary")}>
+                View horse →
+              </Link>
+              <Link href="/dashboard/owner/horses" style={btn("secondary")}>
+                Manage horses →
+              </Link>
+              <Link href="/browse" style={btn("primary")}>
+                ← Back to Browse
+              </Link>
+            </div>
           </div>
+        ) : null}
 
-          <div style={{ marginTop: 12 }}>
-            <AvailabilityRanges horseId={horseId} />
-          </div>
-        </div>
+        {/* Normal request experience */}
+        {horse && isHorseActive(horse) && !isOwnHorse ? (
+          <>
+            {/* Horse/Owner header card */}
+            <div style={{ marginTop: 14, ...card() }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>{horse.name ?? "Horse"}</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.72)" }}>
+                    Owner: <span style={{ fontWeight: 950, color: palette.forest }}>{ownerLabel(ownerProfile)}</span>
+                  </div>
 
-        {/* Request form */}
-        <div style={{ marginTop: 14, ...card() }}>
-          <div style={{ fontWeight: 950, color: palette.navy }}>Send request</div>
-          <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
-            Submit your date range request. You’ll be taken to Messages after success.
-          </div>
+                  {horse.owner_id ? (
+                    <div style={{ marginTop: 10 }}>
+                      <Link href={`/owner/${horse.owner_id}`} style={inlineLink()}>
+                        View owner profile →
+                      </Link>
+                    </div>
+                  ) : null}
+                </div>
 
-          <div style={{ marginTop: 12 }}>
-            <RequestForm
-              horseId={horseId}
-              onSuccess={() => {
-                router.push("/messages");
-                router.refresh();
-              }}
-            />
-          </div>
-        </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <Link href={`/horse/${horse.id}`} style={btn("secondary")}>
+                    View horse →
+                  </Link>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 12, height: 1, background: "rgba(31,42,68,0.08)" }} />
+
+              <div style={{ marginTop: 12, fontSize: 13, color: "rgba(31,42,68,0.70)", lineHeight: 1.65 }}>
+                Choose your dates below. We’ll block conflicts automatically and route you into Messages after the request is sent.
+              </div>
+            </div>
+
+            {/* Map */}
+            <div style={{ marginTop: 14, ...softCard() }}>
+              <HorseMap horses={mapHorses as any} userLocation={null} highlightedId={null} />
+            </div>
+
+            {/* Availability */}
+            <div style={{ marginTop: 14, ...card() }}>
+              <div style={{ fontWeight: 950, color: palette.navy }}>Availability</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+                Unavailable ranges are shown below (blocks + approved bookings).
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <AvailabilityRanges horseId={horseId} />
+              </div>
+            </div>
+
+            {/* Request form */}
+            <div style={{ marginTop: 14, ...card() }}>
+              <div style={{ fontWeight: 950, color: palette.navy }}>Send request</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+                Submit your date range request. You’ll be taken to Messages after success.
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <RequestForm
+                  horseId={horseId}
+                  onSuccess={() => {
+                    router.push("/messages");
+                    router.refresh();
+                  }}
+                />
+              </div>
+            </div>
+          </>
+        ) : null}
 
         <div style={{ height: 18 }} />
       </div>
