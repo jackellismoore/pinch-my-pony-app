@@ -27,7 +27,10 @@ function displayNameOrNull(p: ProfileMini | null) {
   return dn || fn || null;
 }
 
-function useOutsideClick<T extends HTMLElement>(ref: React.RefObject<T | null>, onOutside: () => void) {
+function useOutsideClick<T extends HTMLElement>(
+  ref: React.RefObject<T | null>,
+  onOutside: () => void
+) {
   useEffect(() => {
     function onDown(e: MouseEvent) {
       const el = ref.current;
@@ -57,7 +60,9 @@ export default function Header() {
       try {
         const { data: p, error } = await supabase
           .from("profiles")
-          .select("id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider")
+          .select(
+            "id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
+          )
           .eq("id", uid)
           .maybeSingle();
 
@@ -86,19 +91,21 @@ export default function Header() {
 
     init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      setMenuOpen(false);
+    const { data: sub } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const u = session?.user ?? null;
+        setUser(u);
+        setMenuOpen(false);
 
-      if (u) {
-        registerPushForCurrentUser();
-        await loadProfile(u.id);
-      } else {
-        setProfile(null);
-        setProfileLoading(false);
+        if (u) {
+          registerPushForCurrentUser();
+          await loadProfile(u.id);
+        } else {
+          setProfile(null);
+          setProfileLoading(false);
+        }
       }
-    });
+    );
 
     return () => {
       cancelled = true;
@@ -107,10 +114,24 @@ export default function Header() {
   }, []);
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    // Optimistically close UI immediately
     setMenuOpen(false);
-    router.push("/login");
+
+    // Clear local state right away so the menu/header updates instantly
+    setUser(null);
+    setProfile(null);
+    setProfileLoading(false);
+
+    const { error } = await supabase.auth.signOut();
+
+    // Always send them to signed-out home page
+    router.replace("/");
     router.refresh();
+
+    // Optional: you can surface this somewhere if you have a toast system
+    if (error) {
+      console.error("Logout error:", error.message);
+    }
   };
 
   const isOwner = profile?.role === "owner";
@@ -132,7 +153,8 @@ export default function Header() {
             width: 44,
             height: 44,
             borderRadius: 14,
-            background: "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,241,232,0.85))",
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,241,232,0.85))",
             border: "1px solid rgba(15,23,42,0.10)",
             boxShadow: "0 10px 28px rgba(15,23,42,0.10)",
             display: "grid",
@@ -152,8 +174,12 @@ export default function Header() {
         </div>
 
         <div style={{ lineHeight: 1.05 }}>
-          <div style={{ fontWeight: 950, fontSize: 16, letterSpacing: -0.2 }}>Pinch My Pony</div>
-          <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 800 }}>Marketplace</div>
+          <div style={{ fontWeight: 950, fontSize: 16, letterSpacing: -0.2 }}>
+            Pinch My Pony
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 800 }}>
+            Marketplace
+          </div>
         </div>
       </div>
     );
@@ -185,12 +211,24 @@ export default function Header() {
           {brand}
         </Link>
 
-        <div ref={menuWrapRef} style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
+        <div
+          ref={menuWrapRef}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            position: "relative",
+          }}
+        >
           {user ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {/* ✅ Verification badge (links to /verify if needed) */}
               {!isVerified ? (
-                <Link href="/verify" style={{ textDecoration: "none" }} title="Verification required">
+                <Link
+                  href="/verify"
+                  style={{ textDecoration: "none" }}
+                  title="Verification required"
+                >
                   <VerificationBadge
                     status={profile?.verification_status ?? "unverified"}
                     verifiedAt={profile?.verified_at ?? null}
@@ -213,7 +251,12 @@ export default function Header() {
             </div>
           ) : null}
 
-          <button onClick={() => setMenuOpen((v) => !v)} style={iconButtonStyle(menuOpen)} aria-label="Menu" title="Menu">
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            style={iconButtonStyle(menuOpen)}
+            aria-label="Menu"
+            title="Menu"
+          >
             ☰
           </button>
 
@@ -238,30 +281,54 @@ export default function Header() {
               {user ? (
                 <>
                   {!isVerified ? (
-                    <Link href="/verify" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                    <Link
+                      href="/verify"
+                      onClick={() => setMenuOpen(false)}
+                      style={menuItem()}
+                    >
                       Verify Identity
                     </Link>
                   ) : null}
 
-                  <Link href="/browse" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                  <Link
+                    href="/browse"
+                    onClick={() => setMenuOpen(false)}
+                    style={menuItem()}
+                  >
                     Browse
                   </Link>
 
-                  <Link href="/messages" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                  <Link
+                    href="/messages"
+                    onClick={() => setMenuOpen(false)}
+                    style={menuItem()}
+                  >
                     Messages
                   </Link>
 
                   {isOwner ? (
-                    <Link href="/dashboard/owner" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                    <Link
+                      href="/dashboard/owner"
+                      onClick={() => setMenuOpen(false)}
+                      style={menuItem()}
+                    >
                       Owner Dashboard
                     </Link>
                   ) : (
-                    <Link href="/dashboard/borrower" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                    <Link
+                      href="/dashboard/borrower"
+                      onClick={() => setMenuOpen(false)}
+                      style={menuItem()}
+                    >
                       Borrower Dashboard
                     </Link>
                   )}
 
-                  <Link href="/profile" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                  <Link
+                    href="/profile"
+                    onClick={() => setMenuOpen(false)}
+                    style={menuItem()}
+                  >
                     Profile
                   </Link>
 
@@ -269,38 +336,82 @@ export default function Header() {
                     Logout
                   </button>
 
-                  <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7, padding: "0 2px" }}>
-                    Signed in as <span style={{ fontWeight: 950 }}>{signedInLabel}</span>
+                  <div
+                    style={{
+                      marginTop: 4,
+                      fontSize: 12,
+                      opacity: 0.7,
+                      padding: "0 2px",
+                    }}
+                  >
+                    Signed in as{" "}
+                    <span style={{ fontWeight: 950 }}>{signedInLabel}</span>
                   </div>
 
                   {/* Divider */}
-                  <div style={{ height: 1, background: "rgba(15,23,42,0.08)", margin: "6px 0 2px" }} />
+                  <div
+                    style={{
+                      height: 1,
+                      background: "rgba(15,23,42,0.08)",
+                      margin: "6px 0 2px",
+                    }}
+                  />
 
                   {/* Public links at bottom (FAQs first, then Contact Us) */}
-                  <Link href="/faq" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                  <Link
+                    href="/faq"
+                    onClick={() => setMenuOpen(false)}
+                    style={menuItem()}
+                  >
                     FAQs
                   </Link>
-                  <Link href="/contact" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                  <Link
+                    href="/contact"
+                    onClick={() => setMenuOpen(false)}
+                    style={menuItem()}
+                  >
                     Contact Us
                   </Link>
                 </>
               ) : (
                 <>
-                  <Link href="/login" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                  <Link
+                    href="/login"
+                    onClick={() => setMenuOpen(false)}
+                    style={menuItem()}
+                  >
                     Login
                   </Link>
-                  <Link href="/signup" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                  <Link
+                    href="/signup"
+                    onClick={() => setMenuOpen(false)}
+                    style={menuItem()}
+                  >
                     Sign Up
                   </Link>
 
                   {/* Divider */}
-                  <div style={{ height: 1, background: "rgba(15,23,42,0.08)", margin: "6px 0 2px" }} />
+                  <div
+                    style={{
+                      height: 1,
+                      background: "rgba(15,23,42,0.08)",
+                      margin: "6px 0 2px",
+                    }}
+                  />
 
                   {/* Public links at bottom (FAQs first, then Contact Us) */}
-                  <Link href="/faq" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                  <Link
+                    href="/faq"
+                    onClick={() => setMenuOpen(false)}
+                    style={menuItem()}
+                  >
                     FAQs
                   </Link>
-                  <Link href="/contact" onClick={() => setMenuOpen(false)} style={menuItem()}>
+                  <Link
+                    href="/contact"
+                    onClick={() => setMenuOpen(false)}
+                    style={menuItem()}
+                  >
                     Contact Us
                   </Link>
                 </>
@@ -318,7 +429,9 @@ function iconButtonStyle(active: boolean): React.CSSProperties {
     width: 44,
     height: 44,
     borderRadius: 12,
-    border: active ? "1px solid rgba(37,99,235,0.35)" : "1px solid rgba(15,23,42,0.12)",
+    border: active
+      ? "1px solid rgba(37,99,235,0.35)"
+      : "1px solid rgba(15,23,42,0.12)",
     background: "white",
     cursor: "pointer",
     display: "inline-flex",
@@ -328,7 +441,8 @@ function iconButtonStyle(active: boolean): React.CSSProperties {
     fontWeight: 900,
     color: "#0f172a",
     boxShadow: active ? "0 10px 24px rgba(37,99,235,0.10)" : "none",
-    transition: "box-shadow 120ms ease, border-color 120ms ease, transform 120ms ease",
+    transition:
+      "box-shadow 120ms ease, border-color 120ms ease, transform 120ms ease",
   };
 }
 
