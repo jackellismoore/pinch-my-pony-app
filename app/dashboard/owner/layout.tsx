@@ -1,32 +1,22 @@
-"use client";
+'use client';
 
-import { ReactNode, useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import * as React from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabaseClient';
 
 const palette = {
-  forest: "#1F3D2B",
-  saddle: "#8B5E3C",
-  cream: "#F5F1E8",
-  navy: "#1F2A44",
-  gold: "#C8A24D",
+  forest: '#1F3D2B',
+  saddle: '#8B5E3C',
+  cream: '#F5F1E8',
+  navy: '#1F2A44',
+  gold: '#C8A24D',
 };
 
-const navItems = [
-  { href: "/dashboard/owner", label: "Overview" },
-  { href: "/dashboard/owner/horses", label: "Horses" },
-  { href: "/dashboard/owner/requests", label: "Requests" },
-];
-
-function isActive(pathname: string, href: string) {
-  if (href === "/dashboard/owner") return pathname === href;
-  return pathname === href || pathname.startsWith(href + "/");
-}
-
-export default function OwnerDashboardLayout({ children }: { children: ReactNode }) {
+export default function OwnerDashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname() || "/dashboard/owner";
+  const pathname = usePathname();
 
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
@@ -41,16 +31,16 @@ export default function OwnerDashboardLayout({ children }: { children: ReactNode
       } = await supabase.auth.getUser();
 
       if (userErr || !user) {
-        if (!cancelled) router.replace("/");
+        if (!cancelled) router.replace('/');
         return;
       }
 
-      const { data, error } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      const { data, error } = await supabase.from('profiles').select('role').eq('id', user.id).single();
 
       if (cancelled) return;
 
-      if (error || !data || data.role !== "owner") {
-        router.replace("/dashboard");
+      if (error || !data || data.role !== 'owner') {
+        router.replace('/dashboard');
         return;
       }
 
@@ -66,7 +56,7 @@ export default function OwnerDashboardLayout({ children }: { children: ReactNode
 
   if (loading) {
     return (
-      <div style={{ padding: 40, textAlign: "center", fontSize: 14, color: "rgba(0,0,0,0.6)" }}>
+      <div style={{ padding: 40, textAlign: 'center', fontSize: 14, color: 'rgba(0,0,0,0.6)' }}>
         Loading dashboard…
       </div>
     );
@@ -74,130 +64,139 @@ export default function OwnerDashboardLayout({ children }: { children: ReactNode
 
   if (!authorized) return null;
 
+  function NavLink({ href, label }: { href: string; label: string }) {
+    const active = pathname === href || pathname.startsWith(href + '/');
+
+    return (
+      <Link
+        href={href}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          padding: '12px 12px',
+          borderRadius: 14,
+          textDecoration: 'none',
+          fontWeight: 950,
+          fontSize: 14,
+          color: active ? palette.forest : palette.navy,
+          background: active ? 'rgba(31,61,43,0.08)' : 'rgba(255,255,255,0.72)',
+          border: active ? '1px solid rgba(31,61,43,0.22)' : '1px solid rgba(31,42,68,0.12)',
+          boxShadow: active ? '0 12px 30px rgba(31,61,43,0.10)' : '0 12px 28px rgba(31,42,68,0.06)',
+        }}
+      >
+        <span>{label}</span>
+        <span style={{ opacity: 0.55 }}>→</span>
+      </Link>
+    );
+  }
+
+  const pageBg = `radial-gradient(900px 420px at 20% 0%, rgba(200,162,77,0.18), transparent 55%),
+                  radial-gradient(900px 420px at 90% 18%, rgba(31,61,43,0.14), transparent 58%),
+                  linear-gradient(180deg, ${palette.cream} 0%, rgba(250,250,250,1) 68%)`;
+
   return (
-    <div style={shell}>
-      <style>{css}</style>
-
-      {/* Mobile tabs */}
-      <div className="pmpDashMobileTabs" style={{ padding: "12px 16px 0" }}>
-        <div style={tabsPillRow}>
-          {navItems.map((it) => {
-            const active = isActive(pathname, it.href);
-            return (
-              <Link
-                key={it.href}
-                href={it.href}
-                style={{
-                  ...tabPill,
-                  ...(active ? tabPillActive : null),
-                  textDecoration: "none",
-                }}
-              >
-                {it.label}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Layout grid */}
-      <div className="pmpDashGrid" style={grid}>
-        {/* Sidebar (desktop) */}
-        <aside className="pmpDashSidebar" style={sidebar}>
-          <div style={sidebarCard}>
-            <div style={{ fontWeight: 950, color: palette.navy, fontSize: 14 }}>Owner Dashboard</div>
-            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75, lineHeight: 1.5 }}>
+    <div style={{ minHeight: '100vh', background: pageBg }}>
+      <div
+        style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          padding: '18px 16px 28px',
+          display: 'grid',
+          gridTemplateColumns: '280px 1fr',
+          gap: 16,
+          alignItems: 'start',
+        }}
+      >
+        {/* SIDEBAR */}
+        <aside
+          style={{
+            position: 'sticky',
+            top: 16,
+            alignSelf: 'start',
+            borderRadius: 22,
+            border: '1px solid rgba(31,42,68,0.12)',
+            background: 'rgba(255,255,255,0.82)',
+            boxShadow: '0 22px 60px rgba(31,42,68,0.10)',
+            padding: 14,
+            display: 'grid',
+            gap: 12,
+          }}
+        >
+          <div style={{ padding: '6px 6px 2px' }}>
+            <div style={{ fontSize: 16, fontWeight: 950, color: palette.navy }}>Owner Dashboard</div>
+            <div style={{ marginTop: 6, fontSize: 13, opacity: 0.72, lineHeight: 1.5 }}>
               Manage listings, requests, and availability.
             </div>
-
-            <div style={{ height: 10 }} />
-
-            <nav style={{ display: "grid", gap: 8 }}>
-              {navItems.map((it) => {
-                const active = isActive(pathname, it.href);
-                return (
-                  <Link
-                    key={it.href}
-                    href={it.href}
-                    style={{
-                      ...navLink,
-                      ...(active ? navLinkActive : null),
-                      textDecoration: "none",
-                    }}
-                  >
-                    <span style={{ fontWeight: 950 }}>{it.label}</span>
-                    <span style={{ opacity: 0.65, fontWeight: 900 }}>→</span>
-                  </Link>
-                );
-              })}
-            </nav>
           </div>
 
-          {/* Quick actions */}
-          <div style={{ marginTop: 12, ...sidebarCard }}>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <NavLink href="/dashboard/owner" label="Overview" />
+            <NavLink href="/dashboard/owner/horses" label="Horses" />
+            <NavLink href="/dashboard/owner/requests" label="Requests" />
+          </div>
+
+          <div
+            style={{
+              height: 1,
+              background: 'rgba(31,42,68,0.10)',
+              margin: '4px 0',
+            }}
+          />
+
+          <div style={{ display: 'grid', gap: 10 }}>
             <Link
               href="/dashboard/owner/horses/add"
               style={{
-                display: "inline-flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 8,
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 14,
+                textDecoration: 'none',
+                borderRadius: 16,
+                border: '1px solid rgba(0,0,0,0.10)',
                 background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
-                color: "white",
-                border: "1px solid rgba(0,0,0,0.10)",
-                boxShadow: "0 14px 34px rgba(31,61,43,0.16)",
+                color: 'white',
+                padding: '12px 12px',
                 fontWeight: 950,
-                textDecoration: "none",
-                fontSize: 13,
+                textAlign: 'center',
+                boxShadow: '0 16px 40px rgba(31,61,43,0.18)',
               }}
             >
               Add a horse →
             </Link>
 
-            <div style={{ height: 10 }} />
-
             <Link
               href="/browse"
               style={{
-                display: "inline-flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 8,
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 14,
-                background: "rgba(255,255,255,0.75)",
+                textDecoration: 'none',
+                borderRadius: 16,
+                border: '1px solid rgba(31,42,68,0.14)',
+                background: 'rgba(255,255,255,0.78)',
                 color: palette.navy,
-                border: "1px solid rgba(31,42,68,0.18)",
-                boxShadow: "0 14px 34px rgba(31,42,68,0.08)",
+                padding: '12px 12px',
                 fontWeight: 950,
-                textDecoration: "none",
-                fontSize: 13,
+                textAlign: 'center',
+                boxShadow: '0 16px 40px rgba(31,42,68,0.06)',
               }}
             >
               View marketplace →
             </Link>
           </div>
 
-          {/* Sign out */}
-          <div style={{ marginTop: 12, ...sidebarCard }}>
+          <div style={{ marginTop: 4 }}>
             <button
               onClick={async () => {
                 await supabase.auth.signOut();
-                router.replace("/");
+                router.replace('/');
               }}
               style={{
-                width: "100%",
-                border: "1px solid rgba(0,0,0,0.14)",
-                background: "white",
-                padding: "10px 12px",
-                borderRadius: 14,
+                width: '100%',
+                borderRadius: 16,
+                border: '1px solid rgba(31,42,68,0.14)',
+                background: 'rgba(255,255,255,0.78)',
+                padding: '12px 12px',
                 fontSize: 13,
                 fontWeight: 950,
-                cursor: "pointer",
+                cursor: 'pointer',
+                color: palette.navy,
               }}
             >
               Sign Out
@@ -205,111 +204,27 @@ export default function OwnerDashboardLayout({ children }: { children: ReactNode
           </div>
         </aside>
 
-        {/* Main content */}
-        <main style={main}>
-          <div style={mainInner}>{children}</div>
+        {/* CONTENT */}
+        <main
+          style={{
+            borderRadius: 22,
+            border: '1px solid rgba(31,42,68,0.10)',
+            background: 'rgba(255,255,255,0.72)',
+            boxShadow: '0 22px 60px rgba(31,42,68,0.10)',
+            padding: 16,
+            minHeight: 'calc(100vh - 36px)',
+          }}
+        >
+          {children}
         </main>
       </div>
+
+      {/* responsive: collapse sidebar */}
+      <style>{`
+        @media (max-width: 980px) {
+          .pmp-owner-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }
-
-/* ---------- styles ---------- */
-
-const css = `
-  @media (max-width: 980px) {
-    .pmpDashGrid { grid-template-columns: 1fr !important; }
-    .pmpDashSidebar { display: none !important; }
-    .pmpDashMobileTabs { display: block !important; }
-  }
-  @media (min-width: 981px) {
-    .pmpDashMobileTabs { display: none !important; }
-  }
-`;
-
-const shell: React.CSSProperties = {
-  minHeight: "calc(100vh - 60px)",
-  background: `radial-gradient(900px 420px at 20% 0%, rgba(200,162,77,0.18), transparent 55%),
-               radial-gradient(900px 420px at 90% 20%, rgba(31,61,43,0.14), transparent 58%),
-               linear-gradient(180deg, ${palette.cream} 0%, rgba(250,250,250,1) 70%)`,
-  paddingBottom: 24,
-};
-
-const grid: React.CSSProperties = {
-  maxWidth: 1100,
-  margin: "0 auto",
-  padding: "14px 16px 0",
-  display: "grid",
-  gridTemplateColumns: "260px 1fr",
-  gap: 14,
-  alignItems: "start",
-};
-
-const sidebar: React.CSSProperties = {
-  position: "sticky",
-  top: 14,
-  alignSelf: "start",
-};
-
-const main: React.CSSProperties = {
-  minWidth: 0,
-};
-
-const mainInner: React.CSSProperties = {
-  display: "grid",
-  gap: 14,
-};
-
-const sidebarCard: React.CSSProperties = {
-  borderRadius: 22,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background: "rgba(255,255,255,0.82)",
-  boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
-  padding: 14,
-};
-
-const navLink: React.CSSProperties = {
-  borderRadius: 14,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background: "rgba(255,255,255,0.70)",
-  padding: "10px 12px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  color: palette.navy,
-};
-
-const navLinkActive: React.CSSProperties = {
-  border: "1px solid rgba(31,61,43,0.20)",
-  background: "rgba(31,61,43,0.08)",
-  color: palette.forest,
-};
-
-const tabsPillRow: React.CSSProperties = {
-  maxWidth: 1100,
-  margin: "0 auto",
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-  padding: 10,
-  borderRadius: 18,
-  border: "1px solid rgba(31,42,68,0.10)",
-  background: "rgba(255,255,255,0.72)",
-  boxShadow: "0 12px 30px rgba(31,42,68,0.06)",
-};
-
-const tabPill: React.CSSProperties = {
-  padding: "9px 12px",
-  borderRadius: 999,
-  border: "1px solid rgba(31,42,68,0.14)",
-  background: "rgba(255,255,255,0.80)",
-  color: palette.navy,
-  fontWeight: 950,
-  fontSize: 13,
-};
-
-const tabPillActive: React.CSSProperties = {
-  border: "1px solid rgba(31,61,43,0.20)",
-  background: "rgba(31,61,43,0.10)",
-  color: palette.forest,
-};
