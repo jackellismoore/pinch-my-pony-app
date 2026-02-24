@@ -1,319 +1,229 @@
-"use client";
+'use client';
 
-export const dynamic = "force-dynamic";
-
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { AvailabilityBadge } from "@/components/AvailabilityBadge";
+import * as React from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabaseClient';
 
 const palette = {
-  forest: "#1F3D2B",
-  saddle: "#8B5E3C",
-  cream: "#F5F1E8",
-  navy: "#1F2A44",
-  gold: "#C8A24D",
+  forest: '#1F3D2B',
+  saddle: '#8B5E3C',
+  cream: '#F5F1E8',
+  navy: '#1F2A44',
+  gold: '#C8A24D',
 };
 
-type HorseRow = {
-  id: string;
-  name: string | null;
-  is_active: boolean | null;
-};
+export default function OwnerDashboardLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
 
-type BlockRow = {
-  id: string;
-  horse_id: string;
-  start_date: string;
-  end_date: string;
-  reason: string | null;
-  created_at: string;
-};
-
-type BookingRow = {
-  id: string;
-  horse_id: string;
-  start_date: string;
-  end_date: string;
-  created_at: string;
-};
-
-type UnifiedRange = {
-  kind: "blocked" | "booking";
-  horseId: string;
-  startDate: string;
-  endDate: string;
-  label: string;
-  sourceId: string;
-};
-
-function todayISODate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-const card: React.CSSProperties = {
-  borderRadius: 22,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background: "rgba(255,255,255,0.86)",
-  boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
-};
-
-const sectionCard: React.CSSProperties = {
-  ...card,
-  padding: 16,
-};
-
-const btn = (kind: "primary" | "secondary") =>
-  ({
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    padding: "10px 14px",
-    borderRadius: 14,
-    textDecoration: "none",
-    fontSize: 13,
-    fontWeight: 950,
-    whiteSpace: "nowrap",
-    border: "1px solid rgba(31,42,68,0.16)",
-    background: kind === "primary" ? `linear-gradient(180deg, ${palette.forest}, #173223)` : "rgba(255,255,255,0.72)",
-    color: kind === "primary" ? "white" : palette.navy,
-    boxShadow: kind === "primary" ? "0 14px 34px rgba(31,61,43,0.18)" : "0 14px 34px rgba(31,42,68,0.08)",
-  }) as React.CSSProperties;
-
-const h1: React.CSSProperties = {
-  margin: 0,
-  fontSize: 28,
-  letterSpacing: -0.3,
-  color: palette.navy,
-  fontWeight: 950,
-};
-
-const subtitle: React.CSSProperties = {
-  marginTop: 6,
-  fontSize: 13,
-  color: "rgba(0,0,0,0.62)",
-  lineHeight: 1.6,
-};
-
-export default function OwnerDashboardHome() {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [horses, setHorses] = useState<HorseRow[]>([]);
-  const [ranges, setRanges] = useState<UnifiedRange[]>([]);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-
+    async function checkRole() {
       const {
         data: { user },
         error: userErr,
       } = await supabase.auth.getUser();
 
       if (userErr || !user) {
-        if (!cancelled) {
-          setError(userErr?.message ?? "Not authenticated");
-          setLoading(false);
-        }
+        if (!cancelled) router.replace('/');
         return;
       }
 
-      const { data: horsesData, error: horsesErr } = await supabase
-        .from("horses")
-        .select("id,name,is_active")
-        .eq("owner_id", user.id)
-        .order("created_at", { ascending: false });
+      const { data, error } = await supabase.from('profiles').select('role').eq('id', user.id).single();
 
       if (cancelled) return;
 
-      if (horsesErr) {
-        setError(horsesErr.message);
-        setLoading(false);
+      if (error || !data || data.role !== 'owner') {
+        router.replace('/dashboard');
         return;
       }
 
-      const horseRows = (horsesData ?? []) as HorseRow[];
-      setHorses(horseRows);
-
-      const horseIds = horseRows.map((h) => h.id);
-      if (horseIds.length === 0) {
-        setRanges([]);
-        setLoading(false);
-        return;
-      }
-
-      const today = todayISODate();
-
-      const [blocksRes, bookingsRes] = await Promise.all([
-        supabase
-          .from("horse_unavailability")
-          .select("id,horse_id,start_date,end_date,reason,created_at")
-          .in("horse_id", horseIds)
-          .gte("end_date", today)
-          .order("start_date", { ascending: true }),
-
-        supabase
-          .from("borrow_requests")
-          .select("id,horse_id,start_date,end_date,created_at,status")
-          .in("horse_id", horseIds)
-          .eq("status", "approved")
-          .not("start_date", "is", null)
-          .not("end_date", "is", null)
-          .gte("end_date", today)
-          .order("start_date", { ascending: true }),
-      ]);
-
-      if (cancelled) return;
-
-      if (blocksRes.error) {
-        setError(blocksRes.error.message);
-        setLoading(false);
-        return;
-      }
-      if (bookingsRes.error) {
-        setError(bookingsRes.error.message);
-        setLoading(false);
-        return;
-      }
-
-      const blocks = (blocksRes.data ?? []) as BlockRow[];
-      const bookings = (bookingsRes.data ?? []) as BookingRow[];
-
-      const unified: UnifiedRange[] = [
-        ...blocks.map((b) => ({
-          kind: "blocked" as const,
-          horseId: b.horse_id,
-          startDate: b.start_date,
-          endDate: b.end_date,
-          label: b.reason?.trim() ? b.reason.trim() : "Blocked",
-          sourceId: b.id,
-        })),
-        ...bookings.map((br) => ({
-          kind: "booking" as const,
-          horseId: br.horse_id,
-          startDate: br.start_date,
-          endDate: br.end_date,
-          label: "Approved booking",
-          sourceId: br.id,
-        })),
-      ].sort((a, b) => a.startDate.localeCompare(b.startDate));
-
-      setRanges(unified);
+      setAuthorized(true);
       setLoading(false);
     }
 
-    load();
+    checkRole();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
-  const horseNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const h of horses) map.set(h.id, h.name ?? "Unnamed horse");
-    return map;
-  }, [horses]);
-
-  const upcoming = useMemo(() => ranges.slice(0, 10), [ranges]);
-
-  return (
-    <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <div>
-          <h1 style={h1}>Owner Overview</h1>
-          <div style={subtitle}>Upcoming blocks + approved bookings across your horses.</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <Link href="/dashboard/owner/horses" style={btn("primary")}>
-            Manage Horses →
-          </Link>
-          <Link href="/dashboard/owner/requests" style={btn("secondary")}>
-            View Requests →
-          </Link>
-        </div>
+  if (loading) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', fontSize: 14, color: 'rgba(0,0,0,0.6)' }}>
+        Loading dashboard…
       </div>
+    );
+  }
 
-      {loading ? <div style={{ marginTop: 16, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
+  if (!authorized) return null;
 
-      {error ? (
-        <div
-          style={{
-            marginTop: 16,
-            border: "1px solid rgba(255,0,0,0.25)",
-            background: "rgba(255,0,0,0.06)",
-            padding: 12,
-            borderRadius: 14,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
+  function NavLink({ href, label }: { href: string; label: string }) {
+    // ✅ FIX: Overview should ONLY be active on exact /dashboard/owner
+    const active =
+      href === '/dashboard/owner'
+        ? pathname === href
+        : pathname === href || pathname.startsWith(href + '/');
 
-      <div
+    return (
+      <Link
+        href={href}
         style={{
-          marginTop: 16,
-          ...sectionCard,
-          background: "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,241,232,0.55) 140%)",
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          padding: '12px 12px',
+          borderRadius: 14,
+          textDecoration: 'none',
+          fontWeight: 950,
+          fontSize: 14,
+          color: active ? palette.forest : palette.navy,
+          background: active ? 'rgba(31,61,43,0.08)' : 'rgba(255,255,255,0.72)',
+          border: active ? '1px solid rgba(31,61,43,0.22)' : '1px solid rgba(31,42,68,0.12)',
+          boxShadow: active ? '0 12px 30px rgba(31,61,43,0.10)' : '0 12px 28px rgba(31,42,68,0.06)',
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ fontWeight: 950, color: palette.navy }}>Upcoming Unavailability</div>
-          <div style={{ fontSize: 13, color: "rgba(0,0,0,0.6)" }}>
-            {ranges.length} upcoming range{ranges.length === 1 ? "" : "s"}
-          </div>
-        </div>
+        <span>{label}</span>
+        <span style={{ opacity: 0.55 }}>→</span>
+      </Link>
+    );
+  }
 
-        {!loading && !error && upcoming.length === 0 ? (
-          <div style={{ marginTop: 12, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-            No upcoming blocks or approved bookings.
-          </div>
-        ) : null}
+  const pageBg = `radial-gradient(900px 420px at 20% 0%, rgba(200,162,77,0.18), transparent 55%),
+                  radial-gradient(900px 420px at 90% 18%, rgba(31,61,43,0.14), transparent 58%),
+                  linear-gradient(180deg, ${palette.cream} 0%, rgba(250,250,250,1) 68%)`;
 
-        <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
-          {upcoming.map((r) => (
-            <div
-              key={`${r.kind}-${r.sourceId}`}
+  return (
+    <div style={{ minHeight: '100vh', background: pageBg }}>
+      <div
+        className="pmp-owner-grid"
+        style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          padding: '18px 16px 28px',
+          display: 'grid',
+          gridTemplateColumns: '280px 1fr',
+          gap: 16,
+          alignItems: 'start',
+        }}
+      >
+        {/* SIDEBAR */}
+        <aside
+          style={{
+            position: 'sticky',
+            top: 16,
+            alignSelf: 'start',
+            borderRadius: 22,
+            border: '1px solid rgba(31,42,68,0.12)',
+            background: 'rgba(255,255,255,0.82)',
+            boxShadow: '0 22px 60px rgba(31,42,68,0.10)',
+            padding: 14,
+            display: 'grid',
+            gap: 12,
+          }}
+        >
+          <div style={{ padding: '6px 6px 2px' }}>
+            <div style={{ fontSize: 16, fontWeight: 950, color: palette.navy }}>Owner Dashboard</div>
+            <div style={{ marginTop: 6, fontSize: 13, opacity: 0.72, lineHeight: 1.5 }}>
+              Manage listings, requests, and availability.
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            <NavLink href="/dashboard/owner" label="Overview" />
+            <NavLink href="/dashboard/owner/horses" label="Horses" />
+            <NavLink href="/dashboard/owner/requests" label="Requests" />
+          </div>
+
+          <div style={{ height: 1, background: 'rgba(31,42,68,0.10)', margin: '4px 0' }} />
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            <Link
+              href="/dashboard/owner/horses/add"
               style={{
-                ...card,
-                padding: 14,
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                alignItems: "center",
-                background: "rgba(255,255,255,0.78)",
+                textDecoration: 'none',
+                borderRadius: 16,
+                border: '1px solid rgba(0,0,0,0.10)',
+                background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
+                color: 'white',
+                padding: '12px 12px',
+                fontWeight: 950,
+                textAlign: 'center',
+                boxShadow: '0 16px 40px rgba(31,61,43,0.18)',
               }}
             >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                  <AvailabilityBadge label={r.kind === "blocked" ? "Blocked" : "Booking"} tone={r.kind === "blocked" ? "warn" : "info"} />
-                  <div style={{ fontWeight: 950, fontSize: 14, color: palette.navy }}>
-                    {r.startDate} → {r.endDate}
-                  </div>
-                </div>
+              Add a horse →
+            </Link>
 
-                <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.7)" }}>
-                  <span style={{ fontWeight: 900, color: "rgba(0,0,0,0.85)" }}>{horseNameById.get(r.horseId) ?? "Horse"}</span>
-                  {" — "}
-                  {r.label}
-                </div>
-              </div>
+            <Link
+              href="/browse"
+              style={{
+                textDecoration: 'none',
+                borderRadius: 16,
+                border: '1px solid rgba(31,42,68,0.14)',
+                background: 'rgba(255,255,255,0.78)',
+                color: palette.navy,
+                padding: '12px 12px',
+                fontWeight: 950,
+                textAlign: 'center',
+                boxShadow: '0 16px 40px rgba(31,42,68,0.06)',
+              }}
+            >
+              View marketplace →
+            </Link>
+          </div>
 
-              <Link href={`/dashboard/owner/horses/${r.horseId}/availability`} style={btn("secondary")}>
-                Edit Availability
-              </Link>
-            </div>
-          ))}
-        </div>
+          <div style={{ marginTop: 4 }}>
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                router.replace('/');
+              }}
+              style={{
+                width: '100%',
+                borderRadius: 16,
+                border: '1px solid rgba(31,42,68,0.14)',
+                background: 'rgba(255,255,255,0.78)',
+                padding: '12px 12px',
+                fontSize: 13,
+                fontWeight: 950,
+                cursor: 'pointer',
+                color: palette.navy,
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </aside>
+
+        {/* CONTENT */}
+        <main
+          style={{
+            borderRadius: 22,
+            border: '1px solid rgba(31,42,68,0.10)',
+            background: 'rgba(255,255,255,0.72)',
+            boxShadow: '0 22px 60px rgba(31,42,68,0.10)',
+            padding: 16,
+            minHeight: 'calc(100vh - 36px)',
+          }}
+        >
+          {children}
+        </main>
       </div>
 
-      <div style={{ height: 24 }} />
+      <style>{`
+        @media (max-width: 980px) {
+          .pmp-owner-grid { grid-template-columns: 1fr !important; }
+          .pmp-owner-grid aside { position: relative !important; top: auto !important; }
+        }
+      `}</style>
     </div>
   );
 }

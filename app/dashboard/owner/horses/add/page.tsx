@@ -1,224 +1,252 @@
-"use client";
+'use client';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
 
 const palette = {
-  forest: "#1F3D2B",
-  saddle: "#8B5E3C",
-  cream: "#F5F1E8",
-  navy: "#1F2A44",
-  gold: "#C8A24D",
-};
-
-type HorseRow = {
-  id: string;
-  name: string | null;
-  location: string | null;
-  image_url: string | null;
-  is_active: boolean | null;
-  created_at: string;
+  forest: '#1F3D2B',
+  saddle: '#8B5E3C',
+  cream: '#F5F1E8',
+  navy: '#1F2A44',
+  gold: '#C8A24D',
 };
 
 const card: React.CSSProperties = {
   borderRadius: 22,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background: "rgba(255,255,255,0.86)",
-  boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
+  border: '1px solid rgba(31,42,68,0.12)',
+  background: 'rgba(255,255,255,0.86)',
+  boxShadow: '0 18px 50px rgba(31,42,68,0.08)',
 };
 
-const btn = (kind: "primary" | "secondary") =>
+const btn = (kind: 'primary' | 'secondary') =>
   ({
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    padding: "10px 14px",
+    padding: '10px 14px',
     borderRadius: 14,
-    textDecoration: "none",
+    textDecoration: 'none',
     fontSize: 13,
     fontWeight: 950,
-    whiteSpace: "nowrap",
-    border: "1px solid rgba(31,42,68,0.16)",
-    background: kind === "primary" ? `linear-gradient(180deg, ${palette.forest}, #173223)` : "rgba(255,255,255,0.72)",
-    color: kind === "primary" ? "white" : palette.navy,
-    boxShadow: kind === "primary" ? "0 14px 34px rgba(31,61,43,0.18)" : "0 14px 34px rgba(31,42,68,0.08)",
+    whiteSpace: 'nowrap',
+    border: '1px solid rgba(31,42,68,0.16)',
+    background: kind === 'primary' ? `linear-gradient(180deg, ${palette.forest}, #173223)` : 'rgba(255,255,255,0.72)',
+    color: kind === 'primary' ? 'white' : palette.navy,
+    boxShadow: kind === 'primary' ? '0 14px 34px rgba(31,61,43,0.18)' : '0 14px 34px rgba(31,42,68,0.08)',
+    cursor: 'pointer',
   }) as React.CSSProperties;
 
-const h1: React.CSSProperties = { margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy, fontWeight: 950 };
-const subtitle: React.CSSProperties = { marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.62)", lineHeight: 1.6 };
+const input: React.CSSProperties = {
+  border: '1px solid rgba(31,42,68,0.16)',
+  borderRadius: 12,
+  padding: '10px 12px',
+  fontSize: 14,
+  background: 'rgba(255,255,255,0.85)',
+  outline: 'none',
+};
 
-function pill(active: boolean): React.CSSProperties {
-  const base: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 10px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 900,
-    whiteSpace: "nowrap",
-    letterSpacing: 0.2,
-    border: "1px solid rgba(31,42,68,0.12)",
-  };
-  return active
-    ? { ...base, background: "rgba(31,61,43,0.10)", color: palette.forest, border: "1px solid rgba(31,61,43,0.18)" }
-    : { ...base, background: "rgba(220,0,0,0.06)", color: "rgba(160,0,0,0.95)", border: "1px solid rgba(220,0,0,0.18)" };
-}
+export default function AddHorsePage() {
+  const router = useRouter();
 
-export default function OwnerHorsesPage() {
-  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState('');
+  const [location, setLocation] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [lat, setLat] = useState<string>('');
+  const [lng, setLng] = useState<string>('');
+  const [isActive, setIsActive] = useState(true);
+
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [horses, setHorses] = useState<HorseRow[]>([]);
+
+  const canSubmit = name.trim().length > 0 && !submitting;
+
+  // ✅ Google Places Autocomplete (replicates your “googler” behavior)
+  const locationInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    // If your project already loads the Google Places script (since edit horse works),
+    // this will hook into it safely.
+    if (!locationInputRef.current) return;
+    if (!window.google?.maps?.places) return;
 
-    async function load() {
-      setLoading(true);
-      setError(null);
+    const ac = new window.google.maps.places.Autocomplete(locationInputRef.current, {
+      fields: ['formatted_address', 'geometry'],
+      types: ['geocode'],
+    });
 
-      try {
-        const {
-          data: { user },
-          error: userErr,
-        } = await supabase.auth.getUser();
-        if (userErr) throw userErr;
-        if (!user) throw new Error("Not authenticated");
+    const listener = ac.addListener('place_changed', () => {
+      const place = ac.getPlace?.();
+      const addr = place?.formatted_address ?? '';
+      const g = place?.geometry?.location;
 
-        const res = await supabase
-          .from("horses")
-          .select("id,name,location,image_url,is_active,created_at")
-          .eq("owner_id", user.id)
-          .order("created_at", { ascending: false });
+      setLocation(addr || location);
 
-        if (res.error) throw res.error;
-        if (!cancelled) setHorses((res.data ?? []) as HorseRow[]);
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load horses.");
-      } finally {
-        if (!cancelled) setLoading(false);
+      if (g) {
+        const latVal = typeof g.lat === 'function' ? g.lat() : g.lat;
+        const lngVal = typeof g.lng === 'function' ? g.lng() : g.lng;
+        if (Number.isFinite(latVal)) setLat(String(latVal));
+        if (Number.isFinite(lngVal)) setLng(String(lngVal));
       }
-    }
+    });
 
-    load();
     return () => {
-      cancelled = true;
+      if (listener?.remove) listener.remove();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationInputRef.current]);
 
-  const activeCount = useMemo(() => horses.filter((h) => !!h.is_active).length, [horses]);
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!name.trim()) return;
+
+    try {
+      setSubmitting(true);
+
+      const {
+        data: { user },
+        error: userErr,
+      } = await supabase.auth.getUser();
+
+      if (userErr) throw userErr;
+      if (!user) throw new Error('Not authenticated');
+
+      const latNum = lat.trim() ? Number(lat) : null;
+      const lngNum = lng.trim() ? Number(lng) : null;
+
+      if (lat.trim() && Number.isNaN(latNum)) throw new Error('Latitude must be a number.');
+      if (lng.trim() && Number.isNaN(lngNum)) throw new Error('Longitude must be a number.');
+
+      const { error: insErr } = await supabase.from('horses').insert({
+        owner_id: user.id,
+        name: name.trim(),
+        location: location.trim() ? location.trim() : null,
+        image_url: imageUrl.trim() ? imageUrl.trim() : null,
+        lat: latNum,
+        lng: lngNum,
+        is_active: isActive,
+      });
+
+      if (insErr) throw insErr;
+
+      router.push('/dashboard/owner/horses');
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to add horse.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <div>
-          <h1 style={h1}>My Horses</h1>
-          <div style={subtitle}>
-            {activeCount} active • {horses.length} total
+          <h1 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy, fontWeight: 950 }}>
+            Add a horse
+          </h1>
+          <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
+            Create a listing with a name and a searchable location. Lat/lng can be auto-filled.
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <Link href="/dashboard/owner" style={btn("secondary")}>
-            ← Overview
-          </Link>
-          <Link href="/dashboard/owner/horses/add" style={btn("primary")}>
-            Add a horse →
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Link href="/dashboard/owner/horses" style={btn('secondary')}>
+            ← Back
           </Link>
         </div>
       </div>
 
-      {loading ? <div style={{ marginTop: 16, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
+      <form onSubmit={onSubmit} style={{ marginTop: 16, ...card, padding: 16 }}>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <label style={{ display: 'grid', gap: 6, fontSize: 13, color: 'rgba(0,0,0,0.75)', fontWeight: 800 }}>
+            Horse name *
+            <input value={name} onChange={(e) => setName(e.target.value)} style={input} placeholder="e.g. Joey" />
+          </label>
 
-      {error ? (
-        <div
-          style={{
-            marginTop: 16,
-            border: "1px solid rgba(255,0,0,0.25)",
-            background: "rgba(255,0,0,0.06)",
-            padding: 12,
-            borderRadius: 14,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
-
-      <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-        {!loading && !error && horses.length === 0 ? (
-          <div style={{ ...card, padding: 16 }}>
-            <div style={{ fontWeight: 950, color: palette.navy }}>No horses yet</div>
-            <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)", lineHeight: 1.6 }}>
-              Add your first listing to appear on the marketplace.
+          <label style={{ display: 'grid', gap: 6, fontSize: 13, color: 'rgba(0,0,0,0.75)', fontWeight: 800 }}>
+            Location (search)
+            <input
+              ref={locationInputRef}
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              style={input}
+              placeholder="Start typing an address / city / postcode…"
+            />
+            <div style={{ marginTop: 6, fontSize: 12, color: 'rgba(0,0,0,0.55)', lineHeight: 1.5 }}>
+              If suggestions don’t appear, make sure your Google Places script loads on this page like it does on Edit Horse.
             </div>
-            <div style={{ marginTop: 12 }}>
-              <Link href="/dashboard/owner/horses/add" style={btn("primary")}>
-                Add a horse →
-              </Link>
+          </label>
+
+          <label style={{ display: 'grid', gap: 6, fontSize: 13, color: 'rgba(0,0,0,0.75)', fontWeight: 800 }}>
+            Image URL (optional)
+            <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} style={input} placeholder="https://…" />
+          </label>
+
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            style={{ ...btn('secondary'), width: 'fit-content' }}
+          >
+            {showAdvanced ? 'Hide advanced' : 'Advanced (lat/lng)'}
+          </button>
+
+          {showAdvanced ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <label style={{ display: 'grid', gap: 6, fontSize: 13, color: 'rgba(0,0,0,0.75)', fontWeight: 800 }}>
+                Latitude (optional)
+                <input value={lat} onChange={(e) => setLat(e.target.value)} style={input} placeholder="51.5072" />
+              </label>
+
+              <label style={{ display: 'grid', gap: 6, fontSize: 13, color: 'rgba(0,0,0,0.75)', fontWeight: 800 }}>
+                Longitude (optional)
+                <input value={lng} onChange={(e) => setLng(e.target.value)} style={input} placeholder="-0.1276" />
+              </label>
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {horses.map((h) => {
-          const isActive = !!h.is_active;
+          <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13, fontWeight: 900, color: palette.navy }}>
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+            Set listing as active
+          </label>
 
-          return (
+          {error ? (
             <div
-              key={h.id}
               style={{
-                ...card,
-                padding: 14,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                background: "linear-gradient(180deg, rgba(255,255,255,0.90) 0%, rgba(245,241,232,0.55) 140%)",
+                border: '1px solid rgba(255,0,0,0.25)',
+                background: 'rgba(255,0,0,0.06)',
+                padding: 12,
+                borderRadius: 14,
+                fontSize: 13,
               }}
             >
-              <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-                <div
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 16,
-                    overflow: "hidden",
-                    background: "rgba(0,0,0,0.06)",
-                    border: "1px solid rgba(31,42,68,0.12)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {h.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={h.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : null}
-                </div>
-
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <div style={{ fontWeight: 950, fontSize: 15, color: palette.navy }}>{h.name ?? "Horse"}</div>
-                    <span style={pill(isActive)}>{isActive ? "ACTIVE" : "INACTIVE"}</span>
-                  </div>
-
-                  <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)" }}>{h.location ?? "No location set"}</div>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <Link href={`/dashboard/owner/horses/edit/${h.id}`} style={btn("secondary")}>
-                  Edit
-                </Link>
-                <Link href={`/dashboard/owner/horses/${h.id}/availability`} style={btn("secondary")}>
-                  Availability
-                </Link>
-              </div>
+              {error}
             </div>
-          );
-        })}
-      </div>
+          ) : null}
+
+          <button type="submit" disabled={!canSubmit} style={{ ...btn('primary'), opacity: canSubmit ? 1 : 0.6 }}>
+            {submitting ? 'Saving…' : 'Create Listing'}
+          </button>
+
+          <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.55)', lineHeight: 1.6 }}>
+            Tip: Pick a suggested location to auto-fill lat/lng. You can also leave advanced fields blank.
+          </div>
+        </div>
+      </form>
 
       <div style={{ height: 24 }} />
     </div>
