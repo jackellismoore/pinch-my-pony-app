@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
-import DashboardShell from "@/components/DashboardShell";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+
+const palette = {
+  forest: "#1F3D2B",
+  saddle: "#8B5E3C",
+  cream: "#F5F1E8",
+  navy: "#1F2A44",
+  gold: "#C8A24D",
+};
 
 type HorseRow = {
   id: string;
@@ -11,8 +20,33 @@ type HorseRow = {
   location: string | null;
   image_url: string | null;
   is_active: boolean | null;
-  created_at: string | null;
+  created_at: string;
 };
+
+const card: React.CSSProperties = {
+  borderRadius: 22,
+  border: "1px solid rgba(31,42,68,0.12)",
+  background: "rgba(255,255,255,0.86)",
+  boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
+};
+
+const btn = (kind: "primary" | "secondary") =>
+  ({
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: "10px 14px",
+    borderRadius: 14,
+    textDecoration: "none",
+    fontSize: 13,
+    fontWeight: 950,
+    whiteSpace: "nowrap",
+    border: "1px solid rgba(31,42,68,0.16)",
+    background: kind === "primary" ? `linear-gradient(180deg, ${palette.forest}, #173223)` : "rgba(255,255,255,0.72)",
+    color: kind === "primary" ? "white" : palette.navy,
+    boxShadow: kind === "primary" ? "0 14px 34px rgba(31,61,43,0.18)" : "0 14px 34px rgba(31,42,68,0.08)",
+  }) as React.CSSProperties;
 
 export default function OwnerHorsesPage() {
   const [loading, setLoading] = useState(true);
@@ -20,195 +54,153 @@ export default function OwnerHorsesPage() {
   const [horses, setHorses] = useState<HorseRow[]>([]);
 
   useEffect(() => {
-    let mounted = true;
+    let cancelled = false;
 
     async function load() {
       setLoading(true);
       setError(null);
 
       try {
-        const { data: userRes, error: userErr } = await supabase.auth.getUser();
+        const {
+          data: { user },
+          error: userErr,
+        } = await supabase.auth.getUser();
+
         if (userErr) throw userErr;
+        if (!user) throw new Error("Not authenticated");
 
-        const uid = userRes.user?.id;
-        if (!uid) {
-          if (!mounted) return;
-          setHorses([]);
-          setError("Not signed in.");
-          return;
-        }
-
-        const { data, error: horsesErr } = await supabase
+        const res = await supabase
           .from("horses")
           .select("id,name,location,image_url,is_active,created_at")
-          .eq("owner_id", uid)
+          .eq("owner_id", user.id)
           .order("created_at", { ascending: false });
 
-        if (horsesErr) throw horsesErr;
+        if (res.error) throw res.error;
 
-        if (!mounted) return;
-        setHorses((data ?? []) as HorseRow[]);
+        if (!cancelled) setHorses((res.data ?? []) as HorseRow[]);
       } catch (e: any) {
-        if (!mounted) return;
-        setError(e?.message ?? "Failed to load horses.");
-        setHorses([]);
+        if (!cancelled) setError(e?.message ?? "Failed to load horses.");
       } finally {
-        if (mounted) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     load();
-
-    // optional: live refresh if horses change
-    const ch = supabase
-      .channel("rt:owner_horses")
-      .on("postgres_changes", { event: "*", schema: "public", table: "horses" }, () => mounted && load())
-      .subscribe();
-
     return () => {
-      mounted = false;
-      supabase.removeChannel(ch);
+      cancelled = true;
     };
   }, []);
 
-  return (
-    <DashboardShell>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 950 }}>My Horses</h1>
-            <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>Manage your listings.</div>
-          </div>
+  const activeCount = useMemo(() => horses.filter((h) => h.is_active).length, [horses]);
 
-          <Link
-            href="/dashboard/owner/horses/add"
-            style={{
-              background: "black",
-              color: "white",
-              padding: "10px 14px",
-              borderRadius: 12,
-              textDecoration: "none",
-              fontWeight: 950,
-              fontSize: 13,
-              whiteSpace: "nowrap",
-            }}
-          >
-            + Add Horse
-          </Link>
+  return (
+    <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy, fontWeight: 950 }}>My Horses</h1>
+          <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.62)" }}>
+            {activeCount} active • {horses.length} total listings.
+          </div>
         </div>
 
-        {loading ? <div style={{ marginTop: 14, opacity: 0.7 }}>Loading…</div> : null}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <Link href="/dashboard/owner" style={btn("secondary")}>
+            ← Overview
+          </Link>
+          <Link href="/dashboard/owner/horses/add" style={btn("primary")}>
+            Add a horse →
+          </Link>
+        </div>
+      </div>
 
-        {error ? (
+      {loading ? <div style={{ marginTop: 16, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
+
+      {error ? (
+        <div
+          style={{
+            marginTop: 16,
+            border: "1px solid rgba(255,0,0,0.25)",
+            background: "rgba(255,0,0,0.06)",
+            padding: 12,
+            borderRadius: 14,
+            fontSize: 13,
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      {!loading && !error && horses.length === 0 ? (
+        <div style={{ marginTop: 16, ...card, padding: 16 }}>
+          <div style={{ fontWeight: 950, color: palette.navy }}>No listings yet</div>
+          <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)", lineHeight: 1.6 }}>
+            Add your first horse to start receiving requests.
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <Link href="/dashboard/owner/horses/add" style={btn("primary")}>
+              Add a horse →
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
+        {horses.map((h) => (
           <div
+            key={h.id}
             style={{
-              marginTop: 14,
-              border: "1px solid rgba(255,0,0,0.25)",
-              background: "rgba(255,0,0,0.06)",
-              padding: 12,
-              borderRadius: 12,
-              fontSize: 13,
+              ...card,
+              padding: 14,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              background: "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,241,232,0.55) 140%)",
             }}
           >
-            <b>Error:</b> {error}
-          </div>
-        ) : null}
-
-        {!loading && !error && horses.length === 0 ? (
-          <div style={{ marginTop: 14, fontSize: 13, opacity: 0.7 }}>
-            No horses found. Click <b>+ Add Horse</b> to create your first listing.
-          </div>
-        ) : null}
-
-        {!loading && horses.length > 0 ? (
-          <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
-            {horses.map((h) => (
+            <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
               <div
-                key={h.id}
                 style={{
-                  border: "1px solid rgba(15,23,42,0.10)",
+                  width: 64,
+                  height: 64,
                   borderRadius: 16,
-                  background: "white",
-                  padding: 14,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  alignItems: "center",
-                  flexWrap: "wrap",
+                  overflow: "hidden",
+                  background: "rgba(0,0,0,0.06)",
+                  border: "1px solid rgba(31,42,68,0.12)",
+                  flexShrink: 0,
                 }}
               >
-                <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-                  <div
-                    style={{
-                      width: 54,
-                      height: 54,
-                      borderRadius: 14,
-                      overflow: "hidden",
-                      border: "1px solid rgba(0,0,0,0.10)",
-                      background: "rgba(0,0,0,0.06)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {h.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={h.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : null}
-                  </div>
+                {h.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={h.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : null}
+              </div>
 
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 950, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {h.name ?? "Horse"}
-                    </div>
-                    <div style={{ fontSize: 13, opacity: 0.7, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {h.location ?? "No location"}
-                    </div>
-                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                      Status:{" "}
-                      <b style={{ color: h.is_active === false ? "#b91c1c" : "#15803d" }}>
-                        {h.is_active === false ? "INACTIVE" : "ACTIVE"}
-                      </b>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <Link
-                    href={`/horse/${h.id}`}
-                    style={{
-                      border: "1px solid rgba(0,0,0,0.14)",
-                      background: "white",
-                      color: "black",
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      textDecoration: "none",
-                      fontSize: 13,
-                      fontWeight: 900,
-                    }}
-                  >
-                    View
-                  </Link>
-
-                  <Link
-                    href={`/dashboard/owner/horses/edit/${h.id}`}
-                    style={{
-                      border: "1px solid rgba(0,0,0,0.14)",
-                      background: "black",
-                      color: "white",
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      textDecoration: "none",
-                      fontSize: 13,
-                      fontWeight: 950,
-                    }}
-                  >
-                    Edit
-                  </Link>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 950, fontSize: 15, color: palette.navy }}>{h.name ?? "Horse"}</div>
+                <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
+                  {h.location?.trim() ? h.location : "No location set"}
+                  {" • "}
+                  <span style={{ fontWeight: 900, color: h.is_active ? palette.forest : "rgba(0,0,0,0.55)" }}>
+                    {h.is_active ? "Active" : "Inactive"}
+                  </span>
                 </div>
               </div>
-            ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <Link href={`/dashboard/owner/horses/edit/${h.id}`} style={btn("secondary")}>
+                Edit
+              </Link>
+              <Link href={`/dashboard/owner/horses/${h.id}/availability`} style={btn("secondary")}>
+                Availability
+              </Link>
+            </div>
           </div>
-        ) : null}
+        ))}
       </div>
-    </DashboardShell>
+
+      <div style={{ height: 24 }} />
+    </div>
   );
 }
