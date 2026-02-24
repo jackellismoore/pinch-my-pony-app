@@ -2,12 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  GoogleMap,
-  InfoWindow,
-  OverlayView,
-  useLoadScript,
-} from "@react-google-maps/api";
+import { GoogleMap, InfoWindow, OverlayView, useLoadScript } from "@react-google-maps/api";
 
 export type MapHorse = {
   id: string;
@@ -18,9 +13,13 @@ export type MapHorse = {
   lat?: number | null;
   lng?: number | null;
 
-  // ✅ NEW: rating snippet for badge on pin
+  // ✅ rating snippet for badge on pin
   rating_avg?: number | null;
   rating_count?: number | null;
+
+  // ✅ optional flags to control request CTA (non-breaking)
+  is_own_listing?: boolean;
+  can_request?: boolean;
 };
 
 type Props = {
@@ -66,8 +65,7 @@ function pinWrapStyle(isHighlighted: boolean): React.CSSProperties {
   };
 }
 
-function pinStyle(isHighlighted: boolean): React.CSSProperties {
-  // Simple “pin” look using a circle + small pointer
+function pinStyle(_isHighlighted: boolean): React.CSSProperties {
   return {
     position: "absolute",
     inset: 0,
@@ -102,11 +100,7 @@ function pinPointerStyle(isHighlighted: boolean): React.CSSProperties {
   };
 }
 
-export default function HorseMap({
-  horses,
-  userLocation = null,
-  highlightedId = null,
-}: Props) {
+export default function HorseMap({ horses, userLocation = null, highlightedId = null }: Props) {
   const { isLoaded } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
   });
@@ -115,9 +109,9 @@ export default function HorseMap({
 
   const withCoords = useMemo(
     () =>
-      horses.filter(
-        (h) => typeof h.lat === "number" && typeof h.lng === "number"
-      ) as Array<MapHorse & { lat: number; lng: number }>,
+      horses.filter((h) => typeof h.lat === "number" && typeof h.lng === "number") as Array<
+        MapHorse & { lat: number; lng: number }
+      >,
     [horses]
   );
 
@@ -149,6 +143,18 @@ export default function HorseMap({
     );
   }
 
+  const yourListingPill: React.CSSProperties = {
+    textDecoration: "none",
+    border: "1px solid rgba(31,61,43,0.18)",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 12,
+    fontWeight: 950,
+    color: "rgba(31,61,43,0.92)",
+    background: "rgba(31,61,43,0.08)",
+    whiteSpace: "nowrap",
+  };
+
   return (
     <div
       style={{
@@ -169,9 +175,7 @@ export default function HorseMap({
         }}
       >
         <div>Map</div>
-        <div style={{ fontSize: 12, opacity: 0.65 }}>
-          Click a pin to view the horse
-        </div>
+        <div style={{ fontSize: 12, opacity: 0.65 }}>Click a pin to view the horse</div>
       </div>
 
       <GoogleMap zoom={8} center={center} mapContainerStyle={{ width: "100%", height: 420 }}>
@@ -180,10 +184,9 @@ export default function HorseMap({
           const count = Number(h.rating_count ?? 0);
           const hasReviews = count > 0;
 
-          // Center the overlay so the “tip” points roughly at the lat/lng
           const getPixelPositionOffset = (_width: number, _height: number) => ({
-            x: -20, // half of 40
-            y: -38, // lift so pointer tip is on coordinate
+            x: -20,
+            y: -38,
           });
 
           return (
@@ -203,26 +206,19 @@ export default function HorseMap({
                 }}
                 style={pinWrapStyle(isHighlighted)}
               >
-                {/* pin */}
                 <div style={pinStyle(isHighlighted)}>
                   <div style={pinCircleStyle(isHighlighted)} />
                   <div style={pinPointerStyle(isHighlighted)} />
                 </div>
 
-                {/* ✅ rating badge */}
-                <div style={badgeStyle(hasReviews)}>
-                  {badgeText(h.rating_avg, h.rating_count)}
-                </div>
+                <div style={badgeStyle(hasReviews)}>{badgeText(h.rating_avg, h.rating_count)}</div>
               </div>
             </OverlayView>
           );
         })}
 
         {selected ? (
-          <InfoWindow
-            position={{ lat: selected.lat, lng: selected.lng }}
-            onCloseClick={() => setSelectedId(null)}
-          >
+          <InfoWindow position={{ lat: selected.lat, lng: selected.lng }} onCloseClick={() => setSelectedId(null)}>
             <div style={{ width: 220 }}>
               {selected.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -238,17 +234,12 @@ export default function HorseMap({
                 />
               ) : null}
 
-              <div style={{ marginTop: 8, fontWeight: 950, fontSize: 14 }}>
-                {selected.name ?? "Horse"}
-              </div>
+              <div style={{ marginTop: 8, fontWeight: 950, fontSize: 14 }}>{selected.name ?? "Horse"}</div>
 
               {selected.location ? (
-                <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75 }}>
-                  {selected.location}
-                </div>
+                <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75 }}>{selected.location}</div>
               ) : null}
 
-              {/* rating line in the popup too (small + consistent) */}
               <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
                 {Number(selected.rating_count ?? 0) > 0
                   ? `★ ${Number(selected.rating_avg ?? 0).toFixed(1)} (${Number(selected.rating_count ?? 0)})`
@@ -272,21 +263,25 @@ export default function HorseMap({
                   View Horse
                 </Link>
 
-                <Link
-                  href={`/request?horseId=${selected.id}`}
-                  style={{
-                    textDecoration: "none",
-                    border: "1px solid rgba(0,0,0,0.14)",
-                    borderRadius: 10,
-                    padding: "8px 10px",
-                    fontSize: 12,
-                    fontWeight: 950,
-                    color: "white",
-                    background: "black",
-                  }}
-                >
-                  Request →
-                </Link>
+                {selected.is_own_listing || selected.can_request === false ? (
+                  <div style={yourListingPill}>Your listing</div>
+                ) : (
+                  <Link
+                    href={`/request?horseId=${selected.id}`}
+                    style={{
+                      textDecoration: "none",
+                      border: "1px solid rgba(0,0,0,0.14)",
+                      borderRadius: 10,
+                      padding: "8px 10px",
+                      fontSize: 12,
+                      fontWeight: 950,
+                      color: "white",
+                      background: "black",
+                    }}
+                  >
+                    Request →
+                  </Link>
+                )}
               </div>
             </div>
           </InfoWindow>
@@ -295,8 +290,7 @@ export default function HorseMap({
 
       {withCoords.length === 0 ? (
         <div style={{ padding: 14, fontSize: 13, opacity: 0.7 }}>
-          No horses have coordinates yet. Add a location on the horse listing to
-          place pins.
+          No horses have coordinates yet. Add a location on the horse listing to place pins.
         </div>
       ) : null}
     </div>
