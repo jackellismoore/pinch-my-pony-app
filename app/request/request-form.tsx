@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { AvailabilityConflictNotice } from "@/components/AvailabilityConflictNotice";
 
@@ -78,12 +78,57 @@ export default function RequestForm({
   // conflict OR loading disables submit
   const [blockedOrLoading, setBlockedOrLoading] = useState(true);
 
+  // owner guard
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [checkingOwner, setCheckingOwner] = useState(true);
+
+  const isOwnHorse = !!viewerId && !!ownerId && viewerId === ownerId;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      setCheckingOwner(true);
+      setSubmitError(null);
+
+      try {
+        const [{ data: userData, error: userErr }, horseRes] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase.from("horses").select("owner_id").eq("id", horseId).maybeSingle(),
+        ]);
+
+        if (cancelled) return;
+
+        if (userErr) throw userErr;
+        setViewerId(userData.user?.id ?? null);
+
+        if (horseRes.error) throw horseRes.error;
+        setOwnerId((horseRes.data as any)?.owner_id ?? null);
+      } catch (e: any) {
+        if (!cancelled) {
+          // Don't hard fail the whole form; but do show message if needed
+          setSubmitError(e?.message ?? "Could not verify horse ownership.");
+        }
+      } finally {
+        if (!cancelled) setCheckingOwner(false);
+      }
+    }
+
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, [horseId]);
+
   const submitDisabled =
     submitting ||
     !startDate ||
     !endDate ||
     startDate > endDate ||
-    blockedOrLoading;
+    blockedOrLoading ||
+    checkingOwner ||
+    isOwnHorse;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -112,16 +157,29 @@ export default function RequestForm({
       if (userErr) throw userErr;
       if (!user) throw new Error("Not authenticated");
 
+      // Safety net: re-check ownership right before insert
+      const { data: horseMini, error: horseErr } = await supabase
+        .from("horses")
+        .select("owner_id")
+        .eq("id", horseId)
+        .maybeSingle();
+
+      if (horseErr) throw horseErr;
+
+      const horseOwnerId = (horseMini as any)?.owner_id ?? null;
+      if (horseOwnerId && horseOwnerId === user.id) {
+        setSubmitError("This is your listing — owners can’t request their own horses.");
+        setSubmitting(false);
+        return;
+      }
+
       // fast RPC check (UX)
-      const { data: ok, error: rpcErr } = await supabase.rpc(
-        "is_horse_range_available",
-        {
-          p_horse_id: horseId,
-          p_start_date: startDate,
-          p_end_date: endDate,
-          p_exclude_request_id: null,
-        }
-      );
+      const { data: ok, error: rpcErr } = await supabase.rpc("is_horse_range_available", {
+        p_horse_id: horseId,
+        p_start_date: startDate,
+        p_end_date: endDate,
+        p_exclude_request_id: null,
+      });
 
       if (!rpcErr && ok === false) {
         setSubmitError("Selected dates overlap an unavailable range.");
@@ -154,29 +212,39 @@ export default function RequestForm({
 
   return (
     <form onSubmit={handleSubmit} style={card()}>
-      <div style={{ fontWeight: 950, color: palette.navy, fontSize: 14 }}>
-        Request Dates
-      </div>
+      <div style={{ fontWeight: 950, color: palette.navy, fontSize: 14 }}>Request Dates</div>
+
+      {checkingOwner ? (
+        <div style={{ fontSize: 13, color: "rgba(31,42,68,0.70)", fontWeight: 850 }}>
+          Checking listing…
+        </div>
+      ) : null}
+
+      {isOwnHorse ? (
+        <div
+          style={{
+            border: "1px solid rgba(31,61,43,0.18)",
+            background: "rgba(31,61,43,0.08)",
+            borderRadius: 14,
+            padding: 12,
+            fontSize: 13,
+            fontWeight: 900,
+            color: "rgba(31,61,43,0.92)",
+          }}
+        >
+          This is your listing. Owners can’t request their own horses.
+        </div>
+      ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <label style={labelStyle()}>
           Start Date
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            style={inputStyle()}
-          />
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={inputStyle()} />
         </label>
 
         <label style={labelStyle()}>
           End Date (inclusive)
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            style={inputStyle()}
-          />
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={inputStyle()} />
         </label>
       </div>
 
@@ -201,19 +269,11 @@ export default function RequestForm({
       </label>
 
       {submitError ? (
-        <div
-          style={{
-            fontSize: 13,
-            color: "rgba(180,0,0,0.9)",
-            fontWeight: 850,
-          }}
-        >
-          {submitError}
-        </div>
+        <div style={{ fontSize: 13, color: "rgba(180,0,0,0.9)", fontWeight: 850 }}>{submitError}</div>
       ) : null}
 
       <button type="submit" disabled={submitDisabled} style={btnPrimary(submitDisabled)}>
-        {submitting ? "Submitting…" : "Submit Borrow Request →"}
+        {isOwnHorse ? "Unavailable (your listing)" : submitting ? "Submitting…" : "Submit Borrow Request →"}
       </button>
 
       <div style={{ fontSize: 12, color: "rgba(31,42,68,0.62)", lineHeight: 1.6 }}>

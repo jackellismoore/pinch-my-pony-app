@@ -15,7 +15,11 @@ type HorseRow = {
   name: string | null;
   location: string | null;
   image_url: string | null;
-  is_active: boolean | null;
+
+  // schema reality: both exist in your project
+  active?: boolean | null;
+  is_active?: boolean | null;
+
   lat: number | null;
   lng: number | null;
 };
@@ -52,7 +56,16 @@ function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function isHorseActive(h: HorseRow) {
+  // Standardize: prefer active, fallback to is_active
+  if (typeof h.active === "boolean") return h.active;
+  if (typeof h.is_active === "boolean") return h.is_active;
+  return true; // if missing, treat as visible (browse is not "admin")
+}
+
 export default function BrowsePage() {
+  const [viewerId, setViewerId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,22 +82,28 @@ export default function BrowsePage() {
       setError(null);
 
       try {
+        // Who is browsing?
+        const { data: sessData } = await supabase.auth.getSession();
+        const viewer = sessData.session?.user ?? null;
+        if (!cancelled) setViewerId(viewer?.id ?? null);
+
+        // Pull horses. We allow either active or is_active since both exist.
         const { data: horsesData, error: horsesErr } = await supabase
           .from("horses")
-          .select("id,owner_id,name,location,image_url,is_active,lat,lng")
-          .eq("is_active", true)
+          .select("id,owner_id,name,location,image_url,active,is_active,lat,lng")
+          .or("active.eq.true,is_active.eq.true")
           .order("created_at", { ascending: false });
 
         if (cancelled) return;
         if (horsesErr) throw horsesErr;
 
-        const horseRows = (horsesData ?? []) as HorseRow[];
+        const horseRows = ((horsesData ?? []) as HorseRow[]).filter(isHorseActive);
         setHorses(horseRows);
 
         const ownerIds = Array.from(new Set(horseRows.map((h) => h.owner_id).filter(Boolean)));
         const horseIds = horseRows.map((h) => h.id);
 
-        // ---- Profiles mini (existing behavior preserved) ----
+        // ---- Profiles mini ----
         if (ownerIds.length > 0) {
           const { data: profData, error: profErr } = await supabase
             .from("profiles")
@@ -98,7 +117,7 @@ export default function BrowsePage() {
           }
         }
 
-        // ---- Ratings aggregates (reliable JS grouped version) ----
+        // ---- Ratings aggregates ----
         if (ownerIds.length > 0) {
           const { data: reviewRows, error: reviewErr } = await supabase
             .from("reviews")
@@ -118,7 +137,6 @@ export default function BrowsePage() {
               map[oid].count += 1;
             }
 
-            // finalize averages
             for (const oid of Object.keys(map)) {
               const entry = map[oid];
               entry.avg = entry.count > 0 ? entry.avg / entry.count : 0;
@@ -128,7 +146,7 @@ export default function BrowsePage() {
           }
         }
 
-        // ---- Availability merge (existing behavior preserved) ----
+        // ---- Availability merge ----
         if (horseIds.length > 0) {
           const today = todayISODate();
 
@@ -210,11 +228,14 @@ export default function BrowsePage() {
     return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || "Owner";
   }
 
-  // ✅ IMPORTANT: pass rating_avg + rating_count into HorseMap pins
+  // ✅ pass rating_avg + rating_count into HorseMap pins
+  // Also include can_request / is_own_listing (safe even if HorseMap ignores it)
   const mapHorses = useMemo(
     () =>
       horses.map((h) => {
         const rating = ratingByOwnerId[h.owner_id] ?? { avg: 0, count: 0 };
+        const isOwn = !!viewerId && h.owner_id === viewerId;
+
         return {
           id: h.id,
           owner_id: h.owner_id,
@@ -226,10 +247,25 @@ export default function BrowsePage() {
 
           rating_avg: rating.avg,
           rating_count: rating.count,
+
+          // extra flags (non-breaking)
+          is_own_listing: isOwn,
+          can_request: !isOwn,
         };
       }),
-    [horses, ratingByOwnerId]
+    [horses, ratingByOwnerId, viewerId]
   );
+
+  const yourListingPill: React.CSSProperties = {
+    border: "1px solid rgba(31,61,43,0.18)",
+    background: "rgba(31,61,43,0.08)",
+    color: "rgba(31,61,43,0.92)",
+    padding: "10px 12px",
+    borderRadius: 12,
+    fontSize: 13,
+    fontWeight: 950,
+    whiteSpace: "nowrap",
+  };
 
   return (
     <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
@@ -265,6 +301,8 @@ export default function BrowsePage() {
 
           const rating = ratingByOwnerId[h.owner_id] ?? { avg: 0, count: 0 };
           const hasRating = rating.count > 0;
+
+          const isOwnHorse = !!viewerId && h.owner_id === viewerId;
 
           return (
             <div
@@ -337,10 +375,7 @@ export default function BrowsePage() {
                   <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     {next ? (
                       <>
-                        <AvailabilityBadge
-                          label={next.kind === "blocked" ? "Blocked" : "Booked"}
-                          tone={next.kind === "blocked" ? "warn" : "info"}
-                        />
+                        <AvailabilityBadge label={next.kind === "blocked" ? "Blocked" : "Booked"} tone={next.kind === "blocked" ? "warn" : "info"} />
                         <div style={{ fontSize: 13, color: "rgba(0,0,0,0.7)" }}>
                           Next unavailable:{" "}
                           <span style={{ fontWeight: 750 }}>
@@ -375,22 +410,26 @@ export default function BrowsePage() {
                   View Horse
                 </Link>
 
-                <Link
-                  href={`/request?horseId=${h.id}`}
-                  style={{
-                    border: "1px solid rgba(0,0,0,0.14)",
-                    background: "black",
-                    color: "white",
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    textDecoration: "none",
-                    fontSize: 13,
-                    fontWeight: 950,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Request →
-                </Link>
+                {isOwnHorse ? (
+                  <div style={yourListingPill}>Your listing</div>
+                ) : (
+                  <Link
+                    href={`/request?horseId=${h.id}`}
+                    style={{
+                      border: "1px solid rgba(0,0,0,0.14)",
+                      background: "black",
+                      color: "white",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      textDecoration: "none",
+                      fontSize: 13,
+                      fontWeight: 950,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Request →
+                  </Link>
+                )}
               </div>
             </div>
           );
