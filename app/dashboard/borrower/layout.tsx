@@ -17,6 +17,7 @@ const palette = {
 const navItems = [
   { href: "/dashboard/borrower", label: "Overview" },
   { href: "/dashboard/borrower/horses", label: "Horses" },
+  { href: "/dashboard/membership", label: "Memberships" }, // ✅ NEW
 ];
 
 function isActive(pathname: string, href: string) {
