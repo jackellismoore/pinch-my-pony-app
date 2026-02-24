@@ -5,10 +5,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
 
-async function updateBySupabaseUserId(
-  supabaseUserId: string,
-  patch: Record<string, any>
-) {
+// Stripe sends raw body; Next App Router supports req.text() for this.
+async function updateBySupabaseUserId(supabaseUserId: string, patch: Record<string, any>) {
   const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", supabaseUserId);
   if (error) throw new Error(error.message);
 }
@@ -25,6 +23,10 @@ async function updateByCustomerId(customerId: string, patch: Record<string, any>
   await updateBySupabaseUserId(prof.id, patch);
 }
 
+function getCustomerId(v: Stripe.Checkout.Session["customer"] | Stripe.Subscription["customer"]) {
+  return typeof v === "string" ? v : v?.id ?? null;
+}
+
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -39,40 +41,45 @@ export async function POST(req: Request) {
   const body = await req.text();
 
   let event: Stripe.Event;
-
   try {
     event = stripe.webhooks.constructEvent(body, sig, secret);
   } catch (err: any) {
-    return NextResponse.json({ error: `Webhook signature failed: ${err?.message ?? "unknown"}` }, { status: 400 });
+    return NextResponse.json(
+      { error: `Webhook signature failed: ${err?.message ?? "unknown"}` },
+      { status: 400 }
+    );
   }
 
   try {
     switch (event.type) {
-      // Fired when checkout completes (good time to store customer + initial intent)
+      /**
+       * Fired when checkout completes.
+       * Good time to store stripe_customer_id + stripe_subscription_id.
+       * Don't try to read "subscription_data" off the session (not a real property).
+       */
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
 
-        const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+        const customerId = getCustomerId(session.customer);
         const subscriptionId =
-          typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+          typeof session.subscription === "string"
+            ? session.subscription
+            : session.subscription?.id ?? null;
 
-        // We set subscription metadata.plan in checkout; session metadata can be empty.
-        // We'll use plan from subscription event too; but store what we can now.
-        const supabaseUserId =
-          (session?.subscription_data as any)?.metadata?.supabase_user_id ||
-          (session?.metadata?.supabase_user_id as string | undefined);
+        // ✅ We set these in /api/stripe/checkout -> session.metadata
+        const supabaseUserId = session.metadata?.supabase_user_id ?? undefined;
+        // (Optional) You can also read plan here if you put it in metadata:
+        // const plan = (session.metadata?.plan as "borrower" | "owner" | undefined) ?? undefined;
 
-        // Sometimes you *won't* have supabase_user_id on session; that’s fine.
-        // We'll still update by customer id if we can find profile later.
         if (supabaseUserId) {
           await updateBySupabaseUserId(supabaseUserId, {
-            stripe_customer_id: customerId ?? null,
-            stripe_subscription_id: subscriptionId ?? null,
-            membership_status: "pending", // will be corrected by subscription events
+            stripe_customer_id: customerId,
+            stripe_subscription_id: subscriptionId,
+            membership_status: "pending", // corrected by subscription events
           });
         } else if (customerId) {
           await updateByCustomerId(customerId, {
-            stripe_subscription_id: subscriptionId ?? null,
+            stripe_subscription_id: subscriptionId,
             membership_status: "pending",
           });
         }
@@ -80,12 +87,15 @@ export async function POST(req: Request) {
         break;
       }
 
-      // Subscription became active / trialing / updated
+      /**
+       * Subscription lifecycle updates (source of truth).
+       * We rely on metadata set on the subscription in /api/stripe/checkout.
+       */
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
 
-        const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+        const customerId = getCustomerId(sub.customer);
         const supabaseUserId = (sub.metadata?.supabase_user_id as string | undefined) ?? undefined;
         const plan = (sub.metadata?.plan as string | undefined) ?? undefined; // "borrower" | "owner"
 
@@ -100,7 +110,7 @@ export async function POST(req: Request) {
 
         if (supabaseUserId) {
           await updateBySupabaseUserId(supabaseUserId, {
-            stripe_customer_id: customerId ?? null,
+            stripe_customer_id: customerId,
             ...patch,
           });
         } else if (customerId) {
@@ -110,10 +120,10 @@ export async function POST(req: Request) {
         break;
       }
 
-      // Subscription deleted/canceled
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
-        const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+
+        const customerId = getCustomerId(sub.customer);
         const supabaseUserId = (sub.metadata?.supabase_user_id as string | undefined) ?? undefined;
 
         const patch: Record<string, any> = {
@@ -132,7 +142,6 @@ export async function POST(req: Request) {
       }
 
       default:
-        // ignore unhandled event types
         break;
     }
 
