@@ -53,8 +53,11 @@ export default function LoginInner() {
   const emailTrim = email.trim();
   const pwdTrim = password;
 
-  const emailErr =
-    !emailTrim ? "Email is required." : !isValidEmail(emailTrim) ? "Please enter a valid email." : null;
+  const emailErr = !emailTrim
+    ? "Email is required."
+    : !isValidEmail(emailTrim)
+      ? "Please enter a valid email."
+      : null;
 
   const pwdErr = !pwdTrim ? "Password is required." : pwdTrim.length < 6 ? "Password looks too short." : null;
 
@@ -98,12 +101,12 @@ export default function LoginInner() {
   }
 
   const signupHref = `/signup?redirectTo=${encodeURIComponent(redirectTo)}`;
+  const forgotHref = `/forgot-password?email=${encodeURIComponent(emailTrim || "")}`;
 
   return (
     <div style={fullBleedWrap}>
       <style>{css}</style>
 
-      {/* Full-bleed background (homepage vibe) */}
       <section style={heroSection} aria-label="Login">
         <div style={heroBg} aria-hidden="true" />
         <div className="pmp-driftA" style={heroFloatA} aria-hidden="true" />
@@ -111,7 +114,7 @@ export default function LoginInner() {
 
         <div style={container}>
           <div style={grid}>
-            {/* Left: brand / copy */}
+            {/* Left */}
             <div style={{ display: "grid", gap: 12 }}>
               <div style={eyebrowPill}>
                 <span aria-hidden="true">🐴</span>
@@ -119,11 +122,7 @@ export default function LoginInner() {
               </div>
 
               <h1 style={title}>
-                Sign in to{" "}
-                <span style={accent}>
-                  ride with confidence
-                </span>
-                .
+                Sign in to <span style={accent}>ride with confidence</span>.
               </h1>
 
               <p style={subtitle}>
@@ -147,7 +146,7 @@ export default function LoginInner() {
               </div>
             </div>
 
-            {/* Right: form */}
+            {/* Right */}
             <div className="pmp-hoverLift" style={card}>
               <div style={cardTopRow}>
                 <div style={logoRow}>
@@ -204,6 +203,16 @@ export default function LoginInner() {
                   />
                 </Field>
 
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <Link href={forgotHref} style={inlineLink}>
+                    Forgot password?
+                  </Link>
+
+                  <Link href={signupHref} style={inlineLink}>
+                    New here? Sign up
+                  </Link>
+                </div>
+
                 <button onClick={login} disabled={!canSubmit} style={primaryBtn(loading, canSubmit)}>
                   {loading ? (
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
@@ -216,13 +225,6 @@ export default function LoginInner() {
                 </button>
 
                 <div style={fineRow}>
-                  <div style={{ fontSize: 13, opacity: 0.8 }}>
-                    No account?{" "}
-                    <Link href={signupHref} style={inlineLink}>
-                      Sign up
-                    </Link>
-                  </div>
-
                   <div style={{ fontSize: 13, opacity: 0.78 }}>
                     <Link href="/contact" style={inlineLink}>
                       Contact
@@ -283,7 +285,6 @@ const css = `
     animation: pmpSpin 700ms linear infinite;
   }
 
-  /* Background drift (very subtle, like homepage) */
   @keyframes pmpDriftA { 0% { transform: translate3d(0,0,0) } 50% { transform: translate3d(10px,-8px,0) } 100% { transform: translate3d(0,0,0) } }
   @keyframes pmpDriftB { 0% { transform: translate3d(0,0,0) } 50% { transform: translate3d(-12px,10px,0) } 100% { transform: translate3d(0,0,0) } }
   .pmp-driftA { animation: pmpDriftA 12s ease-in-out infinite; }
@@ -353,7 +354,6 @@ const grid: React.CSSProperties = {
   alignItems: "start",
 } as React.CSSProperties;
 
-// hook for responsive (scoped CSS)
 (grid as any).className = "pmp-login-grid";
 
 const eyebrowPill: React.CSSProperties = {
@@ -522,7 +522,7 @@ const ghostBtn: React.CSSProperties = {
 const fineRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  justifyContent: "space-between",
+  justifyContent: "flex-end",
   gap: 12,
   flexWrap: "wrap",
   marginTop: 2,
