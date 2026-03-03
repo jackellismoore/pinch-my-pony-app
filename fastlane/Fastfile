@@ -1,25 +1,24 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "Build and upload to TestFlight"
-  lane :beta do
-    api_key = app_store_connect_api_key(
+  private_lane :api_key do
+    app_store_connect_api_key(
       key_id: ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
       key_content: ENV["ASC_KEY_P8"],
-      is_key_content_base64: true
+      is_key_content_base64: false
     )
+  end
 
-    match(
-      api_key: api_key,
-      type: "appstore",
-      readonly: true
-    )
+  desc "ONE-TIME: create signing certs/profiles and store in match repo"
+  lane :bootstrap do
+    match(type: "appstore", git_url: ENV["MATCH_GIT_URL"], readonly: false)
+  end
 
-    cocoapods(
-      clean_install: true,
-      podfile: "ios/App/Podfile"
-    )
+  desc "Build and upload to TestFlight"
+  lane :beta do
+    key = api_key()
+    match(type: "appstore", git_url: ENV["MATCH_GIT_URL"], readonly: true)
 
     build_app(
       workspace: "ios/App/App.xcworkspace",
@@ -27,9 +26,6 @@ platform :ios do
       export_method: "app-store"
     )
 
-    upload_to_testflight(
-      api_key: api_key,
-      skip_waiting_for_build_processing: true
-    )
+    upload_to_testflight(api_key: key)
   end
 end

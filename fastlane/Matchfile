@@ -1,8 +1,4 @@
 git_url(ENV["MATCH_GIT_URL"])
 storage_mode("git")
-
 type("appstore")
-app_identifier(["com.pinchmypony.app"])
-team_id(ENV["APPLE_TEAM_ID"])
-
-readonly(true)
+app_identifier("com.pinchmypony.app")
