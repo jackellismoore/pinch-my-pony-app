@@ -20,7 +20,16 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: mkdir -p out
+      - name: Ensure webDir exists
+        run: |
+          mkdir -p out
+          cat > out/index.html << 'EOF'
+          <!doctype html>
+          <html>
+            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+            <body></body>
+          </html>
+          EOF
       - run: npx cap sync ios
 
       - uses: ruby/setup-ruby@v1
