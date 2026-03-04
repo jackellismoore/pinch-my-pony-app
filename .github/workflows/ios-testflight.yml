@@ -41,27 +41,18 @@ jobs:
 
       - run: bundle install
 
-      # ✅ Auth to GitHub WITHOUT embedding token in URL
-      - name: Configure git auth for match (http.extraheader)
+      - name: Configure git auth for match (x-access-token)
         env:
           MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
         run: |
-          python3 - <<'PY'
-          import os, base64
-          tok = os.environ.get("MATCH_GIT_TOKEN","")
-          if not tok or tok.strip() != tok:
-            raise SystemExit("MATCH_GIT_TOKEN missing or has leading/trailing whitespace")
-          b64 = base64.b64encode(f"x-access-token:{tok}".encode()).decode()
-          print(f"::add-mask::{b64}")
-          print(b64)
-          PY
-          B64="$(python3 - <<'PY'
-          import os, base64
-          tok=os.environ["MATCH_GIT_TOKEN"]
-          print(base64.b64encode(f"x-access-token:{tok}".encode()).decode())
-          PY
-          )"
-          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${B64}"
+          set -e
+          if [ -z "$MATCH_GIT_TOKEN" ]; then
+            echo "MATCH_GIT_TOKEN is EMPTY (secret name mismatch)."
+            exit 1
+          fi
+          git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
+          echo "Git insteadOf rules:"
+          git config --global --get-regexp '^url\..*\.insteadof$' || true
 
       - name: Run Fastlane
         env:
