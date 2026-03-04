@@ -39,6 +39,18 @@ jobs:
 
       - run: bundle install
 
+      - name: Configure git auth for match (x-access-token)
+        env:
+          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+        run: |
+          git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+      - name: Configure git auth for match (x-access-token)
+        env:
+          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+        run: |
+          git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
+
       - name: Run Fastlane
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
