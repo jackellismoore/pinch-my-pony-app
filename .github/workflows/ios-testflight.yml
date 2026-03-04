@@ -20,6 +20,7 @@ jobs:
           cache: npm
 
       - run: npm ci
+
       - name: Ensure webDir exists
         run: |
           mkdir -p out
@@ -30,6 +31,7 @@ jobs:
             <body></body>
           </html>
           EOF
+
       - run: npx cap sync ios
 
       - uses: ruby/setup-ruby@v1
@@ -39,11 +41,14 @@ jobs:
 
       - run: bundle install
 
-      - name: Configure git auth for match (x-access-token)
+      # IMPORTANT: auth GitHub cloning via header (no token in URL)
+      - name: Configure git auth header for match
         env:
           MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
         run: |
-          git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
+          AUTH="$(printf "x-access-token:%s" "$MATCH_GIT_TOKEN" | base64)"
+          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
+          git config --global advice.detachedHead false
 
       - name: Run Fastlane
         env:
@@ -51,5 +56,5 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_URL: https://x-access-token:${{ secrets.MATCH_GIT_TOKEN }}@github.com/jackellismoore/pinch-my-pony-ios-signing.git
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
         run: bundle exec fastlane ios ${{ github.event.inputs.lane }}
