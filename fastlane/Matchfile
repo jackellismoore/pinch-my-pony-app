@@ -1,9 +1,12 @@
+# Match storage repo (NO credentials in this URL)
 git_url(ENV["MATCH_GIT_URL"])
-git_branch("main")
+
 storage_mode("git")
 type("appstore")
-app_identifier("com.pinchmypony.app")
+app_identifier(["com.pinchmypony.app"])
 
-# Prevent interactive prompts on CI
-git_full_name("match-bot")
-git_user_email("match-bot@users.noreply.github.com")
+# use main unless you intentionally chose something else
+git_branch("main")
+
+# avoid any prompts in CI
+readonly(false)
