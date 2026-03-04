@@ -46,5 +46,4 @@ jobs:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         run: bundle exec fastlane ios ${{ github.event.inputs.lane }}
