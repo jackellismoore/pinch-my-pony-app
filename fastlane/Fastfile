@@ -1,3 +1,6 @@
+cd /workspaces/pinch-my-pony-app
+
+cat > fastlane/Fastfile <<'RUBY'
 default_platform(:ios)
 
 platform :ios do
@@ -33,6 +36,8 @@ platform :ios do
       api_key: api_key
     )
 
-    # then whatever you already do for build/upload (gym/pilot/etc)
+    # NOTE: keep your existing build/upload steps here if you already have them.
+    # If you don't yet, we’ll add them after bootstrap succeeds.
   end
 end
+RUBY
