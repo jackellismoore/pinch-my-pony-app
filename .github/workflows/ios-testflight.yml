@@ -45,25 +45,6 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
 
-      - name: Configure git auth for match (x-access-token)
-        env:
-          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
-        run: |
-          git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
-
-      - name: Reset git auth (remove any Basic headers) and force token
-        env:
-          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
-        run: |
-          set -e
-          # Remove any inherited extra headers that could force Basic auth
-          git config --global --unset-all http.https://github.com/.extraheader || true
-          git config --global --unset-all http.extraheader || true
-          # Force token auth for all github.com HTTPS clones
-          git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
-          # Show relevant git config for debugging (safe)
-          git config --global -l | grep -E "extraheader|insteadOf" || true
-
       - name: Run Fastlane
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
