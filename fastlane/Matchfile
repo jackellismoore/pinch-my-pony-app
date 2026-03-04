@@ -2,3 +2,5 @@ git_url(ENV["MATCH_GIT_URL"])
 storage_mode("git")
 type("appstore")
 app_identifier("com.pinchmypony.app")
+
+git_branch("main")
