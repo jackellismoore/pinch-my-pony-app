@@ -1,43 +1,16 @@
-cd /workspaces/pinch-my-pony-app
+desc "ONE-TIME: create signing certs/profiles and store in match repo"
+lane :bootstrap do
+  api_key = app_store_connect_api_key(
+    key_id: ENV["ASC_KEY_ID"],
+    issuer_id: ENV["ASC_ISSUER_ID"],
+    key_content: ENV["ASC_KEY_P8"],
+    is_key_content_base64: true
+  )
 
-cat > fastlane/Fastfile <<'RUBY'
-default_platform(:ios)
-
-platform :ios do
-  private_lane :asc_api_key do
-    app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_KEY_P8"],
-      is_key_content_base64: false
-    )
-  end
-
-  desc "ONE-TIME: create signing certs/profiles and store in match repo"
-  lane :bootstrap do
-    api_key = asc_api_key
-
-    match(
-      type: "appstore",
-      git_url: ENV["MATCH_GIT_URL"],
-      readonly: false,
-      api_key: api_key
-    )
-  end
-
-  desc "Build + upload to TestFlight"
-  lane :beta do
-    api_key = asc_api_key
-
-    match(
-      type: "appstore",
-      git_url: ENV["MATCH_GIT_URL"],
-      readonly: true,
-      api_key: api_key
-    )
-
-    # NOTE: keep your existing build/upload steps here if you already have them.
-    # If you don't yet, we’ll add them after bootstrap succeeds.
-  end
+  match(
+    type: "appstore",
+    git_url: ENV["MATCH_GIT_URL"],
+    readonly: false,
+    api_key: api_key
+  )
 end
-RUBY
