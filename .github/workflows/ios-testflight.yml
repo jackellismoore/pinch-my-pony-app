@@ -41,14 +41,27 @@ jobs:
 
       - run: bundle install
 
-      # IMPORTANT: auth GitHub cloning via header (no token in URL)
-      - name: Configure git auth header for match
+      # ✅ Auth to GitHub WITHOUT embedding token in URL
+      - name: Configure git auth for match (http.extraheader)
         env:
           MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
         run: |
-          AUTH="$(printf "x-access-token:%s" "$MATCH_GIT_TOKEN" | base64)"
-          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
-          git config --global advice.detachedHead false
+          python3 - <<'PY'
+          import os, base64
+          tok = os.environ.get("MATCH_GIT_TOKEN","")
+          if not tok or tok.strip() != tok:
+            raise SystemExit("MATCH_GIT_TOKEN missing or has leading/trailing whitespace")
+          b64 = base64.b64encode(f"x-access-token:{tok}".encode()).decode()
+          print(f"::add-mask::{b64}")
+          print(b64)
+          PY
+          B64="$(python3 - <<'PY'
+          import os, base64
+          tok=os.environ["MATCH_GIT_TOKEN"]
+          print(base64.b64encode(f"x-access-token:{tok}".encode()).decode())
+          PY
+          )"
+          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${B64}"
 
       - name: Run Fastlane
         env:
