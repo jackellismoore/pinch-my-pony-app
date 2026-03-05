@@ -1,5 +1,3 @@
-# updated workflow
-
 name: ios-testflight
 
 on:
