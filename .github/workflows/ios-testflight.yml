@@ -56,10 +56,13 @@ jobs:
 
       - name: Run Fastlane
         env:
+          # ✅ THIS is the missing piece
           FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
         run: bundle exec fastlane ios ${{ github.event.inputs.lane }}
