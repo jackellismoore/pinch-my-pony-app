@@ -39,7 +39,6 @@ platform :ios do
       is_key_content_base64: true
     )
 
-    # Pull signing from match using API key
     match(
       type: "appstore",
       git_url: ENV["MATCH_GIT_URL"],
@@ -48,8 +47,6 @@ platform :ios do
       api_key: api_key
     )
 
-    # If you already have a gym/build lane elsewhere, keep using it.
-    # This is a safe default for most Capacitor iOS projects:
     build_app(
       scheme: ENV["IOS_SCHEME"] || "App",
       export_method: "app-store"
