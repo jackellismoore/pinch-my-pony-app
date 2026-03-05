@@ -1,65 +1,68 @@
-name: iOS TestFlight
+name: ios-testflight
 
 on:
-  workflow_dispatch:
   push:
-    branches: ["main"]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  ios-testflight:
+  ios:
     runs-on: macos-15
 
+    env:
+      # App Store Connect API key (GitHub Secrets)
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+
+      # Fastlane user (still required for match in many setups)
+      FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+      FASTLANE_USERNAME: ${{ secrets.FASTLANE_USER }}
+
+      # match repo access
+      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+      MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+
+      # iOS build
+      IOS_SCHEME: App
+
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # Node is needed to build the Next/Capacitor web bundle
-      - name: Setup Node
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install deps
+        run: npm ci
 
-      # Build the Next.js web app
-      - name: Build web app
+      - name: Build web (Next)
         run: npm run build
 
-      # Sync Capacitor iOS project
-      - name: Capacitor sync
+      # If you use Capacitor, sync iOS project
+      - name: Capacitor sync iOS
         run: npx cap sync ios
 
-      # Ruby environment for Fastlane
-      - name: Setup Ruby
+      - name: Set up Ruby + Bundler
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
           bundler-cache: true
 
-      # Allow Fastlane match to access signing repo
       - name: Configure git auth for match repo
         run: |
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
-        env:
-          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
 
-      - name: Bundle install
-        run: bundle install
+      - name: Fastlane bootstrap (create certs/profiles if missing)
+        run: bundle exec fastlane ios bootstrap
 
-      # Build and upload to TestFlight
-      - name: Fastlane beta
-        run: bundle exec fastlane ios beta --verbose
-        env:
-          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
-
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-
-          IOS_SCHEME: "App"
-
-          CI: "true"
+      - name: Fastlane beta (build + upload to TestFlight)
+        run: bundle exec fastlane ios beta
