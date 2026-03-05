@@ -117,7 +117,7 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
 
-      # ---- Create and unlock a dedicated keychain (NO partition list yet) ----
+      # ---- Create and unlock a dedicated keychain (NO partition list here) ----
       - name: Create & unlock CI keychain
         shell: bash
         run: |
@@ -142,7 +142,7 @@ jobs:
           MATCH_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
         run: bundle exec fastlane ios bootstrap
 
-      # ---- NOW that certs exist, set partition list (make non-fatal if empty) ----
+      # ---- After match installs certs, allow codesign to access them ----
       - name: Allow codesign to access imported keys
         shell: bash
         run: |
@@ -160,4 +160,3 @@ jobs:
           MATCH_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
           MATCH_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
         run: bundle exec fastlane ios beta
-# touched to trigger CI
