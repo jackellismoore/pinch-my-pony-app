@@ -20,10 +20,6 @@ jobs:
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
 
-      # ---------- Fastlane user (kept, but no password prompts now) ----------
-      FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
-      FASTLANE_USERNAME: ${{ secrets.FASTLANE_USER }}
-
       # ---------- match repo access ----------
       MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
       MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
@@ -51,7 +47,7 @@ jobs:
 
       NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
 
-      # ---------- Make CI more deterministic ----------
+      # ---------- Deterministic CI ----------
       CI: "true"
       FASTLANE_SKIP_UPDATE_CHECK: "true"
 
@@ -121,8 +117,43 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
 
+      # ---- KEYCHAIN FIX: create and unlock a dedicated keychain for match ----
+      - name: Create & unlock CI keychain
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          KEYCHAIN_NAME="build.keychain-db"
+          KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          echo "CI_KEYCHAIN_NAME=$KEYCHAIN_NAME" >> "$GITHUB_ENV"
+          echo "CI_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+
+          # Create keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+
+          # Keep it unlocked for 6 hours
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+
+          # Unlock
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Make it default & in search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Avoid permission prompts during codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
       - name: Fastlane bootstrap (create certs/profiles if missing)
+        env:
+          MATCH_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
         run: bundle exec fastlane ios bootstrap
 
       - name: Fastlane beta (build + upload to TestFlight)
+        env:
+          MATCH_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
         run: bundle exec fastlane ios beta
