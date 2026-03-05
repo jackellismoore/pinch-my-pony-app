@@ -47,10 +47,6 @@ jobs:
 
       NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
 
-      # ---------- Deterministic CI ----------
-      CI: "true"
-      FASTLANE_SKIP_UPDATE_CHECK: "true"
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,45 +63,8 @@ jobs:
       - name: Build web (Next)
         run: npm run build
 
-      - name: Create placeholder web assets for Capacitor
-        run: |
-          rm -rf dist
-          mkdir -p dist
-          cat > dist/index.html <<'EOF'
-          <!doctype html>
-          <html>
-            <head>
-              <meta charset="utf-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <title>Pinch My Pony</title>
-            </head>
-            <body></body>
-          </html>
-          EOF
-
       - name: Capacitor sync iOS
         run: npx cap sync ios
-
-      - name: Cache Swift Packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ios/App/DerivedData
-            ios/App/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('ios/App/App.xcodeproj/project.pbxproj') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
-
-      - name: Resolve Swift packages
-        working-directory: ios/App
-        run: |
-          set -eux
-          mkdir -p DerivedData SourcePackages
-          xcodebuild -resolvePackageDependencies \
-            -project App.xcodeproj \
-            -scheme App \
-            -clonedSourcePackagesDirPath SourcePackages \
-            -derivedDataPath DerivedData
 
       - name: Set up Ruby + Bundler
         uses: ruby/setup-ruby@v1
@@ -117,14 +76,11 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
 
-      # ---- Create and unlock a dedicated keychain ----
-      # IMPORTANT: set-key-partition-list is made NON-FATAL for fresh keychains.
       - name: Create & unlock CI keychain
         shell: bash
         run: |
           set -euxo pipefail
-
-          KEYCHAIN_NAME="build.keychain-db"
+          KEYCHAIN_NAME=build.keychain-db
           KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME"
           KEYCHAIN_PASSWORD="$(uuidgen)"
 
@@ -137,33 +93,9 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
 
-          # This may fail on an empty keychain; do NOT fail the workflow for that.
-          security set-key-partition-list \
-            -S apple-tool:,apple:,codesign: \
-            -s \
-            -k "$KEYCHAIN_PASSWORD" \
-            "$KEYCHAIN_PATH" || true
-
-      - name: Fastlane bootstrap (match)
-        env:
-          MATCH_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
-          MATCH_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
-        run: bundle exec fastlane ios bootstrap
-
-      # After match installs certs, run again (now it should succeed)
-      - name: Allow codesign to access imported keys (post-match)
-        shell: bash
-        run: |
-          set -euxo pipefail
-          KEYCHAIN_PATH="$HOME/Library/Keychains/${CI_KEYCHAIN_NAME}"
-          security set-key-partition-list \
-            -S apple-tool:,apple:,codesign: \
-            -s \
-            -k "${CI_KEYCHAIN_PASSWORD}" \
-            "${KEYCHAIN_PATH}" || true
-
       - name: Fastlane beta (build + upload to TestFlight)
         env:
-          MATCH_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
-          MATCH_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
+          # ensure fastlane/match uses the CI keychain
+          CI_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
+          CI_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
         run: bundle exec fastlane ios beta
