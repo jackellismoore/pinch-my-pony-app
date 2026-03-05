@@ -1,74 +1,27 @@
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { createClient } from "@supabase/supabase-js";
+import Stripe from "stripe";
+
+export const dynamic = "force-dynamic";
+
+function getStripe() {
+  const key = process.env.STRIPE_SECRET_KEY;
+
+  if (!key) {
+    throw new Error("Missing STRIPE_SECRET_KEY");
+  }
+
+  return new Stripe(key);
+}
 
 export async function POST(req: Request) {
   try {
-    const { plan } = await req.json();
+    const stripe = getStripe();
 
-    if (!plan || (plan !== "borrower" && plan !== "owner")) {
-      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
-    }
+    const body = await req.json();
 
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "Missing auth header" }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabase.auth.getUser(token);
-
-    if (userErr || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const priceId =
-      plan === "borrower"
-        ? process.env.STRIPE_PRICE_BORROWER_GBP_MONTHLY
-        : process.env.STRIPE_PRICE_OWNER_GBP_MONTHLY;
-
-    if (!priceId) {
-      return NextResponse.json({ error: "Missing Stripe price ID" }, { status: 500 });
-    }
-
-    // Get profile
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("stripe_customer_id, email")
-      .eq("id", user.id)
-      .single();
-
-    let customerId = profile?.stripe_customer_id;
-
-    // Create Stripe customer if missing
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email ?? undefined,
-        metadata: {
-          supabase_user_id: user.id,
-        },
-      });
-
-      customerId = customer.id;
-
-      await supabaseAdmin
-        .from("profiles")
-        .update({ stripe_customer_id: customerId })
-        .eq("id", user.id);
-    }
+    const { priceId, successUrl, cancelUrl, customerEmail } = body;
 
     const session = await stripe.checkout.sessions.create({
-      customer: customerId,
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [
@@ -77,15 +30,18 @@ export async function POST(req: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/membership?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/membership?canceled=true`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer_email: customerEmail,
     });
 
     return NextResponse.json({ url: session.url });
-  } catch (err: any) {
+
+  } catch (err) {
     console.error("Stripe checkout error:", err);
+
     return NextResponse.json(
-      { error: err?.message || "Server error" },
+      { error: "Failed to create checkout session" },
       { status: 500 }
     );
   }
