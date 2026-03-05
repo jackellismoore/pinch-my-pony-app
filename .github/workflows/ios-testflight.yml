@@ -36,7 +36,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: "3.2"
           bundler-cache: true
 
       - run: bundle install
@@ -56,16 +56,10 @@ jobs:
 
       - name: Run Fastlane
         env:
-          # Apple Developer Portal auth (fixes "Missing username" in CI)
           FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
-          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
-
-          # App Store Connect API key (used by your Fastfile)
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-
-          # match
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
         run: bundle exec fastlane ios ${{ github.event.inputs.lane }}
