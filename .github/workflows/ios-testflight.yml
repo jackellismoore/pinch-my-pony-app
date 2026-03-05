@@ -15,85 +15,80 @@ jobs:
     timeout-minutes: 60
 
     env:
-      # ---------- App Store Connect API key ----------
+      # ---------- App Store Connect API key (GitHub Secrets) ----------
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
 
-      # ---------- Fastlane ----------
+      # ---------- Fastlane user (kept, but no password prompts now) ----------
       FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
       FASTLANE_USERNAME: ${{ secrets.FASTLANE_USER }}
 
-      # ---------- match ----------
+      # ---------- match repo access ----------
       MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
       MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
 
-      # ---------- iOS ----------
+      # ---------- iOS build ----------
       IOS_SCHEME: App
 
-      # ---------- Next / Supabase ----------
+      # ---------- Next / Supabase / Stripe / Resend / Web Push ----------
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      # ---------- Stripe ----------
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
       STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
       STRIPE_IDENTITY_WEBHOOK_SECRET: ${{ secrets.STRIPE_IDENTITY_WEBHOOK_SECRET }}
 
-      # ---------- Email ----------
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       CONTACT_TO_EMAIL: ${{ secrets.CONTACT_TO_EMAIL }}
       CONTACT_FROM_EMAIL: ${{ secrets.CONTACT_FROM_EMAIL }}
 
-      # ---------- Push ----------
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
       VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
       VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
 
-      # ---------- App URL ----------
       NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+      # ---------- Make CI more deterministic ----------
+      CI: "true"
+      FASTLANE_SKIP_UPDATE_CHECK: "true"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Install deps
         run: npm ci
 
-      - name: Build Next.js
+      - name: Build web (Next)
         run: npm run build
 
-      # Capacitor requires a webDir
-      - name: Create placeholder web assets
+      - name: Create placeholder web assets for Capacitor
         run: |
           rm -rf dist
           mkdir -p dist
           cat > dist/index.html <<'EOF'
           <!doctype html>
           <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>Pinch My Pony</title>
-          </head>
-          <body></body>
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>Pinch My Pony</title>
+            </head>
+            <body></body>
           </html>
           EOF
 
-      - name: Capacitor sync
+      - name: Capacitor sync iOS
         run: npx cap sync ios
-
-      # -------------------------------
-      # Swift Package Manager caching
-      # -------------------------------
 
       - name: Cache Swift Packages
         uses: actions/cache@v4
@@ -102,6 +97,8 @@ jobs:
             ios/App/DerivedData
             ios/App/SourcePackages
           key: ${{ runner.os }}-spm-${{ hashFiles('ios/App/App.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
 
       - name: Resolve Swift packages
         working-directory: ios/App
@@ -114,22 +111,18 @@ jobs:
             -clonedSourcePackagesDirPath SourcePackages \
             -derivedDataPath DerivedData
 
-      # -------------------------------
-      # Ruby + Fastlane
-      # -------------------------------
-
-      - name: Setup Ruby
+      - name: Set up Ruby + Bundler
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
           bundler-cache: true
 
-      - name: Configure git auth for match
+      - name: Configure git auth for match repo
         run: |
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
 
-      - name: Fastlane bootstrap
+      - name: Fastlane bootstrap (create certs/profiles if missing)
         run: bundle exec fastlane ios bootstrap
 
-      - name: Fastlane beta (build + TestFlight)
+      - name: Fastlane beta (build + upload to TestFlight)
         run: bundle exec fastlane ios beta
