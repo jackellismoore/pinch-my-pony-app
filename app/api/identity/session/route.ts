@@ -1,17 +1,7 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripeServer";
 
 export const dynamic = "force-dynamic";
-
-function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-
-  if (!key) {
-    throw new Error("Missing STRIPE_SECRET_KEY");
-  }
-
-  return new Stripe(key);
-}
 
 export async function POST(req: Request) {
   try {
@@ -21,10 +11,7 @@ export async function POST(req: Request) {
     const { userId, returnUrl } = body;
 
     if (!userId) {
-      return NextResponse.json(
-        { error: "Missing userId" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
     const session = await stripe.identity.verificationSessions.create({

@@ -1,9 +1,9 @@
 import Stripe from "stripe";
 
-let stripeInstance: Stripe | null = null;
+let stripe: Stripe | null = null;
 
 export function getStripe(): Stripe {
-if (stripeInstance) return stripeInstance;
+if (stripe) return stripe;
 
 const key = process.env.STRIPE_SECRET_KEY;
 
@@ -11,7 +11,7 @@ if (!key) {
 throw new Error("Missing STRIPE_SECRET_KEY");
 }
 
-stripeInstance = new Stripe(key);
+stripe = new Stripe(key);
 
-return stripeInstance;
+return stripe;
 }

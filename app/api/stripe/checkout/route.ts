@@ -1,24 +1,13 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripeServer";
 
 export const dynamic = "force-dynamic";
-
-function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-
-  if (!key) {
-    throw new Error("Missing STRIPE_SECRET_KEY");
-  }
-
-  return new Stripe(key);
-}
 
 export async function POST(req: Request) {
   try {
     const stripe = getStripe();
 
     const body = await req.json();
-
     const { priceId, successUrl, cancelUrl, customerEmail } = body;
 
     const session = await stripe.checkout.sessions.create({

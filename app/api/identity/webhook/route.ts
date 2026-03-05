@@ -1,11 +1,14 @@
+
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import Stripe from "stripe";
+import { getStripe } from "@/lib/stripeServer";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const stripe = getStripe();
+
   const sig = req.headers.get("stripe-signature");
   const secret = process.env.STRIPE_IDENTITY_WEBHOOK_SECRET;
 
@@ -19,9 +22,13 @@ export async function POST(req: Request) {
   try {
     event = stripe.webhooks.constructEvent(rawBody, sig, secret);
   } catch (err: any) {
-    return NextResponse.json({ error: `Invalid signature: ${err?.message ?? "unknown"}` }, { status: 400 });
+    return NextResponse.json(
+      { error: `Invalid signature: ${err?.message ?? "unknown"}` },
+      { status: 400 }
+    );
   }
 
+  // Only process Stripe Identity verification events
   if (!event.type.startsWith("identity.verification_session.")) {
     return NextResponse.json({ received: true });
   }
@@ -33,6 +40,7 @@ export async function POST(req: Request) {
     (session.client_reference_id as string | undefined) ||
     null;
 
+  // If we can't map to a user, still write an audit event and exit
   if (!userId) {
     await supabaseAdmin.from("identity_verification_events").insert({
       user_id: "00000000-0000-0000-0000-000000000000",
@@ -60,9 +68,9 @@ export async function POST(req: Request) {
     outcome = "canceled";
   }
 
-  const reasonCodes: string[] | null =
-    (session.last_error && session.last_error.code ? [session.last_error.code] : null) ?? null;
+  const reasonCodes: string[] | null = session.last_error?.code ? [session.last_error.code] : null;
 
+  // Upsert verification row
   await supabaseAdmin.from("identity_verifications").upsert(
     {
       user_id: userId,
@@ -71,9 +79,7 @@ export async function POST(req: Request) {
       status: stripeStatus,
       outcome,
       reason_codes: reasonCodes,
-      minimal_metadata: {
-        livemode: session.livemode,
-      },
+      minimal_metadata: { livemode: session.livemode },
       updated_at: new Date().toISOString(),
       completed_at:
         stripeStatus === "verified" || stripeStatus === "canceled"
@@ -83,6 +89,7 @@ export async function POST(req: Request) {
     { onConflict: "provider_session_id" }
   );
 
+  // Append-only audit event
   await supabaseAdmin.from("identity_verification_events").insert({
     user_id: userId,
     provider: "stripe_identity",
@@ -91,19 +98,14 @@ export async function POST(req: Request) {
     payload: event as any,
   });
 
+  // Update profile gate fields
   if (profileStatus === "verified") {
     await supabaseAdmin
       .from("profiles")
-      .update({
-        verification_status: "verified",
-        verified_at: new Date().toISOString(),
-      })
+      .update({ verification_status: "verified", verified_at: new Date().toISOString() })
       .eq("id", userId);
   } else {
-    await supabaseAdmin
-      .from("profiles")
-      .update({ verification_status: profileStatus })
-      .eq("id", userId);
+    await supabaseAdmin.from("profiles").update({ verification_status: profileStatus }).eq("id", userId);
   }
 
   return NextResponse.json({ received: true });
