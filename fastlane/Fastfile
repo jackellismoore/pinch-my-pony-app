@@ -1,56 +1,34 @@
-# fastlane/Fastfile
-
-opt_out_usage
 default_platform(:ios)
 
 platform :ios do
-  desc "ONE-TIME: create signing certs/profiles and store in match repo"
+
+  desc "Bootstrap certificates and provisioning profiles"
   lane :bootstrap do
-    user = ENV["FASTLANE_USER"] || ENV["FASTLANE_USERNAME"] || ENV["APPLE_ID"]
-    UI.user_error!("Missing FASTLANE_USER env var") unless user && !user.strip.empty?
-
-    api_key = app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_KEY_P8"],
-      is_key_content_base64: true
-    )
-
     match(
       type: "appstore",
-      git_url: ENV["MATCH_GIT_URL"],
-      readonly: false,
-      username: user,
-      api_key: api_key
+      readonly: false
     )
   end
 
   desc "Build and upload to TestFlight"
   lane :beta do
-    user = ENV["FASTLANE_USER"] || ENV["FASTLANE_USERNAME"] || ENV["APPLE_ID"]
-    UI.user_error!("Missing FASTLANE_USER env var") unless user && !user.strip.empty?
-
-    api_key = app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_KEY_P8"],
-      is_key_content_base64: true
-    )
 
     match(
       type: "appstore",
-      git_url: ENV["MATCH_GIT_URL"],
-      readonly: true,
-      username: user,
-      api_key: api_key
+      readonly: true
     )
 
     build_app(
-      project: "ios/App/App.xcodeproj",
-      scheme: "App",
-      export_method: "app-store"
+      scheme: ENV["IOS_SCHEME"] || "App",
+      export_method: "app-store",
+      skip_package_dependencies_resolution: true,
+      clean: true
     )
 
-    upload_to_testflight(api_key: api_key)
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+
   end
+
 end
