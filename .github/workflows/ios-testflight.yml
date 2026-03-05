@@ -12,55 +12,45 @@ concurrency:
 jobs:
   ios:
     runs-on: macos-15
+    timeout-minutes: 45
 
     env:
-      # -----------------------------
-      # App Store Connect API key (GitHub Secrets)
-      # -----------------------------
+      # ---------- App Store Connect API key (GitHub Secrets) ----------
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
 
-      # -----------------------------
-      # Fastlane user (still required for match in many setups)
-      # -----------------------------
+      # ---------- Fastlane user ----------
       FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
       FASTLANE_USERNAME: ${{ secrets.FASTLANE_USER }}
 
-      # -----------------------------
-      # match repo access
-      # -----------------------------
+      # ---------- match repo access ----------
       MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
       MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
 
-      # -----------------------------
-      # Supabase (MUST be present for Next build if any route imports admin/client)
-      # Add these as GitHub repo secrets
-      # -----------------------------
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # ---------- iOS build ----------
+      IOS_SCHEME: App
 
-      # If your client build expects NEXT_PUBLIC vars, include these too
+      # ---------- Next / Supabase / Stripe / Resend / Web Push ----------
+      # Required for Next build + server route handlers in CI
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      # -----------------------------
-      # Stripe (optional for build, but routes may reference)
-      # -----------------------------
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
       STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
       STRIPE_IDENTITY_WEBHOOK_SECRET: ${{ secrets.STRIPE_IDENTITY_WEBHOOK_SECRET }}
 
-      # -----------------------------
-      # App URL (optional, but commonly referenced)
-      # -----------------------------
-      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      CONTACT_TO_EMAIL: ${{ secrets.CONTACT_TO_EMAIL }}
+      CONTACT_FROM_EMAIL: ${{ secrets.CONTACT_FROM_EMAIL }}
 
-      # -----------------------------
-      # iOS build
-      # -----------------------------
-      IOS_SCHEME: App
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+      VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+      VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+
+      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
 
     steps:
       - name: Checkout
@@ -69,7 +59,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install deps
