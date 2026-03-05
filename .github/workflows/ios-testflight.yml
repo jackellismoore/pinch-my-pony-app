@@ -36,9 +36,10 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: "3.2"
           bundler-cache: true
 
+      # bundler-cache already installs, but leaving this is fine if you prefer explicitness
       - run: bundle install
 
       - name: Configure git auth for match (x-access-token)
@@ -56,9 +57,15 @@ jobs:
 
       - name: Run Fastlane
         env:
+          # App Store Connect API key (used by app_store_connect_api_key in your Fastfile)
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+
+          # match (git + encryption)
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+
+          # optional, but keeps things obvious + available if anything reads it directly
+          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
         run: bundle exec fastlane ios ${{ github.event.inputs.lane }}
