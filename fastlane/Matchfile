@@ -1,12 +1,13 @@
-# Match storage repo (NO credentials in this URL)
-git_url(ENV["MATCH_GIT_URL"])
+# fastlane/Matchfile
 
-storage_mode("git")
+git_url(ENV["MATCH_GIT_URL"])
+git_branch("main")
+
 type("appstore")
 app_identifier(["com.pinchmypony.app"])
 
-# use main unless you intentionally chose something else
-git_branch("main")
+# Prevent match from trying to prompt for a username in CI
+username(ENV["FASTLANE_USER"] || ENV["FASTLANE_USERNAME"] || ENV["APPLE_ID"])
 
-# avoid any prompts in CI
-readonly(false)
+git_full_name("match-bot")
+git_user_email("match-bot@users.noreply.github.com")
