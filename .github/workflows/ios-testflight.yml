@@ -1,52 +1,65 @@
-name: iOS Signing Bootstrap
+name: iOS TestFlight
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["main"]
 
 jobs:
-  bootstrap:
+  ios-testflight:
     runs-on: macos-15
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
+      # Node is needed to build the Next/Capacitor web bundle
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      # Build the Next.js web app
+      - name: Build web app
+        run: npm run build
+
+      # Sync Capacitor iOS project
+      - name: Capacitor sync
+        run: npx cap sync ios
+
+      # Ruby environment for Fastlane
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
           bundler-cache: true
 
-      - name: Verify ASC key decodes and parses (no key output)
-        env:
-          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-        run: |
-          set -euo pipefail
-          echo "$ASC_KEY_P8" | base64 --decode > /tmp/AuthKey.p8
-          # Validate key structure without printing it
-          openssl pkey -in /tmp/AuthKey.p8 -noout
-          echo "ASC_KEY_P8 decoded + openssl parsed OK"
-
-      - name: Configure match git auth
-        env:
-          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+      # Allow Fastlane match to access signing repo
+      - name: Configure git auth for match repo
         run: |
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
-
-      - name: Run fastlane bootstrap
         env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
 
+      - name: Bundle install
+        run: bundle install
+
+      # Build and upload to TestFlight
+      - name: Fastlane beta
+        run: bundle exec fastlane ios beta --verbose
+        env:
           FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
 
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
 
-          FASTLANE_DISABLE_COLORS: "1"
-          FASTLANE_SKIP_UPDATE_CHECK: "1"
-          FASTLANE_DONT_STORE_PASSWORD: "1"
-          SPACESHIP_DEBUG: "1"
-        run: |
-          bundle exec fastlane ios bootstrap --verbose
+          IOS_SCHEME: "App"
+
+          CI: "true"
