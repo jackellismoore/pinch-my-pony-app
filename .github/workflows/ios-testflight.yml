@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 60
 
     env:
-      # ---------- App Store Connect API key (GitHub Secrets) ----------
+      # ---------- App Store Connect API key ----------
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
@@ -117,7 +117,7 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
 
-      # ---- KEYCHAIN FIX: create and unlock a dedicated keychain for match ----
+      # ---- Create and unlock a dedicated keychain (NO partition list yet) ----
       - name: Create & unlock CI keychain
         shell: bash
         run: |
@@ -130,27 +130,30 @@ jobs:
           echo "CI_KEYCHAIN_NAME=$KEYCHAIN_NAME" >> "$GITHUB_ENV"
           echo "CI_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
 
-          # Create keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
-
-          # Keep it unlocked for 6 hours
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-
-          # Unlock
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Make it default & in search list
           security list-keychains -d user -s "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
 
-          # Avoid permission prompts during codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-      - name: Fastlane bootstrap (create certs/profiles if missing)
+      - name: Fastlane bootstrap (match)
         env:
           MATCH_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
           MATCH_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
         run: bundle exec fastlane ios bootstrap
+
+      # ---- NOW that certs exist, set partition list (make non-fatal if empty) ----
+      - name: Allow codesign to access imported keys
+        shell: bash
+        run: |
+          set -euxo pipefail
+          KEYCHAIN_PATH="$HOME/Library/Keychains/${CI_KEYCHAIN_NAME}"
+
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "${CI_KEYCHAIN_PASSWORD}" \
+            "${KEYCHAIN_PATH}" || true
 
       - name: Fastlane beta (build + upload to TestFlight)
         env:
