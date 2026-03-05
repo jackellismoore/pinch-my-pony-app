@@ -11,21 +11,22 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-
     steps:
-      - name: Checkout
+      # IMPORTANT: force checkout of main so you never run an old commit by accident
+      - name: Checkout main
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - name: Install JS deps
-        run: npm ci
+      - run: npm ci
 
-      - name: Ensure webDir exists (Capacitor needs ./out)
+      - name: Ensure webDir exists
         run: |
           mkdir -p out
           cat > out/index.html << 'EOF'
@@ -36,71 +37,54 @@ jobs:
           </html>
           EOF
 
-      - name: Capacitor sync (iOS)
-        run: npx cap sync ios
+      - run: npx cap sync ios
 
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
           bundler-cache: true
 
-      - name: Install Ruby deps
-        run: bundle install
-
-      - name: Validate required secrets are present
-        env:
-          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-        run: |
-          set -euo pipefail
-          req=(MATCH_GIT_TOKEN MATCH_GIT_URL MATCH_PASSWORD ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8)
-          for v in "${req[@]}"; do
-            if [ -z "${!v:-}" ]; then
-              echo "::error::Missing required secret: $v"
-              exit 1
-            fi
-          done
-          echo "All required secrets are set."
-
+      # Match repo auth (GitHub token)
       - name: Configure git auth for match (x-access-token)
         env:
           MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
         run: |
-          set -euo pipefail
+          set -e
+          if [ -z "$MATCH_GIT_TOKEN" ]; then
+            echo "MATCH_GIT_TOKEN is EMPTY (secret name mismatch)."
+            exit 1
+          fi
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
           echo "Git insteadOf rules:"
           git config --global --get-regexp '^url\..*\.insteadof$' || true
 
-      - name: DEBUG - show Fastlane config used by CI
+      # ✅ DEBUG: prove what code the runner is actually using
+      - name: DEBUG - show git + fastlane files
         run: |
-          set -euo pipefail
-          echo "----- git status -----"
-          git status --porcelain || true
-          echo "----- fastlane/Fastfile -----"
+          set -e
+          echo "===== git ====="
+          git rev-parse HEAD
+          git log -1 --oneline
+
+          echo "===== fastlane/Fastfile ====="
           sed -n '1,200p' fastlane/Fastfile || true
-          echo "----- fastlane/Matchfile -----"
+
+          echo "===== fastlane/Matchfile ====="
           sed -n '1,200p' fastlane/Matchfile || true
-          echo "----- workflow input lane -----"
+
+          echo "===== workflow input lane ====="
           echo "${{ github.event.inputs.lane }}"
 
       - name: Run Fastlane
         env:
-          # Match / signing
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          CI: "true"
+          FASTLANE_SKIP_UPDATE_CHECK: "true"
+          FASTLANE_DISABLE_COLORS: "1"
 
-          # App Store Connect API key
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
 
-          # Helpful to avoid any interactive prompts
-          CI: "true"
-        run: |
-          set -euo pipefail
-          bundle exec fastlane ios "${{ github.event.inputs.lane }}"
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+        run: bundle exec fastlane ios ${{ github.event.inputs.lane }}
