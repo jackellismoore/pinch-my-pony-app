@@ -33,7 +33,6 @@ jobs:
       IOS_SCHEME: App
 
       # ---------- Next / Supabase / Stripe / Resend / Web Push ----------
-      # Required for Next build + server route handlers in CI
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -67,6 +66,25 @@ jobs:
 
       - name: Build web (Next)
         run: npm run build
+
+      # Capacitor requires webDir to exist and include an index.html.
+      # We'll ship the app as a WebView loading NEXT_PUBLIC_APP_URL (server.url),
+      # so this is just a tiny placeholder directory for sync.
+      - name: Create placeholder web assets for Capacitor
+        run: |
+          rm -rf dist
+          mkdir -p dist
+          cat > dist/index.html <<'EOF'
+          <!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>Pinch My Pony</title>
+            </head>
+            <body></body>
+          </html>
+          EOF
 
       - name: Capacitor sync iOS
         run: npx cap sync ios
