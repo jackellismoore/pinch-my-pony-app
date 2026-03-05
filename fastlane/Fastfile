@@ -4,18 +4,18 @@ platform :ios do
   desc "ONE-TIME: create signing certs/profiles and store in match repo"
   lane :bootstrap do
     api_key = app_store_connect_api_key(
-      key_id: ENV.fetch("ASC_KEY_ID"),
-      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
-      key_content: ENV.fetch("ASC_KEY_P8"),
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_KEY_P8"],
       is_key_content_base64: true
     )
 
     match(
       type: "appstore",
-      git_url: ENV.fetch("MATCH_GIT_URL"),
+      git_url: ENV["MATCH_GIT_URL"],
       readonly: false,
       api_key: api_key,
-      verbose: true
+      username: ENV["FASTLANE_USER"]
     )
   end
 end
