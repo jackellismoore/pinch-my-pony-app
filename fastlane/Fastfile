@@ -1,3 +1,4 @@
+cat > fastlane/Fastfile <<'RUBY'
 opt_out_usage
 
 require "base64"
@@ -35,7 +36,8 @@ platform :ios do
   end
 
   def ios_scheme
-    ENV["IOS_SCHEME"].to_s.empty? ? "App" : ENV["IOS_SCHEME"]
+    s = ENV["IOS_SCHEME"].to_s
+    s.empty? ? "App" : s
   end
 
   desc "Bootstrap certificates and provisioning profiles"
@@ -77,3 +79,4 @@ platform :ios do
     )
   end
 end
+RUBY
