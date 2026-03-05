@@ -1,152 +1,111 @@
+// app/api/identity/webhook/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
-
-// Stripe sends raw body; Next App Router supports req.text() for this.
-async function updateBySupabaseUserId(supabaseUserId: string, patch: Record<string, any>) {
-  const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", supabaseUserId);
-  if (error) throw new Error(error.message);
-}
-
-async function updateByCustomerId(customerId: string, patch: Record<string, any>) {
-  const { data: prof, error } = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("stripe_customer_id", customerId)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  if (!prof?.id) return; // ok: no profile yet (or not linked)
-  await updateBySupabaseUserId(prof.id, patch);
-}
-
-function getCustomerId(v: Stripe.Checkout.Session["customer"] | Stripe.Subscription["customer"]) {
-  return typeof v === "string" ? v : v?.id ?? null;
-}
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret = process.env.STRIPE_IDENTITY_WEBHOOK_SECRET;
 
-  if (!secret) {
-    return NextResponse.json({ error: "Missing STRIPE_WEBHOOK_SECRET" }, { status: 500 });
-  }
-  if (!sig) {
-    return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
+  if (!sig || !secret) {
+    return NextResponse.json({ error: "Webhook not configured" }, { status: 400 });
   }
 
-  const body = await req.text();
+  const rawBody = await req.text();
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, sig, secret);
+    const stripe = getStripe();
+    event = stripe.webhooks.constructEvent(rawBody, sig, secret);
   } catch (err: any) {
     return NextResponse.json(
-      { error: `Webhook signature failed: ${err?.message ?? "unknown"}` },
+      { error: `Invalid signature: ${err?.message ?? "unknown"}` },
       { status: 400 }
     );
   }
 
-  try {
-    switch (event.type) {
-      /**
-       * Fired when checkout completes.
-       * Good time to store stripe_customer_id + stripe_subscription_id.
-       * Don't try to read "subscription_data" off the session (not a real property).
-       */
-      case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
+  // Only process Stripe Identity verification events
+  if (!event.type.startsWith("identity.verification_session.")) {
+    return NextResponse.json({ received: true });
+  }
 
-        const customerId = getCustomerId(session.customer);
-        const subscriptionId =
-          typeof session.subscription === "string"
-            ? session.subscription
-            : session.subscription?.id ?? null;
+  const session = event.data.object as Stripe.Identity.VerificationSession;
 
-        // ✅ We set these in /api/stripe/checkout -> session.metadata
-        const supabaseUserId = session.metadata?.supabase_user_id ?? undefined;
-        // (Optional) You can also read plan here if you put it in metadata:
-        // const plan = (session.metadata?.plan as "borrower" | "owner" | undefined) ?? undefined;
+  const userId =
+    (session.metadata && (session.metadata["user_id"] as string | undefined)) ||
+    (session.client_reference_id as string | undefined) ||
+    null;
 
-        if (supabaseUserId) {
-          await updateBySupabaseUserId(supabaseUserId, {
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subscriptionId,
-            membership_status: "pending", // corrected by subscription events
-          });
-        } else if (customerId) {
-          await updateByCustomerId(customerId, {
-            stripe_subscription_id: subscriptionId,
-            membership_status: "pending",
-          });
-        }
-
-        break;
-      }
-
-      /**
-       * Subscription lifecycle updates (source of truth).
-       * We rely on metadata set on the subscription in /api/stripe/checkout.
-       */
-      case "customer.subscription.created":
-      case "customer.subscription.updated": {
-        const sub = event.data.object as Stripe.Subscription;
-
-        const customerId = getCustomerId(sub.customer);
-        const supabaseUserId = (sub.metadata?.supabase_user_id as string | undefined) ?? undefined;
-        const plan = (sub.metadata?.plan as string | undefined) ?? undefined; // "borrower" | "owner"
-
-        const patch: Record<string, any> = {
-          stripe_subscription_id: sub.id,
-          membership_status: sub.status, // active, trialing, past_due, canceled, unpaid, etc.
-        };
-
-        if (plan === "borrower" || plan === "owner") {
-          patch.membership_tier = plan;
-        }
-
-        if (supabaseUserId) {
-          await updateBySupabaseUserId(supabaseUserId, {
-            stripe_customer_id: customerId,
-            ...patch,
-          });
-        } else if (customerId) {
-          await updateByCustomerId(customerId, patch);
-        }
-
-        break;
-      }
-
-      case "customer.subscription.deleted": {
-        const sub = event.data.object as Stripe.Subscription;
-
-        const customerId = getCustomerId(sub.customer);
-        const supabaseUserId = (sub.metadata?.supabase_user_id as string | undefined) ?? undefined;
-
-        const patch: Record<string, any> = {
-          membership_status: "canceled",
-          membership_tier: "free",
-          stripe_subscription_id: null,
-        };
-
-        if (supabaseUserId) {
-          await updateBySupabaseUserId(supabaseUserId, patch);
-        } else if (customerId) {
-          await updateByCustomerId(customerId, patch);
-        }
-
-        break;
-      }
-
-      default:
-        break;
-    }
+  if (!userId) {
+    await supabaseAdmin.from("identity_verification_events").insert({
+      user_id: "00000000-0000-0000-0000-000000000000",
+      provider: "stripe_identity",
+      provider_event_id: event.id,
+      event_type: event.type,
+      payload: event as any,
+    });
 
     return NextResponse.json({ received: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? "Webhook handler failed" }, { status: 500 });
   }
+
+  const stripeStatus = session.status || "requires_input";
+  let profileStatus: string = "pending";
+  let outcome: string | null = null;
+
+  if (stripeStatus === "verified") {
+    profileStatus = "verified";
+    outcome = "approved";
+  } else if (stripeStatus === "processing") {
+    profileStatus = "processing";
+  } else if (stripeStatus === "canceled") {
+    profileStatus = "failed";
+    outcome = "canceled";
+  }
+
+  const reasonCodes: string[] | null =
+    session.last_error?.code ? [session.last_error.code] : null;
+
+  await supabaseAdmin.from("identity_verifications").upsert(
+    {
+      user_id: userId,
+      provider: "stripe_identity",
+      provider_session_id: session.id,
+      status: stripeStatus,
+      outcome,
+      reason_codes: reasonCodes,
+      minimal_metadata: { livemode: session.livemode },
+      updated_at: new Date().toISOString(),
+      completed_at:
+        stripeStatus === "verified" || stripeStatus === "canceled"
+          ? new Date().toISOString()
+          : null,
+    },
+    { onConflict: "provider_session_id" }
+  );
+
+  await supabaseAdmin.from("identity_verification_events").insert({
+    user_id: userId,
+    provider: "stripe_identity",
+    provider_event_id: event.id,
+    event_type: event.type,
+    payload: event as any,
+  });
+
+  if (profileStatus === "verified") {
+    await supabaseAdmin
+      .from("profiles")
+      .update({ verification_status: "verified", verified_at: new Date().toISOString() })
+      .eq("id", userId);
+  } else {
+    await supabaseAdmin
+      .from("profiles")
+      .update({ verification_status: profileStatus })
+      .eq("id", userId);
+  }
+
+  return NextResponse.json({ received: true });
 }

@@ -1,36 +1,48 @@
+// app/api/stripe/checkout/route.ts
 import { NextResponse } from "next/server";
-import { getStripe } from "@/lib/stripeServer";
+import { getStripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+type Body = {
+  priceId?: string;
+  successUrl?: string;
+  cancelUrl?: string;
+  customerEmail?: string;
+};
 
 export async function POST(req: Request) {
   try {
-    const stripe = getStripe();
+    const body = (await req.json()) as Body;
 
-    const body = await req.json();
-    const { priceId, successUrl, cancelUrl, customerEmail } = body;
+    const priceId = body.priceId?.trim();
+    const successUrl = body.successUrl?.trim();
+    const cancelUrl = body.cancelUrl?.trim();
+    const customerEmail = body.customerEmail?.trim();
+
+    if (!priceId || !successUrl || !cancelUrl) {
+      return NextResponse.json(
+        { error: "Missing priceId, successUrl, or cancelUrl" },
+        { status: 400 }
+      );
+    }
+
+    const stripe = getStripe();
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: successUrl,
       cancel_url: cancelUrl,
-      customer_email: customerEmail,
+      ...(customerEmail ? { customer_email: customerEmail } : {}),
     });
 
     return NextResponse.json({ url: session.url });
-
-  } catch (err) {
+  } catch (err: any) {
     console.error("Stripe checkout error:", err);
-
     return NextResponse.json(
-      { error: "Failed to create checkout session" },
+      { error: err?.message ?? "Failed to create checkout session" },
       { status: 500 }
     );
   }

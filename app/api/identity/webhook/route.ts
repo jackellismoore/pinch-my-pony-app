@@ -1,14 +1,13 @@
-
+// app/api/identity/webhook/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getStripe } from "@/lib/stripeServer";
+import { getStripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const stripe = getStripe();
-
   const sig = req.headers.get("stripe-signature");
   const secret = process.env.STRIPE_IDENTITY_WEBHOOK_SECRET;
 
@@ -20,6 +19,7 @@ export async function POST(req: Request) {
 
   let event: Stripe.Event;
   try {
+    const stripe = getStripe();
     event = stripe.webhooks.constructEvent(rawBody, sig, secret);
   } catch (err: any) {
     return NextResponse.json(
@@ -40,7 +40,6 @@ export async function POST(req: Request) {
     (session.client_reference_id as string | undefined) ||
     null;
 
-  // If we can't map to a user, still write an audit event and exit
   if (!userId) {
     await supabaseAdmin.from("identity_verification_events").insert({
       user_id: "00000000-0000-0000-0000-000000000000",
@@ -54,7 +53,6 @@ export async function POST(req: Request) {
   }
 
   const stripeStatus = session.status || "requires_input";
-
   let profileStatus: string = "pending";
   let outcome: string | null = null;
 
@@ -68,9 +66,9 @@ export async function POST(req: Request) {
     outcome = "canceled";
   }
 
-  const reasonCodes: string[] | null = session.last_error?.code ? [session.last_error.code] : null;
+  const reasonCodes: string[] | null =
+    session.last_error?.code ? [session.last_error.code] : null;
 
-  // Upsert verification row
   await supabaseAdmin.from("identity_verifications").upsert(
     {
       user_id: userId,
@@ -89,7 +87,6 @@ export async function POST(req: Request) {
     { onConflict: "provider_session_id" }
   );
 
-  // Append-only audit event
   await supabaseAdmin.from("identity_verification_events").insert({
     user_id: userId,
     provider: "stripe_identity",
@@ -98,14 +95,16 @@ export async function POST(req: Request) {
     payload: event as any,
   });
 
-  // Update profile gate fields
   if (profileStatus === "verified") {
     await supabaseAdmin
       .from("profiles")
       .update({ verification_status: "verified", verified_at: new Date().toISOString() })
       .eq("id", userId);
   } else {
-    await supabaseAdmin.from("profiles").update({ verification_status: profileStatus }).eq("id", userId);
+    await supabaseAdmin
+      .from("profiles")
+      .update({ verification_status: profileStatus })
+      .eq("id", userId);
   }
 
   return NextResponse.json({ received: true });
