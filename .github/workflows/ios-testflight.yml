@@ -12,12 +12,7 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      # IMPORTANT: force checkout of main so you never run an old commit by accident
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
@@ -44,7 +39,8 @@ jobs:
           ruby-version: "3.2"
           bundler-cache: true
 
-      # Match repo auth (GitHub token)
+      - run: bundle install
+
       - name: Configure git auth for match (x-access-token)
         env:
           MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
@@ -58,28 +54,28 @@ jobs:
           echo "Git insteadOf rules:"
           git config --global --get-regexp '^url\..*\.insteadof$' || true
 
-      # ✅ DEBUG: prove what code the runner is actually using
-      - name: DEBUG - show git + fastlane files
+      - name: Debug - confirm secrets are present (masked)
+        env:
+          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
         run: |
           set -e
-          echo "===== git ====="
-          git rev-parse HEAD
-          git log -1 --oneline
-
-          echo "===== fastlane/Fastfile ====="
-          sed -n '1,200p' fastlane/Fastfile || true
-
-          echo "===== fastlane/Matchfile ====="
-          sed -n '1,200p' fastlane/Matchfile || true
-
-          echo "===== workflow input lane ====="
-          echo "${{ github.event.inputs.lane }}"
+          echo "FASTLANE_USER is set? -> $([ -n "$FASTLANE_USER" ] && echo yes || echo no)"
+          echo "ASC_KEY_ID set? -> $([ -n "$ASC_KEY_ID" ] && echo yes || echo no)"
+          echo "ASC_ISSUER_ID set? -> $([ -n "$ASC_ISSUER_ID" ] && echo yes || echo no)"
+          echo "ASC_KEY_P8 set? -> $([ -n "$ASC_KEY_P8" ] && echo yes || echo no)"
+          echo "MATCH_PASSWORD set? -> $([ -n "$MATCH_PASSWORD" ] && echo yes || echo no)"
+          echo "MATCH_GIT_URL set? -> $([ -n "$MATCH_GIT_URL" ] && echo yes || echo no)"
 
       - name: Run Fastlane
         env:
+          # IMPORTANT: make it non-interactive and ensure username is available
           CI: "true"
-          FASTLANE_SKIP_UPDATE_CHECK: "true"
-          FASTLANE_DISABLE_COLORS: "1"
+          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
 
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -87,4 +83,8 @@ jobs:
 
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-        run: bundle exec fastlane ios ${{ github.event.inputs.lane }}
+
+          # Extra logs
+          FASTLANE_SKIP_UPDATE_CHECK: "1"
+          FASTLANE_DISABLE_COLORS: "1"
+        run: bundle exec fastlane ios ${{ github.event.inputs.lane }} --verbose
