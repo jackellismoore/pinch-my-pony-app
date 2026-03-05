@@ -1,90 +1,52 @@
-name: iOS -> TestFlight
+name: iOS Signing Bootstrap
 
 on:
   workflow_dispatch:
-    inputs:
-      lane:
-        description: "Lane to run (bootstrap or beta)"
-        required: true
-        default: "bootstrap"
 
 jobs:
-  build:
-    runs-on: macos-latest
+  bootstrap:
+    runs-on: macos-15
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - name: Ensure webDir exists
-        run: |
-          mkdir -p out
-          cat > out/index.html << 'EOF'
-          <!doctype html>
-          <html>
-            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-            <body></body>
-          </html>
-          EOF
-
-      - run: npx cap sync ios
-
-      - uses: ruby/setup-ruby@v1
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
           bundler-cache: true
 
-      - run: bundle install
+      - name: Verify ASC key decodes and parses (no key output)
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          echo "$ASC_KEY_P8" | base64 --decode > /tmp/AuthKey.p8
+          # Validate key structure without printing it
+          openssl pkey -in /tmp/AuthKey.p8 -noout
+          echo "ASC_KEY_P8 decoded + openssl parsed OK"
 
-      - name: Configure git auth for match (x-access-token)
+      - name: Configure match git auth
         env:
           MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
         run: |
-          set -e
-          if [ -z "$MATCH_GIT_TOKEN" ]; then
-            echo "MATCH_GIT_TOKEN is EMPTY (secret name mismatch)."
-            exit 1
-          fi
           git config --global url."https://x-access-token:${MATCH_GIT_TOKEN}@github.com/".insteadOf "https://github.com/"
-          echo "Git insteadOf rules:"
-          git config --global --get-regexp '^url\..*\.insteadof$' || true
 
-      - name: Debug - confirm secrets are present (masked)
+      - name: Run fastlane bootstrap
         env:
-          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-        run: |
-          set -e
-          echo "FASTLANE_USER is set? -> $([ -n "$FASTLANE_USER" ] && echo yes || echo no)"
-          echo "ASC_KEY_ID set? -> $([ -n "$ASC_KEY_ID" ] && echo yes || echo no)"
-          echo "ASC_ISSUER_ID set? -> $([ -n "$ASC_ISSUER_ID" ] && echo yes || echo no)"
-          echo "ASC_KEY_P8 set? -> $([ -n "$ASC_KEY_P8" ] && echo yes || echo no)"
-          echo "MATCH_PASSWORD set? -> $([ -n "$MATCH_PASSWORD" ] && echo yes || echo no)"
-          echo "MATCH_GIT_URL set? -> $([ -n "$MATCH_GIT_URL" ] && echo yes || echo no)"
-
-      - name: Run Fastlane
-        env:
-          # IMPORTANT: make it non-interactive and ensure username is available
-          CI: "true"
-          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
-
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
 
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
 
-          # Extra logs
-          FASTLANE_SKIP_UPDATE_CHECK: "1"
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+
           FASTLANE_DISABLE_COLORS: "1"
-        run: bundle exec fastlane ios ${{ github.event.inputs.lane }} --verbose
+          FASTLANE_SKIP_UPDATE_CHECK: "1"
+          FASTLANE_DONT_STORE_PASSWORD: "1"
+          SPACESHIP_DEBUG: "1"
+        run: |
+          bundle exec fastlane ios bootstrap --verbose
