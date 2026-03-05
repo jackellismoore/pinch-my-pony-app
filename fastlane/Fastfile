@@ -23,7 +23,8 @@ platform :ios do
   end
 
   def ci_keychain_name
-    ENV["MATCH_KEYCHAIN_NAME"].to_s.empty? ? "build.keychain-db" : ENV["MATCH_KEYCHAIN_NAME"]
+    n = ENV["MATCH_KEYCHAIN_NAME"].to_s
+    n.empty? ? "build.keychain-db" : n
   end
 
   def ci_keychain_password
@@ -31,7 +32,6 @@ platform :ios do
   end
 
   def ios_workspace
-    # Capacitor iOS default workspace path
     "ios/App/App.xcworkspace"
   end
 
@@ -69,8 +69,7 @@ platform :ios do
       workspace: ios_workspace,
       scheme: ios_scheme,
       export_method: "app-store",
-      clean: true,
-      skip_package_dependencies_resolution: true
+      clean: true
     )
 
     upload_to_testflight(
