@@ -1,20 +1,23 @@
-// app/api/identity/webhook/route.ts
+// app/api/stripe/webhook/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature");
-  const secret = process.env.STRIPE_IDENTITY_WEBHOOK_SECRET;
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!sig || !secret) {
-    return NextResponse.json({ error: "Webhook not configured" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Webhook not configured (missing stripe-signature or STRIPE_WEBHOOK_SECRET)" },
+      { status: 400 }
+    );
   }
 
+  // Stripe requires the raw body for signature verification
   const rawBody = await req.text();
 
   let event: Stripe.Event;
@@ -28,84 +31,32 @@ export async function POST(req: Request) {
     );
   }
 
-  // Only process Stripe Identity verification events
-  if (!event.type.startsWith("identity.verification_session.")) {
-    return NextResponse.json({ received: true });
+  // If Supabase env is missing, don't crash the whole build/runtime—return a clear error
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseAdmin();
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: `Supabase not configured: ${e?.message ?? "missing env"}` },
+      { status: 500 }
+    );
   }
 
-  const session = event.data.object as Stripe.Identity.VerificationSession;
-
-  const userId =
-    (session.metadata && (session.metadata["user_id"] as string | undefined)) ||
-    (session.client_reference_id as string | undefined) ||
-    null;
-
-  if (!userId) {
-    await supabaseAdmin.from("identity_verification_events").insert({
-      user_id: "00000000-0000-0000-0000-000000000000",
-      provider: "stripe_identity",
-      provider_event_id: event.id,
-      event_type: event.type,
+  try {
+    // TODO: handle the Stripe events you care about.
+    // Example: record webhook receipt
+    await supabaseAdmin.from("stripe_events").insert({
+      event_id: event.id,
+      type: event.type,
       payload: event as any,
+      created_at: new Date().toISOString(),
     });
 
     return NextResponse.json({ received: true });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: `Webhook handler failed: ${err?.message ?? "unknown"}` },
+      { status: 500 }
+    );
   }
-
-  const stripeStatus = session.status || "requires_input";
-  let profileStatus: string = "pending";
-  let outcome: string | null = null;
-
-  if (stripeStatus === "verified") {
-    profileStatus = "verified";
-    outcome = "approved";
-  } else if (stripeStatus === "processing") {
-    profileStatus = "processing";
-  } else if (stripeStatus === "canceled") {
-    profileStatus = "failed";
-    outcome = "canceled";
-  }
-
-  const reasonCodes: string[] | null =
-    session.last_error?.code ? [session.last_error.code] : null;
-
-  await supabaseAdmin.from("identity_verifications").upsert(
-    {
-      user_id: userId,
-      provider: "stripe_identity",
-      provider_session_id: session.id,
-      status: stripeStatus,
-      outcome,
-      reason_codes: reasonCodes,
-      minimal_metadata: { livemode: session.livemode },
-      updated_at: new Date().toISOString(),
-      completed_at:
-        stripeStatus === "verified" || stripeStatus === "canceled"
-          ? new Date().toISOString()
-          : null,
-    },
-    { onConflict: "provider_session_id" }
-  );
-
-  await supabaseAdmin.from("identity_verification_events").insert({
-    user_id: userId,
-    provider: "stripe_identity",
-    provider_event_id: event.id,
-    event_type: event.type,
-    payload: event as any,
-  });
-
-  if (profileStatus === "verified") {
-    await supabaseAdmin
-      .from("profiles")
-      .update({ verification_status: "verified", verified_at: new Date().toISOString() })
-      .eq("id", userId);
-  } else {
-    await supabaseAdmin
-      .from("profiles")
-      .update({ verification_status: profileStatus })
-      .eq("id", userId);
-  }
-
-  return NextResponse.json({ received: true });
 }

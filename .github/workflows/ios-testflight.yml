@@ -14,21 +14,52 @@ jobs:
     runs-on: macos-15
 
     env:
+      # -----------------------------
       # App Store Connect API key (GitHub Secrets)
+      # -----------------------------
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
 
+      # -----------------------------
       # Fastlane user (still required for match in many setups)
+      # -----------------------------
       FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
       FASTLANE_USERNAME: ${{ secrets.FASTLANE_USER }}
 
+      # -----------------------------
       # match repo access
+      # -----------------------------
       MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
       MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
 
+      # -----------------------------
+      # Supabase (MUST be present for Next build if any route imports admin/client)
+      # Add these as GitHub repo secrets
+      # -----------------------------
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # If your client build expects NEXT_PUBLIC vars, include these too
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      # -----------------------------
+      # Stripe (optional for build, but routes may reference)
+      # -----------------------------
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_IDENTITY_WEBHOOK_SECRET: ${{ secrets.STRIPE_IDENTITY_WEBHOOK_SECRET }}
+
+      # -----------------------------
+      # App URL (optional, but commonly referenced)
+      # -----------------------------
+      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+
+      # -----------------------------
       # iOS build
+      # -----------------------------
       IOS_SCHEME: App
 
     steps:
@@ -47,7 +78,6 @@ jobs:
       - name: Build web (Next)
         run: npm run build
 
-      # If you use Capacitor, sync iOS project
       - name: Capacitor sync iOS
         run: npx cap sync ios
 
