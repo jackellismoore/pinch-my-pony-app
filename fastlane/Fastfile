@@ -26,7 +26,8 @@ platform :ios do
       scheme: ENV["IOS_SCHEME"] || "App",
       export_method: "app-store",
       clean: true,
-      silent: false
+      silent: false,
+      skip_package_dependencies_resolution: true
     )
 
     upload_to_testflight(
