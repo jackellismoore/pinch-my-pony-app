@@ -6,7 +6,6 @@ default_platform(:ios)
 platform :ios do
   desc "Build + upload to TestFlight"
   lane :beta do
-    # App Store Connect API key (preferred for CI)
     app_store_connect_api_key(
       key_id: ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
@@ -14,26 +13,17 @@ platform :ios do
       is_key_content_base64: false
     )
 
-    # Use a dedicated CI keychain if provided
-    ci_keychain_name = ENV["CI_KEYCHAIN_NAME"]
-    ci_keychain_password = ENV["CI_KEYCHAIN_PASSWORD"]
-
-    # Pull signing assets from match repo
     match(
       type: "appstore",
       readonly: true,
       git_url: ENV["MATCH_GIT_URL"],
-      keychain_name: ci_keychain_name,
-      keychain_password: ci_keychain_password
+      keychain_name: ENV["CI_KEYCHAIN_NAME"],
+      keychain_password: ENV["CI_KEYCHAIN_PASSWORD"]
     )
 
-    # Capacitor iOS workspace path (default)
-    ios_workspace = "ios/App/App.xcworkspace"
-    ios_scheme = ENV["IOS_SCHEME"] || "App"
-
     build_app(
-      workspace: ios_workspace,
-      scheme: ios_scheme,
+      workspace: "ios/App/App.xcworkspace",
+      scheme: ENV["IOS_SCHEME"] || "App",
       export_method: "app-store",
       clean: true,
       silent: false
