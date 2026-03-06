@@ -78,6 +78,28 @@ jobs:
       - name: Capacitor sync iOS
         run: npx cap sync ios
 
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/App/SourcePackages
+            ios/App/DerivedData
+          key: ${{ runner.os }}-spm-${{ hashFiles('ios/App/App.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Pre-resolve Swift packages
+        working-directory: ios/App
+        run: |
+          set -euxo pipefail
+          mkdir -p SourcePackages DerivedData
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project App.xcodeproj \
+            -scheme App \
+            -clonedSourcePackagesDirPath SourcePackages \
+            -derivedDataPath DerivedData
+
       - name: Set up Ruby + Bundler
         uses: ruby/setup-ruby@v1
         with:
@@ -151,16 +173,21 @@ jobs:
 
       - name: Archive app
         run: |
+          set -euxo pipefail
           xcodebuild \
             -project ios/App/App.xcodeproj \
             -scheme App \
             -configuration Release \
             -archivePath build/App.xcarchive \
             -destination generic/platform=iOS \
+            -clonedSourcePackagesDirPath ios/App/SourcePackages \
+            -derivedDataPath ios/App/DerivedData \
+            -disableAutomaticPackageResolution \
             archive
 
       - name: Export IPA
         run: |
+          set -euxo pipefail
           mkdir -p build/export
           xcodebuild \
             -exportArchive \
