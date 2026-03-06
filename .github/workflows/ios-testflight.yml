@@ -24,6 +24,9 @@ jobs:
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
 
       IOS_SCHEME: App
+      APPLE_TEAM_ID: MBYRMXKNM4
+      APP_BUNDLE_ID: com.pinchmypony.app
+      APP_PROFILE_NAME: match AppStore com.pinchmypony.app
 
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
@@ -151,7 +154,7 @@ jobs:
         run: |
           rm -rf build
           mkdir -p build
-          cat > build/ExportOptions.plist <<'EOF'
+          cat > build/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -161,11 +164,11 @@ jobs:
             <key>signingStyle</key>
             <string>manual</string>
             <key>teamID</key>
-            <string>MBYRMXKNM4</string>
+            <string>${APPLE_TEAM_ID}</string>
             <key>provisioningProfiles</key>
             <dict>
-              <key>com.pinchmypony.app</key>
-              <string>match AppStore com.pinchmypony.app</string>
+              <key>${APP_BUNDLE_ID}</key>
+              <string>${APP_PROFILE_NAME}</string>
             </dict>
           </dict>
           </plist>
@@ -183,6 +186,11 @@ jobs:
             -clonedSourcePackagesDirPath ios/App/SourcePackages \
             -derivedDataPath ios/App/DerivedData \
             -disableAutomaticPackageResolution \
+            DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
+            PRODUCT_BUNDLE_IDENTIFIER="${APP_BUNDLE_ID}" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="${APP_PROFILE_NAME}" \
             archive
 
       - name: Export IPA
