@@ -23,6 +23,10 @@ jobs:
       MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
 
+      FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+      FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD }}
+      APPLE_APP_ID: ${{ secrets.APPLE_APP_ID }}
+
       IOS_SCHEME: App
       APPLE_TEAM_ID: MBYRMXKNM4
       APP_BUNDLE_ID: com.pinchmypony.app
@@ -160,7 +164,7 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store</string>
+            <string>app-store-connect</string>
             <key>signingStyle</key>
             <string>manual</string>
             <key>teamID</key>
