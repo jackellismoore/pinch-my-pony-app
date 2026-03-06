@@ -110,7 +110,7 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p fastlane
-          echo "${ASC_KEY_P8}" | base64 --decode > fastlane/AuthKey.p8
+          printf '%s' "$ASC_KEY_P8" > fastlane/AuthKey.p8
           chmod 600 fastlane/AuthKey.p8
 
       - name: Fastlane beta (build + upload to TestFlight)
