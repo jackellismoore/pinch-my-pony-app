@@ -123,11 +123,11 @@ jobs:
             readonly:true \
             git_url:"$MATCH_GIT_URL" \
             keychain_name:"$CI_KEYCHAIN_NAME" \
-            keychain_password:"$CI_KEYCHAIN_PASSWORD" \
-            api_key_path:"fastlane/AuthKey.p8"
+            keychain_password:"$CI_KEYCHAIN_PASSWORD"
 
       - name: Create export options plist
         run: |
+          rm -rf build
           mkdir -p build
           cat > build/ExportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -150,10 +150,7 @@ jobs:
           EOF
 
       - name: Archive app
-        env:
-          CI_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
         run: |
-          set -euxo pipefail
           xcodebuild \
             -project ios/App/App.xcodeproj \
             -scheme App \
@@ -164,17 +161,12 @@ jobs:
 
       - name: Export IPA
         run: |
-          set -euxo pipefail
           mkdir -p build/export
           xcodebuild \
             -exportArchive \
             -archivePath build/App.xcarchive \
             -exportPath build/export \
             -exportOptionsPlist build/ExportOptions.plist
-
-      - name: Show export contents
-        run: |
-          ls -la build/export
 
       - name: Upload IPA to TestFlight
         run: bundle exec fastlane ios upload_only
