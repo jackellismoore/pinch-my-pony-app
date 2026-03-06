@@ -12,7 +12,7 @@ concurrency:
 jobs:
   ios:
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     env:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -42,10 +42,6 @@ jobs:
       VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
 
       NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-
-      # Fastlane / xcodebuild stability
-      FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT: "120"
-      FASTLANE_XCODEBUILD_SETTINGS_RETRIES: "6"
 
     steps:
       - name: Checkout
@@ -117,8 +113,68 @@ jobs:
           printf '%s' "$ASC_KEY_P8" > fastlane/AuthKey.p8
           chmod 600 fastlane/AuthKey.p8
 
-      - name: Fastlane beta (build + upload to TestFlight)
+      - name: Install signing assets with match
         env:
           CI_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
           CI_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
-        run: bundle exec fastlane ios beta
+        run: |
+          bundle exec fastlane run match \
+            type:appstore \
+            readonly:true \
+            git_url:"$MATCH_GIT_URL" \
+            keychain_name:"$CI_KEYCHAIN_NAME" \
+            keychain_password:"$CI_KEYCHAIN_PASSWORD" \
+            api_key_path:"fastlane/AuthKey.p8"
+
+      - name: Create export options plist
+        run: |
+          mkdir -p build
+          cat > build/ExportOptions.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>MBYRMXKNM4</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.pinchmypony.app</key>
+              <string>match AppStore com.pinchmypony.app</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Archive app
+        env:
+          CI_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
+        run: |
+          set -euxo pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            -destination generic/platform=iOS \
+            archive
+
+      - name: Export IPA
+        run: |
+          set -euxo pipefail
+          mkdir -p build/export
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist build/ExportOptions.plist
+
+      - name: Show export contents
+        run: |
+          ls -la build/export
+
+      - name: Upload IPA to TestFlight
+        run: bundle exec fastlane ios upload_only

@@ -4,34 +4,17 @@ opt_out_usage
 default_platform(:ios)
 
 platform :ios do
-  desc "Build + upload to TestFlight"
-  lane :beta do
+  desc "Upload an existing IPA to TestFlight"
+  lane :upload_only do
     api_key = app_store_connect_api_key(
       key_id: ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
       key_filepath: "fastlane/AuthKey.p8"
     )
 
-    match(
-      type: "appstore",
-      readonly: true,
-      git_url: ENV["MATCH_GIT_URL"],
-      keychain_name: ENV["CI_KEYCHAIN_NAME"],
-      keychain_password: ENV["CI_KEYCHAIN_PASSWORD"],
-      api_key: api_key
-    )
-
-    build_app(
-      project: "ios/App/App.xcodeproj",
-      scheme: ENV["IOS_SCHEME"] || "App",
-      export_method: "app-store",
-      clean: true,
-      silent: false,
-      skip_package_dependencies_resolution: true
-    )
-
     upload_to_testflight(
       api_key: api_key,
+      ipa: "build/export/App.ipa",
       skip_waiting_for_build_processing: true
     )
   end
