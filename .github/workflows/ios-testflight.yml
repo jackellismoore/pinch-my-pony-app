@@ -23,10 +23,6 @@ jobs:
       MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
 
-      FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
-      FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD }}
-      APPLE_APP_ID: ${{ secrets.APPLE_APP_ID }}
-
       IOS_SCHEME: App
       APPLE_TEAM_ID: MBYRMXKNM4
       APP_BUNDLE_ID: com.pinchmypony.app
@@ -134,13 +130,20 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
 
-      - name: Write App Store Connect key file
+      - name: Write App Store Connect key files
         shell: bash
         run: |
           set -euxo pipefail
+
           mkdir -p fastlane
           printf '%s' "$ASC_KEY_P8" > fastlane/AuthKey.p8
           chmod 600 fastlane/AuthKey.p8
+
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          cp fastlane/AuthKey.p8 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+
+          echo "API_PRIVATE_KEYS_DIR=$HOME/.appstoreconnect/private_keys" >> "$GITHUB_ENV"
 
       - name: Install signing assets with match
         env:
@@ -207,5 +210,22 @@ jobs:
             -exportPath build/export \
             -exportOptionsPlist build/ExportOptions.plist
 
-      - name: Upload IPA to TestFlight
-        run: bundle exec fastlane ios upload_only
+      - name: Validate IPA with altool
+        run: |
+          set -euxo pipefail
+          xcrun altool \
+            --validate-app \
+            --type ios \
+            --file build/export/App.ipa \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Upload IPA with altool
+        run: |
+          set -euxo pipefail
+          xcrun altool \
+            --upload-app \
+            --type ios \
+            --file build/export/App.ipa \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"

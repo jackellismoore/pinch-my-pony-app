@@ -4,13 +4,8 @@ opt_out_usage
 default_platform(:ios)
 
 platform :ios do
-  desc "Upload an existing IPA to TestFlight"
+  desc "No-op placeholder"
   lane :upload_only do
-    upload_to_testflight(
-      username: ENV["FASTLANE_USER"],
-      apple_id: ENV["APPLE_APP_ID"],
-      ipa: "build/export/App.ipa",
-      skip_waiting_for_build_processing: true
-    )
+    UI.message("Upload is handled by xcrun altool in GitHub Actions.")
   end
 end
