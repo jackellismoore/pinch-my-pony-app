@@ -105,6 +105,16 @@ jobs:
           BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
           sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9][0-9]*/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER}/g" ios/App/App.xcodeproj/project.pbxproj
 
+      - name: Resolve Swift packages
+        shell: bash
+        run: |
+          set -euxo pipefail
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project ios/App/App.xcodeproj \
+            -scheme "$IOS_SCHEME" \
+            -clonedSourcePackagesDirPath ios/App/SourcePackages
+
       - name: Create ExportOptions.plist
         shell: bash
         run: |
@@ -143,7 +153,6 @@ jobs:
             -destination generic/platform=iOS \
             -clonedSourcePackagesDirPath ios/App/SourcePackages \
             -derivedDataPath ios/App/DerivedData \
-            -disableAutomaticPackageResolution \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$APP_BUNDLE_ID" \
             CODE_SIGN_STYLE=Manual \
