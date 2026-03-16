@@ -109,7 +109,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          xcodebuild \
+          timeout 600 xcodebuild \
             -resolvePackageDependencies \
             -project ios/App/App.xcodeproj \
             -scheme "$IOS_SCHEME" \
@@ -145,7 +145,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          xcodebuild \
+          timeout 1800 xcodebuild \
             -project ios/App/App.xcodeproj \
             -scheme "$IOS_SCHEME" \
             -configuration Release \
@@ -180,8 +180,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p build/export
-          xcodebuild \
+          timeout 600 xcodebuild \
             -exportArchive \
             -archivePath build/App.xcarchive \
             -exportPath build/export \
