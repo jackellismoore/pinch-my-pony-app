@@ -15,11 +15,8 @@ type HorseRow = {
   name: string | null;
   location: string | null;
   image_url: string | null;
-
-  // schema reality: both exist in your project
   active?: boolean | null;
   is_active?: boolean | null;
-
   lat: number | null;
   lng: number | null;
 };
@@ -57,22 +54,22 @@ function todayISODate() {
 }
 
 function isHorseActive(h: HorseRow) {
-  // Standardize: prefer active, fallback to is_active
   if (typeof h.active === "boolean") return h.active;
   if (typeof h.is_active === "boolean") return h.is_active;
-  return true; // if missing, treat as visible (browse is not "admin")
+  return true;
 }
 
 export default function BrowsePage() {
   const [viewerId, setViewerId] = useState<string | null>(null);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [horses, setHorses] = useState<HorseRow[]>([]);
   const [profilesById, setProfilesById] = useState<Record<string, ProfileMini>>({});
   const [nextByHorseId, setNextByHorseId] = useState<Record<string, NextRange | null>>({});
-  const [ratingByOwnerId, setRatingByOwnerId] = useState<Record<string, { avg: number; count: number }>>({});
+  const [ratingByOwnerId, setRatingByOwnerId] = useState<
+    Record<string, { avg: number; count: number }>
+  >({});
 
   useEffect(() => {
     let cancelled = false;
@@ -82,12 +79,10 @@ export default function BrowsePage() {
       setError(null);
 
       try {
-        // Who is browsing?
         const { data: sessData } = await supabase.auth.getSession();
         const viewer = sessData.session?.user ?? null;
         if (!cancelled) setViewerId(viewer?.id ?? null);
 
-        // Pull horses. We allow either active or is_active since both exist.
         const { data: horsesData, error: horsesErr } = await supabase
           .from("horses")
           .select("id,owner_id,name,location,image_url,active,is_active,lat,lng")
@@ -103,7 +98,6 @@ export default function BrowsePage() {
         const ownerIds = Array.from(new Set(horseRows.map((h) => h.owner_id).filter(Boolean)));
         const horseIds = horseRows.map((h) => h.id);
 
-        // ---- Profiles mini ----
         if (ownerIds.length > 0) {
           const { data: profData, error: profErr } = await supabase
             .from("profiles")
@@ -117,7 +111,6 @@ export default function BrowsePage() {
           }
         }
 
-        // ---- Ratings aggregates ----
         if (ownerIds.length > 0) {
           const { data: reviewRows, error: reviewErr } = await supabase
             .from("reviews")
@@ -132,7 +125,6 @@ export default function BrowsePage() {
               if (!oid) continue;
 
               if (!map[oid]) map[oid] = { avg: 0, count: 0 };
-
               map[oid].avg += Number(row.rating ?? 0);
               map[oid].count += 1;
             }
@@ -146,7 +138,6 @@ export default function BrowsePage() {
           }
         }
 
-        // ---- Availability merge ----
         if (horseIds.length > 0) {
           const today = todayISODate();
 
@@ -225,11 +216,13 @@ export default function BrowsePage() {
 
   function ownerLabel(ownerId: string) {
     const p = profilesById[ownerId];
-    return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || "Owner";
+    return (
+      (p?.display_name && p.display_name.trim()) ||
+      (p?.full_name && p.full_name.trim()) ||
+      "Owner"
+    );
   }
 
-  // ✅ pass rating_avg + rating_count into HorseMap pins
-  // Also include can_request / is_own_listing (safe even if HorseMap ignores it)
   const mapHorses = useMemo(
     () =>
       horses.map((h) => {
@@ -244,11 +237,8 @@ export default function BrowsePage() {
           lat: h.lat,
           lng: h.lng,
           image_url: h.image_url,
-
           rating_avg: rating.avg,
           rating_count: rating.count,
-
-          // extra flags (non-breaking)
           is_own_listing: isOwn,
           can_request: !isOwn,
         };
@@ -256,185 +246,129 @@ export default function BrowsePage() {
     [horses, ratingByOwnerId, viewerId]
   );
 
-  const yourListingPill: React.CSSProperties = {
-    border: "1px solid rgba(31,61,43,0.18)",
-    background: "rgba(31,61,43,0.08)",
-    color: "rgba(31,61,43,0.92)",
-    padding: "10px 12px",
-    borderRadius: 12,
-    fontSize: 13,
-    fontWeight: 950,
-    whiteSpace: "nowrap",
-  };
-
   return (
-    <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
-      <h1 style={{ margin: 0, fontSize: 22 }}>Browse</h1>
-      <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-        Click a pin to view the horse profile or request dates.
-      </div>
-
-      {loading ? <div style={{ marginTop: 14, fontSize: 13, color: "rgba(0,0,0,0.6)" }}>Loading…</div> : null}
-
-      {error ? (
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid rgba(255,0,0,0.25)",
-            background: "rgba(255,0,0,0.06)",
-            padding: 12,
-            borderRadius: 12,
-            fontSize: 13,
-          }}
-        >
-          {error}
+    <div className="pmp-pageShell">
+      <div className="pmp-mobilePageHeader">
+        <div>
+          <div className="pmp-kicker">Marketplace</div>
+          <h1 className="pmp-pageTitle">Browse horses</h1>
         </div>
-      ) : null}
-
-      <div style={{ marginTop: 14 }}>
-        <HorseMap horses={mapHorses} userLocation={null} highlightedId={null} />
       </div>
 
-      <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
-        {horses.map((h) => {
-          const next = nextByHorseId[h.id] ?? null;
+      <section className="pmp-sectionCard pmp-mapSection">
+        <div className="pmp-sectionHeader">
+          <div>
+            <div className="pmp-kicker">Discover</div>
+            <h2 className="pmp-sectionTitle">Explore horses near you</h2>
+          </div>
+          <div className="pmp-mutedText">Tap a pin or card to view more.</div>
+        </div>
 
-          const rating = ratingByOwnerId[h.owner_id] ?? { avg: 0, count: 0 };
-          const hasRating = rating.count > 0;
+        {loading ? <div className="pmp-mutedText">Loading marketplace…</div> : null}
+        {error ? <div className="pmp-errorBanner">{error}</div> : null}
 
-          const isOwnHorse = !!viewerId && h.owner_id === viewerId;
+        <div className="pmp-mapCard">
+          <HorseMap horses={mapHorses} userLocation={null} highlightedId={null} />
+        </div>
+      </section>
 
-          return (
-            <div
-              key={h.id}
-              style={{
-                border: "1px solid rgba(0,0,0,0.10)",
-                borderRadius: 14,
-                padding: 14,
-                background: "white",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-                <div
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 14,
-                    overflow: "hidden",
-                    background: "rgba(0,0,0,0.06)",
-                    border: "1px solid rgba(0,0,0,0.10)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {h.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={h.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : null}
-                </div>
+      <section className="pmp-sectionCard">
+        <div className="pmp-sectionHeader">
+          <div>
+            <div className="pmp-kicker">Listings</div>
+            <h3 className="pmp-sectionTitle">Available horses</h3>
+          </div>
+          <div className="pmp-mutedText">{horses.length} listing(s)</div>
+        </div>
 
-                <div style={{ minWidth: 0 }}>
-                  <Link
-                    href={`/horse/${h.id}`}
-                    style={{
-                      fontWeight: 950,
-                      fontSize: 15,
-                      color: "black",
-                      textDecoration: "none",
-                      display: "inline-block",
-                    }}
-                  >
-                    {h.name ?? "Horse"}
-                  </Link>
+        {loading ? (
+          <div className="pmp-mutedText">Loading listings…</div>
+        ) : horses.length === 0 ? (
+          <div className="pmp-emptyState">
+            <div className="pmp-emptyIcon">🗺️</div>
+            <div className="pmp-emptyTitle">No horses available yet</div>
+            <div className="pmp-emptyText">Check back soon for new listings in the marketplace.</div>
+          </div>
+        ) : (
+          <div className="pmp-horizontalCards">
+            {horses.map((horse) => {
+              const next = nextByHorseId[horse.id] ?? null;
+              const rating = ratingByOwnerId[horse.owner_id] ?? { avg: 0, count: 0 };
+              const hasRating = rating.count > 0;
+              const isOwnHorse = !!viewerId && horse.owner_id === viewerId;
 
-                  <div style={{ marginTop: 4, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-                    Owner:{" "}
-                    <Link href={`/owner/${h.owner_id}`} style={{ color: "black", fontWeight: 800 }}>
-                      {ownerLabel(h.owner_id)}
-                    </Link>
-                  </div>
-
-                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <StarRating value={hasRating ? Number(rating.avg.toFixed(1)) : 0} readOnly size={18} />
-                      <div style={{ fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
-                        {hasRating ? (
-                          <>
-                            <span style={{ fontWeight: 850 }}>{rating.avg.toFixed(1)}</span> ({rating.count})
-                          </>
-                        ) : (
-                          "No reviews"
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    {next ? (
-                      <>
-                        <AvailabilityBadge label={next.kind === "blocked" ? "Blocked" : "Booked"} tone={next.kind === "blocked" ? "warn" : "info"} />
-                        <div style={{ fontSize: 13, color: "rgba(0,0,0,0.7)" }}>
-                          Next unavailable:{" "}
-                          <span style={{ fontWeight: 750 }}>
-                            {next.startDate} → {next.endDate}
-                          </span>
-                          {" — "}
-                          {next.label}
-                        </div>
-                      </>
+              return (
+                <article key={horse.id} className="pmp-marketplaceCard">
+                  <div className="pmp-marketplaceImageWrap">
+                    {horse.image_url ? (
+                      <img
+                        src={horse.image_url}
+                        alt={horse.name?.trim() || "Horse"}
+                        className="pmp-marketplaceImage"
+                      />
                     ) : (
-                      <AvailabilityBadge label="No upcoming blocks" tone="neutral" />
+                      <div className="pmp-marketplaceImageFallback">🐎</div>
                     )}
                   </div>
-                </div>
-              </div>
 
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <Link
-                  href={`/horse/${h.id}`}
-                  style={{
-                    border: "1px solid rgba(0,0,0,0.14)",
-                    background: "white",
-                    color: "black",
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    textDecoration: "none",
-                    fontSize: 13,
-                    fontWeight: 900,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  View Horse
-                </Link>
+                  <div className="pmp-marketplaceBody">
+                    <div className="pmp-marketplaceTop">
+                      <div>
+                        <h4 className="pmp-horseName">{horse.name?.trim() || "Untitled horse"}</h4>
+                        <div className="pmp-mutedText">{horse.location?.trim() || "Location coming soon"}</div>
+                      </div>
+                    </div>
 
-                {isOwnHorse ? (
-                  <div style={yourListingPill}>Your listing</div>
-                ) : (
-                  <Link
-                    href={`/request?horseId=${h.id}`}
-                    style={{
-                      border: "1px solid rgba(0,0,0,0.14)",
-                      background: "black",
-                      color: "white",
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      textDecoration: "none",
-                      fontSize: 13,
-                      fontWeight: 950,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Request →
-                  </Link>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                    <div className="pmp-ratingRow">
+                      <StarRating value={hasRating ? Number(rating.avg.toFixed(1)) : 0} readOnly size={18} />
+                      <span className="pmp-mutedText">
+                        {hasRating ? `${rating.avg.toFixed(1)} (${rating.count})` : "No reviews"}
+                      </span>
+                    </div>
+
+                    <div className="pmp-ownerLine">
+                      Owner:{" "}
+                      <Link href={`/profile/${horse.owner_id}`} className="pmp-inlineLink">
+                        {ownerLabel(horse.owner_id)}
+                      </Link>
+                    </div>
+
+                    <div className="pmp-inlineMeta" style={{ marginTop: 10 }}>
+                      {next ? (
+                        <>
+                          <AvailabilityBadge
+                            label={next.kind === "blocked" ? "Blocked" : "Booked"}
+                            tone={next.kind === "blocked" ? "warn" : "info"}
+                          />
+                          <span>
+                            {next.startDate} → {next.endDate}
+                          </span>
+                        </>
+                      ) : (
+                        <AvailabilityBadge label="No upcoming blocks" tone="neutral" />
+                      )}
+                    </div>
+
+                    <div className="pmp-cardActions">
+                      <Link href={`/horse/${horse.id}`} className="pmp-ctaSecondary">
+                        View horse
+                      </Link>
+
+                      {isOwnHorse ? (
+                        <div className="pmp-ownerPill">Your listing</div>
+                      ) : (
+                        <Link href={`/request?horseId=${horse.id}`} className="pmp-ctaPrimary">
+                          Request ride
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

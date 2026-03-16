@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { registerPushForCurrentUser } from "@/lib/push/registerPush";
 import NotificationBell from "@/components/NotificationBell";
 import { VerificationBadge } from "@/components/VerificationBadge";
+import MobileTabBar from "@/components/MobileTabBar";
 
 type ProfileMini = {
   id: string;
@@ -15,7 +16,6 @@ type ProfileMini = {
   display_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
-
   verification_status: string | null;
   verified_at: string | null;
   verification_provider: string | null;
@@ -114,21 +114,15 @@ export default function Header() {
   }, []);
 
   const logout = async () => {
-    // Optimistically close UI immediately
     setMenuOpen(false);
-
-    // Clear local state right away so the menu/header updates instantly
     setUser(null);
     setProfile(null);
     setProfileLoading(false);
 
     const { error } = await supabase.auth.signOut();
-
-    // Always send them to signed-out home page
     router.replace("/");
     router.refresh();
 
-    // Optional: you can surface this somewhere if you have a toast system
     if (error) {
       console.error("Logout error:", error.message);
     }
@@ -145,329 +139,166 @@ export default function Header() {
     return user.email ?? "Signed in";
   }, [user, profile, profileLoading]);
 
-  const brand = useMemo(() => {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 14,
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,241,232,0.85))",
-            border: "1px solid rgba(15,23,42,0.10)",
-            boxShadow: "0 10px 28px rgba(15,23,42,0.10)",
-            display: "grid",
-            placeItems: "center",
-            overflow: "hidden",
-          }}
-          aria-hidden="true"
-        >
-          <Image
-            src="/pmp-logo.png"
-            alt=""
-            width={34}
-            height={34}
-            priority
-            style={{ width: 34, height: 34, objectFit: "contain" }}
-          />
-        </div>
-
-        <div style={{ lineHeight: 1.05 }}>
-          <div style={{ fontWeight: 950, fontSize: 16, letterSpacing: -0.2 }}>
-            Pinch My Pony
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.65, fontWeight: 800 }}>
-            Marketplace
-          </div>
-        </div>
-      </div>
-    );
-  }, []);
-
   return (
-    <header
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 30,
-        background: "rgba(255,255,255,0.92)",
-        backdropFilter: "blur(10px)",
-        borderBottom: "1px solid rgba(15,23,42,0.10)",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 1200,
-          margin: "0 auto",
-          padding: "14px 16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <Link href="/" style={{ textDecoration: "none", color: "#0f172a" }}>
-          {brand}
-        </Link>
-
-        <div
-          ref={menuWrapRef}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            position: "relative",
-          }}
-        >
-          {user ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {/* ✅ Verification badge (links to /verify if needed) */}
-              {!isVerified ? (
-                <Link
-                  href="/verify"
-                  style={{ textDecoration: "none" }}
-                  title="Verification required"
-                >
-                  <VerificationBadge
-                    status={profile?.verification_status ?? "unverified"}
-                    verifiedAt={profile?.verified_at ?? null}
-                    provider={profile?.verification_provider ?? null}
-                    compact
-                  />
-                </Link>
-              ) : (
-                <div title="Verified">
-                  <VerificationBadge
-                    status={profile?.verification_status ?? "verified"}
-                    verifiedAt={profile?.verified_at ?? null}
-                    provider={profile?.verification_provider ?? null}
-                    compact
-                  />
-                </div>
-              )}
-
-              <NotificationBell />
+    <>
+      <header className="pmp-header">
+        <div className="pmp-headerInner">
+          <Link href="/" className="pmp-brand">
+            <div className="pmp-brandBadge" aria-hidden="true">
+              <Image
+                src="/pmp-logo.png"
+                alt=""
+                width={32}
+                height={32}
+                priority
+                style={{ width: 32, height: 32, objectFit: "contain" }}
+              />
             </div>
-          ) : null}
 
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            style={iconButtonStyle(menuOpen)}
-            aria-label="Menu"
-            title="Menu"
-          >
-            ☰
-          </button>
+            <div className="pmp-brandText">
+              <div className="pmp-brandTitle">Pinch My Pony</div>
+              <div className="pmp-brandSub">Horse sharing marketplace</div>
+            </div>
+          </Link>
 
-          {menuOpen ? (
-            <div
-              style={{
-                position: "absolute",
-                right: 0,
-                top: 54,
-                width: 320,
-                maxWidth: "calc(100vw - 32px)",
-                border: "1px solid rgba(15,23,42,0.10)",
-                borderRadius: 18,
-                background: "white",
-                boxShadow: "0 18px 50px rgba(15,23,42,0.12)",
-                padding: 12,
-                display: "grid",
-                gap: 8,
-                zIndex: 60,
-              }}
-            >
-              {user ? (
-                <>
-                  {!isVerified ? (
-                    <Link
-                      href="/verify"
-                      onClick={() => setMenuOpen(false)}
-                      style={menuItem()}
-                    >
-                      Verify Identity
-                    </Link>
-                  ) : null}
+          <div className="pmp-desktopLinks">
+            <Link href="/browse" className="pmp-topLink">
+              Browse
+            </Link>
+            <Link href="/faq" className="pmp-topLink">
+              FAQs
+            </Link>
+            <Link href="/contact" className="pmp-topLink">
+              Contact
+            </Link>
+          </div>
 
-                  <Link
-                    href="/browse"
-                    onClick={() => setMenuOpen(false)}
-                    style={menuItem()}
-                  >
-                    Browse
+          <div ref={menuWrapRef} className="pmp-headerActions">
+            {user ? (
+              <>
+                {!isVerified ? (
+                  <Link href="/verify" title="Verification required" className="pmp-hideOnSmall">
+                    <VerificationBadge
+                      status={profile?.verification_status ?? "unverified"}
+                      verifiedAt={profile?.verified_at ?? null}
+                      provider={profile?.verification_provider ?? null}
+                      compact
+                    />
                   </Link>
-
-                  <Link
-                    href="/messages"
-                    onClick={() => setMenuOpen(false)}
-                    style={menuItem()}
-                  >
-                    Messages
-                  </Link>
-
-                  {isOwner ? (
-                    <Link
-                      href="/dashboard/owner"
-                      onClick={() => setMenuOpen(false)}
-                      style={menuItem()}
-                    >
-                      Owner Dashboard
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/dashboard/borrower"
-                      onClick={() => setMenuOpen(false)}
-                      style={menuItem()}
-                    >
-                      Borrower Dashboard
-                    </Link>
-                  )}
-
-                  <Link
-                    href="/profile"
-                    onClick={() => setMenuOpen(false)}
-                    style={menuItem()}
-                  >
-                    Profile
-                  </Link>
-
-                  <button onClick={logout} style={menuButton()}>
-                    Logout
-                  </button>
-
-                  <div
-                    style={{
-                      marginTop: 4,
-                      fontSize: 12,
-                      opacity: 0.7,
-                      padding: "0 2px",
-                    }}
-                  >
-                    Signed in as{" "}
-                    <span style={{ fontWeight: 950 }}>{signedInLabel}</span>
+                ) : (
+                  <div title="Verified" className="pmp-hideOnSmall">
+                    <VerificationBadge
+                      status={profile?.verification_status ?? "verified"}
+                      verifiedAt={profile?.verified_at ?? null}
+                      provider={profile?.verification_provider ?? null}
+                      compact
+                    />
                   </div>
+                )}
 
-                  {/* Divider */}
-                  <div
-                    style={{
-                      height: 1,
-                      background: "rgba(15,23,42,0.08)",
-                      margin: "6px 0 2px",
-                    }}
-                  />
+                <div className="pmp-hideOnSmall">
+                  <NotificationBell />
+                </div>
+              </>
+            ) : null}
 
-                  {/* Public links at bottom (FAQs first, then Contact Us) */}
-                  <Link
-                    href="/faq"
-                    onClick={() => setMenuOpen(false)}
-                    style={menuItem()}
-                  >
-                    FAQs
-                  </Link>
-                  <Link
-                    href="/contact"
-                    onClick={() => setMenuOpen(false)}
-                    style={menuItem()}
-                  >
-                    Contact Us
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/login"
-                    onClick={() => setMenuOpen(false)}
-                    style={menuItem()}
-                  >
-                    Login
-                  </Link>
-                  <Link
-                    href="/signup"
-                    onClick={() => setMenuOpen(false)}
-                    style={menuItem()}
-                  >
-                    Sign Up
-                  </Link>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className={`pmp-menuButton${menuOpen ? " is-open" : ""}`}
+              aria-label="Menu"
+              title="Menu"
+              type="button"
+            >
+              ☰
+            </button>
 
-                  {/* Divider */}
-                  <div
-                    style={{
-                      height: 1,
-                      background: "rgba(15,23,42,0.08)",
-                      margin: "6px 0 2px",
-                    }}
-                  />
+            {menuOpen ? (
+              <div className="pmp-menuPanel">
+                {user ? (
+                  <>
+                    <div className="pmp-menuUser">
+                      <div className="pmp-menuUserLabel">Signed in as</div>
+                      <div className="pmp-menuUserName">{signedInLabel}</div>
+                    </div>
 
-                  {/* Public links at bottom (FAQs first, then Contact Us) */}
-                  <Link
-                    href="/faq"
-                    onClick={() => setMenuOpen(false)}
-                    style={menuItem()}
-                  >
-                    FAQs
-                  </Link>
-                  <Link
-                    href="/contact"
-                    onClick={() => setMenuOpen(false)}
-                    style={menuItem()}
-                  >
-                    Contact Us
-                  </Link>
-                </>
-              )}
-            </div>
-          ) : null}
+                    {!isVerified ? (
+                      <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                        Verify Identity
+                      </Link>
+                    ) : null}
+
+                    <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Browse Horses
+                    </Link>
+
+                    <Link href="/messages" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Messages
+                    </Link>
+
+                    {isOwner ? (
+                      <Link
+                        href="/dashboard/owner"
+                        onClick={() => setMenuOpen(false)}
+                        className="pmp-menuItem"
+                      >
+                        Owner Dashboard
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/dashboard/borrower"
+                        onClick={() => setMenuOpen(false)}
+                        className="pmp-menuItem"
+                      >
+                        Rider Dashboard
+                      </Link>
+                    )}
+
+                    <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Profile
+                    </Link>
+
+                    <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      FAQs
+                    </Link>
+
+                    <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Contact Us
+                    </Link>
+
+                    <button onClick={logout} className="pmp-menuLogout" type="button">
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/login" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Login
+                    </Link>
+
+                    <Link href="/signup" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Sign Up
+                    </Link>
+
+                    <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Browse Horses
+                    </Link>
+
+                    <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      FAQs
+                    </Link>
+
+                    <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Contact Us
+                    </Link>
+                  </>
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {user ? <MobileTabBar /> : null}
+    </>
   );
-}
-
-function iconButtonStyle(active: boolean): React.CSSProperties {
-  return {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    border: active
-      ? "1px solid rgba(37,99,235,0.35)"
-      : "1px solid rgba(15,23,42,0.12)",
-    background: "white",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 18,
-    fontWeight: 900,
-    color: "#0f172a",
-    boxShadow: active ? "0 10px 24px rgba(37,99,235,0.10)" : "none",
-    transition:
-      "box-shadow 120ms ease, border-color 120ms ease, transform 120ms ease",
-  };
-}
-
-function menuItem(): React.CSSProperties {
-  return {
-    padding: "14px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(15,23,42,0.08)",
-    textDecoration: "none",
-    color: "#0f172a",
-    fontWeight: 900,
-    background: "rgba(15,23,42,0.03)",
-  };
-}
-
-function menuButton(): React.CSSProperties {
-  return {
-    padding: "14px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(15,23,42,0.10)",
-    textDecoration: "none",
-    color: "#0f172a",
-    fontWeight: 950,
-    background: "white",
-    cursor: "pointer",
-    textAlign: "left",
-  };
 }
