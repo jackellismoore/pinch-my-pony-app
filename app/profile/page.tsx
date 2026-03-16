@@ -26,6 +26,7 @@ export default function ProfilePage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -33,16 +34,14 @@ export default function ProfilePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileAny | null>(null);
 
-  // editable fields (core + optional)
   const [fullName, setFullName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
 
-  // Optional fields (only saved if your DB supports them)
   const [stableName, setStableName] = useState("");
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
-  const [age, setAge] = useState(""); // store as string in UI, parse for DB
+  const [age, setAge] = useState("");
 
   const title = useMemo(() => {
     const dn = displayName.trim();
@@ -76,26 +75,18 @@ export default function ProfilePage() {
         if (cancelled) return;
         setUserId(user.id);
 
-        // ✅ Include verification fields
-        const res = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
+        const res = await supabase.from("profiles").select("*").eq("id", user.id).single();
 
         if (cancelled) return;
-
         if (res.error) throw res.error;
 
         const p = (res.data ?? null) as ProfileAny | null;
         setProfile(p);
 
-        // core
         setFullName(p?.full_name ?? "");
         setDisplayName(p?.display_name ?? "");
         setAvatarUrl(p?.avatar_url ?? "");
 
-        // optional (only if present)
         setStableName(p?.stable_name ?? "");
         setLocation(p?.location ?? "");
         setBio(p?.bio ?? "");
@@ -114,7 +105,6 @@ export default function ProfilePage() {
   }, [router]);
 
   async function tryUpdate(payload: Record<string, any>) {
-    // Attempt full update; if optional columns don’t exist, fall back to core fields only.
     const attempt1 = await supabase.from("profiles").update(payload).eq("id", userId as string);
 
     if (!attempt1.error) return { ok: true as const, warn: null as string | null };
@@ -123,10 +113,10 @@ export default function ProfilePage() {
     const looksLikeMissingColumn =
       msg.toLowerCase().includes("column") && msg.toLowerCase().includes("does not exist");
 
-    if (!looksLikeMissingColumn)
+    if (!looksLikeMissingColumn) {
       return { ok: false as const, warn: null as string | null, error: attempt1.error };
+    }
 
-    // fallback to core only
     const coreOnly: Record<string, any> = {
       full_name: payload.full_name,
       display_name: payload.display_name,
@@ -134,8 +124,9 @@ export default function ProfilePage() {
     };
 
     const attempt2 = await supabase.from("profiles").update(coreOnly).eq("id", userId as string);
-    if (attempt2.error)
+    if (attempt2.error) {
       return { ok: false as const, warn: null as string | null, error: attempt2.error };
+    }
 
     return {
       ok: true as const,
@@ -154,15 +145,12 @@ export default function ProfilePage() {
       full_name: safeTrim(fullName),
       display_name: safeTrim(displayName),
       avatar_url: safeTrim(avatarUrl),
-
-      // optional fields (will be ignored by fallback if columns don’t exist)
       stable_name: safeTrim(stableName),
       location: safeTrim(location),
       bio: safeTrim(bio),
       age: age.trim() === "" ? null : Number(age),
     };
 
-    // Prevent sending NaN for age
     if (age.trim() !== "" && !isNumberLike(age)) {
       setError("Age must be a number (or leave it blank).");
       return;
@@ -181,7 +169,6 @@ export default function ProfilePage() {
       if (r.warn) setNotice(r.warn);
       else setNotice("Saved.");
 
-      // reload profile for consistency
       const res = await supabase.from("profiles").select("*").eq("id", userId).single();
       if (!res.error) setProfile(res.data as any);
     } catch (e: any) {
@@ -200,7 +187,6 @@ export default function ProfilePage() {
     try {
       setSaving(true);
 
-      // common bucket name; adjust if yours differs
       const bucket = "avatars";
       const ext = file.name.includes(".") ? file.name.split(".").pop() : "jpg";
       const path = `${userId}/${Date.now()}.${ext}`;
@@ -228,12 +214,54 @@ export default function ProfilePage() {
     }
   }
 
+  async function deleteAccount() {
+    const confirmed = window.confirm(
+      "Are you sure you want to permanently delete your account? This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeleting(true);
+      setError(null);
+      setNotice(null);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const token = session?.access_token;
+      if (!token) throw new Error("You are not signed in.");
+
+      const res = await fetch("/api/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to delete account.");
+      }
+
+      await supabase.auth.signOut();
+      router.replace("/");
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to delete account.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: 24, fontSize: 13, color: "rgba(0,0,0,0.6)" }}>Loading…</div>;
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
+    <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", paddingBottom: 120 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>{title}</h1>
@@ -244,7 +272,7 @@ export default function ProfilePage() {
 
         <button
           onClick={onSave}
-          disabled={saving}
+          disabled={saving || deleting}
           style={{
             border: "1px solid rgba(0,0,0,0.14)",
             background: saving ? "rgba(0,0,0,0.06)" : "black",
@@ -261,7 +289,6 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      {/* ✅ Trust & identity card */}
       <div
         style={{
           marginTop: 12,
@@ -278,7 +305,11 @@ export default function ProfilePage() {
       >
         <div style={{ display: "grid", gap: 6 }}>
           <div style={{ fontWeight: 950, fontSize: 13 }}>Trust & identity</div>
-          <VerificationBadge status={verificationStatus} verifiedAt={verifiedAt} provider={verificationProvider} />
+          <VerificationBadge
+            status={verificationStatus}
+            verifiedAt={verifiedAt}
+            provider={verificationProvider}
+          />
           {verificationProvider ? (
             <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
           ) : null}
@@ -346,7 +377,6 @@ export default function ProfilePage() {
           gap: 12,
         }}
       >
-        {/* Avatar */}
         <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
           <div
             style={{
@@ -360,8 +390,11 @@ export default function ProfilePage() {
             }}
           >
             {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img
+                src={avatarUrl}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
             ) : null}
           </div>
 
@@ -397,6 +430,7 @@ export default function ProfilePage() {
                 <input
                   type="file"
                   accept="image/*"
+                  capture="environment"
                   style={{ display: "none" }}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -413,7 +447,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Core fields */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
             Display name
@@ -446,7 +479,6 @@ export default function ProfilePage() {
           </label>
         </div>
 
-        {/* Optional fields */}
         <div style={{ marginTop: 6, fontWeight: 950, fontSize: 13 }}>Optional public details</div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -520,12 +552,14 @@ export default function ProfilePage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
           <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
             Profile ID:{" "}
-            <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{userId}</span>
+            <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+              {userId}
+            </span>
           </div>
 
           <button
             onClick={onSave}
-            disabled={saving}
+            disabled={saving || deleting}
             style={{
               border: "1px solid rgba(0,0,0,0.14)",
               background: saving ? "rgba(0,0,0,0.06)" : "black",
@@ -539,6 +573,43 @@ export default function ProfilePage() {
             }}
           >
             {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 14,
+          border: "1px solid rgba(185,28,28,0.15)",
+          borderRadius: 14,
+          padding: 14,
+          background: "rgba(185,28,28,0.03)",
+          display: "grid",
+          gap: 10,
+        }}
+      >
+        <div style={{ fontWeight: 950, fontSize: 14, color: "#991b1b" }}>Delete account</div>
+        <div style={{ fontSize: 13, color: "rgba(0,0,0,0.7)", lineHeight: 1.6 }}>
+          Permanently delete your Pinch My Pony account and associated profile data. This cannot be undone.
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            onClick={deleteAccount}
+            disabled={deleting || saving}
+            style={{
+              border: "1px solid rgba(185,28,28,0.22)",
+              background: deleting ? "rgba(185,28,28,0.05)" : "rgba(185,28,28,0.08)",
+              color: "#991b1b",
+              borderRadius: 12,
+              padding: "11px 14px",
+              fontWeight: 950,
+              fontSize: 14,
+              cursor: deleting ? "not-allowed" : "pointer",
+            }}
+          >
+            {deleting ? "Deleting account…" : "Delete account"}
           </button>
         </div>
       </div>
