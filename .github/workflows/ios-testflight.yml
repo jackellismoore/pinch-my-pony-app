@@ -109,11 +109,24 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          timeout 600 xcodebuild \
-            -resolvePackageDependencies \
-            -project ios/App/App.xcodeproj \
-            -scheme "$IOS_SCHEME" \
-            -clonedSourcePackagesDirPath ios/App/SourcePackages
+          python3 - <<'PY'
+          import subprocess, sys
+
+          cmd = [
+              "xcodebuild",
+              "-resolvePackageDependencies",
+              "-project", "ios/App/App.xcodeproj",
+              "-scheme", "App",
+              "-clonedSourcePackagesDirPath", "ios/App/SourcePackages",
+          ]
+
+          try:
+              result = subprocess.run(cmd, check=False, timeout=600)
+              sys.exit(result.returncode)
+          except subprocess.TimeoutExpired:
+              print("Swift package resolution timed out after 600 seconds.", file=sys.stderr)
+              sys.exit(124)
+          PY
 
       - name: Create ExportOptions.plist
         shell: bash
@@ -144,30 +157,56 @@ jobs:
       - name: Archive app
         shell: bash
         run: |
-          set -o pipefail
-          timeout 1800 xcodebuild \
-            -project ios/App/App.xcodeproj \
-            -scheme "$IOS_SCHEME" \
-            -configuration Release \
-            -archivePath build/App.xcarchive \
-            -destination generic/platform=iOS \
-            -clonedSourcePackagesDirPath ios/App/SourcePackages \
-            -derivedDataPath ios/App/DerivedData \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$APP_BUNDLE_ID" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$APP_PROFILE_NAME" \
-            archive | tee xcodebuild-archive.log
+          set -euxo pipefail
+          python3 - <<'PY'
+          import subprocess, sys
 
-          EXIT_CODE=${PIPESTATUS[0]}
-          echo "xcodebuild exit code: $EXIT_CODE"
+          cmd = [
+              "xcodebuild",
+              "-project", "ios/App/App.xcodeproj",
+              "-scheme", "App",
+              "-configuration", "Release",
+              "-archivePath", "build/App.xcarchive",
+              "-destination", "generic/platform=iOS",
+              "-clonedSourcePackagesDirPath", "ios/App/SourcePackages",
+              "-derivedDataPath", "ios/App/DerivedData",
+              f"DEVELOPMENT_TEAM={\"MBYRMXKNM4\"}",
+              f"PRODUCT_BUNDLE_IDENTIFIER={\"com.pinchmypony.app\"}",
+              "CODE_SIGN_STYLE=Manual",
+              "CODE_SIGN_IDENTITY=Apple Distribution",
+              "PROVISIONING_PROFILE_SPECIFIER=match AppStore com.pinchmypony.app",
+              "archive",
+          ]
 
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "===== LAST 200 LINES OF XCODE LOG ====="
-            tail -n 200 xcodebuild-archive.log
-            exit $EXIT_CODE
-          fi
+          with open("xcodebuild-archive.log", "w") as f:
+              try:
+                  proc = subprocess.Popen(
+                      cmd,
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.STDOUT,
+                      text=True,
+                      bufsize=1,
+                  )
+
+                  assert proc.stdout is not None
+                  try:
+                      for line in proc.stdout:
+                          print(line, end="")
+                          f.write(line)
+                      returncode = proc.wait(timeout=1800)
+                  except subprocess.TimeoutExpired:
+                      proc.kill()
+                      print("\nArchive timed out after 1800 seconds.", file=sys.stderr)
+                      sys.exit(124)
+
+                  if returncode != 0:
+                      print(f"\nxcodebuild exit code: {returncode}", file=sys.stderr)
+                      sys.exit(returncode)
+
+              except Exception as e:
+                  print(f"\nArchive step failed: {e}", file=sys.stderr)
+                  sys.exit(1)
+          PY
 
       - name: Upload archive log
         if: always()
@@ -180,11 +219,24 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          timeout 600 xcodebuild \
-            -exportArchive \
-            -archivePath build/App.xcarchive \
-            -exportPath build/export \
-            -exportOptionsPlist build/ExportOptions.plist
+          python3 - <<'PY'
+          import subprocess, sys
+
+          cmd = [
+              "xcodebuild",
+              "-exportArchive",
+              "-archivePath", "build/App.xcarchive",
+              "-exportPath", "build/export",
+              "-exportOptionsPlist", "build/ExportOptions.plist",
+          ]
+
+          try:
+              result = subprocess.run(cmd, check=False, timeout=600)
+              sys.exit(result.returncode)
+          except subprocess.TimeoutExpired:
+              print("IPA export timed out after 600 seconds.", file=sys.stderr)
+              sys.exit(124)
+          PY
 
       - name: Validate IPA
         shell: bash
