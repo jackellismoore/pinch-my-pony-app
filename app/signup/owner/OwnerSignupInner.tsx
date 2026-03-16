@@ -7,10 +7,8 @@ import { supabase, SUPABASE_ENV_OK } from "@/lib/supabaseClient";
 
 const palette = {
   forest: "#1F3D2B",
-  saddle: "#8B5E3C",
   cream: "#F5F1E8",
   navy: "#1F2A44",
-  gold: "#C8A24D",
 };
 
 function sanitizeRedirectTo(v: string | null): string {
@@ -20,51 +18,6 @@ function sanitizeRedirectTo(v: string | null): string {
   if (v === "/login" || v === "/signup") return "/";
   return v;
 }
-
-const pageBg = `radial-gradient(900px 420px at 20% 0%, rgba(200,162,77,0.18), transparent 55%),
-                radial-gradient(900px 420px at 90% 18%, rgba(31,61,43,0.14), transparent 58%),
-                linear-gradient(180deg, ${palette.cream} 0%, rgba(250,250,250,1) 68%)`;
-
-const card: React.CSSProperties = {
-  borderRadius: 22,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background: "rgba(255,255,255,0.86)",
-  boxShadow: "0 22px 60px rgba(31,42,68,0.10)",
-};
-
-const input: React.CSSProperties = {
-  border: "1px solid rgba(31,42,68,0.16)",
-  borderRadius: 12,
-  padding: "10px 12px",
-  fontSize: 14,
-  background: "rgba(255,255,255,0.88)",
-  outline: "none",
-};
-
-const btn = (kind: "primary" | "secondary") =>
-  ({
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    padding: "10px 14px",
-    borderRadius: 14,
-    textDecoration: "none",
-    fontSize: 13,
-    fontWeight: 950,
-    whiteSpace: "nowrap",
-    border: "1px solid rgba(31,42,68,0.16)",
-    background:
-      kind === "primary"
-        ? `linear-gradient(180deg, ${palette.forest}, #173223)`
-        : "rgba(255,255,255,0.72)",
-    color: kind === "primary" ? "white" : palette.navy,
-    boxShadow:
-      kind === "primary"
-        ? "0 14px 34px rgba(31,61,43,0.18)"
-        : "0 14px 34px rgba(31,42,68,0.08)",
-    cursor: "pointer",
-  }) as React.CSSProperties;
 
 export default function OwnerSignupInner() {
   const router = useRouter();
@@ -124,107 +77,35 @@ export default function OwnerSignupInner() {
   }
 
   const loginHref = `/login?redirectTo=${encodeURIComponent(redirectTo)}`;
-  const borrowerHref = `/signup/borrower?redirectTo=${encodeURIComponent(
-    redirectTo
-  )}`;
+  const borrowerHref = `/signup/borrower?redirectTo=${encodeURIComponent(redirectTo)}`;
 
   return (
-    <div
-      style={{
-        minHeight: "calc(100vh - 60px)",
-        background: pageBg,
-        padding: "22px 16px 34px",
-      }}
-    >
-      <div style={{ maxWidth: 560, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 14 }}>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "8px 12px",
-              borderRadius: 999,
-              border: "1px solid rgba(31,42,68,0.12)",
-              background: "rgba(255,255,255,0.72)",
-              boxShadow: "0 14px 34px rgba(31,42,68,0.08)",
-              fontSize: 12,
-              fontWeight: 950,
-              color: palette.navy,
-            }}
-          >
-            Pinch My Pony · Owner
-          </div>
+    <div style={wrap}>
+      <div style={bg} aria-hidden="true" />
 
-          <h1
-            style={{
-              margin: "14px 0 0",
-              fontSize: 30,
-              letterSpacing: -0.4,
-              color: palette.navy,
-              fontWeight: 950,
-            }}
-          >
-            Create your owner account
-          </h1>
+      <div style={container}>
+        <div style={card}>
+          <div style={eyebrow}>Pinch My Pony · Owner</div>
 
-          <div
-            style={{
-              marginTop: 8,
-              fontSize: 13,
-              color: "rgba(0,0,0,0.62)",
-              lineHeight: 1.6,
-            }}
-          >
-            List horses, approve requests, and manage availability.
-          </div>
-        </div>
+          <h1 style={title}>Create your owner account</h1>
 
-        <div style={{ ...card, padding: 16 }}>
-          {error ? (
-            <div
-              style={{
-                marginBottom: 12,
-                border: "1px solid rgba(255,0,0,0.25)",
-                background: "rgba(255,0,0,0.06)",
-                padding: 12,
-                borderRadius: 14,
-                fontSize: 13,
-              }}
-            >
-              {error}
-            </div>
-          ) : null}
+          <p style={subtitle}>
+            List horses, manage availability, and approve rider requests from one place.
+          </p>
 
-          <div style={{ display: "grid", gap: 12 }}>
-            <label
-              style={{
-                display: "grid",
-                gap: 6,
-                fontSize: 13,
-                color: "rgba(0,0,0,0.75)",
-                fontWeight: 800,
-              }}
-            >
-              Display name (optional)
+          {error ? <div style={errorBox}>{error}</div> : null}
+
+          <div style={formGrid}>
+            <Field label="Display name (optional)">
               <input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 style={input}
                 placeholder="e.g. Jack"
               />
-            </label>
+            </Field>
 
-            <label
-              style={{
-                display: "grid",
-                gap: 6,
-                fontSize: 13,
-                color: "rgba(0,0,0,0.75)",
-                fontWeight: 800,
-              }}
-            >
-              Email
+            <Field label="Email">
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -233,18 +114,9 @@ export default function OwnerSignupInner() {
                 style={input}
                 placeholder="you@example.com"
               />
-            </label>
+            </Field>
 
-            <label
-              style={{
-                display: "grid",
-                gap: 6,
-                fontSize: 13,
-                color: "rgba(0,0,0,0.75)",
-                fontWeight: 800,
-              }}
-            >
-              Password
+            <Field label="Password">
               <input
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -253,38 +125,158 @@ export default function OwnerSignupInner() {
                 style={input}
                 placeholder="••••••••"
               />
-            </label>
+            </Field>
 
             <button
               onClick={signupOwner}
               disabled={loading}
-              style={{ ...btn("primary"), opacity: loading ? 0.75 : 1 }}
+              style={{ ...primaryBtn, opacity: loading ? 0.75 : 1 }}
             >
               {loading ? "Creating account…" : "Create owner account"}
             </button>
 
-            <div style={{ height: 1, background: "rgba(31,42,68,0.10)" }} />
-
-            <div style={{ fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
-              Already have an account?{" "}
-              <Link href={loginHref} style={{ fontWeight: 950, color: palette.navy }}>
-                Login
+            <div style={footerLinks}>
+              <Link href={loginHref} style={inlineLink}>
+                Already have an account?
               </Link>
-            </div>
-
-            <div style={{ fontSize: 13, color: "rgba(0,0,0,0.62)" }}>
-              Want to borrow instead?{" "}
-              <Link href={borrowerHref} style={{ fontWeight: 950, color: palette.navy }}>
-                Borrower signup
+              <Link href={borrowerHref} style={inlineLink}>
+                I want to borrow a horse instead
               </Link>
             </div>
           </div>
-        </div>
-
-        <div style={{ marginTop: 12, fontSize: 12, color: "rgba(0,0,0,0.55)", textAlign: "center" }}>
-          By creating an account you agree to the marketplace terms.
         </div>
       </div>
     </div>
   );
 }
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={field}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+const wrap: React.CSSProperties = {
+  position: "relative",
+  minHeight: "calc(100vh - 60px)",
+  overflow: "hidden",
+  background: palette.cream,
+  padding: "22px 16px 34px",
+};
+
+const bg: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  background:
+    "radial-gradient(900px 420px at 20% 0%, rgba(200,162,77,0.18), transparent 55%), radial-gradient(900px 420px at 90% 18%, rgba(31,61,43,0.14), transparent 58%), linear-gradient(180deg, rgba(245,241,232,1) 0%, rgba(250,250,250,1) 68%)",
+};
+
+const container: React.CSSProperties = {
+  position: "relative",
+  maxWidth: 560,
+  margin: "0 auto",
+};
+
+const card: React.CSSProperties = {
+  borderRadius: 24,
+  border: "1px solid rgba(31,42,68,0.12)",
+  background: "rgba(255,255,255,0.88)",
+  boxShadow: "0 22px 60px rgba(31,42,68,0.10)",
+  padding: 20,
+};
+
+const eyebrow: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(31,42,68,0.12)",
+  background: "rgba(255,255,255,0.72)",
+  fontSize: 12,
+  fontWeight: 950,
+  color: palette.navy,
+};
+
+const title: React.CSSProperties = {
+  margin: "14px 0 0",
+  fontSize: "clamp(28px, 6vw, 38px)",
+  lineHeight: 1.05,
+  letterSpacing: -0.4,
+  color: palette.navy,
+  fontWeight: 950,
+};
+
+const subtitle: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 15,
+  lineHeight: 1.7,
+  color: "rgba(15,23,42,0.72)",
+};
+
+const errorBox: React.CSSProperties = {
+  marginTop: 14,
+  border: "1px solid rgba(255,0,0,0.25)",
+  background: "rgba(255,0,0,0.06)",
+  padding: 12,
+  borderRadius: 14,
+  fontSize: 13,
+};
+
+const formGrid: React.CSSProperties = {
+  marginTop: 16,
+  display: "grid",
+  gap: 14,
+};
+
+const field: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+  fontSize: 13,
+  color: "rgba(0,0,0,0.75)",
+  fontWeight: 800,
+};
+
+const input: React.CSSProperties = {
+  border: "1px solid rgba(31,42,68,0.16)",
+  borderRadius: 14,
+  padding: "12px 14px",
+  fontSize: 15,
+  background: "rgba(255,255,255,0.92)",
+  outline: "none",
+  minHeight: 48,
+};
+
+const primaryBtn: React.CSSProperties = {
+  minHeight: 50,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  padding: "12px 16px",
+  borderRadius: 14,
+  border: "1px solid rgba(31,42,68,0.16)",
+  background: "linear-gradient(180deg, #1F3D2B, #173223)",
+  color: "white",
+  fontSize: 15,
+  fontWeight: 950,
+  boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
+  cursor: "pointer",
+};
+
+const footerLinks: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const inlineLink: React.CSSProperties = {
+  color: palette.forest,
+  fontWeight: 900,
+  textDecoration: "none",
+  fontSize: 14,
+};

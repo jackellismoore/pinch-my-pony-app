@@ -18,7 +18,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   });
 }
 
-function sanitizeRedirectTo(v: string | null): string {
+function sanitizeRedirectTo(v: string | null) {
   if (!v) return "/";
   if (!v.startsWith("/")) return "/";
   if (v.startsWith("//")) return "/";
@@ -42,7 +42,10 @@ export default function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const redirectTo = useMemo(() => sanitizeRedirectTo(searchParams.get("redirectTo")), [searchParams]);
+  const redirectTo = useMemo(
+    () => sanitizeRedirectTo(searchParams.get("redirectTo")),
+    [searchParams]
+  );
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,7 +62,11 @@ export default function LoginInner() {
       ? "Please enter a valid email."
       : null;
 
-  const pwdErr = !pwdTrim ? "Password is required." : pwdTrim.length < 6 ? "Password looks too short." : null;
+  const pwdErr = !pwdTrim
+    ? "Password is required."
+    : pwdTrim.length < 6
+      ? "Password looks too short."
+      : null;
 
   const canSubmit = !loading && !emailErr && !pwdErr;
 
@@ -104,18 +111,15 @@ export default function LoginInner() {
   const forgotHref = `/forgot-password?email=${encodeURIComponent(emailTrim || "")}`;
 
   return (
-    <div style={fullBleedWrap}>
+    <div style={pageWrap}>
       <style>{css}</style>
 
-      <section style={heroSection} aria-label="Login">
+      <section style={heroSection}>
         <div style={heroBg} aria-hidden="true" />
-        <div className="pmp-driftA" style={heroFloatA} aria-hidden="true" />
-        <div className="pmp-driftB" style={heroFloatB} aria-hidden="true" />
 
         <div style={container}>
-          <div style={grid}>
-            {/* Left */}
-            <div style={{ display: "grid", gap: 12 }}>
+          <div className="pmp-authGrid">
+            <div style={leftCol}>
               <div style={eyebrowPill}>
                 <span aria-hidden="true">🐴</span>
                 <span>Welcome back</span>
@@ -126,120 +130,142 @@ export default function LoginInner() {
               </h1>
 
               <p style={subtitle}>
-                Pinch My Pony keeps borrowing simple, warm, and organized — with messaging and clear guardrails built in.
+                Pinch My Pony keeps borrowing simple, warm, and organised — with
+                messaging, requests, and clear owner communication built in.
               </p>
 
-              <div className="pmp-hoverLift" style={miniBand}>
-                <div style={{ fontWeight: 950, color: palette.navy }}>Tip</div>
-                <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.6 }}>
-                  If you’re new, create an account to request dates and message owners.
+              <div style={tipCard}>
+                <div style={tipTitle}>New here?</div>
+                <div style={tipText}>
+                  Create an account to browse horses, request rides, and message owners.
                 </div>
 
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-                  <Link href={signupHref} style={{ textDecoration: "none" }}>
+                <div style={tipActions}>
+                  <Link href={signupHref} style={linkReset}>
                     <span style={secondaryBtn}>Create account</span>
                   </Link>
-                  <Link href="/faq" style={{ textDecoration: "none" }}>
+                  <Link href="/faq" style={linkReset}>
                     <span style={ghostBtn}>Read FAQs</span>
                   </Link>
                 </div>
               </div>
             </div>
 
-            {/* Right */}
-            <div className="pmp-hoverLift" style={card}>
-              <div style={cardTopRow}>
-                <div style={logoRow}>
-                  <div style={logoBadge} aria-hidden="true">
-                    <img
-                      src="/pmp-logo.png"
-                      alt=""
-                      style={{ width: "86%", height: "86%", objectFit: "contain", display: "block" }}
+            <div style={rightCol}>
+              <div style={card}>
+                <div style={cardTopRow}>
+                  <div style={logoRow}>
+                    <div style={logoBadge} aria-hidden="true">
+                      <img
+                        src="/pmp-logo.png"
+                        alt=""
+                        style={{
+                          width: "86%",
+                          height: "86%",
+                          objectFit: "contain",
+                          display: "block",
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ lineHeight: 1.15 }}>
+                      <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>
+                        Login
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 12, opacity: 0.72 }}>
+                        Secure access
+                      </div>
+                    </div>
+                  </div>
+
+                  <span style={pill}>
+                    <span aria-hidden="true">🔐</span>
+                    <span>Protected</span>
+                  </span>
+                </div>
+
+                {error ? (
+                  <div style={errorBand} role="alert" aria-live="polite">
+                    <div style={{ fontWeight: 950, color: palette.navy }}>
+                      We couldn’t sign you in
+                    </div>
+                    <div style={{ marginTop: 4, opacity: 0.82, lineHeight: 1.6 }}>
+                      {error}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div style={formGrid}>
+                  <Field
+                    label="Email"
+                    hint="Use the address you signed up with."
+                    error={emailTrim ? emailErr : null}
+                  >
+                    <input
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      type="email"
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      style={inputStyle(!!(emailTrim && emailErr))}
+                      inputMode="email"
                     />
-                  </div>
-                  <div style={{ lineHeight: 1.15 }}>
-                    <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Login</div>
-                    <div style={{ fontWeight: 800, fontSize: 12, opacity: 0.72 }}>Secure access</div>
-                  </div>
-                </div>
+                  </Field>
 
-                <span style={pill}>
-                  <span aria-hidden="true">🔐</span>
-                  <span>Protected</span>
-                </span>
-              </div>
+                  <Field
+                    label="Password"
+                    hint="At least 6 characters."
+                    error={pwdTrim ? pwdErr : null}
+                  >
+                    <input
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      type="password"
+                      autoComplete="current-password"
+                      placeholder="••••••••"
+                      style={inputStyle(!!(pwdTrim && pwdErr))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") login();
+                      }}
+                    />
+                  </Field>
 
-              {error ? (
-                <div style={errorBand} role="alert" aria-live="polite">
-                  <div style={{ fontWeight: 950, color: palette.navy }}>We couldn’t sign you in</div>
-                  <div style={{ marginTop: 4, opacity: 0.82, lineHeight: 1.6 }}>{error}</div>
-                </div>
-              ) : null}
-
-              <div style={{ display: "grid", gap: 12 }}>
-                <Field label="Email" hint="Use the address you signed up with." error={emailTrim ? emailErr : null}>
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    style={inputStyle(!!(emailTrim && emailErr))}
-                    inputMode="email"
-                  />
-                </Field>
-
-                <Field label="Password" hint="At least 6 characters." error={pwdTrim ? pwdErr : null}>
-                  <input
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    style={inputStyle(!!(pwdTrim && pwdErr))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") login();
-                    }}
-                  />
-                </Field>
-
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <Link href={forgotHref} style={inlineLink}>
-                    Forgot password?
-                  </Link>
-
-                  <Link href={signupHref} style={inlineLink}>
-                    New here? Sign up
-                  </Link>
-                </div>
-
-                <button onClick={login} disabled={!canSubmit} style={primaryBtn(loading, canSubmit)}>
-                  {loading ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-                      <span className="pmpSpinner" aria-hidden="true" />
-                      Logging in…
-                    </span>
-                  ) : (
-                    "Login"
-                  )}
-                </button>
-
-                <div style={fineRow}>
-                  <div style={{ fontSize: 13, opacity: 0.78 }}>
-                    <Link href="/contact" style={inlineLink}>
-                      Contact
-                    </Link>{" "}
-                    <span style={{ opacity: 0.5 }}>•</span>{" "}
-                    <Link href="/faq" style={inlineLink}>
-                      FAQs
+                  <div style={inlineLinksRow}>
+                    <Link href={forgotHref} style={inlineLink}>
+                      Forgot password?
                     </Link>
+
+                    <Link href={signupHref} style={inlineLink}>
+                      New here? Sign up
+                    </Link>
+                  </div>
+
+                  <button onClick={login} disabled={!canSubmit} style={primaryBtn(loading, canSubmit)}>
+                    {loading ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                        <span className="pmpSpinner" aria-hidden="true" />
+                        Logging in…
+                      </span>
+                    ) : (
+                      "Login"
+                    )}
+                  </button>
+
+                  <div style={fineRow}>
+                    <div style={{ fontSize: 13, opacity: 0.78 }}>
+                      <Link href="/contact" style={inlineLink}>
+                        Contact
+                      </Link>{" "}
+                      <span style={{ opacity: 0.5 }}>•</span>{" "}
+                      <Link href="/faq" style={inlineLink}>
+                        FAQs
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-
-          <div style={{ height: 28 }} />
         </div>
       </section>
     </div>
@@ -259,49 +285,69 @@ function Field({
 }) {
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 10,
+          alignItems: "baseline",
+          flexWrap: "wrap",
+        }}
+      >
         <label style={{ fontWeight: 950, color: palette.navy }}>{label}</label>
         {hint ? <span style={{ fontSize: 12, opacity: 0.7 }}>{hint}</span> : null}
       </div>
       {children}
-      {error ? <div style={{ fontSize: 12, color: "#7a1f1f", fontWeight: 900 }}>{error}</div> : null}
+      {error ? (
+        <div style={{ fontSize: 12, color: "#7a1f1f", fontWeight: 900 }}>{error}</div>
+      ) : null}
     </div>
   );
 }
 
-/* ---------- styling ---------- */
-
 const css = `
   :root { -webkit-tap-highlight-color: transparent; }
+
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
-  @keyframes pmpSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  @keyframes pmpSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
   .pmpSpinner {
-    width: 16px; height: 16px;
+    width: 16px;
+    height: 16px;
     border-radius: 999px;
     border: 2px solid rgba(255,255,255,0.45);
     border-top-color: rgba(255,255,255,0.95);
     animation: pmpSpin 700ms linear infinite;
   }
 
-  @keyframes pmpDriftA { 0% { transform: translate3d(0,0,0) } 50% { transform: translate3d(10px,-8px,0) } 100% { transform: translate3d(0,0,0) } }
-  @keyframes pmpDriftB { 0% { transform: translate3d(0,0,0) } 50% { transform: translate3d(-12px,10px,0) } 100% { transform: translate3d(0,0,0) } }
-  .pmp-driftA { animation: pmpDriftA 12s ease-in-out infinite; }
-  .pmp-driftB { animation: pmpDriftB 14s ease-in-out infinite; }
+  .pmp-authGrid {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.02fr) minmax(320px, 460px);
+    gap: 20px;
+    align-items: start;
+  }
 
-  @media (max-width: 980px) {
-    .pmp-login-grid { grid-template-columns: 1fr !important; }
+  @media (max-width: 900px) {
+    .pmp-authGrid {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
   }
 `;
 
-const fullBleedWrap: React.CSSProperties = {
-  width: "100vw",
-  marginLeft: "calc(50% - 50vw)",
+const pageWrap: React.CSSProperties = {
+  width: "100%",
 };
 
 const container: React.CSSProperties = {
-  maxWidth: 1100,
+  maxWidth: 1120,
   margin: "0 auto",
   padding: "0 16px",
 };
@@ -309,7 +355,7 @@ const container: React.CSSProperties = {
 const heroSection: React.CSSProperties = {
   position: "relative",
   overflow: "hidden",
-  padding: "44px 0 28px",
+  padding: "20px 0 32px",
   background: palette.cream,
 };
 
@@ -317,44 +363,22 @@ const heroBg: React.CSSProperties = {
   position: "absolute",
   inset: 0,
   background:
-    "radial-gradient(900px 420px at 20% 10%, rgba(200,162,77,0.22), transparent 55%), radial-gradient(900px 420px at 90% 30%, rgba(31,61,43,0.18), transparent 58%), linear-gradient(180deg, rgba(245,241,232,1) 0%, rgba(250,250,250,1) 65%)",
+    "radial-gradient(900px 420px at 20% 10%, rgba(200,162,77,0.18), transparent 55%), radial-gradient(900px 420px at 90% 30%, rgba(31,61,43,0.14), transparent 58%), linear-gradient(180deg, rgba(245,241,232,1) 0%, rgba(250,250,250,1) 68%)",
 };
 
-const heroFloatA: React.CSSProperties = {
-  position: "absolute",
-  width: 520,
-  height: 520,
-  borderRadius: 999,
-  left: -160,
-  top: 120,
-  background: "radial-gradient(circle at 30% 30%, rgba(200,162,77,0.18), transparent 60%)",
-  filter: "blur(2px)",
-  opacity: 0.9,
-  pointerEvents: "none",
-};
-
-const heroFloatB: React.CSSProperties = {
-  position: "absolute",
-  width: 560,
-  height: 560,
-  borderRadius: 999,
-  right: -180,
-  top: -40,
-  background: "radial-gradient(circle at 40% 35%, rgba(31,61,43,0.14), transparent 60%)",
-  filter: "blur(2px)",
-  opacity: 0.85,
-  pointerEvents: "none",
-};
-
-const grid: React.CSSProperties = {
+const leftCol: React.CSSProperties = {
   position: "relative",
+  zIndex: 1,
   display: "grid",
-  gridTemplateColumns: "1.05fr 0.95fr",
-  gap: 16,
-  alignItems: "start",
-} as React.CSSProperties;
+  gap: 14,
+  alignContent: "start",
+  paddingTop: 10,
+};
 
-(grid as any).className = "pmp-login-grid";
+const rightCol: React.CSSProperties = {
+  position: "relative",
+  zIndex: 1,
+};
 
 const eyebrowPill: React.CSSProperties = {
   display: "inline-flex",
@@ -372,10 +396,11 @@ const eyebrowPill: React.CSSProperties = {
 
 const title: React.CSSProperties = {
   margin: 0,
-  fontSize: 44,
-  lineHeight: 1.06,
-  letterSpacing: -0.6,
+  fontSize: "clamp(34px, 7vw, 56px)",
+  lineHeight: 1.02,
+  letterSpacing: -0.8,
   color: palette.navy,
+  maxWidth: 760,
 };
 
 const accent: React.CSSProperties = {
@@ -383,32 +408,53 @@ const accent: React.CSSProperties = {
   textDecoration: "underline",
   textDecorationThickness: "6px",
   textUnderlineOffset: "6px",
-  textDecorationColor: "rgba(200,162,77,0.45)",
+  textDecorationColor: "rgba(200,162,77,0.42)",
 };
 
 const subtitle: React.CSSProperties = {
   margin: 0,
-  fontSize: 16.5,
+  fontSize: 18,
   lineHeight: 1.75,
   opacity: 0.9,
-  maxWidth: 620,
+  maxWidth: 640,
 };
 
-const miniBand: React.CSSProperties = {
-  marginTop: 6,
-  padding: 14,
+const tipCard: React.CSSProperties = {
+  marginTop: 2,
+  padding: 16,
   borderRadius: 22,
   border: "1px solid rgba(31,42,68,0.12)",
-  background: "rgba(255,255,255,0.72)",
+  background: "rgba(255,255,255,0.78)",
   boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
+  maxWidth: 520,
+};
+
+const tipTitle: React.CSSProperties = {
+  fontWeight: 950,
+  fontSize: 16,
+  color: palette.navy,
+};
+
+const tipText: React.CSSProperties = {
+  marginTop: 6,
+  fontSize: 15,
+  lineHeight: 1.7,
+  color: "rgba(15,23,42,0.76)",
+};
+
+const tipActions: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  marginTop: 14,
 };
 
 const card: React.CSSProperties = {
   borderRadius: 22,
   border: "1px solid rgba(31,42,68,0.12)",
-  background: "linear-gradient(180deg, rgba(255,255,255,0.86) 0%, rgba(245,241,232,0.70) 100%)",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,241,232,0.74) 100%)",
   boxShadow: "0 22px 60px rgba(31,42,68,0.12)",
-  padding: 16,
+  padding: 18,
 };
 
 const cardTopRow: React.CSSProperties = {
@@ -416,7 +462,8 @@ const cardTopRow: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   gap: 12,
-  marginBottom: 10,
+  marginBottom: 14,
+  flexWrap: "wrap",
 };
 
 const logoRow: React.CSSProperties = {
@@ -426,10 +473,10 @@ const logoRow: React.CSSProperties = {
 };
 
 const logoBadge: React.CSSProperties = {
-  width: 46,
-  height: 46,
+  width: 48,
+  height: 48,
   borderRadius: 14,
-  background: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,247,240,0.96))",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,247,240,0.96))",
   border: "1px solid rgba(15,23,42,0.10)",
   boxShadow: "0 14px 34px rgba(15,23,42,0.10)",
   display: "grid",
@@ -451,21 +498,28 @@ const pill: React.CSSProperties = {
 };
 
 const errorBand: React.CSSProperties = {
-  borderRadius: 18,
+  borderRadius: 16,
   border: "1px solid rgba(122,31,31,0.20)",
   background: "linear-gradient(180deg, rgba(122,31,31,0.10), rgba(255,255,255,0.85))",
   padding: 12,
   marginBottom: 12,
 };
 
+const formGrid: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
 const baseInput: React.CSSProperties = {
   width: "100%",
-  padding: "12px 12px",
+  minHeight: 48,
+  padding: "12px 14px",
   borderRadius: 14,
   border: "1px solid rgba(31,42,68,0.14)",
-  background: "rgba(255,255,255,0.92)",
+  background: "rgba(255,255,255,0.95)",
   fontWeight: 800,
   color: palette.navy,
+  fontSize: 15,
 };
 
 function inputStyle(hasError: boolean): React.CSSProperties {
@@ -477,7 +531,8 @@ function inputStyle(hasError: boolean): React.CSSProperties {
 }
 
 const primaryBtn = (loading: boolean, enabled: boolean): React.CSSProperties => ({
-  padding: "12px 14px",
+  minHeight: 50,
+  padding: "12px 16px",
   borderRadius: 14,
   border: "1px solid rgba(0,0,0,0.10)",
   background: enabled
@@ -485,6 +540,7 @@ const primaryBtn = (loading: boolean, enabled: boolean): React.CSSProperties => 
     : "linear-gradient(180deg, rgba(31,61,43,0.55), rgba(23,50,35,0.55))",
   color: "white",
   fontWeight: 950,
+  fontSize: 16,
   boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
   display: "inline-flex",
   alignItems: "center",
@@ -498,9 +554,10 @@ const secondaryBtn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+  minHeight: 44,
   padding: "10px 14px",
   borderRadius: 14,
-  background: "rgba(255,255,255,0.75)",
+  background: "rgba(255,255,255,0.88)",
   color: palette.navy,
   fontWeight: 950,
   border: "1px solid rgba(31,42,68,0.18)",
@@ -511,6 +568,7 @@ const ghostBtn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+  minHeight: 44,
   padding: "10px 14px",
   borderRadius: 14,
   background: "rgba(31,42,68,0.04)",
@@ -519,19 +577,25 @@ const ghostBtn: React.CSSProperties = {
   border: "1px solid rgba(31,42,68,0.14)",
 };
 
-const fineRow: React.CSSProperties = {
+const inlineLinksRow: React.CSSProperties = {
   display: "flex",
-  alignItems: "center",
-  justifyContent: "flex-end",
+  justifyContent: "space-between",
   gap: 12,
   flexWrap: "wrap",
-  marginTop: 2,
+};
+
+const fineRow: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  paddingTop: 2,
 };
 
 const inlineLink: React.CSSProperties = {
-  fontWeight: 950,
   color: palette.forest,
-  textDecoration: "underline",
-  textUnderlineOffset: 3,
-  textDecorationColor: "rgba(200,162,77,0.55)",
+  fontWeight: 900,
+  textDecoration: "none",
+};
+
+const linkReset: React.CSSProperties = {
+  textDecoration: "none",
 };
