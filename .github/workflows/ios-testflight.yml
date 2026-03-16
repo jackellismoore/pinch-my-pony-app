@@ -105,34 +105,11 @@ jobs:
           BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
           sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9][0-9]*/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER}/g" ios/App/App.xcodeproj/project.pbxproj
 
-      - name: Resolve Swift packages
-        shell: bash
-        run: |
-          set -euxo pipefail
-          python3 - <<'PY'
-          import subprocess, sys
-
-          cmd = [
-              "xcodebuild",
-              "-resolvePackageDependencies",
-              "-project", "ios/App/App.xcodeproj",
-              "-scheme", "App",
-              "-clonedSourcePackagesDirPath", "ios/App/SourcePackages",
-          ]
-
-          try:
-              result = subprocess.run(cmd, check=False, timeout=600)
-              sys.exit(result.returncode)
-          except subprocess.TimeoutExpired:
-              print("Swift package resolution timed out after 600 seconds.", file=sys.stderr)
-              sys.exit(124)
-          PY
-
       - name: Create ExportOptions.plist
         shell: bash
         run: |
           set -euxo pipefail
-          rm -rf build
+          rm -rf build ios/App/DerivedData ios/App/SourcePackages
           mkdir -p build
           cat > build/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -168,10 +145,10 @@ jobs:
               "-configuration", "Release",
               "-archivePath", "build/App.xcarchive",
               "-destination", "generic/platform=iOS",
-              "-clonedSourcePackagesDirPath", "ios/App/SourcePackages",
               "-derivedDataPath", "ios/App/DerivedData",
-              f"DEVELOPMENT_TEAM={\"MBYRMXKNM4\"}",
-              f"PRODUCT_BUNDLE_IDENTIFIER={\"com.pinchmypony.app\"}",
+              "-clonedSourcePackagesDirPath", "ios/App/SourcePackages",
+              "DEVELOPMENT_TEAM=MBYRMXKNM4",
+              "PRODUCT_BUNDLE_IDENTIFIER=com.pinchmypony.app",
               "CODE_SIGN_STYLE=Manual",
               "CODE_SIGN_IDENTITY=Apple Distribution",
               "PROVISIONING_PROFILE_SPECIFIER=match AppStore com.pinchmypony.app",
@@ -179,33 +156,28 @@ jobs:
           ]
 
           with open("xcodebuild-archive.log", "w") as f:
+              proc = subprocess.Popen(
+                  cmd,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.STDOUT,
+                  text=True,
+                  bufsize=1,
+              )
+
+              assert proc.stdout is not None
               try:
-                  proc = subprocess.Popen(
-                      cmd,
-                      stdout=subprocess.PIPE,
-                      stderr=subprocess.STDOUT,
-                      text=True,
-                      bufsize=1,
-                  )
+                  for line in proc.stdout:
+                      print(line, end="")
+                      f.write(line)
+                  rc = proc.wait(timeout=1800)
+              except subprocess.TimeoutExpired:
+                  proc.kill()
+                  print("\nArchive timed out after 1800 seconds.", file=sys.stderr)
+                  sys.exit(124)
 
-                  assert proc.stdout is not None
-                  try:
-                      for line in proc.stdout:
-                          print(line, end="")
-                          f.write(line)
-                      returncode = proc.wait(timeout=1800)
-                  except subprocess.TimeoutExpired:
-                      proc.kill()
-                      print("\nArchive timed out after 1800 seconds.", file=sys.stderr)
-                      sys.exit(124)
-
-                  if returncode != 0:
-                      print(f"\nxcodebuild exit code: {returncode}", file=sys.stderr)
-                      sys.exit(returncode)
-
-              except Exception as e:
-                  print(f"\nArchive step failed: {e}", file=sys.stderr)
-                  sys.exit(1)
+              if rc != 0:
+                  print(f"\nxcodebuild exit code: {rc}", file=sys.stderr)
+                  sys.exit(rc)
           PY
 
       - name: Upload archive log
