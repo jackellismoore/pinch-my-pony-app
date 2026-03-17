@@ -172,6 +172,34 @@ jobs:
           CI_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
         run: bundle exec fastlane match appstore --readonly
 
+      - name: Detect installed signing identity and profile
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          CERT_NAME=$(security find-identity -v -p codesigning "$HOME/Library/Keychains/$CI_KEYCHAIN_NAME" \
+            | sed -n 's/.*"\(Apple Distribution:.*\)"/\1/p' \
+            | head -n 1)
+
+          if [ -z "${CERT_NAME:-}" ]; then
+            echo "No Apple Distribution certificate found in CI keychain"
+            security find-identity -v -p codesigning "$HOME/Library/Keychains/$CI_KEYCHAIN_NAME" || true
+            exit 1
+          fi
+
+          echo "EXPORT_CERT_NAME=$CERT_NAME" >> "$GITHUB_ENV"
+
+          PROFILE_PATH=$(find "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
+            -name "*.mobileprovision" 2>/dev/null | head -n 1)
+
+          if [ -z "${PROFILE_PATH:-}" ]; then
+            echo "No provisioning profile found"
+            exit 1
+          fi
+
+          PROFILE_NAME=$(/usr/bin/security cms -D -i "$PROFILE_PATH" | /usr/libexec/PlistBuddy -c 'Print :Name' /dev/stdin)
+          echo "EXPORT_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
       - name: Bump iOS build number
         shell: bash
         run: |
@@ -195,13 +223,13 @@ jobs:
             <key>signingStyle</key>
             <string>manual</string>
             <key>signingCertificate</key>
-            <string>Apple Distribution</string>
+            <string>${EXPORT_CERT_NAME}</string>
             <key>teamID</key>
             <string>${APPLE_TEAM_ID}</string>
             <key>provisioningProfiles</key>
             <dict>
               <key>${APP_BUNDLE_ID}</key>
-              <string>${APP_PROFILE_NAME}</string>
+              <string>${EXPORT_PROFILE_NAME}</string>
             </dict>
           </dict>
           </plist>
@@ -231,7 +259,7 @@ jobs:
             PRODUCT_BUNDLE_IDENTIFIER="$APP_BUNDLE_ID" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="" \
-            PROVISIONING_PROFILE_SPECIFIER="$APP_PROFILE_NAME" \
+            PROVISIONING_PROFILE_SPECIFIER="$EXPORT_PROFILE_NAME" \
             archive 2>&1 | tee xcodebuild-archive.log
 
           XCODE_EXIT=${PIPESTATUS[0]}
@@ -259,11 +287,7 @@ jobs:
             -exportArchive \
             -archivePath build/App.xcarchive \
             -exportPath build/export \
-            -exportOptionsPlist build/ExportOptions.plist \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PROVISIONING_PROFILE_SPECIFIER="$APP_PROFILE_NAME"
+            -exportOptionsPlist build/ExportOptions.plist
 
       - name: Validate IPA
         shell: bash
