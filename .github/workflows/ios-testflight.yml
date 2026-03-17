@@ -206,8 +206,16 @@ jobs:
         run: |
           set -euxo pipefail
 
-          PROFILE_PATH=$(find "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
-            -name "*.mobileprovision" 2>/dev/null | head -n 1)
+          PROFILE_DIRS=()
+          [ -d "$HOME/Library/MobileDevice/Provisioning Profiles" ] && PROFILE_DIRS+=("$HOME/Library/MobileDevice/Provisioning Profiles")
+          [ -d "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" ] && PROFILE_DIRS+=("$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles")
+
+          if [ ${#PROFILE_DIRS[@]} -eq 0 ]; then
+            echo "No provisioning profile directories found"
+            exit 1
+          fi
+
+          PROFILE_PATH=$(find "${PROFILE_DIRS[@]}" -name "*.mobileprovision" | head -n 1)
 
           if [ -z "${PROFILE_PATH:-}" ]; then
             echo "No provisioning profile found"
