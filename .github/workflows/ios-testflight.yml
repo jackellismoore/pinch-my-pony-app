@@ -65,6 +65,72 @@ jobs:
       - name: Capacitor sync iOS
         run: npx cap sync ios
 
+      - name: Patch Capacitor Swift package to local binary package
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          mkdir -p ios/App/capacitor-swift-pm
+          cat > ios/App/capacitor-swift-pm/Package.swift <<'EOF'
+          // swift-tools-version:5.3
+          import PackageDescription
+
+          let package = Package(
+              name: "capacitor-swift-pm",
+              products: [
+                  .library(
+                      name: "Capacitor",
+                      targets: ["Capacitor"]
+                  ),
+                  .library(
+                      name: "Cordova",
+                      targets: ["Cordova"]
+                  )
+              ],
+              dependencies: [],
+              targets: [
+                  .binaryTarget(
+                      name: "Capacitor",
+                      url: "https://github.com/ionic-team/capacitor-swift-pm/releases/download/8.1.0/Capacitor.xcframework.zip",
+                      checksum: "876ec9b674efcf06d566bebf0c01482b1e4ae1b5fbe83e43f8ffd5f2eebb4884"
+                  ),
+                  .binaryTarget(
+                      name: "Cordova",
+                      url: "https://github.com/ionic-team/capacitor-swift-pm/releases/download/8.1.0/Cordova.xcframework.zip",
+                      checksum: "fc7edd2feb10f2952ec74ddca842492b190b5d8d01eb0162270191bb279375c0"
+                  )
+              ]
+          )
+          EOF
+
+          cat > ios/App/CapApp-SPM/Package.swift <<'EOF'
+          // swift-tools-version: 5.9
+          import PackageDescription
+
+          let package = Package(
+              name: "CapApp-SPM",
+              platforms: [.iOS(.v15)],
+              products: [
+                  .library(
+                      name: "CapApp-SPM",
+                      targets: ["CapApp-SPM"]
+                  )
+              ],
+              dependencies: [
+                  .package(path: "../capacitor-swift-pm")
+              ],
+              targets: [
+                  .target(
+                      name: "CapApp-SPM",
+                      dependencies: [
+                          .product(name: "Capacitor", package: "capacitor-swift-pm"),
+                          .product(name: "Cordova", package: "capacitor-swift-pm")
+                      ]
+                  )
+              ]
+          )
+          EOF
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -109,7 +175,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          rm -rf build ios/App/DerivedData
+          rm -rf build ios/App/DerivedData ios/App/SourcePackages
           mkdir -p build
           cat > build/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
