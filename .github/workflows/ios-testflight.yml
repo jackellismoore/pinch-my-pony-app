@@ -158,36 +158,53 @@ jobs:
           KEYCHAIN_PASSWORD="$(uuidgen)"
 
           echo "CI_KEYCHAIN_NAME=$KEYCHAIN_NAME" >> "$GITHUB_ENV"
+          echo "CI_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "CI_KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
 
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
 
-      - name: Install signing assets
-        env:
-          CI_KEYCHAIN_NAME: ${{ env.CI_KEYCHAIN_NAME }}
-          CI_KEYCHAIN_PASSWORD: ${{ env.CI_KEYCHAIN_PASSWORD }}
-        run: bundle exec fastlane match appstore --readonly
+      - name: Install signing assets with match
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bundle exec fastlane run match \
+            type:appstore \
+            readonly:true \
+            git_url:"$MATCH_GIT_URL" \
+            keychain_name:"$CI_KEYCHAIN_NAME" \
+            keychain_password:"$CI_KEYCHAIN_PASSWORD" \
+            app_identifier:"$APP_BUNDLE_ID"
 
-      - name: Detect installed signing identity and profile
+      - name: Verify signing identity exists
         shell: bash
         run: |
           set -euxo pipefail
 
-          CERT_NAME=$(security find-identity -v -p codesigning "$HOME/Library/Keychains/$CI_KEYCHAIN_NAME" \
+          security default-keychain -s "$CI_KEYCHAIN_PATH"
+          security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH"
+
+          security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH"
+
+          CERT_NAME=$(security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH" \
             | sed -n 's/.*"\(Apple Distribution:.*\)"/\1/p' \
             | head -n 1)
 
           if [ -z "${CERT_NAME:-}" ]; then
             echo "No Apple Distribution certificate found in CI keychain"
-            security find-identity -v -p codesigning "$HOME/Library/Keychains/$CI_KEYCHAIN_NAME" || true
             exit 1
           fi
 
           echo "EXPORT_CERT_NAME=$CERT_NAME" >> "$GITHUB_ENV"
+
+      - name: Detect installed provisioning profile
+        shell: bash
+        run: |
+          set -euxo pipefail
 
           PROFILE_PATH=$(find "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
             -name "*.mobileprovision" 2>/dev/null | head -n 1)
