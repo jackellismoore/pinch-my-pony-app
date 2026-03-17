@@ -214,7 +214,18 @@ jobs:
             exit 1
           fi
 
-          PROFILE_NAME=$(/usr/bin/security cms -D -i "$PROFILE_PATH" | /usr/libexec/PlistBuddy -c 'Print :Name' /dev/stdin)
+          echo "Using provisioning profile: $PROFILE_PATH"
+
+          /usr/bin/security cms -D -i "$PROFILE_PATH" > /tmp/profile.plist
+
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist)
+          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist)
+          APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/profile.plist)
+
+          echo "Profile name: $PROFILE_NAME"
+          echo "Team ID: $TEAM_ID"
+          echo "App ID: $APP_ID"
+
           echo "EXPORT_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
 
       - name: Bump iOS build number
