@@ -26,7 +26,6 @@ jobs:
       IOS_SCHEME: App
       APPLE_TEAM_ID: MBYRMXKNM4
       APP_BUNDLE_ID: com.pinchmypony.app
-      APP_PROFILE_NAME: match AppStore com.pinchmypony.app
 
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
@@ -227,14 +226,15 @@ jobs:
           /usr/bin/security cms -D -i "$PROFILE_PATH" > /tmp/profile.plist
 
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist)
-          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" /tmp/profile.plist)
-          APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/profile.plist)
-
-          echo "Profile name: $PROFILE_NAME"
-          echo "Team ID: $TEAM_ID"
-          echo "App ID: $APP_ID"
-
           echo "EXPORT_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
+      - name: Prepare App Store Connect API key for altool
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf "%s" "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
 
       - name: Bump iOS build number
         shell: bash
@@ -325,6 +325,21 @@ jobs:
             -exportPath build/export \
             -exportOptionsPlist build/ExportOptions.plist
 
+      - name: Find exported IPA
+        shell: bash
+        run: |
+          set -euxo pipefail
+          IPA_PATH=$(find build/export -maxdepth 2 -name "*.ipa" | head -n 1)
+
+          if [ -z "${IPA_PATH:-}" ]; then
+            echo "No IPA was exported"
+            find build/export -maxdepth 3 -type f | sort || true
+            exit 1
+          fi
+
+          echo "IPA_PATH=$IPA_PATH" >> "$GITHUB_ENV"
+          echo "Using IPA: $IPA_PATH"
+
       - name: Validate IPA
         shell: bash
         run: |
@@ -332,7 +347,7 @@ jobs:
           xcrun altool \
             --validate-app \
             --type ios \
-            --file build/export/App.ipa \
+            --file "$IPA_PATH" \
             --apiKey "$ASC_KEY_ID" \
             --apiIssuer "$ASC_ISSUER_ID"
 
@@ -343,6 +358,6 @@ jobs:
           xcrun altool \
             --upload-app \
             --type ios \
-            --file build/export/App.ipa \
+            --file "$IPA_PATH" \
             --apiKey "$ASC_KEY_ID" \
             --apiIssuer "$ASC_ISSUER_ID"
