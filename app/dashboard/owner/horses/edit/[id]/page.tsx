@@ -18,6 +18,7 @@ type HorseRow = {
   breed: any;
   age: any;
   height: any;
+  height_hh?: any;
   temperament: any;
   description: any;
   is_active: any;
@@ -68,11 +69,10 @@ export default function EditHorsePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // keep ALL these as strings (safe for .trim + inputs)
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
-  const [lat, setLat] = useState(""); // string
-  const [lng, setLng] = useState(""); // string
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
 
   const [breed, setBreed] = useState("");
   const [age, setAge] = useState("");
@@ -98,7 +98,9 @@ export default function EditHorsePage() {
       try {
         const { data, error } = await supabase
           .from("horses")
-          .select("id,owner_id,name,location,lat,lng,image_url,breed,age,height,temperament,description,is_active")
+          .select(
+            "id,owner_id,name,location,lat,lng,image_url,breed,age,height,height_hh,temperament,description,is_active"
+          )
           .eq("id", id)
           .single();
 
@@ -107,18 +109,14 @@ export default function EditHorsePage() {
 
         const h = data as HorseRow;
 
-        // sanitize incoming values (prevents `.trim` crashes later)
         setName(asString(h.name));
         setLocation(asString(h.location));
-
-        // lat/lng from DB might be number or null
         setLat(h.lat == null ? "" : String(h.lat));
         setLng(h.lng == null ? "" : String(h.lng));
-
         setImageUrl(asString(h.image_url));
         setBreed(asString(h.breed));
         setAge(asString(h.age));
-        setHeight(asString(h.height));
+        setHeight(asString(h.height_hh ?? h.height));
         setTemperament(asString(h.temperament));
         setDescription(asString(h.description));
         setIsActive(asBool(h.is_active, true));
@@ -144,7 +142,6 @@ export default function EditHorsePage() {
     try {
       setSaving(true);
 
-      // convert lat/lng strings -> numbers or null
       const latNum = lat.trim() ? Number(lat) : null;
       const lngNum = lng.trim() ? Number(lng) : null;
 
@@ -159,7 +156,7 @@ export default function EditHorsePage() {
         image_url: imageUrl.trim() || null,
         breed: breed.trim() || null,
         age: age.trim() || null,
-        height: height.trim() || null,
+        height_hh: height.trim() || null,
         temperament: temperament.trim() || null,
         description: description.trim() || null,
         is_active: isActive,
@@ -187,6 +184,20 @@ export default function EditHorsePage() {
 
   return (
     <DashboardShell>
+      <style>{`
+        .pmp-editHorse-grid2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+
+        @media (max-width: 767px) {
+          .pmp-editHorse-grid2 {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
       <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
         <div style={{ margin: 0, fontSize: 24, fontWeight: 950 }}>Edit Horse</div>
         <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
@@ -227,10 +238,10 @@ export default function EditHorsePage() {
             <LocationAutocomplete
               value={location}
               onChange={setLocation}
-              onPlaceSelected={({ locationText, lat, lng }) => {
-                setLocation(locationText);
-                setLat(String(lat));
-                setLng(String(lng));
+              onPlaceSelect={({ address, lat, lng }) => {
+                setLocation(address);
+                setLat(lat !== null ? String(lat) : "");
+                setLng(lng !== null ? String(lng) : "");
               }}
               placeholder="Type a location and select a suggestion…"
             />
@@ -246,7 +257,7 @@ export default function EditHorsePage() {
             )}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="pmp-editHorse-grid2">
             <Field label="Breed">
               <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
             </Field>
@@ -255,12 +266,22 @@ export default function EditHorsePage() {
             </Field>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="pmp-editHorse-grid2">
             <Field label="Height (hh)">
-              <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
+              <input
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+                placeholder="e.g. 15.2"
+                style={input()}
+              />
             </Field>
             <Field label="Temperament">
-              <input value={temperament} onChange={(e) => setTemperament(e.target.value)} placeholder="Calm, forward…" style={input()} />
+              <input
+                value={temperament}
+                onChange={(e) => setTemperament(e.target.value)}
+                placeholder="Calm, forward…"
+                style={input()}
+              />
             </Field>
           </div>
 
@@ -276,7 +297,6 @@ export default function EditHorsePage() {
 
           <div style={{ display: "grid", gap: 8 }}>
             <div style={labelStyle()}>Photo</div>
-
             <HorseImageUploader bucket="horses" value={imageUrl} onChange={(url: string) => setImageUrl(url)} />
           </div>
 
