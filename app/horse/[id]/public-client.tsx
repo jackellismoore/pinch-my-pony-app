@@ -14,6 +14,7 @@ type HorseRow = {
   breed: any;
   age: any;
   height: any;
+  height_hh?: any;
   temperament: any;
   description: any;
   is_active: boolean | null;
@@ -24,6 +25,7 @@ type ProfileMini = {
   display_name: any;
   full_name: any;
   avatar_url: string | null;
+  verification_status?: string | null;
 };
 
 const palette = {
@@ -104,7 +106,7 @@ export default function HorsePublicClient() {
       try {
         const { data: h, error: hErr } = await supabase
           .from("horses")
-          .select("id,owner_id,name,image_url,location,breed,age,height,temperament,description,is_active")
+          .select("id,owner_id,name,image_url,location,breed,age,height,height_hh,temperament,description,is_active")
           .eq("id", horseId)
           .maybeSingle();
 
@@ -124,7 +126,7 @@ export default function HorsePublicClient() {
         if (horseRow?.owner_id) {
           const { data: p, error: pErr } = await supabase
             .from("profiles")
-            .select("id,display_name,full_name,avatar_url")
+            .select("id,display_name,full_name,avatar_url,verification_status")
             .eq("id", horseRow.owner_id)
             .maybeSingle();
 
@@ -150,6 +152,7 @@ export default function HorsePublicClient() {
   }, [horseId]);
 
   const ownerName = useMemo(() => pickName(owner), [owner]);
+  const ownerVerified = String(owner?.verification_status ?? "").toLowerCase() === "verified";
 
   const ctaHref = useMemo(() => {
     if (!horseId) return "/browse";
@@ -173,9 +176,8 @@ export default function HorsePublicClient() {
     return (
       <div className="pmp-pageShell">
         <div className="pmp-errorBanner">{error}</div>
-
         <div style={{ marginTop: 12 }}>
-          <Link href="/browse" style={topLink}>
+          <Link href="/browse" className="pmp-inlineLink">
             ← Back to browse
           </Link>
         </div>
@@ -197,12 +199,12 @@ export default function HorsePublicClient() {
     return (
       <div className="pmp-pageShell">
         <div className="pmp-sectionCard">
-          <h1 style={{ margin: 0, fontSize: 22, color: palette.navy }}>{fmt(horse.name)}</h1>
-          <div style={{ marginTop: 6 }} className="pmp-mutedText">
+          <h1 className="pmp-pageTitle">{fmt(horse.name)}</h1>
+          <div className="pmp-mutedText" style={{ marginTop: 6 }}>
             This listing is not active.
           </div>
           <div style={{ marginTop: 12 }}>
-            <Link href="/browse" style={topLink}>
+            <Link href="/browse" className="pmp-inlineLink">
               ← Back to browse
             </Link>
           </div>
@@ -213,99 +215,177 @@ export default function HorsePublicClient() {
 
   return (
     <>
-      <style>{responsiveCss}</style>
+      <style>{`
+        @media (max-width: 980px) {
+          .pmp-horsePublic-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 767px) {
+          .pmp-horsePublic-titleRow {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
+
+          .pmp-horsePublic-detailsRow {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
 
       <div className="pmp-pageShell">
-        <div className="pmp-horse-toplinks" style={topLinksWrap}>
-          <Link href="/browse" style={topLink}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <Link href="/browse" className="pmp-inlineLink">
             ← Back to browse
           </Link>
 
-          <Link href="/contact" style={topLink}>
+          <Link href="/contact" className="pmp-inlineLink">
             Need help? Contact us →
           </Link>
         </div>
 
-        <div className="pmp-horse-grid" style={grid}>
-          <div style={shell}>
+        <div
+          className="pmp-horsePublic-grid"
+          style={{
+            marginTop: 12,
+            display: "grid",
+            gridTemplateColumns: "1.15fr 0.85fr",
+            gap: 12,
+            alignItems: "start",
+          }}
+        >
+          <div
+            className="pmp-sectionCard"
+            style={{
+              overflow: "hidden",
+              padding: 0,
+            }}
+          >
             {horse.image_url ? (
               <img
                 src={safeText(horse.image_url)}
                 alt={fmt(horse.name)}
-                style={heroImage}
+                style={{ width: "100%", height: 360, objectFit: "cover", display: "block" }}
               />
             ) : (
-              <div style={imageFallback} />
+              <div
+                style={{
+                  height: 240,
+                  background:
+                    "radial-gradient(900px 300px at 18% 0%, rgba(200,162,77,0.18), transparent 60%), radial-gradient(700px 260px at 92% 12%, rgba(31,61,43,0.12), transparent 60%), rgba(15,23,42,0.03)",
+                  display: "grid",
+                  placeItems: "center",
+                  fontSize: 56,
+                }}
+              >
+                🐎
+              </div>
             )}
 
             <div style={{ padding: 16 }}>
-              <div className="pmp-horse-titleRow" style={titleRow}>
+              <div
+                className="pmp-horsePublic-titleRow"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
                 <div style={{ minWidth: 0 }}>
-                  <h1 style={titleStyle}>{fmt(horse.name)}</h1>
+                  <h1 style={{ margin: 0, fontSize: 26, letterSpacing: -0.2, color: palette.navy }}>
+                    {fmt(horse.name)}
+                  </h1>
 
                   <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
                     Owner: <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
+                    {ownerVerified ? <span> • Verified</span> : null}
                     {safeText(horse.location).trim() ? <span> • {fmt(horse.location)}</span> : null}
                   </div>
                 </div>
 
-                <Link href={ctaHref} style={ctaLinkStyle} className="pmp-horse-ctaLink">
-                  <div style={primaryCta}>{ctaLabel}</div>
+                <Link href={ctaHref} style={{ textDecoration: "none" }}>
+                  <div className="pmp-ctaPrimary">{ctaLabel}</div>
                 </Link>
               </div>
 
-              <div style={divider} />
+              <div style={{ height: 1, background: "rgba(15,23,42,0.10)", margin: "14px 0" }} />
 
-              <div style={sectionHeader}>
-                <div style={sectionTitle}>Details</div>
+              <div className="pmp-sectionHeader">
+                <div>
+                  <div className="pmp-kicker">At a glance</div>
+                  <h3 className="pmp-sectionTitle">Listing details</h3>
+                </div>
               </div>
 
-              <div style={detailsCard}>
-                <DetailRow label="Breed" value={fmt(horse.breed)} />
-                <DetailRow label="Age" value={fmt(horse.age)} />
-                <DetailRow label="Height" value={fmt(horse.height)} />
-                <DetailRow label="Temperament" value={fmt(horse.temperament)} />
-                <DetailRow label="Location" value={fmt(horse.location)} />
+              <div className="pmp-sectionCard" style={{ padding: 12 }}>
+                <div className="pmp-horsePublic-detailsRow" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                  <DetailRow label="Breed" value={fmt(horse.breed)} />
+                  <DetailRow label="Age" value={fmt(horse.age)} />
+                  <DetailRow label="Height" value={fmt(horse.height_hh ?? horse.height)} />
+                  <DetailRow label="Temperament" value={fmt(horse.temperament)} />
+                  <DetailRow label="Location" value={fmt(horse.location)} />
+                  <DetailRow label="Trust" value={ownerVerified ? "Verified owner profile" : "Owner not yet verified"} />
+                </div>
               </div>
 
               <div style={{ height: 12 }} />
 
-              <div style={sectionHeader}>
-                <div style={sectionTitle}>Description</div>
-                <div style={sectionSubtitle}>What to expect when riding.</div>
+              <div className="pmp-sectionHeader">
+                <div>
+                  <div className="pmp-kicker">Overview</div>
+                  <h3 className="pmp-sectionTitle">Description</h3>
+                </div>
+                <div className="pmp-mutedText">What to expect when riding.</div>
               </div>
 
-              <div style={descCard}>
+              <div className="pmp-sectionCard" style={{ padding: 12 }}>
                 {safeText(horse.description).trim() ? (
                   <div style={{ fontSize: 14.5, lineHeight: 1.75, color: palette.navy, opacity: 0.92 }}>
                     {safeText(horse.description).trim()}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 13, opacity: 0.7 }}>No description yet.</div>
+                  <div className="pmp-mutedText">No description yet.</div>
                 )}
               </div>
             </div>
           </div>
 
-          <aside style={sideRail}>
+          <aside className="pmp-sectionCard">
             <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Ready to request?</div>
             <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
-              Choose your dates and we’ll automatically prevent availability conflicts.
+              Choose your dates and send a clear request. Availability conflicts are blocked automatically.
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              <Link href={ctaHref} style={ctaLinkStyle}>
-                <div style={primaryCtaSmall}>{ctaLabel}</div>
+              <Link href={ctaHref} style={{ textDecoration: "none" }}>
+                <div className="pmp-ctaPrimary" style={{ width: "100%", display: "flex", justifyContent: "space-between" }}>
+                  <span>{ctaLabel.replace(" →", "")}</span>
+                  <span>→</span>
+                </div>
               </Link>
 
-              <Link href="/faq" style={ctaLinkStyle}>
-                <div style={secondaryCtaSmall}>Read FAQs →</div>
+              <Link href="/faq" style={{ textDecoration: "none" }}>
+                <div className="pmp-ctaSecondary" style={{ width: "100%", display: "flex", justifyContent: "space-between" }}>
+                  <span>Read FAQs</span>
+                  <span>→</span>
+                </div>
               </Link>
 
-              <div style={tipCard}>
+              <div
+                style={{
+                  marginTop: 4,
+                  padding: 12,
+                  borderRadius: 18,
+                  border: "1px solid rgba(15,23,42,0.10)",
+                  background: `linear-gradient(90deg, rgba(31,61,43,0.08) 0%, rgba(200,162,77,0.10) 55%, rgba(15,23,42,0.06) 100%)`,
+                }}
+              >
                 <div style={{ fontWeight: 950, color: palette.navy }}>Tip</div>
                 <div style={{ marginTop: 6, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
-                  Share your experience level and preferred times in the message — owners love clarity.
+                  Include your riding experience, preferred dates, and any key details in your request.
                 </div>
               </div>
             </div>
@@ -316,154 +396,9 @@ export default function HorsePublicClient() {
   );
 }
 
-/* ---------- styles ---------- */
-
-const responsiveCss = `
-  @media (max-width: 980px) {
-    .pmp-horse-grid {
-      grid-template-columns: 1fr !important;
-    }
-  }
-
-  @media (max-width: 767px) {
-    .pmp-horse-toplinks,
-    .pmp-horse-titleRow {
-      flex-direction: column !important;
-      align-items: stretch !important;
-    }
-
-    .pmp-horse-toplinks > *,
-    .pmp-horse-titleRow > *,
-    .pmp-horse-ctaLink {
-      width: 100%;
-    }
-  }
-`;
-
-const topLinksWrap: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 10,
-  flexWrap: "wrap",
-};
-
-const topLink: React.CSSProperties = {
-  textDecoration: "none",
-  fontWeight: 950,
-  color: palette.navy,
-  border: "1px solid rgba(15,23,42,0.10)",
-  background: "rgba(255,255,255,0.72)",
-  padding: "10px 12px",
-  borderRadius: 14,
-  minHeight: 44,
-  display: "inline-flex",
-  alignItems: "center",
-};
-
-const grid: React.CSSProperties = {
-  marginTop: 12,
-  display: "grid",
-  gridTemplateColumns: "1.15fr 0.85fr",
-  gap: 12,
-  alignItems: "start",
-};
-
-const shell: React.CSSProperties = {
-  border: "1px solid rgba(15,23,42,0.10)",
-  borderRadius: 22,
-  background: "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.65))",
-  overflow: "hidden",
-  boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
-  minWidth: 0,
-};
-
-const heroImage: React.CSSProperties = {
-  width: "100%",
-  height: "clamp(220px, 42vw, 360px)",
-  objectFit: "cover",
-  display: "block",
-};
-
-const imageFallback: React.CSSProperties = {
-  height: "clamp(200px, 38vw, 240px)",
-  background:
-    "radial-gradient(900px 300px at 18% 0%, rgba(200,162,77,0.18), transparent 60%), radial-gradient(700px 260px at 92% 12%, rgba(31,61,43,0.12), transparent 60%), rgba(15,23,42,0.03)",
-};
-
-const titleRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 12,
-  flexWrap: "wrap",
-};
-
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(24px, 6vw, 26px)",
-  letterSpacing: -0.2,
-  color: palette.navy,
-  lineHeight: 1.08,
-  wordBreak: "break-word",
-};
-
-const ctaLinkStyle: React.CSSProperties = {
-  textDecoration: "none",
-};
-
-const primaryCta: React.CSSProperties = {
-  border: "1px solid rgba(0,0,0,0.10)",
-  background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
-  color: "white",
-  padding: "12px 14px",
-  borderRadius: 14,
-  fontSize: 13,
-  fontWeight: 950,
-  whiteSpace: "nowrap",
-  boxShadow: "0 14px 34px rgba(31,61,43,0.16)",
-  minHeight: 44,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const divider: React.CSSProperties = {
-  height: 1,
-  background: "rgba(15,23,42,0.10)",
-  margin: "14px 0",
-};
-
-const sectionHeader: React.CSSProperties = {
-  display: "grid",
-  gap: 4,
-  marginBottom: 10,
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontWeight: 950,
-  fontSize: 16,
-  color: palette.navy,
-};
-
-const sectionSubtitle: React.CSSProperties = {
-  fontSize: 13,
-  opacity: 0.75,
-  lineHeight: 1.55,
-};
-
-const detailsCard: React.CSSProperties = {
-  border: "1px solid rgba(15,23,42,0.10)",
-  borderRadius: 18,
-  background: "rgba(255,255,255,0.72)",
-  padding: 12,
-  display: "grid",
-  gap: 0,
-};
-
 const detailRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(96px, 160px) 1fr",
+  gridTemplateColumns: "140px 1fr",
   gap: 12,
   padding: "10px 6px",
   alignItems: "start",
@@ -482,50 +417,4 @@ const detailValue: React.CSSProperties = {
   color: palette.navy,
   lineHeight: 1.55,
   overflowWrap: "anywhere",
-};
-
-const descCard: React.CSSProperties = {
-  border: "1px solid rgba(15,23,42,0.10)",
-  borderRadius: 18,
-  background: "rgba(255,255,255,0.72)",
-  padding: 12,
-};
-
-const sideRail: React.CSSProperties = {
-  border: "1px solid rgba(15,23,42,0.10)",
-  borderRadius: 22,
-  background: "white",
-  boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
-  padding: 16,
-  minWidth: 0,
-};
-
-const primaryCtaSmall: React.CSSProperties = {
-  ...primaryCta,
-  width: "100%",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-};
-
-const secondaryCtaSmall: React.CSSProperties = {
-  border: "1px solid rgba(15,23,42,0.10)",
-  background: "rgba(15,23,42,0.03)",
-  color: palette.navy,
-  padding: "12px 14px",
-  borderRadius: 14,
-  fontSize: 13,
-  fontWeight: 950,
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  minHeight: 44,
-};
-
-const tipCard: React.CSSProperties = {
-  marginTop: 4,
-  padding: 12,
-  borderRadius: 18,
-  border: "1px solid rgba(15,23,42,0.10)",
-  background: `linear-gradient(90deg, rgba(31,61,43,0.08) 0%, rgba(200,162,77,0.10) 55%, rgba(15,23,42,0.06) 100%)`,
 };
