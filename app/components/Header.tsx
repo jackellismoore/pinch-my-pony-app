@@ -153,23 +153,48 @@ export default function Header() {
 
   return (
     <>
+      <style>{`
+        .pmp-headerBrandBadge {
+          width: 52px;
+          height: 52px;
+          min-width: 52px;
+          min-height: 52px;
+          border-radius: 16px;
+          border: 1px solid rgba(15,23,42,0.10);
+          background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,247,240,0.96));
+          box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          padding: 8px;
+        }
+
+        .pmp-headerBrandBadge img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          object-position: center;
+          display: block;
+        }
+
+        @media (max-width: 767px) {
+          .pmp-headerSignedInLinks {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       <header className="pmp-header">
         <div className="pmp-headerInner">
           <Link href="/" className="pmp-brand" onClick={() => setMenuOpen(false)}>
-            <div className="pmp-brandBadge" aria-hidden="true">
+            <div className="pmp-headerBrandBadge" aria-hidden="true">
               <Image
                 src="/pmp-logo-web.png"
                 alt=""
                 width={36}
                 height={36}
                 priority
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  objectPosition: "center",
-                  display: "block",
-                }}
               />
             </div>
 
@@ -191,7 +216,19 @@ export default function Header() {
                 Contact
               </Link>
             </div>
-          ) : null}
+          ) : (
+            <div className="pmp-desktopLinks pmp-headerSignedInLinks">
+              <Link href="/browse" className="pmp-topLink">
+                Browse
+              </Link>
+              <Link href="/messages" className="pmp-topLink">
+                Messages
+              </Link>
+              <Link href={isOwner ? "/dashboard/owner" : "/dashboard/borrower"} className="pmp-topLink">
+                Dashboard
+              </Link>
+            </div>
+          )}
 
           <div ref={menuWrapRef} className="pmp-headerActions">
             {user ? (
