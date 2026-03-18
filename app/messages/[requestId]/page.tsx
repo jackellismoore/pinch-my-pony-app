@@ -88,7 +88,7 @@ export default function MessageThreadPage() {
 
   const params = useParams() as Record<string, string | string[] | undefined>;
   const requestIdRaw = params.requestId ?? params.requestid;
-  const requestId = Array.isArray(requestIdRaw) ? requestIdRaw[0] : (requestIdRaw ?? "");
+  const requestId = Array.isArray(requestIdRaw) ? requestIdRaw[0] : requestIdRaw ?? "";
 
   const [authLoading, setAuthLoading] = useState(true);
   const [myUserId, setMyUserId] = useState<string | null>(null);
@@ -320,7 +320,6 @@ export default function MessageThreadPage() {
       broadcastTyping(false);
       if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -434,11 +433,7 @@ export default function MessageThreadPage() {
         const idsNow = unreadIds;
         if (idsNow.length === 0) return;
 
-        const { error } = await supabase
-          .from("messages")
-          .update({ read_at: new Date().toISOString() })
-          .in("id", idsNow);
-
+        const { error } = await supabase.from("messages").update({ read_at: new Date().toISOString() }).in("id", idsNow);
         if (error) {
           console.error("mark read error:", error);
           return;
@@ -473,7 +468,6 @@ export default function MessageThreadPage() {
   };
 
   const [deleting, setDeleting] = useState(false);
-
   const deleteChatForMe = async () => {
     if (!myUserId || !requestId) return;
     const ok = window.confirm("Delete this chat for you? It will reappear if a new message is sent.");
@@ -563,9 +557,7 @@ export default function MessageThreadPage() {
       setUploading(true);
       const fallbackText = text || "📷 Photo";
 
-      const result = await sendOptimisticWithImage(myUserId, fallbackText, file, {
-        bucket: "message-attachments",
-      });
+      const result = await sendOptimisticWithImage(myUserId, fallbackText, file, { bucket: "message-attachments" });
       setUploading(false);
 
       if (!result.ok) {
@@ -616,296 +608,141 @@ export default function MessageThreadPage() {
     if (scroller) requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight));
   };
 
-  if (!requestId) {
-    return (
-      <div className="pmp-pageShell">
-        <div className="pmp-errorBanner">Missing requestId in URL.</div>
-      </div>
-    );
-  }
-
-  if (authLoading) {
-    return (
-      <div className="pmp-pageShell">
-        <div className="pmp-sectionCard">
-          <div className="pmp-mutedText">Loading session…</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!myUserId) {
-    return (
-      <div className="pmp-pageShell">
-        <div className="pmp-errorBanner">You’re not logged in.</div>
-      </div>
-    );
-  }
+  if (!requestId) return <div className="pmp-pageShell"><div className="pmp-errorBanner">Missing requestId in URL</div></div>;
+  if (authLoading) return <div className="pmp-pageShell"><div className="pmp-sectionCard"><div className="pmp-mutedText">Loading session…</div></div></div>;
+  if (!myUserId) return <div className="pmp-pageShell"><div className="pmp-errorBanner">You’re not logged in.</div></div>;
 
   const otherName = header?.other_user?.display_name ?? "User";
   const horseName = header?.horse_name ?? "";
   const avatarUrl = header?.other_user?.avatar_url ?? "";
 
-  const statusText = otherOnline
-    ? "Online"
-    : otherLastSeenAt
-    ? `Last seen ${timeAgo(otherLastSeenAt)}`
-    : "Offline";
-
+  const statusText = otherOnline ? "Online" : otherLastSeenAt ? `Last seen ${timeAgo(otherLastSeenAt)}` : "Offline";
   const showReviewCTA = isBorrower && requestStatus === "approved" && !reviewExists;
 
   return (
     <>
       <style>{`
-        .pmp-threadPage {
-          height: calc(100dvh - 64px);
-          min-height: calc(100dvh - 64px);
-          display: flex;
-          flex-direction: column;
-          background: #f6f7fb;
-          border-radius: 22px;
-          overflow: hidden;
-          border: 1px solid rgba(15,23,42,0.08);
-          box-shadow: 0 18px 44px rgba(15,23,42,0.08);
-        }
-
-        .pmp-threadHeader {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 14px;
-          border-bottom: 1px solid rgba(15,23,42,0.10);
-          background: rgba(255,255,255,0.94);
-          backdrop-filter: blur(10px);
-          color: #0f172a;
-          flex-wrap: wrap;
-        }
-
-        .pmp-threadScroller {
-          flex: 1;
-          overflow-y: auto;
-          padding: 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          position: relative;
-          min-height: 0;
-          background:
-            radial-gradient(1000px 680px at 12% 6%, rgba(202,162,77,0.14), transparent 60%),
-            radial-gradient(1000px 680px at 92% 10%, rgba(11,59,46,0.10), transparent 60%),
-            linear-gradient(180deg, rgba(245,241,232,0.88), rgba(250,250,250,0.96));
-        }
-
-        .pmp-threadComposer {
-          padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
-          border-top: 1px solid rgba(15,23,42,0.10);
-          background: rgba(255,255,255,0.94);
-          backdrop-filter: blur(10px);
-        }
-
-        .pmp-threadHeaderMeta {
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          flex: 1;
-        }
-
-        .pmp-threadHeaderTop {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .pmp-threadHeaderName {
-          font-weight: 950;
-          line-height: 1.15;
-          font-size: 14px;
-          min-width: 0;
-          word-break: break-word;
-        }
-
-        .pmp-threadHeaderSub {
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          flex-wrap: wrap;
-          margin-top: 2px;
-        }
-
-        .pmp-threadHeaderButtons {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .pmp-threadComposerRow {
-          display: flex;
-          gap: 10px;
-          align-items: flex-end;
-        }
-
-        .pmp-threadTextarea {
-          flex: 1;
-          resize: none;
-          padding: 12px 12px;
-          border-radius: 16px;
-          border: 1px solid rgba(15,23,42,0.12);
-          background: rgba(15,23,42,0.03);
-          color: #0f172a;
-          outline: none;
-          line-height: 1.35;
-          min-height: 44px;
-          max-height: 120px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
-        }
-
         @media (max-width: 767px) {
-          .pmp-threadPage {
-            height: calc(100dvh - 64px - 96px);
-            min-height: calc(100dvh - 64px - 96px);
-            border-radius: 18px;
-          }
-
           .pmp-threadHeader {
-            align-items: flex-start;
+            padding: 10px 12px !important;
           }
 
-          .pmp-threadHeaderButtons {
+          .pmp-threadHeaderMain {
+            min-width: 0;
+          }
+
+          .pmp-threadHeaderActions {
             width: 100%;
+            justify-content: stretch !important;
+          }
+
+          .pmp-threadHeaderActions > * {
+            flex: 1 1 0;
           }
 
           .pmp-threadComposerRow {
-            align-items: stretch;
+            align-items: stretch !important;
           }
 
-          .pmp-threadScroller {
-            padding: 12px;
-          }
-
-          .pmp-threadTextarea {
-            min-height: 46px;
-          }
-        }
-
-        @media (min-width: 768px) {
-          .pmp-threadPage {
-            height: calc(100dvh - 64px - 32px);
-            min-height: calc(100dvh - 64px - 32px);
+          .pmp-threadComposerRow textarea {
+            min-height: 48px !important;
           }
         }
       `}</style>
 
-      <div className="pmp-pageShell">
-        <div className="pmp-threadPage">
-          <div className="pmp-threadHeader">
-            <button
-              onClick={() => router.push("/messages")}
-              style={{
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                fontWeight: 950,
-                color: "#0b3b2e",
-                fontSize: 13,
-                padding: "8px 10px",
-                borderRadius: 12,
-              }}
-              className="pmp-hoverLift"
-            >
-              ← Back
-            </button>
+      <div
+        style={{
+          height: "calc(100vh - 60px)",
+          display: "flex",
+          flexDirection: "column",
+          background: "#f6f7fb",
+          borderRadius: 24,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          className="pmp-threadHeader"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            padding: "12px 14px",
+            borderBottom: "1px solid rgba(15,23,42,0.10)",
+            background: "rgba(255,255,255,0.94)",
+            backdropFilter: "blur(10px)",
+            color: "#0f172a",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+            }}
+          >
+            <div className="pmp-threadHeaderMain" style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+              <button
+                onClick={() => router.push("/messages")}
+                className="pmp-ctaSecondary"
+                type="button"
+              >
+                ← Back
+              </button>
 
-            <div
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 999,
-                overflow: "hidden",
-                background: "rgba(15,23,42,0.06)",
-                border: "2px solid rgba(202,162,77,0.35)",
-                boxShadow: "0 10px 20px rgba(15,23,42,0.10)",
-                flexShrink: 0,
-              }}
-            >
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={otherName}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              ) : null}
-            </div>
-
-            <div className="pmp-threadHeaderMeta">
-              <div className="pmp-threadHeaderTop">
-                <div className="pmp-threadHeaderName">{headerLoading ? "Loading…" : otherName}</div>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 999,
+                  overflow: "hidden",
+                  background: "rgba(15,23,42,0.06)",
+                  border: "2px solid rgba(202,162,77,0.35)",
+                  boxShadow: "0 10px 20px rgba(15,23,42,0.10)",
+                  flexShrink: 0,
+                }}
+              >
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={otherName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : null}
               </div>
 
-              <div className="pmp-threadHeaderSub">
-                <div
-                  style={{
-                    opacity: 0.78,
-                    fontSize: 12,
-                    color: "#0b3b2e",
-                    fontWeight: 850,
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {horseName}
+              <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+                <div style={{ fontWeight: 950, lineHeight: 1.15, fontSize: 14 }}>
+                  {headerLoading ? "Loading…" : otherName}
                 </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontSize: 12,
-                    opacity: 0.85,
-                    minWidth: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 999,
-                      background: otherOnline ? "#22c55e" : "rgba(15,23,42,0.25)",
-                      display: "inline-block",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span style={{ wordBreak: "break-word" }}>{statusText}</span>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ opacity: 0.78, fontSize: 12, whiteSpace: "nowrap", color: "#0b3b2e", fontWeight: 850 }}>
+                    {horseName}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.85 }}>
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        background: otherOnline ? "#22c55e" : "rgba(15,23,42,0.25)",
+                        display: "inline-block",
+                      }}
+                    />
+                    {statusText}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="pmp-threadHeaderButtons">
+            <div className="pmp-threadHeaderActions" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               {showReviewCTA ? (
-                <Link
-                  href={`/review/${requestId}`}
-                  style={{
-                    border: "1px solid rgba(15,23,42,0.12)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
-                    color: "#0f172a",
-                    padding: "8px 10px",
-                    borderRadius: 12,
-                    fontWeight: 950,
-                    fontSize: 12,
-                    textDecoration: "none",
-                    whiteSpace: "nowrap",
-                  }}
-                  className="pmp-hoverLift"
-                >
-                  Leave a review →
+                <Link href={`/review/${requestId}`} className="pmp-ctaSecondary">
+                  Leave a review
                 </Link>
               ) : null}
 
               <button
                 onClick={deleteChatForMe}
                 disabled={deleting}
+                type="button"
                 style={{
                   border: "1px solid rgba(239,68,68,0.25)",
                   background: deleting ? "rgba(239,68,68,0.22)" : "rgba(239,68,68,0.10)",
@@ -913,299 +750,292 @@ export default function MessageThreadPage() {
                   cursor: deleting ? "not-allowed" : "pointer",
                   fontWeight: 950,
                   fontSize: 12,
-                  padding: "8px 10px",
-                  borderRadius: 12,
+                  padding: "10px 12px",
+                  borderRadius: 14,
                 }}
               >
                 {deleting ? "Deleting…" : "Delete"}
               </button>
             </div>
           </div>
+        </div>
 
-          <div ref={scrollerRef} className="pmp-threadScroller">
-            <div
-              aria-hidden="true"
-              style={{
-                position: "absolute",
-                inset: 0,
-                pointerEvents: "none",
-                background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.18), transparent 25%, rgba(255,255,255,0.14)), radial-gradient(1200px 600px at 50% 0%, rgba(15,23,42,0.04), transparent 60%)",
-                mixBlendMode: "soft-light",
-              }}
-            />
+        <div
+          ref={scrollerRef}
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: 16,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            position: "relative",
+            background:
+              "radial-gradient(1000px 680px at 12% 6%, rgba(202,162,77,0.14), transparent 60%), radial-gradient(1000px 680px at 92% 10%, rgba(11,59,46,0.10), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.88), rgba(250,250,250,0.96))",
+          }}
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              pointerEvents: "none",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.18), transparent 25%, rgba(255,255,255,0.14)), radial-gradient(1200px 600px at 50% 0%, rgba(15,23,42,0.04), transparent 60%)",
+              mixBlendMode: "soft-light",
+            }}
+          />
 
-            <div ref={topSentinelRef} style={{ height: 1, position: "relative" }} />
+          <div ref={topSentinelRef} style={{ height: 1, position: "relative" }} />
 
-            {hasMore && (
-              <div
-                style={{
-                  textAlign: "center",
-                  opacity: 0.65,
-                  fontSize: 12,
-                  padding: 8,
-                  color: "#0f172a",
-                  position: "relative",
-                }}
-              >
-                {loadingMore ? "Loading…" : "Scroll up for older messages"}
-              </div>
-            )}
-
-            {loadingInitial && (
-              <div
-                style={{
-                  textAlign: "center",
-                  opacity: 0.65,
-                  fontSize: 12,
-                  padding: 8,
-                  color: "#0f172a",
-                  position: "relative",
-                }}
-              >
-                Loading messages…
-              </div>
-            )}
-
-            <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 8 }}>
-              {grouped.map(({ m, pos }, idx) => {
-                const prev = idx > 0 ? grouped[idx - 1]!.m : null;
-                const showDaySeparator = !prev || dateKey(prev.created_at) !== dateKey(m.created_at);
-                const showNewDivider = firstUnreadId && m.id === firstUnreadId;
-
-                return (
-                  <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {showDaySeparator ? (
-                      <div style={{ display: "flex", justifyContent: "center" }}>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 950,
-                            color: "rgba(15,23,42,0.72)",
-                            padding: "6px 12px",
-                            borderRadius: 999,
-                            border: "1px solid rgba(15,23,42,0.10)",
-                            background: "rgba(255,255,255,0.66)",
-                            boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
-                            backdropFilter: "blur(8px)",
-                          }}
-                        >
-                          {dayLabel(m.created_at)}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {showNewDivider ? (
-                      <div style={{ display: "flex", justifyContent: "center" }}>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 950,
-                            color: "rgba(15,23,42,0.78)",
-                            padding: "7px 12px",
-                            borderRadius: 999,
-                            border: "1px solid rgba(202,162,77,0.38)",
-                            background:
-                              "radial-gradient(600px 160px at 15% 0%, rgba(202,162,77,0.20), transparent 60%), rgba(255,255,255,0.72)",
-                            boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
-                            backdropFilter: "blur(8px)",
-                          }}
-                        >
-                          New messages{firstUnreadCount > 0 ? ` (${firstUnreadCount})` : ""}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <MessageBubble
-                      message={m}
-                      isMine={m.sender_id === myUserId}
-                      groupPos={pos}
-                      showStatus={false}
-                      onRetry={(id) => retry(id)}
-                    />
-                  </div>
-                );
-              })}
-
-              <TypingBubbleInline show={otherTyping} />
+          {hasMore && (
+            <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
+              {loadingMore ? "Loading…" : "Scroll up for older messages"}
             </div>
-          </div>
+          )}
 
-          <div className="pmp-threadComposer">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
-              style={{ display: "none" }}
-              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-            />
+          {loadingInitial && (
+            <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
+              Loading messages…
+            </div>
+          )}
 
-            {pickedFile && pickedPreviewUrl ? (
-              <div
-                className="pmp-hoverLift"
-                style={{
-                  marginBottom: 10,
-                  border: "1px solid rgba(15,23,42,0.10)",
-                  borderRadius: 18,
-                  background:
-                    "radial-gradient(700px 180px at 10% 0%, rgba(202,162,77,0.16), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,241,232,0.78))",
-                  boxShadow: "0 14px 40px rgba(15,23,42,0.10)",
-                  padding: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div
-                  style={{
-                    width: 62,
-                    height: 62,
-                    borderRadius: 16,
-                    overflow: "hidden",
-                    border: "1px solid rgba(15,23,42,0.12)",
-                    background: "rgba(15,23,42,0.04)",
-                    flex: "0 0 auto",
-                  }}
-                >
-                  <img
-                    src={pickedPreviewUrl}
-                    alt="Selected"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 8 }}>
+            {grouped.map(({ m, pos }, idx) => {
+              const prev = idx > 0 ? grouped[idx - 1]!.m : null;
+              const showDaySeparator = !prev || dateKey(prev.created_at) !== dateKey(m.created_at);
+              const showNewDivider = firstUnreadId && m.id === firstUnreadId;
+
+              return (
+                <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {showDaySeparator ? (
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 950,
+                          color: "rgba(15,23,42,0.72)",
+                          padding: "6px 12px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(15,23,42,0.10)",
+                          background: "rgba(255,255,255,0.66)",
+                          boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
+                          backdropFilter: "blur(8px)",
+                        }}
+                      >
+                        {dayLabel(m.created_at)}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {showNewDivider ? (
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 950,
+                          color: "rgba(15,23,42,0.78)",
+                          padding: "7px 12px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(202,162,77,0.38)",
+                          background:
+                            "radial-gradient(600px 160px at 15% 0%, rgba(202,162,77,0.20), transparent 60%), rgba(255,255,255,0.72)",
+                          boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
+                          backdropFilter: "blur(8px)",
+                        }}
+                      >
+                        New messages{firstUnreadCount > 0 ? ` (${firstUnreadCount})` : ""}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <MessageBubble
+                    message={m}
+                    isMine={m.sender_id === myUserId}
+                    groupPos={pos}
+                    showStatus={false}
+                    onRetry={(id) => retry(id)}
                   />
                 </div>
+              );
+            })}
 
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div
-                    style={{
-                      fontWeight: 950,
-                      fontSize: 13,
-                      color: "#0f172a",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {pickedFile.name}
-                  </div>
-                  <div style={{ fontSize: 12, opacity: 0.72, color: "#0f172a", marginTop: 2 }}>
-                    {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • {pickedFile.type || "image"}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      opacity: 0.8,
-                      color: "#0b3b2e",
-                      marginTop: 4,
-                      fontWeight: 850,
-                    }}
-                  >
-                    {uploading ? "Uploading…" : "Ready to send"}
-                  </div>
-                </div>
+            <TypingBubbleInline show={otherTyping} />
+          </div>
+        </div>
 
-                <button
-                  onClick={clearPicked}
-                  disabled={uploading}
-                  style={{
-                    border: "1px solid rgba(239,68,68,0.25)",
-                    background: uploading ? "rgba(239,68,68,0.18)" : "rgba(239,68,68,0.10)",
-                    color: "#b91c1c",
-                    cursor: uploading ? "not-allowed" : "pointer",
-                    fontWeight: 950,
-                    fontSize: 12,
-                    padding: "8px 10px",
-                    borderRadius: 14,
-                    flex: "0 0 auto",
-                  }}
-                >
-                  Remove
-                </button>
-              </div>
-            ) : null}
+        <div
+          style={{
+            padding: 12,
+            borderTop: "1px solid rgba(15,23,42,0.10)",
+            background: "rgba(255,255,255,0.94)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+            style={{ display: "none" }}
+            onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+          />
 
-            {composerError ? (
+          {pickedFile && pickedPreviewUrl ? (
+            <div
+              style={{
+                marginBottom: 10,
+                border: "1px solid rgba(15,23,42,0.10)",
+                borderRadius: 18,
+                background:
+                  "radial-gradient(700px 180px at 10% 0%, rgba(202,162,77,0.16), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,241,232,0.78))",
+                boxShadow: "0 14px 40px rgba(15,23,42,0.10)",
+                padding: 10,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
               <div
                 style={{
-                  marginBottom: 10,
-                  fontSize: 12,
-                  color: "#b91c1c",
-                  fontWeight: 950,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {composerError}
-              </div>
-            ) : null}
-
-            <div className="pmp-threadComposerRow">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="pmp-hoverLift"
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  border: "1px solid rgba(15,23,42,0.12)",
-                  background:
-                    "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
-                  cursor: uploading ? "not-allowed" : "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 12px 24px rgba(15,23,42,0.08)",
-                  padding: 0,
-                  flexShrink: 0,
-                }}
-                title="Attach image"
-                aria-label="Attach image"
-              >
-                <span style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true">
-                  📷
-                </span>
-              </button>
-
-              <textarea
-                ref={inputRef}
-                value={draft}
-                onChange={(e) => onDraftChange(e.target.value)}
-                onBlur={() => broadcastTyping(false)}
-                placeholder={pickedFile ? "Add a caption (optional)…" : "Message…"}
-                rows={1}
-                className="pmp-threadTextarea"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (canSend) void send();
-                  }
-                }}
-                disabled={uploading}
-              />
-
-              <button
-                onClick={() => void send()}
-                disabled={!canSend}
-                className={!canSend ? "" : "pmp-hoverLift"}
-                style={{
-                  height: 44,
-                  padding: "0 14px",
+                  width: 62,
+                  height: 62,
                   borderRadius: 16,
+                  overflow: "hidden",
                   border: "1px solid rgba(15,23,42,0.12)",
-                  fontWeight: 950,
-                  cursor: !canSend ? "not-allowed" : "pointer",
-                  background: !canSend
-                    ? "rgba(11,59,46,0.18)"
-                    : "linear-gradient(180deg, rgba(11,59,46,0.96), rgba(15,23,42,0.92))",
-                  color: "white",
-                  boxShadow: !canSend ? "none" : "0 14px 30px rgba(15,23,42,0.18)",
-                  flexShrink: 0,
+                  background: "rgba(15,23,42,0.04)",
+                  flex: "0 0 auto",
                 }}
-                title={uploading ? "Uploading…" : "Send"}
               >
-                {uploading ? "Sending…" : "Send"}
+                <img src={pickedPreviewUrl} alt="Selected" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    fontWeight: 950,
+                    fontSize: 13,
+                    color: "#0f172a",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {pickedFile.name}
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.72, color: "#0f172a", marginTop: 2 }}>
+                  {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • {pickedFile.type || "image"}
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.80, color: "#0b3b2e", marginTop: 4, fontWeight: 850 }}>
+                  {uploading ? "Uploading…" : "Ready to send"}
+                </div>
+              </div>
+
+              <button
+                onClick={clearPicked}
+                disabled={uploading}
+                type="button"
+                style={{
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  background: uploading ? "rgba(239,68,68,0.18)" : "rgba(239,68,68,0.10)",
+                  color: "#b91c1c",
+                  cursor: uploading ? "not-allowed" : "pointer",
+                  fontWeight: 950,
+                  fontSize: 12,
+                  padding: "8px 10px",
+                  borderRadius: 14,
+                  flex: "0 0 auto",
+                }}
+              >
+                Remove
               </button>
             </div>
+          ) : null}
+
+          {composerError ? (
+            <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c", fontWeight: 950, whiteSpace: "pre-wrap" }}>
+              {composerError}
+            </div>
+          ) : null}
+
+          <div className="pmp-threadComposerRow" style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              type="button"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                border: "1px solid rgba(15,23,42,0.12)",
+                background: "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
+                cursor: uploading ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 12px 24px rgba(15,23,42,0.08)",
+                padding: 0,
+                flexShrink: 0,
+              }}
+              title="Attach image"
+              aria-label="Attach image"
+            >
+              <span style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true">
+                📷
+              </span>
+            </button>
+
+            <textarea
+              ref={inputRef}
+              value={draft}
+              onChange={(e) => onDraftChange(e.target.value)}
+              onBlur={() => broadcastTyping(false)}
+              placeholder={pickedFile ? "Add a caption (optional)…" : "Message…"}
+              rows={1}
+              style={{
+                flex: 1,
+                resize: "none",
+                padding: "12px 12px",
+                borderRadius: 16,
+                border: "1px solid rgba(15,23,42,0.12)",
+                background: "rgba(15,23,42,0.03)",
+                color: "#0f172a",
+                outline: "none",
+                lineHeight: 1.35,
+                minHeight: 44,
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.65)",
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (canSend) void send();
+                }
+              }}
+              disabled={uploading}
+            />
+
+            <button
+              onClick={() => void send()}
+              disabled={!canSend}
+              type="button"
+              style={{
+                height: 44,
+                padding: "0 14px",
+                borderRadius: 16,
+                border: "1px solid rgba(15,23,42,0.12)",
+                fontWeight: 950,
+                cursor: !canSend ? "not-allowed" : "pointer",
+                background: !canSend
+                  ? "rgba(11,59,46,0.18)"
+                  : "linear-gradient(180deg, rgba(11,59,46,0.96), rgba(15,23,42,0.92))",
+                color: "white",
+                boxShadow: !canSend ? "none" : "0 14px 30px rgba(15,23,42,0.18)",
+                flexShrink: 0,
+              }}
+              title={uploading ? "Uploading…" : "Send"}
+            >
+              {uploading ? "Sending…" : "Send"}
+            </button>
           </div>
         </div>
       </div>

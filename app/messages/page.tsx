@@ -21,6 +21,7 @@ type ThreadUI = ThreadRow & {
   last_is_photo?: boolean;
   last_attachment_url?: string | null;
   other_role?: "Owner" | "Borrower" | null;
+  request_status?: string | null;
 };
 
 type ProfileMini = {
@@ -34,6 +35,7 @@ type BorrowReqMini = {
   id: string;
   horse_id: string;
   borrower_id: string;
+  status?: string | null;
 };
 
 type HorseMini = {
@@ -66,6 +68,7 @@ function timeLabel(iso: string | null) {
     d.getFullYear() === now.getFullYear() &&
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate();
+
   if (sameDay) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
@@ -86,6 +89,7 @@ function clamp(n: number, a: number, b: number) {
 function RolePill({ role }: { role: "Owner" | "Borrower" | null | undefined }) {
   if (!role) return null;
   const isOwner = role === "Owner";
+
   return (
     <span
       title={role}
@@ -135,6 +139,54 @@ function PhotoPill() {
   );
 }
 
+function StatusPill({ status }: { status: string | null | undefined }) {
+  if (!status) return null;
+
+  const s = status.toLowerCase();
+  const isApproved = s === "approved";
+  const isPending = s === "pending";
+  const isRejected = s === "rejected" || s === "declined";
+
+  return (
+    <span
+      style={{
+        height: 22,
+        borderRadius: 999,
+        padding: "0 8px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 12,
+        fontWeight: 950,
+        border: isApproved
+          ? "1px solid rgba(16,185,129,0.18)"
+          : isPending
+          ? "1px solid rgba(202,162,77,0.28)"
+          : isRejected
+          ? "1px solid rgba(239,68,68,0.20)"
+          : "1px solid rgba(15,23,42,0.14)",
+        background: isApproved
+          ? "rgba(16,185,129,0.10)"
+          : isPending
+          ? "rgba(202,162,77,0.14)"
+          : isRejected
+          ? "rgba(239,68,68,0.10)"
+          : "rgba(15,23,42,0.06)",
+        color: isApproved
+          ? "#047857"
+          : isPending
+          ? "rgba(155,116,40,0.95)"
+          : isRejected
+          ? "#b91c1c"
+          : "rgba(15,23,42,0.78)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {status}
+    </span>
+  );
+}
+
 function SwipeRow({
   requestId,
   onDelete,
@@ -143,12 +195,7 @@ function SwipeRow({
 }: {
   requestId: string;
   onDelete: () => void;
-  children: (opts: {
-    translateX: number;
-    isOpen: boolean;
-    close: () => void;
-    clickShouldOpen: () => boolean;
-  }) => React.ReactNode;
+  children: (opts: { clickShouldOpen: () => boolean }) => React.ReactNode;
   disabled?: boolean;
 }) {
   const MAX = 86;
@@ -281,8 +328,13 @@ function SwipeRow({
         </button>
       </div>
 
-      <div style={{ transform: `translateX(${tx}px)`, transition: swipingRef.current ? "none" : "transform 160ms ease" }}>
-        {children({ translateX: tx, isOpen: open, close, clickShouldOpen })}
+      <div
+        style={{
+          transform: `translateX(${tx}px)`,
+          transition: swipingRef.current ? "none" : "transform 160ms ease",
+        }}
+      >
+        {children({ clickShouldOpen })}
       </div>
     </div>
   );
@@ -329,6 +381,7 @@ export default function MessagesPage() {
           last_is_photo: false,
           last_attachment_url: null,
           other_role: null,
+          request_status: null,
         }))
       );
       setLoading(false);
@@ -362,7 +415,7 @@ export default function MessagesPage() {
     try {
       const { data: reqs, error: reqErr } = await supabase
         .from("borrow_requests")
-        .select("id, horse_id, borrower_id")
+        .select("id, horse_id, borrower_id, status")
         .in("id", requestIds);
 
       if (reqErr) throw reqErr;
@@ -450,6 +503,7 @@ export default function MessagesPage() {
             other_role: role,
             last_is_photo: isPhoto,
             last_attachment_url: signed,
+            request_status: r?.status ?? null,
           };
         })
       );
@@ -467,6 +521,7 @@ export default function MessagesPage() {
           last_is_photo: (lastMsgMap.get(t.request_id)?.attachment_type ?? null) === "image",
           last_attachment_url: null,
           other_role: null,
+          request_status: null,
         }))
       );
     }
@@ -480,12 +535,12 @@ export default function MessagesPage() {
       .channel("threads:refresh")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => load())
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, () => load())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "borrow_requests" }, () => load())
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const deleteChatForMe = async (requestId: string) => {
@@ -521,7 +576,9 @@ export default function MessagesPage() {
     return threads.filter((t) => {
       if (showUnreadOnly && !(t.unread_count > 0)) return false;
       if (!query) return true;
-      const hay = norm([t.other_display_name, t.subtitle ?? "", t.horse_name ?? "", t.last_message ?? ""].join(" "));
+      const hay = norm(
+        [t.other_display_name, t.subtitle ?? "", t.horse_name ?? "", t.last_message ?? "", t.request_status ?? ""].join(" ")
+      );
       return hay.includes(query);
     });
   }, [threads, q, showUnreadOnly]);
@@ -566,418 +623,432 @@ export default function MessagesPage() {
   };
 
   return (
-    <>
+    <div className="pmp-pageShell">
       <style>{`
-        .pmp-messagesHeader {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-
-        .pmp-messagesControls {
-          margin-bottom: 12px;
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          flex-wrap: wrap;
-        }
-
-        .pmp-messagesSearch {
-          flex: 1;
-          min-width: 220px;
-        }
-
-        .pmp-messageRowMain {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-        }
-
-        .pmp-messageRowMedia {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex: 0 0 auto;
-        }
-
-        .pmp-messageRowBody {
-          min-width: 0;
-          flex: 1;
-        }
-
-        .pmp-messageRowTop {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 10px;
-        }
-
-        .pmp-messageRowMetaRight {
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          flex: 0 0 auto;
-        }
-
-        .pmp-messageBottom {
-          margin-top: 8px;
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          min-width: 0;
-        }
-
         @media (max-width: 767px) {
-          .pmp-messagesHeader,
-          .pmp-messageRowTop,
-          .pmp-messageRowMain {
+          .pmp-msg-topRow {
+            align-items: stretch !important;
+          }
+
+          .pmp-msg-topRow button {
+            width: 100%;
+          }
+
+          .pmp-msg-controls {
             flex-direction: column;
-            align-items: stretch;
+            align-items: stretch !important;
           }
 
-          .pmp-messagesHeader > *,
-          .pmp-messageRowTop > *,
-          .pmp-messageRowMain > * {
-            width: 100%;
+          .pmp-msg-controls > div,
+          .pmp-msg-controls input,
+          .pmp-msg-controls button {
+            width: 100% !important;
           }
 
-          .pmp-messageRowMedia {
-            width: auto;
-          }
-
-          .pmp-messageRowMetaRight {
-            width: 100%;
-            justify-content: space-between;
-          }
-
-          .pmp-messageBottom {
-            flex-wrap: wrap;
+          .pmp-msg-cardBody {
+            padding: 12px !important;
           }
         }
       `}</style>
 
-      <div className="pmp-pageShell">
-        <div className="pmp-messagesHeader">
-          <div>
-            <div className="pmp-kicker">Inbox</div>
-            <h1 className="pmp-pageTitle">Messages</h1>
+      <div
+        className="pmp-msg-topRow"
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div className="pmp-kicker">Inbox</div>
+          <h1 className="pmp-pageTitle">Messages</h1>
 
-            <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 900,
-                  color: "rgba(11,59,46,0.82)",
-                  padding: "6px 10px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(11,59,46,0.18)",
-                  background:
-                    "radial-gradient(800px 220px at 10% 0%, rgba(202,162,77,0.16), transparent 60%), rgba(255,255,255,0.72)",
-                  backdropFilter: "blur(8px)",
-                  boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
-                }}
-                title="Chats are private to participants. Identity verification is required to use messaging."
-              >
-                🔒 Verified & private chat
-              </div>
-
-              <div style={{ fontSize: 12, fontWeight: 850, color: "rgba(15,23,42,0.60)" }}>
-                {counts.total} total • {counts.unread} with unread
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={markAllRead}
-            disabled={markingAllRead || visibleUnreadCount === 0 || loading}
-            className="pmp-hoverLift"
-            style={{
-              minHeight: 44,
-              padding: "0 12px",
-              borderRadius: 14,
-              border: "1px solid rgba(15,23,42,0.12)",
-              background:
-                visibleUnreadCount === 0
-                  ? "rgba(255,255,255,0.65)"
-                  : "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
-              fontWeight: 950,
-              cursor: markingAllRead || visibleUnreadCount === 0 || loading ? "not-allowed" : "pointer",
-              boxShadow: "0 12px 26px rgba(15,23,42,0.06)",
-              color: "#0f172a",
-              whiteSpace: "nowrap",
-            }}
-            title="Marks all unread incoming messages as read (for currently visible threads)"
-          >
-            {markingAllRead ? "Marking…" : "Mark all read"}
-          </button>
-        </div>
-
-        <div className="pmp-messagesControls">
-          <div className="pmp-messagesSearch">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search chats…"
+          <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div
               style={{
-                width: "100%",
-                minHeight: 44,
-                borderRadius: 16,
-                border: "1px solid rgba(15,23,42,0.12)",
-                background: "rgba(255,255,255,0.86)",
-                padding: "0 12px",
-                fontWeight: 800,
-                outline: "none",
-                boxShadow: "0 12px 26px rgba(15,23,42,0.06)",
+                fontSize: 12,
+                fontWeight: 900,
+                color: "rgba(11,59,46,0.82)",
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: "1px solid rgba(11,59,46,0.18)",
+                background:
+                  "radial-gradient(800px 220px at 10% 0%, rgba(202,162,77,0.16), transparent 60%), rgba(255,255,255,0.72)",
+                backdropFilter: "blur(8px)",
+                boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
               }}
-            />
-          </div>
+            >
+              🔒 Verified & private chat
+            </div>
 
-          <button
-            onClick={() => setShowUnreadOnly((v) => !v)}
-            className="pmp-hoverLift"
-            style={{
-              minHeight: 44,
-              padding: "0 12px",
-              borderRadius: 16,
-              border: showUnreadOnly ? "1px solid rgba(202,162,77,0.45)" : "1px solid rgba(15,23,42,0.12)",
-              background: showUnreadOnly
-                ? "linear-gradient(180deg, rgba(202,162,77,0.96), rgba(155,116,40,0.92))"
-                : "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
-              color: showUnreadOnly ? "white" : "#0f172a",
-              fontWeight: 950,
-              cursor: "pointer",
-              boxShadow: showUnreadOnly ? "0 14px 30px rgba(155,116,40,0.20)" : "0 12px 26px rgba(15,23,42,0.06)",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              whiteSpace: "nowrap",
-            }}
-            title="Show only chats with unread messages"
-          >
-            {showUnreadOnly ? "Unread only ✓" : "Unread only"}
-          </button>
+            <div className="pmp-mutedText">
+              {counts.total} total • {counts.unread} with unread
+            </div>
+          </div>
         </div>
 
-        {loading ? (
-          <div className="pmp-sectionCard">
-            <div className="pmp-mutedText">Loading messages…</div>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="pmp-sectionCard">
-            <div style={{ fontWeight: 950, color: "#0f172a" }}>
-              {threads.length === 0 ? "No conversations yet" : "No matches"}
-            </div>
-            <div style={{ marginTop: 6, opacity: 0.75, fontSize: 13 }}>
+        <button
+          onClick={markAllRead}
+          disabled={markingAllRead || visibleUnreadCount === 0 || loading}
+          className="pmp-ctaSecondary"
+          style={{
+            cursor: markingAllRead || visibleUnreadCount === 0 || loading ? "not-allowed" : "pointer",
+            opacity: markingAllRead || visibleUnreadCount === 0 || loading ? 0.65 : 1,
+          }}
+          title="Marks all unread incoming messages as read"
+        >
+          {markingAllRead ? "Marking…" : "Mark all read"}
+        </button>
+      </div>
+
+      <div
+        className="pmp-msg-controls"
+        style={{
+          marginBottom: 12,
+          display: "flex",
+          gap: 10,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search chats…"
+            style={{
+              width: "100%",
+              minHeight: 44,
+              borderRadius: 16,
+              border: "1px solid rgba(15,23,42,0.12)",
+              background: "rgba(255,255,255,0.86)",
+              padding: "0 12px",
+              fontWeight: 800,
+              outline: "none",
+              boxShadow: "0 12px 26px rgba(15,23,42,0.06)",
+            }}
+          />
+        </div>
+
+        <button
+          onClick={() => setShowUnreadOnly((v) => !v)}
+          className="pmp-ctaSecondary"
+          style={{
+            background: showUnreadOnly
+              ? "linear-gradient(180deg, rgba(202,162,77,0.96), rgba(155,116,40,0.92))"
+              : undefined,
+            color: showUnreadOnly ? "white" : undefined,
+            borderColor: showUnreadOnly ? "rgba(202,162,77,0.45)" : undefined,
+          }}
+          title="Show only chats with unread messages"
+        >
+          {showUnreadOnly ? "Unread only ✓" : "Unread only"}
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="pmp-sectionCard">
+          <div className="pmp-mutedText">Loading…</div>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="pmp-sectionCard">
+          <div className="pmp-emptyState">
+            <div className="pmp-emptyIcon">💬</div>
+            <div className="pmp-emptyTitle">{threads.length === 0 ? "No conversations yet" : "No matches"}</div>
+            <div className="pmp-emptyText">
               {threads.length === 0
-                ? "When you request a pony or receive a request, your chat will appear here."
+                ? "When you request a horse or receive a request, your chat will appear here."
                 : "Try a different search or turn off Unread only."}
             </div>
           </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {filtered.map((t) => {
-              const time = timeLabel(t.last_message_at);
-              const hasUnread = (t.unread_count ?? 0) > 0;
-              const deleting = deletingId === t.request_id;
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map((t) => {
+            const time = timeLabel(t.last_message_at);
+            const hasUnread = (t.unread_count ?? 0) > 0;
+            const deleting = deletingId === t.request_id;
 
-              const cardBaseStyle: React.CSSProperties = {
-                border: hasUnread ? "1px solid rgba(202,162,77,0.35)" : "1px solid rgba(15,23,42,0.10)",
-                borderRadius: 18,
-                background:
-                  "radial-gradient(900px 420px at 12% 0%, rgba(202,162,77,0.14), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,241,232,0.82))",
-                boxShadow: hasUnread ? "0 18px 55px rgba(15,23,42,0.10)" : "0 14px 40px rgba(15,23,42,0.08)",
-                overflow: "hidden",
-              };
-
-              return (
-                <SwipeRow key={t.request_id} requestId={t.request_id} onDelete={() => deleteChatForMe(t.request_id)} disabled={deleting}>
-                  {({ clickShouldOpen }) => (
-                    <div className="pmp-hoverLift" style={cardBaseStyle}>
-                      <Link
-                        href={`/messages/${t.request_id}`}
-                        prefetch={false}
-                        style={{ textDecoration: "none", display: "block" }}
-                        onClick={(e) => {
-                          if (!clickShouldOpen()) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }
-                        }}
-                      >
-                        <div style={{ padding: 14, cursor: "pointer" }}>
-                          <div className="pmp-messageRowMain">
-                            <div className="pmp-messageRowMedia">
-                              <div
-                                style={{
-                                  width: 46,
-                                  height: 46,
-                                  borderRadius: 999,
-                                  overflow: "hidden",
-                                  background: "rgba(15,23,42,0.06)",
-                                  border: hasUnread ? "2px solid rgba(202,162,77,0.45)" : "2px solid rgba(15,23,42,0.10)",
-                                  boxShadow: "0 14px 28px rgba(15,23,42,0.10)",
-                                }}
-                              >
-                                {t.other_avatar_url ? (
-                                  <img src={t.other_avatar_url} alt={t.other_display_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                ) : (
-                                  <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", fontWeight: 950, color: "rgba(15,23,42,0.65)" }}>
-                                    {t.other_display_name?.slice(0, 1)?.toUpperCase() ?? "U"}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div
-                                style={{
-                                  width: 46,
-                                  height: 46,
-                                  borderRadius: 16,
-                                  overflow: "hidden",
-                                  background: "rgba(15,23,42,0.06)",
-                                  border: "1px solid rgba(15,23,42,0.10)",
-                                  boxShadow: "0 14px 28px rgba(15,23,42,0.08)",
-                                }}
-                                title={t.subtitle ?? ""}
-                              >
-                                {t.horse_image_url ? (
-                                  <img src={t.horse_image_url} alt={t.subtitle ?? "Horse"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                ) : (
-                                  <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", fontSize: 16 }}>🐴</div>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="pmp-messageRowBody">
-                              <div className="pmp-messageRowTop">
-                                <div style={{ minWidth: 0 }}>
-                                  <div
-                                    style={{
-                                      fontWeight: 950,
-                                      color: "#0f172a",
-                                      fontSize: 14,
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    {t.other_display_name}
-                                  </div>
-
-                                  <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                                    <RolePill role={t.other_role ?? null} />
-                                    {t.last_is_photo ? <PhotoPill /> : null}
-                                  </div>
-                                </div>
-
-                                <div className="pmp-messageRowMetaRight">
-                                  {time ? <div style={{ fontSize: 12, fontWeight: 850, color: "rgba(15,23,42,0.55)" }}>{time}</div> : null}
-
-                                  {hasUnread ? (
-                                    <div
-                                      style={{
-                                        minWidth: 30,
-                                        height: 22,
-                                        borderRadius: 999,
-                                        padding: "0 8px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontSize: 12,
-                                        fontWeight: 950,
-                                        background: "linear-gradient(180deg, rgba(202,162,77,0.95), rgba(155,116,40,0.92))",
-                                        color: "white",
-                                        boxShadow: "0 12px 24px rgba(155,116,40,0.18)",
-                                      }}
-                                    >
-                                      {t.unread_count}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              </div>
-
-                              <div style={{ marginTop: 8, fontSize: 12, fontWeight: 850, color: "rgba(11,59,46,0.72)" }}>
-                                {t.subtitle ?? ""}
-                              </div>
-
-                              <div className="pmp-messageBottom">
+            return (
+              <SwipeRow
+                key={t.request_id}
+                requestId={t.request_id}
+                onDelete={() => deleteChatForMe(t.request_id)}
+                disabled={deleting}
+              >
+                {({ clickShouldOpen }) => (
+                  <div
+                    className="pmp-sectionCard"
+                    style={{
+                      padding: 0,
+                      overflow: "hidden",
+                      borderColor: hasUnread ? "rgba(202,162,77,0.35)" : undefined,
+                    }}
+                  >
+                    <Link
+                      href={`/messages/${t.request_id}`}
+                      prefetch={false}
+                      style={{ textDecoration: "none", display: "block" }}
+                      onClick={(e) => {
+                        if (!clickShouldOpen()) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      <div className="pmp-msg-cardBody" style={{ padding: 14, cursor: "pointer" }}>
+                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
+                            <div
+                              style={{
+                                width: 46,
+                                height: 46,
+                                borderRadius: 999,
+                                overflow: "hidden",
+                                background: "rgba(15,23,42,0.06)",
+                                border: hasUnread
+                                  ? "2px solid rgba(202,162,77,0.45)"
+                                  : "2px solid rgba(15,23,42,0.10)",
+                                boxShadow: "0 14px 28px rgba(15,23,42,0.10)",
+                              }}
+                            >
+                              {t.other_avatar_url ? (
+                                <img
+                                  src={t.other_avatar_url}
+                                  alt={t.other_display_name}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
+                              ) : (
                                 <div
                                   style={{
-                                    fontSize: 13,
-                                    color: "rgba(15,23,42,0.80)",
-                                    fontWeight: hasUnread ? 900 : 700,
+                                    width: "100%",
+                                    height: "100%",
+                                    display: "grid",
+                                    placeItems: "center",
+                                    fontWeight: 950,
+                                    color: "rgba(15,23,42,0.65)",
+                                  }}
+                                >
+                                  {t.other_display_name?.slice(0, 1)?.toUpperCase() ?? "U"}
+                                </div>
+                              )}
+                            </div>
+
+                            <div
+                              style={{
+                                width: 46,
+                                height: 46,
+                                borderRadius: 16,
+                                overflow: "hidden",
+                                background: "rgba(15,23,42,0.06)",
+                                border: "1px solid rgba(15,23,42,0.10)",
+                                boxShadow: "0 14px 28px rgba(15,23,42,0.08)",
+                              }}
+                              title={t.subtitle ?? ""}
+                            >
+                              {t.horse_image_url ? (
+                                <img
+                                  src={t.horse_image_url}
+                                  alt={t.subtitle ?? "Horse"}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
+                              ) : (
+                                <div
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    display: "grid",
+                                    placeItems: "center",
+                                    fontSize: 16,
+                                  }}
+                                >
+                                  🐴
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
+                                gap: 10,
+                              }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontWeight: 950,
+                                    color: "#0f172a",
+                                    fontSize: 14,
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
                                     whiteSpace: "nowrap",
-                                    minWidth: 0,
-                                    flex: 1,
                                   }}
                                 >
-                                  {t.last_is_photo ? (t.last_message?.trim() ? t.last_message : "Sent a photo") : (t.last_message ?? "")}
+                                  {t.other_display_name}
                                 </div>
 
-                                {t.last_is_photo && t.last_attachment_url ? (
+                                <div
+                                  style={{
+                                    marginTop: 6,
+                                    display: "flex",
+                                    gap: 8,
+                                    alignItems: "center",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  <RolePill role={t.other_role ?? null} />
+                                  <StatusPill status={t.request_status ?? null} />
+                                  {t.last_is_photo ? <PhotoPill /> : null}
+                                </div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: 10, alignItems: "center", flex: "0 0 auto" }}>
+                                {time ? (
                                   <div
                                     style={{
-                                      width: 40,
-                                      height: 40,
-                                      borderRadius: 14,
-                                      overflow: "hidden",
-                                      border: "1px solid rgba(15,23,42,0.10)",
-                                      background: "rgba(15,23,42,0.06)",
-                                      boxShadow: "0 12px 26px rgba(15,23,42,0.08)",
-                                      flex: "0 0 auto",
+                                      fontSize: 12,
+                                      fontWeight: 850,
+                                      color: "rgba(15,23,42,0.55)",
                                     }}
-                                    title="Photo preview"
                                   >
-                                    <img src={t.last_attachment_url} alt="Last photo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    {time}
+                                  </div>
+                                ) : null}
+
+                                {hasUnread ? (
+                                  <div
+                                    style={{
+                                      minWidth: 30,
+                                      height: 22,
+                                      borderRadius: 999,
+                                      padding: "0 8px",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontSize: 12,
+                                      fontWeight: 950,
+                                      background:
+                                        "linear-gradient(180deg, rgba(202,162,77,0.95), rgba(155,116,40,0.92))",
+                                      color: "white",
+                                      boxShadow: "0 12px 24px rgba(155,116,40,0.18)",
+                                    }}
+                                  >
+                                    {t.unread_count}
                                   </div>
                                 ) : null}
                               </div>
                             </div>
+
+                            <div
+                              style={{
+                                marginTop: 8,
+                                fontSize: 12,
+                                fontWeight: 850,
+                                color: "rgba(11,59,46,0.72)",
+                              }}
+                            >
+                              {t.subtitle ?? ""}
+                            </div>
+
+                            <div
+                              style={{
+                                marginTop: 8,
+                                display: "flex",
+                                gap: 10,
+                                alignItems: "center",
+                                minWidth: 0,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 13,
+                                  color: "rgba(15,23,42,0.80)",
+                                  fontWeight: hasUnread ? 900 : 700,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  minWidth: 0,
+                                  flex: 1,
+                                }}
+                              >
+                                {t.last_is_photo
+                                  ? t.last_message?.trim()
+                                    ? t.last_message
+                                    : "Sent a photo"
+                                  : t.last_message ?? ""}
+                              </div>
+
+                              {t.last_is_photo && t.last_attachment_url ? (
+                                <div
+                                  style={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 14,
+                                    overflow: "hidden",
+                                    border: "1px solid rgba(15,23,42,0.10)",
+                                    background: "rgba(15,23,42,0.06)",
+                                    boxShadow: "0 12px 26px rgba(15,23,42,0.08)",
+                                    flex: "0 0 auto",
+                                  }}
+                                  title="Photo preview"
+                                >
+                                  <img
+                                    src={t.last_attachment_url}
+                                    alt="Last photo"
+                                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
-                      </Link>
+                      </div>
+                    </Link>
 
-                      <div
+                    <div
+                      style={{
+                        borderTop: "1px solid rgba(15,23,42,0.06)",
+                        padding: "10px 14px",
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        background: "rgba(255,255,255,0.55)",
+                      }}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteChatForMe(t.request_id);
+                        }}
+                        disabled={deleting}
                         style={{
-                          borderTop: "1px solid rgba(15,23,42,0.06)",
-                          padding: "10px 14px",
-                          display: "flex",
-                          justifyContent: "flex-end",
-                          background: "rgba(255,255,255,0.55)",
+                          border: "1px solid rgba(239,68,68,0.25)",
+                          background: deleting ? "rgba(239,68,68,0.22)" : "rgba(239,68,68,0.10)",
+                          color: "#b91c1c",
+                          cursor: deleting ? "not-allowed" : "pointer",
+                          fontWeight: 950,
+                          fontSize: 12,
+                          padding: "7px 10px",
+                          borderRadius: 12,
                         }}
                       >
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            deleteChatForMe(t.request_id);
-                          }}
-                          disabled={deleting}
-                          style={{
-                            border: "1px solid rgba(239,68,68,0.25)",
-                            background: deleting ? "rgba(239,68,68,0.22)" : "rgba(239,68,68,0.10)",
-                            color: "#b91c1c",
-                            cursor: deleting ? "not-allowed" : "pointer",
-                            fontWeight: 950,
-                            fontSize: 12,
-                            padding: "7px 10px",
-                            borderRadius: 12,
-                          }}
-                        >
-                          {deleting ? "Deleting…" : "Delete"}
-                        </button>
-                      </div>
+                        {deleting ? "Deleting…" : "Delete"}
+                      </button>
                     </div>
-                  )}
-                </SwipeRow>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </>
+                  </div>
+                )}
+              </SwipeRow>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
