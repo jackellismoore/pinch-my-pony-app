@@ -9,6 +9,25 @@ import { VerificationBadge } from "../components/VerificationBadge";
 
 type ProfileAny = Record<string, any>;
 
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+
+const DEFAULT_AVATAR_DATA_URI =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
+      <defs>
+        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="#f5f1e8"/>
+          <stop offset="100%" stop-color="#efe6d3"/>
+        </linearGradient>
+      </defs>
+      <rect width="160" height="160" rx="80" fill="url(#bg)"/>
+      <circle cx="80" cy="80" r="72" fill="none" stroke="#d8c4a0" stroke-width="2"/>
+      <text x="80" y="96" text-anchor="middle" font-size="64">🐴</text>
+    </svg>
+  `);
+
 function safeTrim(v: any) {
   const s = typeof v === "string" ? v.trim() : "";
   return s.length ? s : null;
@@ -19,6 +38,10 @@ function isNumberLike(v: any) {
   if (typeof v === "number") return Number.isFinite(v);
   if (typeof v === "string" && v.trim()) return !Number.isNaN(Number(v));
   return false;
+}
+
+function isAllowedAvatarType(file: File) {
+  return ALLOWED_AVATAR_TYPES.has((file.type || "").toLowerCase());
 }
 
 export default function ProfilePage() {
@@ -184,6 +207,16 @@ export default function ProfilePage() {
 
     if (!userId) return;
 
+    if (!isAllowedAvatarType(file)) {
+      setError("Please choose a JPG, PNG, or WebP image.");
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_BYTES) {
+      setError("That image is too large. Maximum size is 5MB.");
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -203,12 +236,9 @@ export default function ProfilePage() {
       const url = pub.data.publicUrl;
 
       setAvatarUrl(url);
-      setNotice("Uploaded. Click Save to persist.");
+      setNotice("Avatar uploaded. Click Save to persist.");
     } catch (e: any) {
-      setError(
-        e?.message ??
-          "Avatar upload failed. You can still paste a public image URL into the Avatar URL field."
-      );
+      setError(e?.message ?? "Avatar upload failed.");
     } finally {
       setSaving(false);
     }
@@ -257,362 +287,381 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return <div style={{ padding: 24, fontSize: 13, color: "rgba(0,0,0,0.6)" }}>Loading…</div>;
+    return (
+      <div className="pmp-pageShell">
+        <div className="pmp-sectionCard">
+          <div className="pmp-mutedText">Loading profile…</div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", paddingBottom: 120 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 22 }}>{title}</h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
-            Edit your public profile details.
-          </div>
-        </div>
+    <>
+      <style>{`
+        .pmp-profileGrid2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
 
-        <button
-          onClick={onSave}
-          disabled={saving || deleting}
-          style={{
-            border: "1px solid rgba(0,0,0,0.14)",
-            background: saving ? "rgba(0,0,0,0.06)" : "black",
-            color: saving ? "rgba(0,0,0,0.55)" : "white",
-            padding: "10px 12px",
-            borderRadius: 12,
-            fontWeight: 950,
-            fontSize: 13,
-            cursor: saving ? "not-allowed" : "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
+        .pmp-profileGridBio {
+          display: grid;
+          grid-template-columns: 1fr 220px;
+          gap: 10px;
+        }
 
-      <div
-        style={{
-          marginTop: 12,
-          border: "1px solid rgba(0,0,0,0.10)",
-          borderRadius: 14,
-          padding: 14,
-          background: "white",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontWeight: 950, fontSize: 13 }}>Trust & identity</div>
-          <VerificationBadge
-            status={verificationStatus}
-            verifiedAt={verifiedAt}
-            provider={verificationProvider}
-          />
-          {verificationProvider ? (
-            <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
-          ) : null}
-        </div>
+        .pmp-profileTopRow {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
 
-        {String(verificationStatus).toLowerCase() !== "verified" ? (
-          <button
-            onClick={() => router.push("/verify")}
-            style={{
-              border: "1px solid rgba(0,0,0,0.14)",
-              background: "black",
-              color: "white",
-              padding: "10px 12px",
-              borderRadius: 12,
-              fontWeight: 950,
-              fontSize: 13,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Verify now →
-          </button>
-        ) : null}
-      </div>
+        .pmp-profileAvatarRow {
+          display: flex;
+          gap: 14px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
 
-      {error ? (
-        <div
-          style={{
-            marginTop: 12,
-            border: "1px solid rgba(255,0,0,0.25)",
-            background: "rgba(255,0,0,0.06)",
-            padding: 12,
-            borderRadius: 12,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
+        .pmp-profileFooterRow {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
 
-      {notice ? (
-        <div
-          style={{
-            marginTop: 12,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: "rgba(0,0,0,0.03)",
-            padding: 12,
-            borderRadius: 12,
-            fontSize: 13,
-            color: "rgba(0,0,0,0.75)",
-          }}
-        >
-          {notice}
-        </div>
-      ) : null}
+        @media (max-width: 767px) {
+          .pmp-profileGrid2,
+          .pmp-profileGridBio {
+            grid-template-columns: 1fr;
+          }
 
-      <div
-        style={{
-          marginTop: 14,
-          border: "1px solid rgba(0,0,0,0.10)",
-          borderRadius: 14,
-          padding: 14,
-          background: "white",
-          display: "grid",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
-          <div
-            style={{
-              width: 72,
-              height: 72,
-              borderRadius: 999,
-              overflow: "hidden",
-              background: "rgba(0,0,0,0.06)",
-              border: "1px solid rgba(0,0,0,0.10)",
-              flexShrink: 0,
-            }}
-          >
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-            ) : null}
-          </div>
+          .pmp-profileTopRow > *,
+          .pmp-profileFooterRow > * {
+            width: 100%;
+          }
 
-          <div style={{ flex: 1, minWidth: 260, display: "grid", gap: 8 }}>
-            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-              Avatar URL
-              <input
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="https://…"
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  borderRadius: 10,
-                  padding: "10px 12px",
-                  fontSize: 14,
-                }}
-              />
-            </label>
+          .pmp-profileTopRow button,
+          .pmp-profileFooterRow button {
+            width: 100%;
+          }
+        }
+      `}</style>
 
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <label
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  padding: "9px 10px",
-                  borderRadius: 12,
-                  fontWeight: 900,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  background: "white",
-                }}
-              >
-                Upload avatar
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  style={{ display: "none" }}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) onUploadAvatar(f);
-                    e.currentTarget.value = "";
-                  }}
-                />
-              </label>
-
-              <div style={{ fontSize: 12, color: "rgba(0,0,0,0.6)" }}>
-                Upload uses bucket <b>avatars</b>. If you use a different bucket, tell me.
-              </div>
+      <div className="pmp-pageShell">
+        <div className="pmp-profileTopRow">
+          <div>
+            <div className="pmp-kicker">Account</div>
+            <h1 className="pmp-pageTitle">{title}</h1>
+            <div className="pmp-mutedText" style={{ marginTop: 6 }}>
+              Edit your public profile details.
             </div>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-            Display name
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="What borrowers will see"
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-              }}
-            />
-          </label>
-
-          <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-            Full name
-            <input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Legal / full name (optional)"
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-              }}
-            />
-          </label>
-        </div>
-
-        <div style={{ marginTop: 6, fontWeight: 950, fontSize: 13 }}>Optional public details</div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-            Stable name
-            <input
-              value={stableName}
-              onChange={(e) => setStableName(e.target.value)}
-              placeholder="(optional)"
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-              }}
-            />
-          </label>
-
-          <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-            Location
-            <input
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="City / region"
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-              }}
-            />
-          </label>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 10 }}>
-          <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-            Bio
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              rows={5}
-              placeholder="A short intro…"
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-                resize: "vertical",
-              }}
-            />
-          </label>
-
-          <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-            Age
-            <input
-              value={age}
-              onChange={(e) => setAge(e.target.value)}
-              placeholder="(optional)"
-              inputMode="numeric"
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                fontSize: 14,
-              }}
-            />
-            <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)" }}>Leave blank if not applicable.</div>
-          </label>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
-            Profile ID:{" "}
-            <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-              {userId}
-            </span>
           </div>
 
           <button
             onClick={onSave}
             disabled={saving || deleting}
+            className="pmp-ctaPrimary"
             style={{
               border: "1px solid rgba(0,0,0,0.14)",
-              background: saving ? "rgba(0,0,0,0.06)" : "black",
+              background: saving ? "rgba(0,0,0,0.06)" : "#111111",
               color: saving ? "rgba(0,0,0,0.55)" : "white",
-              padding: "10px 12px",
-              borderRadius: 12,
-              fontWeight: 950,
-              fontSize: 13,
               cursor: saving ? "not-allowed" : "pointer",
-              whiteSpace: "nowrap",
             }}
           >
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
-      </div>
 
-      <div
-        style={{
-          marginTop: 14,
-          border: "1px solid rgba(185,28,28,0.15)",
-          borderRadius: 14,
-          padding: 14,
-          background: "rgba(185,28,28,0.03)",
-          display: "grid",
-          gap: 10,
-        }}
-      >
-        <div style={{ fontWeight: 950, fontSize: 14, color: "#991b1b" }}>Delete account</div>
-        <div style={{ fontSize: 13, color: "rgba(0,0,0,0.7)", lineHeight: 1.6 }}>
-          Permanently delete your Pinch My Pony account and associated profile data. This cannot be undone.
+        <div
+          className="pmp-sectionCard"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontWeight: 950, fontSize: 13 }}>Trust & identity</div>
+            <VerificationBadge
+              status={verificationStatus}
+              verifiedAt={verifiedAt}
+              provider={verificationProvider}
+            />
+            {verificationProvider ? (
+              <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
+            ) : null}
+          </div>
+
+          {String(verificationStatus).toLowerCase() !== "verified" ? (
+            <button
+              onClick={() => router.push("/verify")}
+              className="pmp-ctaPrimary"
+              style={{
+                border: "1px solid rgba(0,0,0,0.14)",
+                background: "#111111",
+                color: "white",
+              }}
+            >
+              Verify now →
+            </button>
+          ) : null}
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button
-            type="button"
-            onClick={deleteAccount}
-            disabled={deleting || saving}
+        {error ? <div className="pmp-errorBanner">{error}</div> : null}
+
+        {notice ? (
+          <div
+            className="pmp-sectionCard"
             style={{
-              border: "1px solid rgba(185,28,28,0.22)",
-              background: deleting ? "rgba(185,28,28,0.05)" : "rgba(185,28,28,0.08)",
-              color: "#991b1b",
-              borderRadius: 12,
-              padding: "11px 14px",
-              fontWeight: 950,
-              fontSize: 14,
-              cursor: deleting ? "not-allowed" : "pointer",
+              padding: 12,
+              background: "rgba(15,23,42,0.03)",
+              color: "rgba(0,0,0,0.75)",
             }}
           >
-            {deleting ? "Deleting account…" : "Delete account"}
-          </button>
+            {notice}
+          </div>
+        ) : null}
+
+        <div className="pmp-sectionCard" style={{ display: "grid", gap: 12 }}>
+          <div className="pmp-profileAvatarRow">
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 999,
+                overflow: "hidden",
+                background: "rgba(0,0,0,0.06)",
+                border: "1px solid rgba(0,0,0,0.10)",
+                flexShrink: 0,
+              }}
+            >
+              <img
+                src={avatarUrl || DEFAULT_AVATAR_DATA_URI}
+                alt="Profile avatar"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            </div>
+
+            <div style={{ flex: 1, minWidth: 240, display: "grid", gap: 8 }}>
+              <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                <div style={{ fontWeight: 900 }}>Profile photo</div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.6)", lineHeight: 1.6 }}>
+                  Upload a JPG, PNG, or WebP image from your photo library or files. Maximum size 5MB.
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <label
+                  style={{
+                    border: "1px solid rgba(0,0,0,0.14)",
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    fontWeight: 900,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    background: "white",
+                    minHeight: 44,
+                    display: "inline-flex",
+                    alignItems: "center",
+                  }}
+                >
+                  Choose photo
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) onUploadAvatar(f);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.6)" }}>
+                  Placeholder stays until you upload your own image.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pmp-profileGrid2">
+            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              Display name
+              <input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="What borrowers will see"
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  borderRadius: 12,
+                  padding: "12px 12px",
+                  fontSize: 14,
+                  width: "100%",
+                }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              Full name
+              <input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Legal / full name (optional)"
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  borderRadius: 12,
+                  padding: "12px 12px",
+                  fontSize: 14,
+                  width: "100%",
+                }}
+              />
+            </label>
+          </div>
+
+          <div style={{ marginTop: 6, fontWeight: 950, fontSize: 13 }}>Optional public details</div>
+
+          <div className="pmp-profileGrid2">
+            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              Stable name
+              <input
+                value={stableName}
+                onChange={(e) => setStableName(e.target.value)}
+                placeholder="(optional)"
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  borderRadius: 12,
+                  padding: "12px 12px",
+                  fontSize: 14,
+                  width: "100%",
+                }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              Location
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="City / region"
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  borderRadius: 12,
+                  padding: "12px 12px",
+                  fontSize: 14,
+                  width: "100%",
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="pmp-profileGridBio">
+            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              Bio
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={5}
+                placeholder="A short intro…"
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  borderRadius: 12,
+                  padding: "12px 12px",
+                  fontSize: 14,
+                  resize: "vertical",
+                  width: "100%",
+                }}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+              Age
+              <input
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="(optional)"
+                inputMode="numeric"
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  borderRadius: 12,
+                  padding: "12px 12px",
+                  fontSize: 14,
+                  width: "100%",
+                }}
+              />
+              <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
+                Leave blank if not applicable.
+              </div>
+            </label>
+          </div>
+
+          <div className="pmp-profileFooterRow">
+            <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)", wordBreak: "break-all" }}>
+              Profile ID:{" "}
+              <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                {userId}
+              </span>
+            </div>
+
+            <button
+              onClick={onSave}
+              disabled={saving || deleting}
+              className="pmp-ctaPrimary"
+              style={{
+                border: "1px solid rgba(0,0,0,0.14)",
+                background: saving ? "rgba(0,0,0,0.06)" : "#111111",
+                color: saving ? "rgba(0,0,0,0.55)" : "white",
+                cursor: saving ? "not-allowed" : "pointer",
+              }}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+
+        <div
+          className="pmp-sectionCard"
+          style={{
+            border: "1px solid rgba(185,28,28,0.15)",
+            background: "rgba(185,28,28,0.03)",
+            display: "grid",
+            gap: 10,
+          }}
+        >
+          <div style={{ fontWeight: 950, fontSize: 14, color: "#991b1b" }}>Delete account</div>
+          <div style={{ fontSize: 13, color: "rgba(0,0,0,0.7)", lineHeight: 1.6 }}>
+            Permanently delete your Pinch My Pony account and associated profile data. This cannot be
+            undone.
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={deleteAccount}
+              disabled={deleting || saving}
+              style={{
+                border: "1px solid rgba(185,28,28,0.22)",
+                background: deleting ? "rgba(185,28,28,0.05)" : "rgba(185,28,28,0.08)",
+                color: "#991b1b",
+                borderRadius: 12,
+                padding: "11px 14px",
+                fontWeight: 950,
+                fontSize: 14,
+                cursor: deleting ? "not-allowed" : "pointer",
+              }}
+            >
+              {deleting ? "Deleting account…" : "Delete account"}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

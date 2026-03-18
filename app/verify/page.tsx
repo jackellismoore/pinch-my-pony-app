@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -71,92 +73,131 @@ export default function VerifyPage() {
   const isVerified = status === "verified";
 
   return (
-    <div
-      style={{
-        maxWidth: 860,
-        margin: "0 auto",
-        padding: "28px 16px",
-      }}
-    >
-      <div
-        style={{
-          borderRadius: 22,
-          border: "1px solid rgba(31,42,68,0.12)",
-          background: `linear-gradient(180deg, rgba(255,255,255,0.92) 0%, ${palette.cream} 110%)`,
-          boxShadow: "0 18px 50px rgba(31,42,68,0.10)",
-          padding: 18,
-        }}
-      >
+    <>
+      <style>{`
+        @media (max-width: 767px) {
+          .pmp-verify-actions > * {
+            width: 100%;
+          }
+        }
+      `}</style>
+
+      <div className="pmp-pageShell">
         <div
+          className="pmp-sectionCard"
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "8px 12px",
-            borderRadius: 999,
-            background: "rgba(31,61,43,0.08)",
-            border: "1px solid rgba(31,61,43,0.12)",
-            color: palette.forest,
-            fontWeight: 950,
-            fontSize: 13,
+            background: `linear-gradient(180deg, rgba(255,255,255,0.92) 0%, ${palette.cream} 110%)`,
           }}
         >
-          🪪 Identity verification
-        </div>
-
-        <h1 style={{ margin: "12px 0 6px", color: palette.navy, letterSpacing: -0.4 }}>
-          Verification required to continue
-        </h1>
-
-        <p style={{ margin: 0, opacity: 0.8, lineHeight: 1.65 }}>
-          To keep Pinch My Pony safe and trustworthy, we ask all users to verify a valid ID before unlocking the app.
-          This is automated and typically takes just a few minutes.
-        </p>
-
-        <div style={{ height: 14 }} />
-
-        <div
-          style={{
-            padding: 12,
-            borderRadius: 16,
-            border: "1px solid rgba(31,42,68,0.10)",
-            background: "rgba(255,255,255,0.70)",
-          }}
-        >
-          <div style={{ fontWeight: 950, color: palette.navy }}>Current status</div>
-          <div style={{ marginTop: 6, opacity: 0.8 }}>
-            {isVerified ? "✅ Verified" : status === "processing" ? "⏳ Processing" : status === "failed" ? "⚠️ Action needed" : "🔒 Not verified yet"}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "8px 12px",
+              borderRadius: 999,
+              background: "rgba(31,61,43,0.08)",
+              border: "1px solid rgba(31,61,43,0.12)",
+              color: palette.forest,
+              fontWeight: 950,
+              fontSize: 13,
+              maxWidth: "100%",
+            }}
+          >
+            🪪 Identity verification
           </div>
-        </div>
 
-        {error ? (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: "1px solid rgba(220,38,38,0.25)", background: "rgba(220,38,38,0.06)" }}>
-            <div style={{ fontWeight: 950 }}>Couldn’t start verification</div>
-            <div style={{ marginTop: 6, opacity: 0.85 }}>{error}</div>
+          <h1 className="pmp-pageTitle" style={{ marginTop: 12 }}>
+            Verification required to continue
+          </h1>
+
+          <p style={{ margin: 0, opacity: 0.8, lineHeight: 1.65 }}>
+            To keep Pinch My Pony safe and trustworthy, we ask all users to verify a valid ID before unlocking the app.
+            This is automated and typically takes just a few minutes.
+          </p>
+
+          <div style={{ height: 14 }} />
+
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 16,
+              border: "1px solid rgba(31,42,68,0.10)",
+              background: "rgba(255,255,255,0.70)",
+            }}
+          >
+            <div style={{ fontWeight: 950, color: palette.navy }}>Current status</div>
+            <div style={{ marginTop: 6, opacity: 0.8 }}>
+              {isVerified
+                ? "✅ Verified"
+                : status === "processing"
+                ? "⏳ Processing"
+                : status === "failed"
+                ? "⚠️ Action needed"
+                : "🔒 Not verified yet"}
+            </div>
           </div>
-        ) : null}
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
-          {!isVerified ? (
-            <button
-              onClick={startVerification}
-              disabled={loading}
+          {error ? (
+            <div
               style={{
-                padding: "12px 16px",
+                marginTop: 12,
+                padding: 12,
                 borderRadius: 14,
-                background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
-                color: "white",
-                fontWeight: 950,
-                border: "1px solid rgba(0,0,0,0.10)",
-                boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
-                cursor: loading ? "not-allowed" : "pointer",
+                border: "1px solid rgba(220,38,38,0.25)",
+                background: "rgba(220,38,38,0.06)",
               }}
             >
-              {loading ? "Starting…" : "Start verification"}
-            </button>
-          ) : (
+              <div style={{ fontWeight: 950 }}>Couldn’t start verification</div>
+              <div style={{ marginTop: 6, opacity: 0.85 }}>{error}</div>
+            </div>
+          ) : null}
+
+          <div className="pmp-verify-actions" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+            {!isVerified ? (
+              <button
+                onClick={startVerification}
+                disabled={loading}
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 14,
+                  background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
+                  color: "white",
+                  fontWeight: 950,
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  minHeight: 44,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {loading ? "Starting…" : "Start verification"}
+              </button>
+            ) : (
+              <a
+                href="/browse"
+                style={{
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "12px 16px",
+                  borderRadius: 14,
+                  background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
+                  color: "white",
+                  fontWeight: 950,
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  minHeight: 44,
+                }}
+              >
+                Continue to app
+              </a>
+            )}
+
             <a
-              href="/browse"
+              href="/"
               style={{
                 textDecoration: "none",
                 display: "inline-flex",
@@ -164,40 +205,23 @@ export default function VerifyPage() {
                 justifyContent: "center",
                 padding: "12px 16px",
                 borderRadius: 14,
-                background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
-                color: "white",
+                background: "rgba(255,255,255,0.75)",
+                color: palette.navy,
                 fontWeight: 950,
-                border: "1px solid rgba(0,0,0,0.10)",
+                border: "1px solid rgba(31,42,68,0.18)",
+                minHeight: 44,
               }}
             >
-              Continue to app
+              Back to home
             </a>
-          )}
+          </div>
 
-          <a
-            href="/"
-            style={{
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "12px 16px",
-              borderRadius: 14,
-              background: "rgba(255,255,255,0.75)",
-              color: palette.navy,
-              fontWeight: 950,
-              border: "1px solid rgba(31,42,68,0.18)",
-            }}
-          >
-            Back to home
-          </a>
-        </div>
-
-        <div style={{ marginTop: 12, fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
-          We store verification outcomes and an audit trail for legal and safety reasons. We do not store raw ID images
-          in your Supabase database unless you explicitly choose to.
+          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
+            We store verification outcomes and an audit trail for legal and safety reasons. We do not store raw ID images
+            in your Supabase database unless you explicitly choose to.
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

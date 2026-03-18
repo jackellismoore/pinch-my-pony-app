@@ -17,60 +17,91 @@ export default function SignupInner() {
     redirectTo ? `${base}?redirectTo=${encodeURIComponent(redirectTo)}` : base;
 
   return (
-    <div style={wrap}>
-      <div style={bg} aria-hidden="true" />
+    <>
+      <style>{`
+        .pmp-signupOptionGrid {
+          margin-top: 18px;
+          display: grid;
+          gap: 14px;
+        }
 
-      <div style={container}>
-        <div style={card}>
-          <div style={eyebrow}>Choose your account type</div>
+        @media (min-width: 768px) {
+          .pmp-signupOptionGrid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
 
-          <h1 style={title}>Create your Pinch My Pony account</h1>
+        @media (max-width: 767px) {
+          .pmp-signupOptionCard {
+            padding: 16px !important;
+          }
+        }
+      `}</style>
 
-          <p style={subtitle}>
-            Choose how you’ll use the platform. You can either browse and request rides,
-            or list your horse and manage rider requests.
-          </p>
+      <div style={wrap}>
+        <div style={bg} aria-hidden="true" />
 
-          <div style={optionGrid}>
-            <Link href={buildHref("/signup/borrower")} style={optionCard}>
-              <div style={iconBox}>🧑‍🌾</div>
-              <div>
-                <div style={optionTitle}>I want to borrow a horse</div>
-                <div style={optionText}>
-                  Browse listings, request rides, and message owners.
+        <div style={container}>
+          <div style={card}>
+            <div style={eyebrow}>Choose your account type</div>
+
+            <h1 style={title}>Create your Pinch My Pony account</h1>
+
+            <p style={subtitle}>
+              Choose how you’ll use the platform. You can either browse and request rides,
+              or list your horse and manage rider requests.
+            </p>
+
+            <div className="pmp-signupOptionGrid">
+              <Link
+                href={buildHref("/signup/borrower")}
+                style={optionCard}
+                className="pmp-signupOptionCard"
+              >
+                <div style={iconBox}>🧑‍🌾</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={optionTitle}>I want to borrow a horse</div>
+                  <div style={optionText}>
+                    Browse listings, request rides, and message owners.
+                  </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
 
-            <Link href={buildHref("/signup/owner")} style={optionCard}>
-              <div style={iconBox}>🐎</div>
-              <div>
-                <div style={optionTitle}>I want to list my horse</div>
-                <div style={optionText}>
-                  Add horses, manage availability, and approve requests.
+              <Link
+                href={buildHref("/signup/owner")}
+                style={optionCard}
+                className="pmp-signupOptionCard"
+              >
+                <div style={iconBox}>🐎</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={optionTitle}>I want to list my horse</div>
+                  <div style={optionText}>
+                    Add horses, manage availability, and approve requests.
+                  </div>
                 </div>
-              </div>
-            </Link>
-          </div>
+              </Link>
+            </div>
 
-          <div style={footerRow}>
-            <span style={{ opacity: 0.72 }}>Already have an account?</span>
-            <Link href={buildHref("/login")} style={loginLink}>
-              Sign in
-            </Link>
+            <div style={footerRow}>
+              <span style={{ opacity: 0.72 }}>Already have an account?</span>
+              <Link href={buildHref("/login")} style={loginLink}>
+                Sign in
+              </Link>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
 const wrap: React.CSSProperties = {
   position: "relative",
-  minHeight: "calc(100vh - 60px)",
+  minHeight: "calc(100dvh - 64px)",
   overflow: "hidden",
   background: palette.cream,
-  padding: "22px 16px 34px",
+  padding: "16px 12px 24px",
+  borderRadius: 24,
 };
 
 const bg: React.CSSProperties = {
@@ -82,7 +113,7 @@ const bg: React.CSSProperties = {
 
 const container: React.CSSProperties = {
   position: "relative",
-  maxWidth: 720,
+  maxWidth: 900,
   margin: "0 auto",
 };
 
@@ -91,7 +122,8 @@ const card: React.CSSProperties = {
   border: "1px solid rgba(31,42,68,0.12)",
   background: "rgba(255,255,255,0.88)",
   boxShadow: "0 22px 60px rgba(31,42,68,0.10)",
-  padding: 20,
+  padding: 16,
+  minWidth: 0,
 };
 
 const eyebrow: React.CSSProperties = {
@@ -105,11 +137,12 @@ const eyebrow: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 950,
   color: palette.navy,
+  maxWidth: "100%",
 };
 
 const title: React.CSSProperties = {
   margin: "14px 0 0",
-  fontSize: "clamp(30px, 6vw, 42px)",
+  fontSize: "clamp(28px, 6vw, 42px)",
   lineHeight: 1.04,
   letterSpacing: -0.5,
   color: palette.navy,
@@ -117,15 +150,10 @@ const title: React.CSSProperties = {
 
 const subtitle: React.CSSProperties = {
   marginTop: 10,
-  fontSize: 16,
-  lineHeight: 1.7,
+  fontSize: "clamp(15px, 3.8vw, 16px)",
+  lineHeight: 1.65,
   color: "rgba(15,23,42,0.75)",
-};
-
-const optionGrid: React.CSSProperties = {
-  marginTop: 18,
-  display: "grid",
-  gap: 14,
+  maxWidth: 720,
 };
 
 const optionCard: React.CSSProperties = {
@@ -139,6 +167,7 @@ const optionCard: React.CSSProperties = {
   background: "white",
   boxShadow: "0 14px 34px rgba(31,42,68,0.06)",
   color: palette.navy,
+  minWidth: 0,
 };
 
 const iconBox: React.CSSProperties = {
@@ -155,6 +184,7 @@ const iconBox: React.CSSProperties = {
 const optionTitle: React.CSSProperties = {
   fontWeight: 950,
   fontSize: 17,
+  lineHeight: 1.2,
 };
 
 const optionText: React.CSSProperties = {

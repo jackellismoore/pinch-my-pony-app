@@ -3,11 +3,32 @@
 import { usePathname } from "next/navigation";
 import AuthGate from "./AuthGate";
 
-export default function LayoutGate({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+const PUBLIC_PREFIXES = [
+  "/",
+  "/browse",
+  "/horse/",
+  "/faq",
+  "/contact",
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/verify",
+];
 
-  // Allow verify flow to render even if AuthGate has issues determining readiness
-  if (pathname === "/verify" || pathname.startsWith("/verify/")) {
+function isPublicPath(pathname: string) {
+  if (pathname === "/") return true;
+
+  return PUBLIC_PREFIXES.some((prefix) => {
+    if (prefix === "/") return false;
+    return pathname === prefix || pathname.startsWith(prefix);
+  });
+}
+
+export default function LayoutGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname() || "/";
+
+  if (isPublicPath(pathname)) {
     return <>{children}</>;
   }
 

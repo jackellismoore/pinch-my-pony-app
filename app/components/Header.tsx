@@ -37,8 +37,20 @@ function useOutsideClick<T extends HTMLElement>(
       if (!el) return;
       if (e.target instanceof Node && !el.contains(e.target)) onOutside();
     }
+
+    function onTouch(e: TouchEvent) {
+      const el = ref.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) onOutside();
+    }
+
     window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
+    window.addEventListener("touchstart", onTouch);
+
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("touchstart", onTouch);
+    };
   }, [ref, onOutside]);
 }
 
@@ -143,7 +155,7 @@ export default function Header() {
     <>
       <header className="pmp-header">
         <div className="pmp-headerInner">
-          <Link href="/" className="pmp-brand">
+          <Link href="/" className="pmp-brand" onClick={() => setMenuOpen(false)}>
             <div className="pmp-brandBadge" aria-hidden="true">
               <Image
                 src="/pmp-logo.png"
@@ -206,6 +218,7 @@ export default function Header() {
               onClick={() => setMenuOpen((v) => !v)}
               className={`pmp-menuButton${menuOpen ? " is-open" : ""}`}
               aria-label="Menu"
+              aria-expanded={menuOpen}
               title="Menu"
               type="button"
             >

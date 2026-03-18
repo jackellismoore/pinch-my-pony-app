@@ -59,14 +59,14 @@ export default function LoginInner() {
   const emailErr = !emailTrim
     ? "Email is required."
     : !isValidEmail(emailTrim)
-      ? "Please enter a valid email."
-      : null;
+    ? "Please enter a valid email."
+    : null;
 
   const pwdErr = !pwdTrim
     ? "Password is required."
     : pwdTrim.length < 6
-      ? "Password looks too short."
-      : null;
+    ? "Password looks too short."
+    : null;
 
   const canSubmit = !loading && !emailErr && !pwdErr;
 
@@ -130,8 +130,8 @@ export default function LoginInner() {
               </h1>
 
               <p style={subtitle}>
-                Pinch My Pony keeps borrowing simple, warm, and organised — with
-                messaging, requests, and clear owner communication built in.
+                Pinch My Pony keeps borrowing simple, warm, and organised — with messaging,
+                requests, and clear owner communication built in.
               </p>
 
               <div style={tipCard}>
@@ -189,9 +189,7 @@ export default function LoginInner() {
                     <div style={{ fontWeight: 950, color: palette.navy }}>
                       We couldn’t sign you in
                     </div>
-                    <div style={{ marginTop: 4, opacity: 0.82, lineHeight: 1.6 }}>
-                      {error}
-                    </div>
+                    <div style={{ marginTop: 4, opacity: 0.82, lineHeight: 1.6 }}>{error}</div>
                   </div>
                 ) : null}
 
@@ -298,9 +296,7 @@ function Field({
         {hint ? <span style={{ fontSize: 12, opacity: 0.7 }}>{hint}</span> : null}
       </div>
       {children}
-      {error ? (
-        <div style={{ fontSize: 12, color: "#7a1f1f", fontWeight: 900 }}>{error}</div>
-      ) : null}
+      {error ? <div style={{ fontSize: 12, color: "#7a1f1f", fontWeight: 900 }}>{error}</div> : null}
     </div>
   );
 }
@@ -329,7 +325,7 @@ const css = `
   .pmp-authGrid {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 1.02fr) minmax(320px, 460px);
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 460px);
     gap: 20px;
     align-items: start;
   }
@@ -338,6 +334,12 @@ const css = `
     .pmp-authGrid {
       grid-template-columns: 1fr;
       gap: 16px;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .pmp-authGrid {
+      gap: 14px;
     }
   }
 `;
@@ -349,14 +351,15 @@ const pageWrap: React.CSSProperties = {
 const container: React.CSSProperties = {
   maxWidth: 1120,
   margin: "0 auto",
-  padding: "0 16px",
+  padding: "0 12px",
 };
 
 const heroSection: React.CSSProperties = {
   position: "relative",
   overflow: "hidden",
-  padding: "20px 0 32px",
+  padding: "16px 0 24px",
   background: palette.cream,
+  borderRadius: 24,
 };
 
 const heroBg: React.CSSProperties = {
@@ -372,12 +375,14 @@ const leftCol: React.CSSProperties = {
   display: "grid",
   gap: 14,
   alignContent: "start",
-  paddingTop: 10,
+  paddingTop: 6,
+  minWidth: 0,
 };
 
 const rightCol: React.CSSProperties = {
   position: "relative",
   zIndex: 1,
+  minWidth: 0,
 };
 
 const eyebrowPill: React.CSSProperties = {
@@ -385,6 +390,7 @@ const eyebrowPill: React.CSSProperties = {
   alignItems: "center",
   gap: 10,
   width: "fit-content",
+  maxWidth: "100%",
   padding: "8px 12px",
   borderRadius: 999,
   background: "rgba(31,61,43,0.08)",
@@ -396,7 +402,7 @@ const eyebrowPill: React.CSSProperties = {
 
 const title: React.CSSProperties = {
   margin: 0,
-  fontSize: "clamp(34px, 7vw, 56px)",
+  fontSize: "clamp(28px, 7vw, 56px)",
   lineHeight: 1.02,
   letterSpacing: -0.8,
   color: palette.navy,
@@ -413,8 +419,8 @@ const accent: React.CSSProperties = {
 
 const subtitle: React.CSSProperties = {
   margin: 0,
-  fontSize: 18,
-  lineHeight: 1.75,
+  fontSize: "clamp(15px, 3.8vw, 18px)",
+  lineHeight: 1.7,
   opacity: 0.9,
   maxWidth: 640,
 };
@@ -438,7 +444,7 @@ const tipTitle: React.CSSProperties = {
 const tipText: React.CSSProperties = {
   marginTop: 6,
   fontSize: 15,
-  lineHeight: 1.7,
+  lineHeight: 1.65,
   color: "rgba(15,23,42,0.76)",
 };
 
@@ -454,7 +460,8 @@ const card: React.CSSProperties = {
   border: "1px solid rgba(31,42,68,0.12)",
   background: "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,241,232,0.74) 100%)",
   boxShadow: "0 22px 60px rgba(31,42,68,0.12)",
-  padding: 18,
+  padding: 16,
+  minWidth: 0,
 };
 
 const cardTopRow: React.CSSProperties = {
@@ -470,6 +477,7 @@ const logoRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 12,
+  minWidth: 0,
 };
 
 const logoBadge: React.CSSProperties = {
@@ -482,6 +490,7 @@ const logoBadge: React.CSSProperties = {
   display: "grid",
   placeItems: "center",
   overflow: "hidden",
+  flexShrink: 0,
 };
 
 const pill: React.CSSProperties = {
@@ -495,6 +504,7 @@ const pill: React.CSSProperties = {
   color: palette.forest,
   fontWeight: 950,
   fontSize: 12,
+  maxWidth: "100%",
 };
 
 const errorBand: React.CSSProperties = {
@@ -519,7 +529,7 @@ const baseInput: React.CSSProperties = {
   background: "rgba(255,255,255,0.95)",
   fontWeight: 800,
   color: palette.navy,
-  fontSize: 15,
+  fontSize: 16,
 };
 
 function inputStyle(hasError: boolean): React.CSSProperties {
@@ -531,6 +541,7 @@ function inputStyle(hasError: boolean): React.CSSProperties {
 }
 
 const primaryBtn = (loading: boolean, enabled: boolean): React.CSSProperties => ({
+  width: "100%",
   minHeight: 50,
   padding: "12px 16px",
   borderRadius: 14,

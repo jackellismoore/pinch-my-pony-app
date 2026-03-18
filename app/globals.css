@@ -1,15 +1,30 @@
 /* Pinch My Pony — globals.css */
 
-* {
+:root {
+  --pmp-max-width: 1100px;
+  --pmp-page-x: 16px;
+  --pmp-header-height: 69px;
+  --pmp-safe-top: env(safe-area-inset-top, 0px);
+  --pmp-safe-right: env(safe-area-inset-right, 0px);
+  --pmp-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --pmp-safe-left: env(safe-area-inset-left, 0px);
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-html,
-body {
+html {
   height: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  background: #fafafa;
 }
 
 body {
+  min-height: 100%;
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background:
@@ -17,23 +32,41 @@ body {
     radial-gradient(700px 520px at 92% 12%, rgba(11, 59, 46, 0.1), transparent 60%),
     #fafafa;
   color: #0f172a;
+  overflow-x: hidden;
 }
 
-main {
-  max-width: 1100px;
-  margin: 0 auto;
-  width: 100%;
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
 }
 
-h1,
-h2,
-h3,
-h4 {
-  margin-top: 0;
+a,
+button,
+input,
+select,
+textarea {
+  touch-action: manipulation;
 }
 
-p {
-  line-height: 1.6;
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px;
+  max-width: 100%;
+}
+
+label {
+  font-weight: 700;
 }
 
 button {
@@ -53,22 +86,40 @@ button:disabled {
   opacity: 0.75;
 }
 
-input,
-select,
-textarea {
-  font-family: inherit;
-}
-
-label {
-  font-weight: 700;
-}
-
 input:focus,
 textarea:focus,
 select:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(202, 162, 77, 0.22);
   border-color: rgba(202, 162, 77, 0.45);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin-top: 0;
+}
+
+p {
+  line-height: 1.6;
+}
+
+.pmp-appRoot {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.pmp-appMain {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+main {
+  width: 100%;
+  min-width: 0;
 }
 
 @keyframes pmpFadeInUp {
@@ -143,19 +194,22 @@ select:focus {
   position: sticky;
   top: 0;
   z-index: 40;
+  padding-top: var(--pmp-safe-top);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .pmp-headerInner {
-  max-width: 1100px;
+  max-width: var(--pmp-max-width);
   margin: 0 auto;
-  padding: 12px 16px;
+  padding: 12px max(var(--pmp-page-x), calc(var(--pmp-safe-right) + 16px))
+    12px max(var(--pmp-page-x), calc(var(--pmp-safe-left) + 16px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: var(--pmp-header-height);
 }
 
 .pmp-brand {
@@ -165,6 +219,7 @@ select:focus {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1;
 }
 
 .pmp-brandBadge {
@@ -210,6 +265,7 @@ select:focus {
   color: #1f2a44;
   font-weight: 800;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .pmp-headerActions {
@@ -217,6 +273,7 @@ select:focus {
   align-items: center;
   gap: 10px;
   position: relative;
+  flex-shrink: 0;
 }
 
 .pmp-hideOnSmall {
@@ -245,9 +302,9 @@ select:focus {
 .pmp-menuPanel {
   position: absolute;
   right: 0;
-  top: 54px;
+  top: calc(100% + 8px);
   width: 320px;
-  max-width: calc(100vw - 24px);
+  max-width: min(320px, calc(100vw - 24px - var(--pmp-safe-left) - var(--pmp-safe-right)));
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 18px;
   background: white;
@@ -294,6 +351,16 @@ select:focus {
   background: white;
 }
 
+@media (max-width: 479px) {
+  .pmp-brandSub {
+    display: none;
+  }
+
+  .pmp-brandTitle {
+    font-size: 15px;
+  }
+}
+
 @media (min-width: 768px) {
   .pmp-desktopLinks {
     display: flex;
@@ -308,12 +375,12 @@ select:focus {
 
 .pmp-mobileTabBar {
   position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: max(12px, env(safe-area-inset-bottom));
+  left: max(12px, calc(var(--pmp-safe-left) + 12px));
+  right: max(12px, calc(var(--pmp-safe-right) + 12px));
+  bottom: max(12px, calc(var(--pmp-safe-bottom) + 12px));
   z-index: 35;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 8px;
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -336,6 +403,8 @@ select:focus {
   padding: 8px 4px;
   font-size: 11px;
   font-weight: 800;
+  text-align: center;
+  min-width: 0;
 }
 
 .pmp-mobileTabItem.is-active {
@@ -350,6 +419,10 @@ select:focus {
 
 .pmp-mobileTabLabel {
   line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 @media (min-width: 768px) {
@@ -362,9 +435,13 @@ select:focus {
 
 .pmp-pageShell {
   width: 100%;
-  max-width: 1100px;
+  max-width: var(--pmp-max-width);
   margin: 0 auto;
-  padding: 18px 16px 110px;
+  padding:
+    18px
+    max(var(--pmp-page-x), calc(var(--pmp-safe-right) + 16px))
+    110px
+    max(var(--pmp-page-x), calc(var(--pmp-safe-left) + 16px));
 }
 
 .pmp-mobilePageHeader {
@@ -373,6 +450,7 @@ select:focus {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .pmp-kicker {
@@ -385,9 +463,10 @@ select:focus {
 
 .pmp-pageTitle {
   margin: 4px 0 0;
-  font-size: 28px;
+  font-size: clamp(2rem, 5vw, 2.75rem);
   line-height: 1.05;
   letter-spacing: -0.03em;
+  word-break: break-word;
 }
 
 .pmp-mutedText {
@@ -414,6 +493,7 @@ select:focus {
   backdrop-filter: blur(6px);
   padding: 16px;
   margin-bottom: 16px;
+  min-width: 0;
 }
 
 .pmp-heroCard {
@@ -423,7 +503,7 @@ select:focus {
 }
 
 .pmp-heroTitle {
-  font-size: 24px;
+  font-size: clamp(1.6rem, 4.6vw, 2.25rem);
   line-height: 1.08;
   margin: 6px 0 0;
   letter-spacing: -0.03em;
@@ -449,12 +529,14 @@ select:focus {
   align-items: center;
   justify-content: center;
   min-height: 44px;
+  min-width: 0;
   padding: 11px 14px;
   border-radius: 14px;
   text-decoration: none;
   font-size: 14px;
   font-weight: 900;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .pmp-primaryCta,
@@ -491,6 +573,7 @@ select:focus {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 14px 34px rgba(31, 42, 68, 0.06);
+  min-width: 0;
 }
 
 .pmp-statCard {
@@ -507,7 +590,7 @@ select:focus {
 
 .pmp-statValue {
   margin-top: 6px;
-  font-size: 28px;
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
   line-height: 1;
   font-weight: 950;
   color: #1f2a44;
@@ -551,6 +634,7 @@ select:focus {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
 .pmp-sectionTitle {
@@ -572,6 +656,7 @@ select:focus {
   padding: 14px;
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .pmp-horseRowMain {
@@ -603,6 +688,7 @@ select:focus {
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .pmp-horseName {
@@ -610,6 +696,7 @@ select:focus {
   font-size: 18px;
   line-height: 1.15;
   letter-spacing: -0.02em;
+  word-break: break-word;
 }
 
 .pmp-statusChip {
@@ -710,6 +797,7 @@ select:focus {
   background: white;
   overflow: hidden;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  min-width: 0;
 }
 
 .pmp-marketplaceImageWrap {
@@ -761,6 +849,28 @@ select:focus {
   color: #1f3d2b;
   font-weight: 900;
   text-decoration: none;
+  word-break: break-word;
+}
+
+@media (max-width: 767px) {
+  .pmp-pageShell {
+    padding-top: 16px;
+  }
+
+  .pmp-statGrid,
+  .pmp-actionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .pmp-primaryCta,
+  .pmp-ctaPrimary,
+  .pmp-ctaSecondary {
+    width: 100%;
+  }
+
+  .pmp-mapCard {
+    min-height: 300px;
+  }
 }
 
 @media (min-width: 768px) {

@@ -22,6 +22,7 @@ function card(): React.CSSProperties {
     backdropFilter: "blur(6px)",
     display: "grid",
     gap: 12,
+    minWidth: 0,
   };
 }
 
@@ -32,6 +33,7 @@ function labelStyle(): React.CSSProperties {
     fontSize: 13,
     color: "rgba(31,42,68,0.78)",
     fontWeight: 850,
+    minWidth: 0,
   };
 }
 
@@ -39,15 +41,18 @@ function inputStyle(): React.CSSProperties {
   return {
     border: "1px solid rgba(31,42,68,0.16)",
     borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 14,
+    padding: "12px 12px",
+    fontSize: 16,
     background: "rgba(255,255,255,0.78)",
     outline: "none",
+    width: "100%",
   };
 }
 
 function btnPrimary(disabled: boolean): React.CSSProperties {
   return {
+    width: "100%",
+    minHeight: 46,
     border: "1px solid rgba(0,0,0,0.10)",
     borderRadius: 14,
     padding: "11px 14px",
@@ -75,10 +80,8 @@ export default function RequestForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // conflict OR loading disables submit
   const [blockedOrLoading, setBlockedOrLoading] = useState(true);
 
-  // owner guard
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [checkingOwner, setCheckingOwner] = useState(true);
@@ -107,7 +110,6 @@ export default function RequestForm({
         setOwnerId((horseRes.data as any)?.owner_id ?? null);
       } catch (e: any) {
         if (!cancelled) {
-          // Don't hard fail the whole form; but do show message if needed
           setSubmitError(e?.message ?? "Could not verify horse ownership.");
         }
       } finally {
@@ -157,7 +159,6 @@ export default function RequestForm({
       if (userErr) throw userErr;
       if (!user) throw new Error("Not authenticated");
 
-      // Safety net: re-check ownership right before insert
       const { data: horseMini, error: horseErr } = await supabase
         .from("horses")
         .select("owner_id")
@@ -173,7 +174,6 @@ export default function RequestForm({
         return;
       }
 
-      // fast RPC check (UX)
       const { data: ok, error: rpcErr } = await supabase.rpc("is_horse_range_available", {
         p_horse_id: horseId,
         p_start_date: startDate,
@@ -211,74 +211,100 @@ export default function RequestForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} style={card()}>
-      <div style={{ fontWeight: 950, color: palette.navy, fontSize: 14 }}>Request Dates</div>
+    <>
+      <style>{`
+        .pmp-request-date-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
 
-      {checkingOwner ? (
-        <div style={{ fontSize: 13, color: "rgba(31,42,68,0.70)", fontWeight: 850 }}>
-          Checking listing…
+        @media (max-width: 767px) {
+          .pmp-request-date-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
+      <form onSubmit={handleSubmit} style={card()}>
+        <div style={{ fontWeight: 950, color: palette.navy, fontSize: 15 }}>Request Dates</div>
+
+        {checkingOwner ? (
+          <div style={{ fontSize: 13, color: "rgba(31,42,68,0.70)", fontWeight: 850 }}>
+            Checking listing…
+          </div>
+        ) : null}
+
+        {isOwnHorse ? (
+          <div
+            style={{
+              border: "1px solid rgba(31,61,43,0.18)",
+              background: "rgba(31,61,43,0.08)",
+              borderRadius: 14,
+              padding: 12,
+              fontSize: 13,
+              fontWeight: 900,
+              color: "rgba(31,61,43,0.92)",
+            }}
+          >
+            This is your listing. Owners can’t request their own horses.
+          </div>
+        ) : null}
+
+        <div className="pmp-request-date-grid">
+          <label style={labelStyle()}>
+            Start Date
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={inputStyle()}
+            />
+          </label>
+
+          <label style={labelStyle()}>
+            End Date (inclusive)
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              style={inputStyle()}
+            />
+          </label>
         </div>
-      ) : null}
 
-      {isOwnHorse ? (
-        <div
-          style={{
-            border: "1px solid rgba(31,61,43,0.18)",
-            background: "rgba(31,61,43,0.08)",
-            borderRadius: 14,
-            padding: 12,
-            fontSize: 13,
-            fontWeight: 900,
-            color: "rgba(31,61,43,0.92)",
-          }}
-        >
-          This is your listing. Owners can’t request their own horses.
+        <div style={{ marginTop: 2 }}>
+          <AvailabilityConflictNotice
+            horseId={horseId}
+            startDate={startDate}
+            endDate={endDate}
+            onConflictChange={(v) => setBlockedOrLoading(v)}
+          />
         </div>
-      ) : null}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <label style={labelStyle()}>
-          Start Date
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={inputStyle()} />
+          Message (optional)
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={4}
+            style={{ ...inputStyle(), resize: "vertical", minHeight: 110 }}
+            placeholder="Anything the owner should know?"
+          />
         </label>
 
-        <label style={labelStyle()}>
-          End Date (inclusive)
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={inputStyle()} />
-        </label>
-      </div>
+        {submitError ? (
+          <div style={{ fontSize: 13, color: "rgba(180,0,0,0.9)", fontWeight: 850 }}>{submitError}</div>
+        ) : null}
 
-      <div style={{ marginTop: 2 }}>
-        <AvailabilityConflictNotice
-          horseId={horseId}
-          startDate={startDate}
-          endDate={endDate}
-          onConflictChange={(v) => setBlockedOrLoading(v)}
-        />
-      </div>
+        <button type="submit" disabled={submitDisabled} style={btnPrimary(submitDisabled)}>
+          {isOwnHorse ? "Unavailable (your listing)" : submitting ? "Submitting…" : "Submit Borrow Request →"}
+        </button>
 
-      <label style={labelStyle()}>
-        Message (optional)
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          rows={4}
-          style={{ ...inputStyle(), resize: "vertical" }}
-          placeholder="Anything the owner should know?"
-        />
-      </label>
-
-      {submitError ? (
-        <div style={{ fontSize: 13, color: "rgba(180,0,0,0.9)", fontWeight: 850 }}>{submitError}</div>
-      ) : null}
-
-      <button type="submit" disabled={submitDisabled} style={btnPrimary(submitDisabled)}>
-        {isOwnHorse ? "Unavailable (your listing)" : submitting ? "Submitting…" : "Submit Borrow Request →"}
-      </button>
-
-      <div style={{ fontSize: 12, color: "rgba(31,42,68,0.62)", lineHeight: 1.6 }}>
-        Availability conflicts are blocked automatically.
-      </div>
-    </form>
+        <div style={{ fontSize: 12, color: "rgba(31,42,68,0.62)", lineHeight: 1.6 }}>
+          Availability conflicts are blocked automatically.
+        </div>
+      </form>
+    </>
   );
 }

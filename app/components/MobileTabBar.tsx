@@ -47,7 +47,7 @@ const items: Item[] = [
 ];
 
 export default function MobileTabBar() {
-  const pathname = usePathname();
+  const pathname = usePathname() || "/";
 
   return (
     <nav className="pmp-mobileTabBar" aria-label="Mobile navigation">
@@ -59,6 +59,7 @@ export default function MobileTabBar() {
             key={item.href}
             href={item.href}
             className={`pmp-mobileTabItem${active ? " is-active" : ""}`}
+            aria-current={active ? "page" : undefined}
           >
             <span className="pmp-mobileTabIcon" aria-hidden="true">
               {item.icon}

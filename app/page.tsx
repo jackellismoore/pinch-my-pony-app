@@ -110,25 +110,25 @@ export default function HomePage() {
   const welcomeLine = useMemo(() => `Welcome back, ${pickName(profile)}.`, [profile]);
 
   return (
-    <div style={fullBleedWrap}>
+    <div style={pageWrap}>
       <style>{css}</style>
 
-      {/* HERO */}
       <section style={heroSection} aria-label="Pinch My Pony home">
         <div style={heroBg} aria-hidden="true" />
         <div style={heroBgFloatA} aria-hidden="true" />
         <div style={heroBgFloatB} aria-hidden="true" />
 
         <div style={container}>
-          <div className="pmp-hero-grid" style={heroGrid}>
-            {/* LEFT */}
-            <div className="pmp-fade" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="pmp-home-hero-grid" style={heroGrid}>
+            <div className="pmp-fade" style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
               <div style={eyebrowPill}>
                 <span aria-hidden="true">🐴</span>
-                <span>{isAuthed ? "Signed in • Your account is ready" : "Borrow • Share • Ride — with trust built in"}</span>
+                <span>
+                  {isAuthed ? "Signed in • Your account is ready" : "Borrow • Share • Ride — with trust built in"}
+                </span>
               </div>
 
-              <h1 className="pmp-title" style={heroTitle}>
+              <h1 className="pmp-home-title" style={heroTitle}>
                 {isAuthed ? (
                   <>
                     {welcomeLine} <span style={heroAccent}>Let’s ride.</span>
@@ -147,30 +147,29 @@ export default function HomePage() {
                   : "Pinch My Pony is a trusted horse-borrowing marketplace. Owners list horses, borrowers request dates, and everyone rides with clear rules and reviews."}
               </p>
 
-              {/* CTA ROW */}
               {isAuthed ? (
                 <>
-                  <div className="pmp-fade-delayed2" style={ctaRow}>
+                  <div className="pmp-fade-delayed2 pmp-home-cta-row" style={ctaRow}>
                     <Link href="/browse" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta pmp-cta-primary" style={primaryButton}>
+                      <span className="pmp-cta pmp-cta-primary pmp-home-cta" style={primaryButton}>
                         Browse Horses
                       </span>
                     </Link>
 
                     <Link href="/messages" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta" style={secondaryButton}>
+                      <span className="pmp-cta pmp-home-cta" style={secondaryButton}>
                         Messages
                       </span>
                     </Link>
 
                     <Link href={dashboardHref} style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta" style={secondaryButton}>
+                      <span className="pmp-cta pmp-home-cta" style={secondaryButton}>
                         My Dashboard
                       </span>
                     </Link>
                   </div>
 
-                  <div className="pmp-fade-delayed3 pmp-stats" style={heroStatsRow}>
+                  <div className="pmp-fade-delayed3 pmp-home-stats" style={heroStatsRow}>
                     <StatChip title="Active Horses" value={stats.activeHorses} />
                     <StatChip title="My Pending Requests" value={stats.myPendingRequests} />
                     <StatChip title="Unread Messages" value={stats.unreadMessages} />
@@ -178,27 +177,27 @@ export default function HomePage() {
                 </>
               ) : (
                 <>
-                  <div className="pmp-fade-delayed2" style={ctaRow}>
+                  <div className="pmp-fade-delayed2 pmp-home-cta-row" style={ctaRow}>
                     <Link href="/login" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta pmp-cta-primary" style={primaryButton}>
+                      <span className="pmp-cta pmp-cta-primary pmp-home-cta" style={primaryButton}>
                         Login
                       </span>
                     </Link>
 
                     <Link href="/signup" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta" style={secondaryButton}>
+                      <span className="pmp-cta pmp-home-cta" style={secondaryButton}>
                         Sign Up
                       </span>
                     </Link>
 
                     <Link href="/browse" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta" style={secondaryButton}>
+                      <span className="pmp-cta pmp-home-cta" style={secondaryButton}>
                         Browse Horses
                       </span>
                     </Link>
                   </div>
 
-                  <div className="pmp-fade-delayed3 pmp-stats" style={heroStatsRow}>
+                  <div className="pmp-fade-delayed3 pmp-home-stats" style={heroStatsRow}>
                     <InfoChip title="Availability enforced" subtitle="Date conflicts blocked" />
                     <InfoChip title="Messaging built-in" subtitle="Keep it all in one place" />
                     <InfoChip title="Reviews & ratings" subtitle="Ride with confidence" />
@@ -207,7 +206,6 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* RIGHT (no hover motion) */}
             <div style={heroVisualCard} aria-label="Brand and how it works">
               <div style={heroVisualInner}>
                 <div style={logoRow}>
@@ -219,18 +217,32 @@ export default function HomePage() {
                     />
                   </div>
 
-                  <div style={{ lineHeight: 1.15 }}>
+                  <div style={{ lineHeight: 1.15, minWidth: 0 }}>
                     <div style={{ fontWeight: 950, fontSize: 20, color: palette.navy }}>Pinch My Pony</div>
-                    <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.7 }}>Horse borrowing marketplace</div>
+                    <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.7 }}>
+                      Horse borrowing marketplace
+                    </div>
                   </div>
                 </div>
 
                 <div style={divider} />
 
                 <div style={{ display: "grid", gap: 10 }}>
-                  <MiniCard icon="🧭" title="Browse listings" copy="Explore horses, read profiles, and check details before you request." />
-                  <MiniCard icon="📅" title="Request dates" copy="Send a date range request — availability rules prevent conflicts." />
-                  <MiniCard icon="💬" title="Coordinate & ride" copy="Message inside the app, then leave a review to help the community." />
+                  <MiniCard
+                    icon="🧭"
+                    title="Browse listings"
+                    copy="Explore horses, read profiles, and check details before you request."
+                  />
+                  <MiniCard
+                    icon="📅"
+                    title="Request dates"
+                    copy="Send a date range request — availability rules prevent conflicts."
+                  />
+                  <MiniCard
+                    icon="💬"
+                    title="Coordinate & ride"
+                    copy="Message inside the app, then leave a review to help the community."
+                  />
                 </div>
 
                 <div style={softBand}>
@@ -247,17 +259,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* LOGGED OUT MARKETING (boxed + centered, no hover) */}
       {!isAuthed ? (
         <>
           <section style={section}>
             <div style={container}>
               <header style={sectionHeaderTight}>
                 <h2 style={sectionTitle}>How it works</h2>
-                <p style={sectionSubtitle}>Built for both borrowers and owners — clear steps, clear expectations.</p>
+                <p style={sectionSubtitle}>
+                  Built for both borrowers and owners — clear steps, clear expectations.
+                </p>
               </header>
 
-              <div className="pmp-two-col" style={twoColumn}>
+              <div className="pmp-home-two-col" style={twoColumn}>
                 <div style={card}>
                   <div style={cardTopRow}>
                     <span style={rolePillBorrower}>For Borrowers</span>
@@ -291,10 +304,12 @@ export default function HomePage() {
             <div style={container}>
               <header style={sectionHeaderTight}>
                 <h2 style={sectionTitle}>Trust & safety, baked in</h2>
-                <p style={sectionSubtitle}>Profiles, messaging, and guardrails help keep things clear and comfortable.</p>
+                <p style={sectionSubtitle}>
+                  Profiles, messaging, and guardrails help keep things clear and comfortable.
+                </p>
               </header>
 
-              <div className="pmp-feature-grid" style={featureGrid}>
+              <div className="pmp-home-feature-grid" style={featureGrid}>
                 <FeatureCard icon="⭐" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
                 <FeatureCard icon="🗓️" title="Date conflict enforcement" copy="Overlaps are blocked to keep schedules reliable." />
                 <FeatureCard icon="💬" title="Messaging built-in" copy="Coordinate details without switching apps." />
@@ -303,18 +318,22 @@ export default function HomePage() {
 
               <div style={trustCtaBand}>
                 <div>
-                  <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>Ready to get started?</div>
-                  <div style={{ opacity: 0.75, marginTop: 4 }}>Create an account and start browsing today.</div>
+                  <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>
+                    Ready to get started?
+                  </div>
+                  <div style={{ opacity: 0.75, marginTop: 4 }}>
+                    Create an account and start browsing today.
+                  </div>
                 </div>
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
                   <Link href="/login" style={{ textDecoration: "none" }}>
-                    <span className="pmp-cta pmp-cta-primary" style={primaryButtonSmall}>
+                    <span className="pmp-cta pmp-cta-primary pmp-home-cta" style={primaryButtonSmall}>
                       Login
                     </span>
                   </Link>
                   <Link href="/signup" style={{ textDecoration: "none" }}>
-                    <span className="pmp-cta" style={secondaryButtonSmall}>
+                    <span className="pmp-cta pmp-home-cta" style={secondaryButtonSmall}>
                       Sign Up
                     </span>
                   </Link>
@@ -325,12 +344,10 @@ export default function HomePage() {
         </>
       ) : null}
 
-      <div style={{ height: 26 }} />
+      <div style={{ height: 8 }} />
     </div>
   );
 }
-
-/* ---------- bits ---------- */
 
 function InfoChip({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -356,7 +373,7 @@ function MiniCard({ icon, title, copy }: { icon: string; title: string; copy: st
       <div style={miniIcon} aria-hidden="true">
         {icon}
       </div>
-      <div>
+      <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 950, color: palette.navy }}>{title}</div>
         <div style={{ opacity: 0.75, fontSize: 13, marginTop: 3, lineHeight: 1.5 }}>{copy}</div>
       </div>
@@ -390,8 +407,6 @@ function FeatureCard({ icon, title, copy }: { icon: string; title: string; copy:
   );
 }
 
-/* ---------- styling ---------- */
-
 const css = `
   :root { -webkit-tap-highlight-color: transparent; }
 
@@ -399,17 +414,16 @@ const css = `
     * { animation: none !important; transition: none !important; }
   }
 
-  @keyframes pmpFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pmpFadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   .pmp-fade { animation: pmpFadeUp 520ms ease both; }
   .pmp-fade-delayed { animation: pmpFadeUp 620ms ease both; animation-delay: 90ms; }
   .pmp-fade-delayed2 { animation: pmpFadeUp 720ms ease both; animation-delay: 160ms; }
   .pmp-fade-delayed3 { animation: pmpFadeUp 820ms ease both; animation-delay: 220ms; }
 
-  /* ✅ No hover motion */
-  .pmp-lift, .pmp-lift-soft { transition: none !important; }
-  .pmp-lift:hover, .pmp-lift-soft:hover { transform: none !important; }
-
-  /* ✅ Buttons: subtle hover only */
   .pmp-cta { transition: filter 140ms ease; display: inline-flex; }
   @media (hover: hover) and (pointer: fine) {
     .pmp-cta:hover { filter: brightness(1.01); }
@@ -417,33 +431,57 @@ const css = `
   .pmp-cta:active { filter: brightness(0.99); }
 
   @media (max-width: 980px) {
-    .pmp-hero-grid { grid-template-columns: 1fr !important; }
-    .pmp-feature-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
-    .pmp-two-col { grid-template-columns: 1fr !important; }
+    .pmp-home-hero-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    .pmp-home-feature-grid {
+      grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    }
+
+    .pmp-home-two-col {
+      grid-template-columns: 1fr !important;
+    }
   }
-  @media (max-width: 640px) {
-    .pmp-stats { grid-template-columns: 1fr !important; }
-    .pmp-title { font-size: 34px !important; }
-    .pmp-feature-grid { grid-template-columns: 1fr !important; }
+
+  @media (max-width: 767px) {
+    .pmp-home-stats,
+    .pmp-home-feature-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    .pmp-home-title {
+      font-size: 32px !important;
+    }
+
+    .pmp-home-cta-row {
+      flex-direction: column;
+      align-items: stretch !important;
+    }
+
+    .pmp-home-cta-row a,
+    .pmp-home-cta {
+      width: 100%;
+    }
   }
 `;
 
-const fullBleedWrap: React.CSSProperties = {
-  width: "100vw",
-  marginLeft: "calc(50% - 50vw)",
+const pageWrap: React.CSSProperties = {
+  width: "100%",
 };
 
 const container: React.CSSProperties = {
   maxWidth: 1200,
   margin: "0 auto",
-  padding: "0 16px",
+  padding: "0 12px",
 };
 
 const heroSection: React.CSSProperties = {
   position: "relative",
   overflow: "hidden",
-  padding: "44px 0 28px",
+  padding: "18px 0 20px",
   background: palette.cream,
+  borderRadius: 24,
 };
 
 const heroBg: React.CSSProperties = {
@@ -492,6 +530,7 @@ const eyebrowPill: React.CSSProperties = {
   alignItems: "center",
   gap: 10,
   width: "fit-content",
+  maxWidth: "100%",
   padding: "8px 12px",
   borderRadius: 999,
   background: "rgba(31,61,43,0.08)",
@@ -519,8 +558,8 @@ const heroAccent: React.CSSProperties = {
 
 const heroParagraph: React.CSSProperties = {
   margin: 0,
-  fontSize: 16.5,
-  lineHeight: 1.75,
+  fontSize: 16,
+  lineHeight: 1.7,
   opacity: 0.9,
   maxWidth: 680,
 };
@@ -537,6 +576,7 @@ const primaryButton: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+  minHeight: 46,
   padding: "12px 16px",
   borderRadius: 14,
   background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
@@ -550,6 +590,7 @@ const secondaryButton: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+  minHeight: 46,
   padding: "12px 16px",
   borderRadius: 14,
   background: "rgba(255,255,255,0.75)",
@@ -585,6 +626,7 @@ const infoChip: React.CSSProperties = {
   background: "rgba(255,255,255,0.72)",
   border: "1px solid rgba(31,42,68,0.10)",
   boxShadow: "0 12px 30px rgba(31,42,68,0.06)",
+  minWidth: 0,
 };
 
 const heroVisualCard: React.CSSProperties = {
@@ -606,18 +648,20 @@ const logoRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 12,
+  minWidth: 0,
 };
 
 const logoBadge: React.CSSProperties = {
-  width: 120,
-  height: 120,
-  borderRadius: 26,
+  width: 96,
+  height: 96,
+  borderRadius: 24,
   background: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,247,240,0.96))",
   border: "1px solid rgba(15,23,42,0.10)",
   boxShadow: "0 16px 40px rgba(15,23,42,0.10)",
   display: "grid",
   placeItems: "center",
   overflow: "hidden",
+  flexShrink: 0,
 };
 
 const divider: React.CSSProperties = {
@@ -656,12 +700,12 @@ const softBand: React.CSSProperties = {
 };
 
 const section: React.CSSProperties = {
-  padding: "40px 0",
+  padding: "24px 0",
   background: "#fafafa",
 };
 
 const sectionAlt: React.CSSProperties = {
-  padding: "40px 0",
+  padding: "24px 0",
   background: `linear-gradient(180deg, #fafafa 0%, rgba(245,241,232,0.7) 100%)`,
 };
 
@@ -706,6 +750,7 @@ const cardTopRow: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   gap: 12,
+  flexWrap: "wrap",
 };
 
 const mutedPill: React.CSSProperties = {

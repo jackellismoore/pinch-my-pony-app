@@ -11,7 +11,7 @@ type HorseRow = {
   name: string | null;
   image_url: string | null;
   location: string | null;
-  breed: any; // <- don't trust runtime types
+  breed: any;
   age: any;
   height: any;
   temperament: any;
@@ -34,12 +34,10 @@ const palette = {
 };
 
 function safeText(v: any): string {
-  // Handles string/number/null/undefined safely
   if (v === null || v === undefined) return "";
   if (typeof v === "string") return v;
   if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
   if (typeof v === "boolean") return v ? "Yes" : "No";
-  // last resort for objects
   try {
     return String(v);
   } catch {
@@ -163,29 +161,21 @@ export default function HorsePublicClient() {
 
   if (loading) {
     return (
-      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ opacity: 0.75 }}>Loading…</div>
+      <div className="pmp-pageShell">
+        <div className="pmp-sectionCard">
+          <div className="pmp-mutedText">Loading horse…</div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
-        <div
-          style={{
-            border: "1px solid rgba(255,0,0,0.25)",
-            background: "rgba(255,0,0,0.06)",
-            padding: 12,
-            borderRadius: 14,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
+      <div className="pmp-pageShell">
+        <div className="pmp-errorBanner">{error}</div>
 
         <div style={{ marginTop: 12 }}>
-          <Link href="/browse" style={{ textDecoration: "none", fontWeight: 950, color: palette.navy }}>
+          <Link href="/browse" style={topLink}>
             ← Back to browse
           </Link>
         </div>
@@ -195,136 +185,134 @@ export default function HorsePublicClient() {
 
   if (!horse) {
     return (
-      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto", opacity: 0.75 }}>
-        Horse not found.
+      <div className="pmp-pageShell">
+        <div className="pmp-sectionCard">
+          <div className="pmp-mutedText">Horse not found.</div>
+        </div>
       </div>
     );
   }
 
   if (horse.is_active === false) {
     return (
-      <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>{fmt(horse.name)}</div>
-        <div style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>This listing is not active.</div>
-        <div style={{ marginTop: 12 }}>
-          <Link href="/browse" style={{ textDecoration: "none", fontWeight: 950, color: palette.navy }}>
-            ← Back to browse
-          </Link>
+      <div className="pmp-pageShell">
+        <div className="pmp-sectionCard">
+          <h1 style={{ margin: 0, fontSize: 22, color: palette.navy }}>{fmt(horse.name)}</h1>
+          <div style={{ marginTop: 6 }} className="pmp-mutedText">
+            This listing is not active.
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <Link href="/browse" style={topLink}>
+              ← Back to browse
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: 1100, margin: "0 auto" }}>
+    <>
       <style>{responsiveCss}</style>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-        <Link href="/browse" style={topLink}>
-          ← Back to browse
-        </Link>
+      <div className="pmp-pageShell">
+        <div className="pmp-horse-toplinks" style={topLinksWrap}>
+          <Link href="/browse" style={topLink}>
+            ← Back to browse
+          </Link>
 
-        <Link href="/contact" style={topLink}>
-          Need help? Contact us →
-        </Link>
-      </div>
-
-      <div className="pmp-horse-grid" style={grid}>
-        <div style={shell}>
-          {horse.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={safeText(horse.image_url)}
-              alt={fmt(horse.name)}
-              style={{ width: "100%", height: 360, objectFit: "cover", display: "block" }}
-            />
-          ) : (
-            <div
-              style={{
-                height: 240,
-                background:
-                  "radial-gradient(900px 300px at 18% 0%, rgba(200,162,77,0.18), transparent 60%), radial-gradient(700px 260px at 92% 12%, rgba(31,61,43,0.12), transparent 60%), rgba(15,23,42,0.03)",
-              }}
-            />
-          )}
-
-          <div style={{ padding: 16 }}>
-            <div style={titleRow}>
-              <div style={{ minWidth: 0 }}>
-                <h1 style={{ margin: 0, fontSize: 26, letterSpacing: -0.2, color: palette.navy }}>
-                  {fmt(horse.name)}
-                </h1>
-
-                <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
-                  Owner: <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
-                  {safeText(horse.location).trim() ? <span> • {fmt(horse.location)}</span> : null}
-                </div>
-              </div>
-
-              <Link href={ctaHref} style={{ textDecoration: "none" }}>
-                <div style={primaryCta}>{ctaLabel}</div>
-              </Link>
-            </div>
-
-            <div style={divider} />
-
-            <div style={sectionHeader}>
-              <div style={sectionTitle}>Details</div>
-            
-            </div>
-
-            <div style={detailsCard}>
-              <DetailRow label="Breed" value={fmt(horse.breed)} />
-              <DetailRow label="Age" value={fmt(horse.age)} />
-              <DetailRow label="Height" value={fmt(horse.height)} />
-              <DetailRow label="Temperament" value={fmt(horse.temperament)} />
-              <DetailRow label="Location" value={fmt(horse.location)} />
-            </div>
-
-            <div style={{ height: 12 }} />
-
-            <div style={sectionHeader}>
-              <div style={sectionTitle}>Description</div>
-              <div style={sectionSubtitle}>What to expect when riding.</div>
-            </div>
-
-            <div style={descCard}>
-              {safeText(horse.description).trim() ? (
-                <div style={{ fontSize: 14.5, lineHeight: 1.75, color: palette.navy, opacity: 0.92 }}>
-                  {safeText(horse.description).trim()}
-                </div>
-              ) : (
-                <div style={{ fontSize: 13, opacity: 0.7 }}>No description yet.</div>
-              )}
-            </div>
-          </div>
+          <Link href="/contact" style={topLink}>
+            Need help? Contact us →
+          </Link>
         </div>
 
-        <aside style={sideRail}>
-          <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Ready to request?</div>
-          <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
-            Choose your dates and we’ll automatically prevent availability conflicts.
-          </div>
+        <div className="pmp-horse-grid" style={grid}>
+          <div style={shell}>
+            {horse.image_url ? (
+              <img
+                src={safeText(horse.image_url)}
+                alt={fmt(horse.name)}
+                style={heroImage}
+              />
+            ) : (
+              <div style={imageFallback} />
+            )}
 
-          <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-            <Link href={ctaHref} style={{ textDecoration: "none" }}>
-              <div style={primaryCtaSmall}>{ctaLabel}</div>
-            </Link>
+            <div style={{ padding: 16 }}>
+              <div className="pmp-horse-titleRow" style={titleRow}>
+                <div style={{ minWidth: 0 }}>
+                  <h1 style={titleStyle}>{fmt(horse.name)}</h1>
 
-            <Link href="/faq" style={{ textDecoration: "none" }}>
-              <div style={secondaryCtaSmall}>Read FAQs →</div>
-            </Link>
+                  <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
+                    Owner: <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
+                    {safeText(horse.location).trim() ? <span> • {fmt(horse.location)}</span> : null}
+                  </div>
+                </div>
 
-            <div style={tipCard}>
-              <div style={{ fontWeight: 950, color: palette.navy }}>Tip</div>
-              <div style={{ marginTop: 6, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
-                Share your experience level and preferred times in the message — owners love clarity.
+                <Link href={ctaHref} style={ctaLinkStyle} className="pmp-horse-ctaLink">
+                  <div style={primaryCta}>{ctaLabel}</div>
+                </Link>
+              </div>
+
+              <div style={divider} />
+
+              <div style={sectionHeader}>
+                <div style={sectionTitle}>Details</div>
+              </div>
+
+              <div style={detailsCard}>
+                <DetailRow label="Breed" value={fmt(horse.breed)} />
+                <DetailRow label="Age" value={fmt(horse.age)} />
+                <DetailRow label="Height" value={fmt(horse.height)} />
+                <DetailRow label="Temperament" value={fmt(horse.temperament)} />
+                <DetailRow label="Location" value={fmt(horse.location)} />
+              </div>
+
+              <div style={{ height: 12 }} />
+
+              <div style={sectionHeader}>
+                <div style={sectionTitle}>Description</div>
+                <div style={sectionSubtitle}>What to expect when riding.</div>
+              </div>
+
+              <div style={descCard}>
+                {safeText(horse.description).trim() ? (
+                  <div style={{ fontSize: 14.5, lineHeight: 1.75, color: palette.navy, opacity: 0.92 }}>
+                    {safeText(horse.description).trim()}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, opacity: 0.7 }}>No description yet.</div>
+                )}
               </div>
             </div>
           </div>
-        </aside>
+
+          <aside style={sideRail}>
+            <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Ready to request?</div>
+            <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
+              Choose your dates and we’ll automatically prevent availability conflicts.
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              <Link href={ctaHref} style={ctaLinkStyle}>
+                <div style={primaryCtaSmall}>{ctaLabel}</div>
+              </Link>
+
+              <Link href="/faq" style={ctaLinkStyle}>
+                <div style={secondaryCtaSmall}>Read FAQs →</div>
+              </Link>
+
+              <div style={tipCard}>
+                <div style={{ fontWeight: 950, color: palette.navy }}>Tip</div>
+                <div style={{ marginTop: 6, fontSize: 13, opacity: 0.78, lineHeight: 1.65 }}>
+                  Share your experience level and preferred times in the message — owners love clarity.
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -332,9 +320,33 @@ export default function HorsePublicClient() {
 
 const responsiveCss = `
   @media (max-width: 980px) {
-    .pmp-horse-grid { grid-template-columns: 1fr !important; }
+    .pmp-horse-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .pmp-horse-toplinks,
+    .pmp-horse-titleRow {
+      flex-direction: column !important;
+      align-items: stretch !important;
+    }
+
+    .pmp-horse-toplinks > *,
+    .pmp-horse-titleRow > *,
+    .pmp-horse-ctaLink {
+      width: 100%;
+    }
   }
 `;
+
+const topLinksWrap: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  flexWrap: "wrap",
+};
 
 const topLink: React.CSSProperties = {
   textDecoration: "none",
@@ -344,6 +356,9 @@ const topLink: React.CSSProperties = {
   background: "rgba(255,255,255,0.72)",
   padding: "10px 12px",
   borderRadius: 14,
+  minHeight: 44,
+  display: "inline-flex",
+  alignItems: "center",
 };
 
 const grid: React.CSSProperties = {
@@ -360,6 +375,20 @@ const shell: React.CSSProperties = {
   background: "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.65))",
   overflow: "hidden",
   boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
+  minWidth: 0,
+};
+
+const heroImage: React.CSSProperties = {
+  width: "100%",
+  height: "clamp(220px, 42vw, 360px)",
+  objectFit: "cover",
+  display: "block",
+};
+
+const imageFallback: React.CSSProperties = {
+  height: "clamp(200px, 38vw, 240px)",
+  background:
+    "radial-gradient(900px 300px at 18% 0%, rgba(200,162,77,0.18), transparent 60%), radial-gradient(700px 260px at 92% 12%, rgba(31,61,43,0.12), transparent 60%), rgba(15,23,42,0.03)",
 };
 
 const titleRow: React.CSSProperties = {
@@ -368,6 +397,19 @@ const titleRow: React.CSSProperties = {
   alignItems: "flex-start",
   gap: 12,
   flexWrap: "wrap",
+};
+
+const titleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(24px, 6vw, 26px)",
+  letterSpacing: -0.2,
+  color: palette.navy,
+  lineHeight: 1.08,
+  wordBreak: "break-word",
+};
+
+const ctaLinkStyle: React.CSSProperties = {
+  textDecoration: "none",
 };
 
 const primaryCta: React.CSSProperties = {
@@ -380,6 +422,10 @@ const primaryCta: React.CSSProperties = {
   fontWeight: 950,
   whiteSpace: "nowrap",
   boxShadow: "0 14px 34px rgba(31,61,43,0.16)",
+  minHeight: 44,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 const divider: React.CSSProperties = {
@@ -417,7 +463,7 @@ const detailsCard: React.CSSProperties = {
 
 const detailRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "160px 1fr",
+  gridTemplateColumns: "minmax(96px, 160px) 1fr",
   gap: 12,
   padding: "10px 6px",
   alignItems: "start",
@@ -451,6 +497,7 @@ const sideRail: React.CSSProperties = {
   background: "white",
   boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
   padding: 16,
+  minWidth: 0,
 };
 
 const primaryCtaSmall: React.CSSProperties = {
@@ -472,6 +519,7 @@ const secondaryCtaSmall: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
+  minHeight: 44,
 };
 
 const tipCard: React.CSSProperties = {

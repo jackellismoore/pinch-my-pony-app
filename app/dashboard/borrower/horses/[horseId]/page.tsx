@@ -28,7 +28,6 @@ export default function BorrowerRequestHorsePage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // AvailabilityConflictNotice reports: loading OR conflict => disable submit
   const [blockedOrLoading, setBlockedOrLoading] = useState(true);
 
   useEffect(() => {
@@ -129,130 +128,146 @@ export default function BorrowerRequestHorsePage() {
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
-      <button
-        onClick={() => router.back()}
-        style={{
-          border: '1px solid rgba(0,0,0,0.12)',
-          borderRadius: 10,
-          padding: '8px 10px',
-          background: 'white',
-          cursor: 'pointer',
-          marginBottom: 12,
-        }}
-      >
-        ← Back
-      </button>
+    <>
+      <style>{`
+        .pmp-request-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
 
-      <h1 style={{ margin: 0, fontSize: 22 }}>Request dates</h1>
-      <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-        {loadingHorse ? 'Loading horse…' : horse ? `Horse: ${horse.name ?? 'Unnamed horse'}` : ''}
-      </div>
+        @media (max-width: 767px) {
+          .pmp-request-grid {
+            grid-template-columns: 1fr;
+          }
 
-      {horseError ? (
-        <div
-          style={{
-            marginTop: 12,
-            border: '1px solid rgba(255,0,0,0.25)',
-            background: 'rgba(255,0,0,0.06)',
-            padding: 12,
-            borderRadius: 12,
-            fontSize: 13,
-          }}
-        >
-          {horseError}
-        </div>
-      ) : null}
+          .pmp-request-top {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
 
-      <div
-        style={{
-          marginTop: 14,
-          border: '1px solid rgba(0,0,0,0.10)',
-          borderRadius: 14,
-          padding: 14,
-          background: 'white',
-        }}
-      >
-        <form onSubmit={onSubmit} style={{ display: 'grid', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-              Start date
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  borderRadius: 10,
-                  padding: '10px 12px',
-                  fontSize: 14,
-                }}
-              />
-            </label>
+          .pmp-request-top > * {
+            width: 100%;
+          }
+        }
+      `}</style>
 
-            <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-              End date (inclusive)
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={{
-                  border: '1px solid rgba(0,0,0,0.14)',
-                  borderRadius: 10,
-                  padding: '10px 12px',
-                  fontSize: 14,
-                }}
-              />
-            </label>
-          </div>
-
-          {horseId ? (
-            <AvailabilityConflictNotice
-              horseId={horseId}
-              startDate={startDate}
-              endDate={endDate}
-              onConflictChange={(v) => setBlockedOrLoading(v)}
-            />
-          ) : null}
-
-          <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
-            Message (optional)
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-              placeholder="Add details for the owner..."
-              style={{
-                border: '1px solid rgba(0,0,0,0.14)',
-                borderRadius: 10,
-                padding: '10px 12px',
-                fontSize: 14,
-                resize: 'vertical',
-              }}
-            />
-          </label>
-
-          {submitError ? (
-            <div style={{ color: 'rgba(180,0,0,0.9)', fontSize: 13 }}>{submitError}</div>
-          ) : null}
-
+      <div className="pmp-pageShell">
+        <div className="pmp-request-top" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <button
-            type="submit"
-            disabled={submitDisabled}
+            onClick={() => router.back()}
             style={{
-              border: '1px solid rgba(0,0,0,0.14)',
+              border: '1px solid rgba(0,0,0,0.12)',
               borderRadius: 12,
-              padding: '10px 14px',
-              background: submitDisabled ? 'rgba(0,0,0,0.05)' : 'black',
-              color: submitDisabled ? 'rgba(0,0,0,0.5)' : 'white',
-              cursor: submitDisabled ? 'not-allowed' : 'pointer',
-              fontWeight: 650,
+              padding: '10px 12px',
+              background: 'white',
+              cursor: 'pointer',
+              minHeight: 44,
+              fontWeight: 900,
             }}
           >
-            {submitting ? 'Submitting…' : 'Submit borrow request'}
+            ← Back
           </button>
-        </form>
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <div className="pmp-kicker">Borrower flow</div>
+          <h1 className="pmp-pageTitle">Request dates</h1>
+          <div className="pmp-mutedText" style={{ marginTop: 6 }}>
+            {loadingHorse ? 'Loading horse…' : horse ? `Horse: ${horse.name ?? 'Unnamed horse'}` : ''}
+          </div>
+        </div>
+
+        {horseError ? <div className="pmp-errorBanner" style={{ marginTop: 12 }}>{horseError}</div> : null}
+
+        <div className="pmp-sectionCard" style={{ marginTop: 14 }}>
+          <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
+            <div className="pmp-request-grid">
+              <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+                Start date
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={{
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    borderRadius: 12,
+                    padding: '12px 12px',
+                    fontSize: 16,
+                    width: '100%',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+                End date (inclusive)
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={{
+                    border: '1px solid rgba(0,0,0,0.14)',
+                    borderRadius: 12,
+                    padding: '12px 12px',
+                    fontSize: 16,
+                    width: '100%',
+                  }}
+                />
+              </label>
+            </div>
+
+            {horseId ? (
+              <AvailabilityConflictNotice
+                horseId={horseId}
+                startDate={startDate}
+                endDate={endDate}
+                onConflictChange={(v) => setBlockedOrLoading(v)}
+              />
+            ) : null}
+
+            <label style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+              Message (optional)
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={4}
+                placeholder="Add details for the owner..."
+                style={{
+                  border: '1px solid rgba(0,0,0,0.14)',
+                  borderRadius: 12,
+                  padding: '12px 12px',
+                  fontSize: 14,
+                  resize: 'vertical',
+                  width: '100%',
+                  minHeight: 110,
+                }}
+              />
+            </label>
+
+            {submitError ? (
+              <div style={{ color: 'rgba(180,0,0,0.9)', fontSize: 13, fontWeight: 850 }}>{submitError}</div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={submitDisabled}
+              style={{
+                border: '1px solid rgba(0,0,0,0.14)',
+                borderRadius: 14,
+                padding: '12px 14px',
+                background: submitDisabled ? 'rgba(0,0,0,0.05)' : 'black',
+                color: submitDisabled ? 'rgba(0,0,0,0.5)' : 'white',
+                cursor: submitDisabled ? 'not-allowed' : 'pointer',
+                fontWeight: 900,
+                minHeight: 46,
+                width: '100%',
+              }}
+            >
+              {submitting ? 'Submitting…' : 'Submit borrow request'}
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -66,6 +66,7 @@ const btn = (kind: 'primary' | 'secondary') =>
     background: kind === 'primary' ? `linear-gradient(180deg, ${palette.forest}, #173223)` : 'rgba(255,255,255,0.72)',
     color: kind === 'primary' ? 'white' : palette.navy,
     boxShadow: kind === 'primary' ? '0 14px 34px rgba(31,61,43,0.18)' : '0 14px 34px rgba(31,42,68,0.08)',
+    minHeight: 44,
   }) as React.CSSProperties;
 
 export default function OwnerDashboardOverview() {
@@ -91,7 +92,6 @@ export default function OwnerDashboardOverview() {
         if (userErr) throw userErr;
         if (!user) throw new Error('Not authenticated');
 
-        // horses (we need ids)
         const horsesRes = await supabase
           .from('horses')
           .select('id,name')
@@ -186,123 +186,141 @@ export default function OwnerDashboardOverview() {
   const blockedCount = useMemo(() => ranges.filter((r) => r.kind === 'blocked').length, [ranges]);
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 34, letterSpacing: -0.3, color: palette.navy, fontWeight: 950 }}>
-            Owner Overview
-          </h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
-            Upcoming blocks and approved bookings across your horses.
+    <>
+      <style>{`
+        .pmp-owner-overview-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .pmp-owner-overview-stats {
+          margin-top: 16px;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        @media (max-width: 767px) {
+          .pmp-owner-overview-stats {
+            grid-template-columns: 1fr;
+          }
+
+          .pmp-owner-overview-top > * {
+            width: 100%;
+          }
+        }
+      `}</style>
+
+      <div className="pmp-pageShell">
+        <div className="pmp-owner-overview-top">
+          <div>
+            <div className="pmp-kicker">Owner dashboard</div>
+            <h1 className="pmp-pageTitle">Owner Overview</h1>
+            <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
+              Upcoming blocks and approved bookings across your horses.
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Link href="/dashboard/owner/horses" style={btn('secondary')}>
+              Horses
+            </Link>
+            <Link href="/dashboard/owner/requests" style={btn('secondary')}>
+              Requests
+            </Link>
+            <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
+              Add a horse →
+            </Link>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <Link href="/dashboard/owner/horses" style={btn('secondary')}>
-            Horses
-          </Link>
-          <Link href="/dashboard/owner/requests" style={btn('secondary')}>
-            Requests
-          </Link>
-          <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
-            Add a horse →
-          </Link>
-        </div>
-      </div>
+        {loading ? <div style={{ marginTop: 16, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
 
-      {loading ? <div style={{ marginTop: 16, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
-
-      {error ? (
-        <div
-          style={{
-            marginTop: 16,
-            border: '1px solid rgba(255,0,0,0.25)',
-            background: 'rgba(255,0,0,0.06)',
-            padding: 12,
-            borderRadius: 14,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
-
-      {/* Stats row */}
-      <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
-        <div style={{ ...card, padding: 14 }}>
-          <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 900 }}>Active horses</div>
-          <div style={{ marginTop: 6, fontSize: 26, fontWeight: 950, color: palette.navy }}>{horses.length}</div>
-        </div>
-
-        <div style={{ ...card, padding: 14 }}>
-          <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 900 }}>Upcoming bookings</div>
-          <div style={{ marginTop: 6, fontSize: 26, fontWeight: 950, color: palette.navy }}>{bookingCount}</div>
-        </div>
-
-        <div style={{ ...card, padding: 14 }}>
-          <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 900 }}>Upcoming blocks</div>
-          <div style={{ marginTop: 6, fontSize: 26, fontWeight: 950, color: palette.navy }}>{blockedCount}</div>
-        </div>
-      </div>
-
-      {/* Upcoming list */}
-      <div style={{ marginTop: 12, ...card, padding: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ fontWeight: 950, color: palette.navy }}>Upcoming activity</div>
-          <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.60)' }}>
-            {ranges.length} upcoming range{ranges.length === 1 ? '' : 's'}
-          </div>
-        </div>
-
-        {!loading && !error && upcoming.length === 0 ? (
-          <div style={{ marginTop: 12, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-            No upcoming activity.
+        {error ? (
+          <div className="pmp-errorBanner" style={{ marginTop: 16 }}>
+            {error}
           </div>
         ) : null}
 
-        <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-          {upcoming.map((r) => (
-            <div
-              key={`${r.kind}-${r.sourceId}`}
-              style={{
-                borderRadius: 18,
-                border: '1px solid rgba(31,42,68,0.10)',
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.90) 0%, rgba(245,241,232,0.55) 140%)',
-                padding: 14,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <AvailabilityBadge label={r.kind === 'blocked' ? 'Blocked' : 'Booking'} tone={r.kind === 'blocked' ? 'warn' : 'info'} />
-                  <div style={{ fontWeight: 950, color: palette.navy }}>
-                    {horseNameById.get(r.horseId) ?? 'Horse'}
+        <div className="pmp-owner-overview-stats">
+          <div style={{ ...card, padding: 14 }}>
+            <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 900 }}>Active horses</div>
+            <div style={{ marginTop: 6, fontSize: 26, fontWeight: 950, color: palette.navy }}>{horses.length}</div>
+          </div>
+
+          <div style={{ ...card, padding: 14 }}>
+            <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 900 }}>Upcoming bookings</div>
+            <div style={{ marginTop: 6, fontSize: 26, fontWeight: 950, color: palette.navy }}>{bookingCount}</div>
+          </div>
+
+          <div style={{ ...card, padding: 14 }}>
+            <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 900 }}>Upcoming blocks</div>
+            <div style={{ marginTop: 6, fontSize: 26, fontWeight: 950, color: palette.navy }}>{blockedCount}</div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12, ...card, padding: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ fontWeight: 950, color: palette.navy }}>Upcoming activity</div>
+            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.60)' }}>
+              {ranges.length} upcoming range{ranges.length === 1 ? '' : 's'}
+            </div>
+          </div>
+
+          {!loading && !error && upcoming.length === 0 ? (
+            <div style={{ marginTop: 12, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
+              No upcoming activity.
+            </div>
+          ) : null}
+
+          <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
+            {upcoming.map((r) => (
+              <div
+                key={`${r.kind}-${r.sourceId}`}
+                style={{
+                  borderRadius: 18,
+                  border: '1px solid rgba(31,42,68,0.10)',
+                  background: 'linear-gradient(180deg, rgba(255,255,255,0.90) 0%, rgba(245,241,232,0.55) 140%)',
+                  padding: 14,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <AvailabilityBadge label={r.kind === 'blocked' ? 'Blocked' : 'Booking'} tone={r.kind === 'blocked' ? 'warn' : 'info'} />
+                    <div style={{ fontWeight: 950, color: palette.navy }}>
+                      {horseNameById.get(r.horseId) ?? 'Horse'}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(0,0,0,0.70)' }}>
+                    <span style={{ fontWeight: 900 }}>{r.startDate}</span> → <span style={{ fontWeight: 900 }}>{r.endDate}</span>
+                    {' — '}
+                    {r.label}
                   </div>
                 </div>
 
-                <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(0,0,0,0.70)' }}>
-                  <span style={{ fontWeight: 900 }}>{r.startDate}</span> → <span style={{ fontWeight: 900 }}>{r.endDate}</span>
-                  {' — '}
-                  {r.label}
-                </div>
+                <Link href={`/dashboard/owner/horses/${r.horseId}/availability`} style={btn('secondary')}>
+                  Availability
+                </Link>
               </div>
-
-              <Link href={`/dashboard/owner/horses/${r.horseId}/availability`} style={btn('secondary')}>
-                Availability
-              </Link>
-            </div>
-          ))}
-        </div>
-
-        {ranges.length > upcoming.length ? (
-          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.65 }}>
-            Showing first {upcoming.length} items.
+            ))}
           </div>
-        ) : null}
+
+          {ranges.length > upcoming.length ? (
+            <div style={{ marginTop: 12, fontSize: 12, opacity: 0.65 }}>
+              Showing first {upcoming.length} items.
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

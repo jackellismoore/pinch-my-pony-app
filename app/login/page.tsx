@@ -9,10 +9,6 @@ import { supabase } from "@/lib/supabaseClient";
 import LoginInner from "./LoginInner";
 import AuthPostAuthRedirect from "../components/AuthPostAuthRedirect";
 
-/**
- * Hard redirect to home as soon as a valid Supabase session exists.
- * This prevents the "signed in but still stuck on /login" issue.
- */
 function SessionRedirector() {
   const router = useRouter();
 
@@ -48,14 +44,21 @@ function SessionRedirector() {
   return null;
 }
 
+function LoadingFallback() {
+  return (
+    <div className="pmp-pageShell">
+      <div className="pmp-sectionCard" style={{ textAlign: "center" }}>
+        <div className="pmp-mutedText">Loading sign in…</div>
+      </div>
+    </div>
+  );
+}
+
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 24 }}>Loading…</div>}>
+    <Suspense fallback={<LoadingFallback />}>
       <SessionRedirector />
-
-      {/* Keep your existing redirect logic intact */}
       <AuthPostAuthRedirect mode="login" />
-
       <LoginInner />
     </Suspense>
   );

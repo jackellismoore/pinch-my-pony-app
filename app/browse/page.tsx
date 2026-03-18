@@ -247,128 +247,140 @@ export default function BrowsePage() {
   );
 
   return (
-    <div className="pmp-pageShell">
-      <div className="pmp-mobilePageHeader">
-        <div>
-          <div className="pmp-kicker">Marketplace</div>
-          <h1 className="pmp-pageTitle">Browse horses</h1>
-        </div>
-      </div>
+    <>
+      <style>{`
+        @media (max-width: 767px) {
+          .pmp-browse-card-actions > * {
+            width: 100%;
+          }
+        }
+      `}</style>
 
-      <section className="pmp-sectionCard pmp-mapSection">
-        <div className="pmp-sectionHeader">
+      <div className="pmp-pageShell">
+        <div className="pmp-mobilePageHeader">
           <div>
-            <div className="pmp-kicker">Discover</div>
-            <h2 className="pmp-sectionTitle">Explore horses near you</h2>
+            <div className="pmp-kicker">Marketplace</div>
+            <h1 className="pmp-pageTitle">Browse horses</h1>
           </div>
-          <div className="pmp-mutedText">Tap a pin or card to view more.</div>
         </div>
 
-        {loading ? <div className="pmp-mutedText">Loading marketplace…</div> : null}
-        {error ? <div className="pmp-errorBanner">{error}</div> : null}
-
-        <div className="pmp-mapCard">
-          <HorseMap horses={mapHorses} userLocation={null} highlightedId={null} />
-        </div>
-      </section>
-
-      <section className="pmp-sectionCard">
-        <div className="pmp-sectionHeader">
-          <div>
-            <div className="pmp-kicker">Listings</div>
-            <h3 className="pmp-sectionTitle">Available horses</h3>
+        <section className="pmp-sectionCard pmp-mapSection">
+          <div className="pmp-sectionHeader">
+            <div>
+              <div className="pmp-kicker">Discover</div>
+              <h2 className="pmp-sectionTitle">Explore horses near you</h2>
+            </div>
+            <div className="pmp-mutedText">Tap a pin or card to view more.</div>
           </div>
-          <div className="pmp-mutedText">{horses.length} listing(s)</div>
-        </div>
 
-        {loading ? (
-          <div className="pmp-mutedText">Loading listings…</div>
-        ) : horses.length === 0 ? (
-          <div className="pmp-emptyState">
-            <div className="pmp-emptyIcon">🗺️</div>
-            <div className="pmp-emptyTitle">No horses available yet</div>
-            <div className="pmp-emptyText">Check back soon for new listings in the marketplace.</div>
+          {loading ? <div className="pmp-mutedText">Loading marketplace…</div> : null}
+          {error ? <div className="pmp-errorBanner">{error}</div> : null}
+
+          <div className="pmp-mapCard">
+            <HorseMap horses={mapHorses} userLocation={null} highlightedId={null} />
           </div>
-        ) : (
-          <div className="pmp-horizontalCards">
-            {horses.map((horse) => {
-              const next = nextByHorseId[horse.id] ?? null;
-              const rating = ratingByOwnerId[horse.owner_id] ?? { avg: 0, count: 0 };
-              const hasRating = rating.count > 0;
-              const isOwnHorse = !!viewerId && horse.owner_id === viewerId;
+        </section>
 
-              return (
-                <article key={horse.id} className="pmp-marketplaceCard">
-                  <div className="pmp-marketplaceImageWrap">
-                    {horse.image_url ? (
-                      <img
-                        src={horse.image_url}
-                        alt={horse.name?.trim() || "Horse"}
-                        className="pmp-marketplaceImage"
-                      />
-                    ) : (
-                      <div className="pmp-marketplaceImageFallback">🐎</div>
-                    )}
-                  </div>
+        <section className="pmp-sectionCard">
+          <div className="pmp-sectionHeader">
+            <div>
+              <div className="pmp-kicker">Listings</div>
+              <h3 className="pmp-sectionTitle">Available horses</h3>
+            </div>
+            <div className="pmp-mutedText">{horses.length} listing(s)</div>
+          </div>
 
-                  <div className="pmp-marketplaceBody">
-                    <div className="pmp-marketplaceTop">
-                      <div>
-                        <h4 className="pmp-horseName">{horse.name?.trim() || "Untitled horse"}</h4>
-                        <div className="pmp-mutedText">{horse.location?.trim() || "Location coming soon"}</div>
+          {loading ? (
+            <div className="pmp-mutedText">Loading listings…</div>
+          ) : horses.length === 0 ? (
+            <div className="pmp-emptyState">
+              <div className="pmp-emptyIcon">🗺️</div>
+              <div className="pmp-emptyTitle">No horses available yet</div>
+              <div className="pmp-emptyText">Check back soon for new listings in the marketplace.</div>
+            </div>
+          ) : (
+            <div className="pmp-horizontalCards">
+              {horses.map((horse) => {
+                const next = nextByHorseId[horse.id] ?? null;
+                const rating = ratingByOwnerId[horse.owner_id] ?? { avg: 0, count: 0 };
+                const hasRating = rating.count > 0;
+                const isOwnHorse = !!viewerId && horse.owner_id === viewerId;
+
+                return (
+                  <article key={horse.id} className="pmp-marketplaceCard">
+                    <div className="pmp-marketplaceImageWrap">
+                      {horse.image_url ? (
+                        <img
+                          src={horse.image_url}
+                          alt={horse.name?.trim() || "Horse"}
+                          className="pmp-marketplaceImage"
+                        />
+                      ) : (
+                        <div className="pmp-marketplaceImageFallback">🐎</div>
+                      )}
+                    </div>
+
+                    <div className="pmp-marketplaceBody">
+                      <div className="pmp-marketplaceTop">
+                        <div>
+                          <h4 className="pmp-horseName">{horse.name?.trim() || "Untitled horse"}</h4>
+                          <div className="pmp-mutedText">
+                            {horse.location?.trim() || "Location coming soon"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pmp-ratingRow">
+                        <StarRating value={hasRating ? Number(rating.avg.toFixed(1)) : 0} readOnly size={18} />
+                        <span className="pmp-mutedText">
+                          {hasRating ? `${rating.avg.toFixed(1)} (${rating.count})` : "No reviews"}
+                        </span>
+                      </div>
+
+                      <div className="pmp-ownerLine">
+                        Owner:{" "}
+                        <Link href={`/profile/${horse.owner_id}`} className="pmp-inlineLink">
+                          {ownerLabel(horse.owner_id)}
+                        </Link>
+                      </div>
+
+                      <div className="pmp-inlineMeta" style={{ marginTop: 10 }}>
+                        {next ? (
+                          <>
+                            <AvailabilityBadge
+                              label={next.kind === "blocked" ? "Blocked" : "Booked"}
+                              tone={next.kind === "blocked" ? "warn" : "info"}
+                            />
+                            <span>
+                              {next.startDate} → {next.endDate}
+                            </span>
+                          </>
+                        ) : (
+                          <AvailabilityBadge label="No upcoming blocks" tone="neutral" />
+                        )}
+                      </div>
+
+                      <div className="pmp-cardActions pmp-browse-card-actions">
+                        <Link href={`/horse/${horse.id}`} className="pmp-ctaSecondary">
+                          View horse
+                        </Link>
+
+                        {isOwnHorse ? (
+                          <div className="pmp-ownerPill">Your listing</div>
+                        ) : (
+                          <Link href={`/request?horseId=${horse.id}`} className="pmp-ctaPrimary">
+                            Request ride
+                          </Link>
+                        )}
                       </div>
                     </div>
-
-                    <div className="pmp-ratingRow">
-                      <StarRating value={hasRating ? Number(rating.avg.toFixed(1)) : 0} readOnly size={18} />
-                      <span className="pmp-mutedText">
-                        {hasRating ? `${rating.avg.toFixed(1)} (${rating.count})` : "No reviews"}
-                      </span>
-                    </div>
-
-                    <div className="pmp-ownerLine">
-                      Owner:{" "}
-                      <Link href={`/profile/${horse.owner_id}`} className="pmp-inlineLink">
-                        {ownerLabel(horse.owner_id)}
-                      </Link>
-                    </div>
-
-                    <div className="pmp-inlineMeta" style={{ marginTop: 10 }}>
-                      {next ? (
-                        <>
-                          <AvailabilityBadge
-                            label={next.kind === "blocked" ? "Blocked" : "Booked"}
-                            tone={next.kind === "blocked" ? "warn" : "info"}
-                          />
-                          <span>
-                            {next.startDate} → {next.endDate}
-                          </span>
-                        </>
-                      ) : (
-                        <AvailabilityBadge label="No upcoming blocks" tone="neutral" />
-                      )}
-                    </div>
-
-                    <div className="pmp-cardActions">
-                      <Link href={`/horse/${horse.id}`} className="pmp-ctaSecondary">
-                        View horse
-                      </Link>
-
-                      {isOwnHorse ? (
-                        <div className="pmp-ownerPill">Your listing</div>
-                      ) : (
-                        <Link href={`/request?horseId=${horse.id}`} className="pmp-ctaPrimary">
-                          Request ride
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </>
   );
 }
