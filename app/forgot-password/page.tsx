@@ -2,9 +2,9 @@
 
 export const dynamic = "force-dynamic";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { supabase, SUPABASE_ENV_OK } from "@/lib/supabaseClient";
 
 const palette = {
@@ -20,7 +20,7 @@ function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -50,13 +50,11 @@ export default function ForgotPasswordPage() {
     try {
       setSending(true);
 
-      // IMPORTANT: must be allowed in Supabase Auth redirect URLs
       const redirectTo = `${window.location.origin}/reset-password`;
 
       const res = await supabase.auth.resetPasswordForEmail(emailTrim, { redirectTo });
       if (res.error) throw res.error;
 
-      // Supabase intentionally does not reveal if email exists — good for security.
       setDone(true);
     } catch (e: any) {
       setError(e?.message ?? "Failed to send reset email.");
@@ -105,34 +103,32 @@ export default function ForgotPasswordPage() {
               </div>
             </div>
           ) : (
-            <>
-              <div style={{ display: "grid", gap: 8 }}>
-                <label style={label()}>
-                  Email
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    style={input(!!(emailTrim && emailErr))}
-                    inputMode="email"
-                  />
-                </label>
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={label()}>
+                Email
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  style={input(!!(emailTrim && emailErr))}
+                  inputMode="email"
+                />
+              </label>
 
-                <button onClick={sendReset} disabled={sending} style={btnPrimaryDisabled(sending)}>
-                  {sending ? "Sending…" : "Send reset link →"}
-                </button>
+              <button onClick={sendReset} disabled={sending} style={btnPrimaryDisabled(sending)}>
+                {sending ? "Sending…" : "Send reset link →"}
+              </button>
 
-                <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7, lineHeight: 1.7 }}>
-                  Remembered it?{" "}
-                  <Link href="/login" style={inlineLink()}>
-                    Go back to login
-                  </Link>
-                  .
-                </div>
+              <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7, lineHeight: 1.7 }}>
+                Remembered it?{" "}
+                <Link href="/login" style={inlineLink()}>
+                  Go back to login
+                </Link>
+                .
               </div>
-            </>
+            </div>
           )}
         </div>
 
@@ -141,6 +137,14 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 24 }}>Loading…</div>}>
+      <ForgotPasswordInner />
+    </Suspense>
   );
 }
 
