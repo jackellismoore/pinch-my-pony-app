@@ -9,6 +9,8 @@ type ProfileMini = {
   role: "owner" | "borrower" | null;
   display_name: string | null;
   full_name: string | null;
+  avatar_url?: string | null;
+  verification_status?: string | null;
 };
 
 type Stats = {
@@ -54,7 +56,7 @@ export default function HomePage() {
       if (u?.id) {
         const { data: p } = await supabase
           .from("profiles")
-          .select("id,role,display_name,full_name")
+          .select("id,role,display_name,full_name,avatar_url,verification_status")
           .eq("id", u.id)
           .maybeSingle();
 
@@ -106,42 +108,150 @@ export default function HomePage() {
   const isAuthed = !!sessionUserId;
   const isOwner = profile?.role === "owner";
   const dashboardHref = isOwner ? "/dashboard/owner" : "/dashboard/borrower";
+  const isVerified = String(profile?.verification_status ?? "").toLowerCase() === "verified";
 
   const welcomeLine = useMemo(() => `Welcome back, ${pickName(profile)}.`, [profile]);
 
   return (
-    <div style={pageWrap}>
-      <style>{css}</style>
+    <div style={{ width: "100%" }}>
+      <style>{`
+        @media (max-width: 980px) {
+          .pmp-home-hero-grid { grid-template-columns: 1fr !important; }
+          .pmp-home-two-col { grid-template-columns: 1fr !important; }
+          .pmp-home-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        }
 
-      <section style={heroSection} aria-label="Pinch My Pony home">
-        <div style={heroBg} aria-hidden="true" />
-        <div style={heroBgFloatA} aria-hidden="true" />
-        <div style={heroBgFloatB} aria-hidden="true" />
+        @media (max-width: 767px) {
+          .pmp-home-stats,
+          .pmp-home-feature-grid {
+            grid-template-columns: 1fr !important;
+          }
 
-        <div style={container}>
-          <div className="pmp-home-hero-grid" style={heroGrid}>
-            <div className="pmp-fade" style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-              <div style={eyebrowPill}>
+          .pmp-home-title {
+            font-size: 32px !important;
+          }
+
+          .pmp-home-cta-row {
+            flex-direction: column;
+            align-items: stretch !important;
+          }
+
+          .pmp-home-cta-row a,
+          .pmp-home-cta-row a > span {
+            width: 100%;
+          }
+        }
+      `}</style>
+
+      <section
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          padding: "18px 0 20px",
+          background: palette.cream,
+          borderRadius: 24,
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "radial-gradient(900px 420px at 20% 10%, rgba(200,162,77,0.22), transparent 55%), radial-gradient(900px 420px at 90% 30%, rgba(31,61,43,0.18), transparent 58%), linear-gradient(180deg, rgba(245,241,232,1) 0%, rgba(250,250,250,1) 65%)",
+          }}
+        />
+
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 12px", position: "relative" }}>
+          <div
+            className="pmp-home-hero-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.05fr 0.95fr",
+              gap: 18,
+              alignItems: "stretch",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 10,
+                  width: "fit-content",
+                  maxWidth: "100%",
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  background: "rgba(31,61,43,0.08)",
+                  border: "1px solid rgba(31,61,43,0.12)",
+                  color: palette.forest,
+                  fontWeight: 900,
+                  fontSize: 13,
+                }}
+              >
                 <span aria-hidden="true">🐴</span>
                 <span>
                   {isAuthed ? "Signed in • Your account is ready" : "Borrow • Share • Ride — with trust built in"}
                 </span>
               </div>
 
-              <h1 className="pmp-home-title" style={heroTitle}>
+              <h1
+                className="pmp-home-title"
+                style={{
+                  margin: 0,
+                  fontSize: 44,
+                  lineHeight: 1.06,
+                  letterSpacing: -0.6,
+                  color: palette.navy,
+                }}
+              >
                 {isAuthed ? (
                   <>
-                    {welcomeLine} <span style={heroAccent}>Let’s ride.</span>
+                    {welcomeLine}{" "}
+                    <span
+                      style={{
+                        color: palette.forest,
+                        textDecoration: "underline",
+                        textDecorationThickness: "6px",
+                        textUnderlineOffset: "6px",
+                        textDecorationColor: "rgba(200,162,77,0.45)",
+                      }}
+                    >
+                      Let’s ride.
+                    </span>
                   </>
                 ) : (
                   <>
-                    The warm, modern way to <span style={heroAccent}>borrow</span> or{" "}
-                    <span style={heroAccent}>share</span> a horse.
+                    The warm, modern way to{" "}
+                    <span
+                      style={{
+                        color: palette.forest,
+                        textDecoration: "underline",
+                        textDecorationThickness: "6px",
+                        textUnderlineOffset: "6px",
+                        textDecorationColor: "rgba(200,162,77,0.45)",
+                      }}
+                    >
+                      borrow
+                    </span>{" "}
+                    or{" "}
+                    <span
+                      style={{
+                        color: palette.forest,
+                        textDecoration: "underline",
+                        textDecorationThickness: "6px",
+                        textUnderlineOffset: "6px",
+                        textDecorationColor: "rgba(200,162,77,0.45)",
+                      }}
+                    >
+                      share
+                    </span>{" "}
+                    a horse.
                   </>
                 )}
               </h1>
 
-              <p className="pmp-fade-delayed" style={heroParagraph}>
+              <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7, opacity: 0.9, maxWidth: 680 }}>
                 {isAuthed
                   ? "Manage requests, browse horses, and connect with confidence — everything stays organized in one place."
                   : "Pinch My Pony is a trusted horse-borrowing marketplace. Owners list horses, borrowers request dates, and everyone rides with clear rules and reviews."}
@@ -149,27 +259,77 @@ export default function HomePage() {
 
               {isAuthed ? (
                 <>
-                  <div className="pmp-fade-delayed2 pmp-home-cta-row" style={ctaRow}>
+                  <div className="pmp-home-cta-row" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                     <Link href="/browse" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta pmp-cta-primary pmp-home-cta" style={primaryButton}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          padding: "12px 16px",
+                          borderRadius: 14,
+                          background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
+                          color: "white",
+                          fontWeight: 950,
+                          border: "1px solid rgba(0,0,0,0.10)",
+                          boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
+                        }}
+                      >
                         Browse Horses
                       </span>
                     </Link>
 
                     <Link href="/messages" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta pmp-home-cta" style={secondaryButton}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          padding: "12px 16px",
+                          borderRadius: 14,
+                          background: "rgba(255,255,255,0.75)",
+                          color: palette.navy,
+                          fontWeight: 950,
+                          border: "1px solid rgba(31,42,68,0.18)",
+                          boxShadow: "0 14px 34px rgba(31,42,68,0.08)",
+                        }}
+                      >
                         Messages
                       </span>
                     </Link>
 
                     <Link href={dashboardHref} style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta pmp-home-cta" style={secondaryButton}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          padding: "12px 16px",
+                          borderRadius: 14,
+                          background: "rgba(255,255,255,0.75)",
+                          color: palette.navy,
+                          fontWeight: 950,
+                          border: "1px solid rgba(31,42,68,0.18)",
+                          boxShadow: "0 14px 34px rgba(31,42,68,0.08)",
+                        }}
+                      >
                         My Dashboard
                       </span>
                     </Link>
                   </div>
 
-                  <div className="pmp-fade-delayed3 pmp-home-stats" style={heroStatsRow}>
+                  <div
+                    className="pmp-home-stats"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                      gap: 10,
+                      marginTop: 14,
+                    }}
+                  >
                     <StatChip title="Active Horses" value={stats.activeHorses} />
                     <StatChip title="My Pending Requests" value={stats.myPendingRequests} />
                     <StatChip title="Unread Messages" value={stats.unreadMessages} />
@@ -177,27 +337,77 @@ export default function HomePage() {
                 </>
               ) : (
                 <>
-                  <div className="pmp-fade-delayed2 pmp-home-cta-row" style={ctaRow}>
-                    <Link href="/login" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta pmp-cta-primary pmp-home-cta" style={primaryButton}>
-                        Login
+                  <div className="pmp-home-cta-row" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                    <Link href="/signup/borrower" style={{ textDecoration: "none" }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          padding: "12px 16px",
+                          borderRadius: 14,
+                          background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
+                          color: "white",
+                          fontWeight: 950,
+                          border: "1px solid rgba(0,0,0,0.10)",
+                          boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
+                        }}
+                      >
+                        I want to borrow
                       </span>
                     </Link>
 
-                    <Link href="/signup" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta pmp-home-cta" style={secondaryButton}>
-                        Sign Up
+                    <Link href="/signup/owner" style={{ textDecoration: "none" }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          padding: "12px 16px",
+                          borderRadius: 14,
+                          background: "rgba(255,255,255,0.75)",
+                          color: palette.navy,
+                          fontWeight: 950,
+                          border: "1px solid rgba(31,42,68,0.18)",
+                          boxShadow: "0 14px 34px rgba(31,42,68,0.08)",
+                        }}
+                      >
+                        I want to list my horse
                       </span>
                     </Link>
 
                     <Link href="/browse" style={{ textDecoration: "none" }}>
-                      <span className="pmp-cta pmp-home-cta" style={secondaryButton}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minHeight: 46,
+                          padding: "12px 16px",
+                          borderRadius: 14,
+                          background: "rgba(255,255,255,0.75)",
+                          color: palette.navy,
+                          fontWeight: 950,
+                          border: "1px solid rgba(31,42,68,0.18)",
+                          boxShadow: "0 14px 34px rgba(31,42,68,0.08)",
+                        }}
+                      >
                         Browse Horses
                       </span>
                     </Link>
                   </div>
 
-                  <div className="pmp-fade-delayed3 pmp-home-stats" style={heroStatsRow}>
+                  <div
+                    className="pmp-home-stats"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                      gap: 10,
+                      marginTop: 14,
+                    }}
+                  >
                     <InfoChip title="Availability enforced" subtitle="Date conflicts blocked" />
                     <InfoChip title="Messaging built-in" subtitle="Keep it all in one place" />
                     <InfoChip title="Reviews & ratings" subtitle="Ride with confidence" />
@@ -206,12 +416,34 @@ export default function HomePage() {
               )}
             </div>
 
-            <div style={heroVisualCard} aria-label="Brand and how it works">
-              <div style={heroVisualInner}>
-                <div style={logoRow}>
-                  <div style={logoBadge}>
+            <div
+              style={{
+                borderRadius: 22,
+                border: "1px solid rgba(31,42,68,0.12)",
+                background: "linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(245,241,232,0.65) 100%)",
+                boxShadow: "0 22px 60px rgba(31,42,68,0.12)",
+                overflow: "hidden",
+                minHeight: 360,
+              }}
+            >
+              <div style={{ padding: 18, display: "grid", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <div
+                    style={{
+                      width: 96,
+                      height: 96,
+                      borderRadius: 24,
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,247,240,0.96))",
+                      border: "1px solid rgba(15,23,42,0.10)",
+                      boxShadow: "0 16px 40px rgba(15,23,42,0.10)",
+                      display: "grid",
+                      placeItems: "center",
+                      overflow: "hidden",
+                      flexShrink: 0,
+                    }}
+                  >
                     <img
-                      src="/pmp-logo.png"
+                      src="/pmp-logo-web.png"
                       alt="Pinch My Pony logo"
                       style={{ width: "92%", height: "92%", objectFit: "contain", display: "block" }}
                     />
@@ -225,34 +457,47 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div style={divider} />
+                <div style={{ height: 1, background: "rgba(31,42,68,0.10)", margin: "4px 0" }} />
 
                 <div style={{ display: "grid", gap: 10 }}>
-                  <MiniCard
-                    icon="🧭"
-                    title="Browse listings"
-                    copy="Explore horses, read profiles, and check details before you request."
-                  />
-                  <MiniCard
-                    icon="📅"
-                    title="Request dates"
-                    copy="Send a date range request — availability rules prevent conflicts."
-                  />
-                  <MiniCard
-                    icon="💬"
-                    title="Coordinate & ride"
-                    copy="Message inside the app, then leave a review to help the community."
-                  />
+                  <MiniCard icon="🧭" title="Browse listings" copy="Explore horses, read profiles, and check details before you request." />
+                  <MiniCard icon="📅" title="Request dates" copy="Send a date range request — availability rules prevent conflicts." />
+                  <MiniCard icon="💬" title="Coordinate & ride" copy="Message inside the app, then leave a review to help the community." />
                 </div>
 
-                <div style={softBand}>
-                  <div style={{ fontWeight: 950, color: palette.navy }}>{isAuthed ? "Tip" : "New here?"}</div>
-                  <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.55 }}>
-                    {isAuthed
-                      ? "Start by browsing horses, then use Messages to confirm details. Your dashboard keeps requests and dates organized."
-                      : "Create an account to request dates, message owners, and access your dashboard."}
+                {isAuthed ? (
+                  <div
+                    style={{
+                      marginTop: 4,
+                      padding: 12,
+                      borderRadius: 18,
+                      border: "1px solid rgba(31,42,68,0.10)",
+                      background: "rgba(31,61,43,0.06)",
+                    }}
+                  >
+                    <div style={{ fontWeight: 950, color: palette.navy }}>Your trust status</div>
+                    <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.55 }}>
+                      {isVerified
+                        ? "Your identity is verified. Keep your profile photo, bio, and location up to date to build even more trust."
+                        : "Verification is still pending. Completing it helps owners and riders feel more confident."}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div
+                    style={{
+                      marginTop: 4,
+                      padding: 12,
+                      borderRadius: 18,
+                      border: "1px solid rgba(31,42,68,0.10)",
+                      background: "rgba(31,61,43,0.06)",
+                    }}
+                  >
+                    <div style={{ fontWeight: 950, color: palette.navy }}>New here?</div>
+                    <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.55 }}>
+                      Create an account to request dates, message owners, and access your dashboard.
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -261,97 +506,63 @@ export default function HomePage() {
 
       {!isAuthed ? (
         <>
-          <section style={section}>
-            <div style={container}>
-              <header style={sectionHeaderTight}>
-                <h2 style={sectionTitle}>How it works</h2>
-                <p style={sectionSubtitle}>
+          <section style={{ padding: "24px 0", background: "#fafafa" }}>
+            <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 12px" }}>
+              <header style={{ display: "grid", gap: 8, margin: "0 0 16px" }}>
+                <h2 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy }}>How it works</h2>
+                <p style={{ margin: 0, opacity: 0.78, lineHeight: 1.65, maxWidth: 780 }}>
                   Built for both borrowers and owners — clear steps, clear expectations.
                 </p>
               </header>
 
-              <div className="pmp-home-two-col" style={twoColumn}>
-                <div style={card}>
-                  <div style={cardTopRow}>
-                    <span style={rolePillBorrower}>For Borrowers</span>
-                    <span style={mutedPill}>3 steps</span>
-                  </div>
-
-                  <ol style={stepList}>
-                    <Step number="1" title="Browse active horses" copy="Explore listings and check details." />
-                    <Step number="2" title="Request your dates" copy="Pick a date range. Conflicts are blocked." />
-                    <Step number="3" title="Ride & review" copy="Coordinate via messaging and leave a review." />
-                  </ol>
-                </div>
-
-                <div style={card}>
-                  <div style={cardTopRow}>
-                    <span style={rolePillOwner}>For Owners</span>
-                    <span style={mutedPill}>3 steps</span>
-                  </div>
-
-                  <ol style={stepList}>
-                    <Step number="1" title="List your horse" copy="Create a listing with clear expectations." />
-                    <Step number="2" title="Approve trusted riders" copy="Review requests and chat before approving." />
-                    <Step number="3" title="Manage availability" copy="Block dates and avoid overlaps automatically." />
-                  </ol>
-                </div>
+              <div className="pmp-home-two-col" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
+                <RoleCard
+                  pill="For Borrowers"
+                  steps={[
+                    ["1", "Browse active horses", "Explore listings and check details."],
+                    ["2", "Request your dates", "Pick a date range. Conflicts are blocked."],
+                    ["3", "Ride & review", "Coordinate via messaging and leave a review."],
+                  ]}
+                  borrower
+                />
+                <RoleCard
+                  pill="For Owners"
+                  steps={[
+                    ["1", "List your horse", "Create a listing with clear expectations."],
+                    ["2", "Approve trusted riders", "Review requests and chat before approving."],
+                    ["3", "Manage availability", "Block dates and avoid overlaps automatically."],
+                  ]}
+                />
               </div>
             </div>
           </section>
 
-          <section style={sectionAlt}>
-            <div style={container}>
-              <header style={sectionHeaderTight}>
-                <h2 style={sectionTitle}>Trust & safety, baked in</h2>
-                <p style={sectionSubtitle}>
+          <section style={{ padding: "24px 0", background: `linear-gradient(180deg, #fafafa 0%, rgba(245,241,232,0.7) 100%)` }}>
+            <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 12px" }}>
+              <header style={{ display: "grid", gap: 8, margin: "0 0 16px" }}>
+                <h2 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy }}>Trust & safety, baked in</h2>
+                <p style={{ margin: 0, opacity: 0.78, lineHeight: 1.65, maxWidth: 780 }}>
                   Profiles, messaging, and guardrails help keep things clear and comfortable.
                 </p>
               </header>
 
-              <div className="pmp-home-feature-grid" style={featureGrid}>
+              <div className="pmp-home-feature-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 10 }}>
                 <FeatureCard icon="⭐" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
                 <FeatureCard icon="🗓️" title="Date conflict enforcement" copy="Overlaps are blocked to keep schedules reliable." />
                 <FeatureCard icon="💬" title="Messaging built-in" copy="Coordinate details without switching apps." />
                 <FeatureCard icon="🪪" title="Profiles that matter" copy="See who you’re riding with before confirming." />
               </div>
-
-              <div style={trustCtaBand}>
-                <div>
-                  <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>
-                    Ready to get started?
-                  </div>
-                  <div style={{ opacity: 0.75, marginTop: 4 }}>
-                    Create an account and start browsing today.
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <Link href="/login" style={{ textDecoration: "none" }}>
-                    <span className="pmp-cta pmp-cta-primary pmp-home-cta" style={primaryButtonSmall}>
-                      Login
-                    </span>
-                  </Link>
-                  <Link href="/signup" style={{ textDecoration: "none" }}>
-                    <span className="pmp-cta pmp-home-cta" style={secondaryButtonSmall}>
-                      Sign Up
-                    </span>
-                  </Link>
-                </div>
-              </div>
             </div>
           </section>
         </>
       ) : null}
-
-      <div style={{ height: 8 }} />
     </div>
   );
 }
 
 function InfoChip({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div style={infoChip}>
+    <div style={{ padding: "12px 12px", borderRadius: 16, background: "rgba(255,255,255,0.72)", border: "1px solid rgba(31,42,68,0.10)", boxShadow: "0 12px 30px rgba(31,42,68,0.06)" }}>
       <div style={{ fontWeight: 950, fontSize: 13, color: palette.navy }}>{title}</div>
       <div style={{ fontSize: 12, opacity: 0.75 }}>{subtitle}</div>
     </div>
@@ -360,7 +571,7 @@ function InfoChip({ title, subtitle }: { title: string; subtitle: string }) {
 
 function StatChip({ title, value }: { title: string; value: number }) {
   return (
-    <div style={infoChip}>
+    <div style={{ padding: "12px 12px", borderRadius: 16, background: "rgba(255,255,255,0.72)", border: "1px solid rgba(31,42,68,0.10)", boxShadow: "0 12px 30px rgba(31,42,68,0.06)" }}>
       <div style={{ fontWeight: 950, fontSize: 22, color: palette.navy, lineHeight: 1 }}>{value}</div>
       <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>{title}</div>
     </div>
@@ -369,8 +580,8 @@ function StatChip({ title, value }: { title: string; value: number }) {
 
 function MiniCard({ icon, title, copy }: { icon: string; title: string; copy: string }) {
   return (
-    <div style={miniCard}>
-      <div style={miniIcon} aria-hidden="true">
+    <div style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: 10, padding: "12px 12px", borderRadius: 18, border: "1px solid rgba(31,42,68,0.10)", background: "rgba(255,255,255,0.70)" }}>
+      <div style={{ width: 44, height: 44, borderRadius: 14, background: "rgba(200,162,77,0.20)", border: "1px solid rgba(200,162,77,0.28)", display: "grid", placeItems: "center", fontSize: 18 }}>
         {icon}
       </div>
       <div style={{ minWidth: 0 }}>
@@ -381,24 +592,10 @@ function MiniCard({ icon, title, copy }: { icon: string; title: string; copy: st
   );
 }
 
-function Step({ number, title, copy }: { number: string; title: string; copy: string }) {
-  return (
-    <li style={stepItem}>
-      <div style={stepNumber} aria-hidden="true">
-        {number}
-      </div>
-      <div>
-        <div style={{ fontWeight: 950, color: palette.navy }}>{title}</div>
-        <div style={{ opacity: 0.8, marginTop: 4, lineHeight: 1.6 }}>{copy}</div>
-      </div>
-    </li>
-  );
-}
-
 function FeatureCard({ icon, title, copy }: { icon: string; title: string; copy: string }) {
   return (
-    <div style={featureCard}>
-      <div style={featureIcon} aria-hidden="true">
+    <div style={{ borderRadius: 22, border: "1px solid rgba(31,42,68,0.12)", background: "rgba(255,255,255,0.82)", boxShadow: "0 18px 50px rgba(31,42,68,0.08)", padding: 16 }}>
+      <div style={{ width: 44, height: 44, borderRadius: 16, background: "rgba(31,61,43,0.10)", border: "1px solid rgba(31,61,43,0.14)", display: "grid", placeItems: "center", fontSize: 18, marginBottom: 10 }}>
         {icon}
       </div>
       <div style={{ fontWeight: 950, color: palette.navy }}>{title}</div>
@@ -407,447 +604,49 @@ function FeatureCard({ icon, title, copy }: { icon: string; title: string; copy:
   );
 }
 
-const css = `
-  :root { -webkit-tap-highlight-color: transparent; }
+function RoleCard({
+  pill,
+  steps,
+  borrower,
+}: {
+  pill: string;
+  steps: [string, string, string][];
+  borrower?: boolean;
+}) {
+  return (
+    <div style={{ borderRadius: 22, border: "1px solid rgba(31,42,68,0.12)", background: "white", boxShadow: "0 18px 50px rgba(31,42,68,0.08)", padding: 18, display: "grid", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <span
+          style={{
+            fontWeight: 950,
+            fontSize: 12,
+            padding: "6px 10px",
+            borderRadius: 999,
+            border: borrower ? "1px solid rgba(31,61,43,0.18)" : "1px solid rgba(139,94,60,0.22)",
+            background: borrower ? "rgba(31,61,43,0.08)" : "rgba(139,94,60,0.10)",
+            color: borrower ? palette.forest : palette.saddle,
+          }}
+        >
+          {pill}
+        </span>
+        <span style={{ fontWeight: 900, fontSize: 12, padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(31,42,68,0.14)", background: "rgba(31,42,68,0.04)", color: palette.navy, opacity: 0.85 }}>
+          3 steps
+        </span>
+      </div>
 
-  @media (prefers-reduced-motion: reduce) {
-    * { animation: none !important; transition: none !important; }
-  }
-
-  @keyframes pmpFadeUp {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .pmp-fade { animation: pmpFadeUp 520ms ease both; }
-  .pmp-fade-delayed { animation: pmpFadeUp 620ms ease both; animation-delay: 90ms; }
-  .pmp-fade-delayed2 { animation: pmpFadeUp 720ms ease both; animation-delay: 160ms; }
-  .pmp-fade-delayed3 { animation: pmpFadeUp 820ms ease both; animation-delay: 220ms; }
-
-  .pmp-cta { transition: filter 140ms ease; display: inline-flex; }
-  @media (hover: hover) and (pointer: fine) {
-    .pmp-cta:hover { filter: brightness(1.01); }
-  }
-  .pmp-cta:active { filter: brightness(0.99); }
-
-  @media (max-width: 980px) {
-    .pmp-home-hero-grid {
-      grid-template-columns: 1fr !important;
-    }
-
-    .pmp-home-feature-grid {
-      grid-template-columns: repeat(2, minmax(0,1fr)) !important;
-    }
-
-    .pmp-home-two-col {
-      grid-template-columns: 1fr !important;
-    }
-  }
-
-  @media (max-width: 767px) {
-    .pmp-home-stats,
-    .pmp-home-feature-grid {
-      grid-template-columns: 1fr !important;
-    }
-
-    .pmp-home-title {
-      font-size: 32px !important;
-    }
-
-    .pmp-home-cta-row {
-      flex-direction: column;
-      align-items: stretch !important;
-    }
-
-    .pmp-home-cta-row a,
-    .pmp-home-cta {
-      width: 100%;
-    }
-  }
-`;
-
-const pageWrap: React.CSSProperties = {
-  width: "100%",
-};
-
-const container: React.CSSProperties = {
-  maxWidth: 1200,
-  margin: "0 auto",
-  padding: "0 12px",
-};
-
-const heroSection: React.CSSProperties = {
-  position: "relative",
-  overflow: "hidden",
-  padding: "18px 0 20px",
-  background: palette.cream,
-  borderRadius: 24,
-};
-
-const heroBg: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  background:
-    "radial-gradient(900px 420px at 20% 10%, rgba(200,162,77,0.22), transparent 55%), radial-gradient(900px 420px at 90% 30%, rgba(31,61,43,0.18), transparent 58%), linear-gradient(180deg, rgba(245,241,232,1) 0%, rgba(250,250,250,1) 65%)",
-};
-
-const heroBgFloatA: React.CSSProperties = {
-  position: "absolute",
-  width: 520,
-  height: 520,
-  borderRadius: 999,
-  left: -160,
-  top: 80,
-  background: "radial-gradient(circle at 30% 30%, rgba(200,162,77,0.18), transparent 60%)",
-  filter: "blur(2px)",
-  opacity: 0.9,
-  pointerEvents: "none",
-};
-
-const heroBgFloatB: React.CSSProperties = {
-  position: "absolute",
-  width: 560,
-  height: 560,
-  borderRadius: 999,
-  right: -180,
-  top: -40,
-  background: "radial-gradient(circle at 40% 35%, rgba(31,61,43,0.14), transparent 60%)",
-  filter: "blur(2px)",
-  opacity: 0.85,
-  pointerEvents: "none",
-};
-
-const heroGrid: React.CSSProperties = {
-  position: "relative",
-  display: "grid",
-  gridTemplateColumns: "1.05fr 0.95fr",
-  gap: 18,
-  alignItems: "stretch",
-};
-
-const eyebrowPill: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 10,
-  width: "fit-content",
-  maxWidth: "100%",
-  padding: "8px 12px",
-  borderRadius: 999,
-  background: "rgba(31,61,43,0.08)",
-  border: "1px solid rgba(31,61,43,0.12)",
-  color: palette.forest,
-  fontWeight: 900,
-  fontSize: 13,
-};
-
-const heroTitle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 44,
-  lineHeight: 1.06,
-  letterSpacing: -0.6,
-  color: palette.navy,
-};
-
-const heroAccent: React.CSSProperties = {
-  color: palette.forest,
-  textDecoration: "underline",
-  textDecorationThickness: "6px",
-  textUnderlineOffset: "6px",
-  textDecorationColor: "rgba(200,162,77,0.45)",
-};
-
-const heroParagraph: React.CSSProperties = {
-  margin: 0,
-  fontSize: 16,
-  lineHeight: 1.7,
-  opacity: 0.9,
-  maxWidth: 680,
-};
-
-const ctaRow: React.CSSProperties = {
-  display: "flex",
-  gap: 12,
-  alignItems: "center",
-  flexWrap: "wrap",
-  marginTop: 6,
-};
-
-const primaryButton: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 46,
-  padding: "12px 16px",
-  borderRadius: 14,
-  background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
-  color: "white",
-  fontWeight: 950,
-  border: "1px solid rgba(0,0,0,0.10)",
-  boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
-};
-
-const secondaryButton: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 46,
-  padding: "12px 16px",
-  borderRadius: 14,
-  background: "rgba(255,255,255,0.75)",
-  color: palette.navy,
-  fontWeight: 950,
-  border: "1px solid rgba(31,42,68,0.18)",
-  boxShadow: "0 14px 34px rgba(31,42,68,0.08)",
-};
-
-const primaryButtonSmall: React.CSSProperties = {
-  ...primaryButton,
-  padding: "10px 14px",
-  borderRadius: 12,
-  boxShadow: "0 10px 26px rgba(31,61,43,0.16)",
-};
-
-const secondaryButtonSmall: React.CSSProperties = {
-  ...secondaryButton,
-  padding: "10px 14px",
-  borderRadius: 12,
-};
-
-const heroStatsRow: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: 10,
-  marginTop: 14,
-};
-
-const infoChip: React.CSSProperties = {
-  padding: "12px 12px",
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(31,42,68,0.10)",
-  boxShadow: "0 12px 30px rgba(31,42,68,0.06)",
-  minWidth: 0,
-};
-
-const heroVisualCard: React.CSSProperties = {
-  borderRadius: 22,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background: "linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(245,241,232,0.65) 100%)",
-  boxShadow: "0 22px 60px rgba(31,42,68,0.12)",
-  overflow: "hidden",
-  minHeight: 360,
-};
-
-const heroVisualInner: React.CSSProperties = {
-  padding: 18,
-  display: "grid",
-  gap: 12,
-};
-
-const logoRow: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  minWidth: 0,
-};
-
-const logoBadge: React.CSSProperties = {
-  width: 96,
-  height: 96,
-  borderRadius: 24,
-  background: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,247,240,0.96))",
-  border: "1px solid rgba(15,23,42,0.10)",
-  boxShadow: "0 16px 40px rgba(15,23,42,0.10)",
-  display: "grid",
-  placeItems: "center",
-  overflow: "hidden",
-  flexShrink: 0,
-};
-
-const divider: React.CSSProperties = {
-  height: 1,
-  background: "rgba(31,42,68,0.10)",
-  margin: "4px 0",
-};
-
-const miniCard: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "44px 1fr",
-  gap: 10,
-  padding: "12px 12px",
-  borderRadius: 18,
-  border: "1px solid rgba(31,42,68,0.10)",
-  background: "rgba(255,255,255,0.70)",
-};
-
-const miniIcon: React.CSSProperties = {
-  width: 44,
-  height: 44,
-  borderRadius: 14,
-  background: "rgba(200,162,77,0.20)",
-  border: "1px solid rgba(200,162,77,0.28)",
-  display: "grid",
-  placeItems: "center",
-  fontSize: 18,
-};
-
-const softBand: React.CSSProperties = {
-  marginTop: 4,
-  padding: 12,
-  borderRadius: 18,
-  border: "1px solid rgba(31,42,68,0.10)",
-  background: "rgba(31,61,43,0.06)",
-};
-
-const section: React.CSSProperties = {
-  padding: "24px 0",
-  background: "#fafafa",
-};
-
-const sectionAlt: React.CSSProperties = {
-  padding: "24px 0",
-  background: `linear-gradient(180deg, #fafafa 0%, rgba(245,241,232,0.7) 100%)`,
-};
-
-const sectionHeaderTight: React.CSSProperties = {
-  display: "grid",
-  gap: 8,
-  margin: "0 0 16px",
-};
-
-const sectionTitle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 28,
-  letterSpacing: -0.3,
-  color: palette.navy,
-};
-
-const sectionSubtitle: React.CSSProperties = {
-  margin: 0,
-  opacity: 0.78,
-  lineHeight: 1.65,
-  maxWidth: 780,
-};
-
-const twoColumn: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 14,
-};
-
-const card: React.CSSProperties = {
-  borderRadius: 22,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background: "white",
-  boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
-  padding: 18,
-  display: "grid",
-  gap: 14,
-};
-
-const cardTopRow: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  flexWrap: "wrap",
-};
-
-const mutedPill: React.CSSProperties = {
-  fontWeight: 900,
-  fontSize: 12,
-  padding: "6px 10px",
-  borderRadius: 999,
-  border: "1px solid rgba(31,42,68,0.14)",
-  background: "rgba(31,42,68,0.04)",
-  color: palette.navy,
-  opacity: 0.85,
-};
-
-const rolePillBorrower: React.CSSProperties = {
-  fontWeight: 950,
-  fontSize: 12,
-  padding: "6px 10px",
-  borderRadius: 999,
-  border: "1px solid rgba(31,61,43,0.18)",
-  background: "rgba(31,61,43,0.08)",
-  color: palette.forest,
-};
-
-const rolePillOwner: React.CSSProperties = {
-  fontWeight: 950,
-  fontSize: 12,
-  padding: "6px 10px",
-  borderRadius: 999,
-  border: "1px solid rgba(139,94,60,0.22)",
-  background: "rgba(139,94,60,0.10)",
-  color: palette.saddle,
-};
-
-const stepList: React.CSSProperties = {
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
-  display: "grid",
-  gap: 12,
-};
-
-const stepItem: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "38px 1fr",
-  gap: 12,
-  alignItems: "start",
-};
-
-const stepNumber: React.CSSProperties = {
-  width: 38,
-  height: 38,
-  borderRadius: 14,
-  background: "rgba(200,162,77,0.22)",
-  border: "1px solid rgba(200,162,77,0.28)",
-  display: "grid",
-  placeItems: "center",
-  fontWeight: 950,
-  color: palette.navy,
-};
-
-const featureGrid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-  gap: 12,
-  marginTop: 10,
-};
-
-const featureCard: React.CSSProperties = {
-  borderRadius: 22,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background: "rgba(255,255,255,0.82)",
-  boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
-  padding: 16,
-};
-
-const featureIcon: React.CSSProperties = {
-  width: 44,
-  height: 44,
-  borderRadius: 16,
-  background: "rgba(31,61,43,0.10)",
-  border: "1px solid rgba(31,61,43,0.14)",
-  display: "grid",
-  placeItems: "center",
-  fontSize: 18,
-  marginBottom: 10,
-};
-
-const trustCtaBand: React.CSSProperties = {
-  marginTop: 16,
-  borderRadius: 22,
-  border: "1px solid rgba(31,42,68,0.12)",
-  background:
-    "linear-gradient(90deg, rgba(31,61,43,0.08) 0%, rgba(200,162,77,0.10) 55%, rgba(31,42,68,0.07) 100%)",
-  padding: 16,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  flexWrap: "wrap",
-};
+      <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 12 }}>
+        {steps.map(([n, title, copy]) => (
+          <li key={n} style={{ display: "grid", gridTemplateColumns: "38px 1fr", gap: 12, alignItems: "start" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 14, background: "rgba(200,162,77,0.22)", border: "1px solid rgba(200,162,77,0.28)", display: "grid", placeItems: "center", fontWeight: 950, color: palette.navy }}>
+              {n}
+            </div>
+            <div>
+              <div style={{ fontWeight: 950, color: palette.navy }}>{title}</div>
+              <div style={{ opacity: 0.8, marginTop: 4, lineHeight: 1.6 }}>{copy}</div>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}

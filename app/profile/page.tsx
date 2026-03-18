@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { VerificationBadge } from "../components/VerificationBadge";
+import LocationAutocomplete from "@/components/LocationAutocomplete";
 
 type ProfileAny = Record<string, any>;
 
@@ -66,6 +67,8 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("");
   const [age, setAge] = useState("");
 
+  const [profileComplete, setProfileComplete] = useState(0);
+
   const title = useMemo(() => {
     const dn = displayName.trim();
     const fn = fullName.trim();
@@ -75,6 +78,7 @@ export default function ProfilePage() {
   const verificationStatus = (profile?.verification_status ?? "unverified") as string;
   const verifiedAt = (profile?.verified_at ?? null) as string | null;
   const verificationProvider = (profile?.verification_provider ?? null) as string | null;
+  const isVerified = String(verificationStatus).toLowerCase() === "verified";
 
   useEffect(() => {
     let cancelled = false;
@@ -109,7 +113,6 @@ export default function ProfilePage() {
         setFullName(p?.full_name ?? "");
         setDisplayName(p?.display_name ?? "");
         setAvatarUrl(p?.avatar_url ?? "");
-
         setStableName(p?.stable_name ?? "");
         setLocation(p?.location ?? "");
         setBio(p?.bio ?? "");
@@ -126,6 +129,21 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, [router]);
+
+  useEffect(() => {
+    const fields = [
+      displayName.trim(),
+      fullName.trim(),
+      avatarUrl.trim(),
+      location.trim(),
+      bio.trim(),
+      stableName.trim(),
+      age.trim(),
+      isVerified ? "verified" : "",
+    ];
+    const filled = fields.filter(Boolean).length;
+    setProfileComplete(Math.round((filled / fields.length) * 100));
+  }, [displayName, fullName, avatarUrl, location, bio, stableName, age, isVerified]);
 
   async function tryUpdate(payload: Record<string, any>) {
     const attempt1 = await supabase.from("profiles").update(payload).eq("id", userId as string);
@@ -144,6 +162,7 @@ export default function ProfilePage() {
       full_name: payload.full_name,
       display_name: payload.display_name,
       avatar_url: payload.avatar_url,
+      location: payload.location,
     };
 
     const attempt2 = await supabase.from("profiles").update(coreOnly).eq("id", userId as string);
@@ -358,7 +377,7 @@ export default function ProfilePage() {
             <div className="pmp-kicker">Account</div>
             <h1 className="pmp-pageTitle">{title}</h1>
             <div className="pmp-mutedText" style={{ marginTop: 6 }}>
-              Edit your public profile details.
+              Edit your public profile details and build trust with riders.
             </div>
           </div>
 
@@ -375,6 +394,36 @@ export default function ProfilePage() {
           >
             {saving ? "Saving…" : "Save"}
           </button>
+        </div>
+
+        <div className="pmp-sectionCard">
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ fontWeight: 950, fontSize: 14 }}>Profile completeness</div>
+              <div className="pmp-mutedText">{profileComplete}% complete</div>
+            </div>
+
+            <div
+              style={{
+                height: 10,
+                borderRadius: 999,
+                background: "rgba(15,23,42,0.08)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${profileComplete}%`,
+                  height: "100%",
+                  background: "linear-gradient(90deg, #1F3D2B, #C8A24D)",
+                }}
+              />
+            </div>
+
+            <div className="pmp-mutedText" style={{ fontSize: 12 }}>
+              Add a photo, location, bio, and verification to build more trust.
+            </div>
+          </div>
         </div>
 
         <div
@@ -399,7 +448,7 @@ export default function ProfilePage() {
             ) : null}
           </div>
 
-          {String(verificationStatus).toLowerCase() !== "verified" ? (
+          {!isVerified ? (
             <button
               onClick={() => router.push("/verify")}
               className="pmp-ctaPrimary"
@@ -498,7 +547,7 @@ export default function ProfilePage() {
               <input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="What borrowers will see"
+                placeholder="What riders will see"
                 style={{
                   border: "1px solid rgba(0,0,0,0.14)",
                   borderRadius: 12,
@@ -547,17 +596,10 @@ export default function ProfilePage() {
 
             <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
               Location
-              <input
+              <LocationAutocomplete
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="City / region"
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  borderRadius: 12,
-                  padding: "12px 12px",
-                  fontSize: 14,
-                  width: "100%",
-                }}
+                onChange={setLocation}
+                onPlaceSelect={({ address }) => setLocation(address)}
               />
             </label>
           </div>
