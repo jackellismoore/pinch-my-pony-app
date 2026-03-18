@@ -158,7 +158,7 @@ export default function Header() {
           <Link href="/" className="pmp-brand" onClick={() => setMenuOpen(false)}>
             <div className="pmp-brandBadge" aria-hidden="true">
               <Image
-                src="/pmp-logo.png"
+                src="/pmp-logo-web.png"
                 alt=""
                 width={32}
                 height={32}
