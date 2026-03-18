@@ -1,185 +1,317 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+export const dynamic = "force-dynamic";
 
-type Props = {
-  bucket: string;              // e.g. "horses"
-  value: string;               // current public URL
-  onChange: (url: string) => void;
-  label?: string;
-  helper?: string;
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import LocationAutocomplete from "@/components/LocationAutocomplete";
+
+const palette = {
+  forest: "#1F3D2B",
+  navy: "#1F2A44",
 };
 
-function isNonEmptyString(v: unknown): v is string {
-  return typeof v === "string" && v.trim().length > 0;
-}
+const STORAGE_BUCKET = "horses";
 
-export default function HorseImageUploader({
-  bucket,
-  value,
-  onChange,
-  label = "Upload photo",
-  helper = "Uploads to storage bucket and saves a public URL.",
-}: Props) {
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+const card: React.CSSProperties = {
+  borderRadius: 22,
+  border: "1px solid rgba(31,42,68,0.12)",
+  background: "rgba(255,255,255,0.86)",
+  boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
+};
 
-  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    if (!file) return;
+const btn = (kind: "primary" | "secondary") =>
+  ({
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: "10px 14px",
+    borderRadius: 14,
+    textDecoration: "none",
+    fontSize: 13,
+    fontWeight: 950,
+    whiteSpace: "nowrap",
+    border: "1px solid rgba(31,42,68,0.16)",
+    background: kind === "primary" ? `linear-gradient(180deg, ${palette.forest}, #173223)` : "rgba(255,255,255,0.72)",
+    color: kind === "primary" ? "white" : palette.navy,
+    boxShadow: kind === "primary" ? "0 14px 34px rgba(31,61,43,0.18)" : "0 14px 34px rgba(31,42,68,0.08)",
+    cursor: "pointer",
+    minHeight: 44,
+  }) as React.CSSProperties;
 
-    setErr(null);
-    setUploading(true);
+const input: React.CSSProperties = {
+  border: "1px solid rgba(31,42,68,0.16)",
+  borderRadius: 12,
+  padding: "12px 12px",
+  fontSize: 14,
+  background: "rgba(255,255,255,0.85)",
+  outline: "none",
+  width: "100%",
+};
+
+export default function AddHorsePage() {
+  const router = useRouter();
+
+  const [name, setName] = useState("");
+  const [breed, setBreed] = useState("");
+  const [age, setAge] = useState("");
+  const [heightHh, setHeightHh] = useState("");
+  const [temperament, setTemperament] = useState("");
+  const [description, setDescription] = useState("");
+  const [pricePerDay, setPricePerDay] = useState("");
+  const [active, setActive] = useState(true);
+
+  const [location, setLocation] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canSubmit = useMemo(() => {
+    return name.trim().length > 0 && !submitting;
+  }, [name, submitting]);
+
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+
+  async function uploadImage(userId: string, file: File) {
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+
+    const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+    if (upErr) throw upErr;
+
+    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    const publicUrl = data?.publicUrl;
+    if (!publicUrl) throw new Error("Failed to get public image URL");
+    return publicUrl;
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!name.trim()) return;
 
     try {
-      // must be authed for RLS storage policies
-      const { data: userRes, error: userErr } = await supabase.auth.getUser();
+      setSubmitting(true);
+
+      const {
+        data: { user },
+        error: userErr,
+      } = await supabase.auth.getUser();
+
       if (userErr) throw userErr;
-      const uid = userRes.user?.id;
-      if (!uid) throw new Error("Not signed in.");
+      if (!user) throw new Error("Not authenticated");
 
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const fileName = `${uid}/${crypto.randomUUID()}.${ext}`;
+      const ageNum = age.trim() ? Number(age) : null;
+      if (age.trim() && Number.isNaN(ageNum)) throw new Error("Age must be a number.");
 
-      const { error: upErr } = await supabase.storage.from(bucket).upload(fileName, file, {
-        cacheControl: "3600",
-        upsert: true,
-        contentType: file.type || undefined,
+      const heightNum = heightHh.trim() ? Number(heightHh) : null;
+      if (heightHh.trim() && Number.isNaN(heightNum)) throw new Error("Height (hh) must be a number.");
+
+      const priceNum = pricePerDay.trim() ? Number(pricePerDay) : null;
+      if (pricePerDay.trim() && Number.isNaN(priceNum)) throw new Error("Price per day must be a number.");
+
+      let imageUrl: string | null = null;
+      if (imageFile) {
+        imageUrl = await uploadImage(user.id, imageFile);
+      }
+
+      const { error: insErr } = await supabase.from("horses").insert({
+        owner_id: user.id,
+        name: name.trim(),
+        breed: breed.trim() ? breed.trim() : null,
+        temperament: temperament.trim() ? temperament.trim() : null,
+        description: description.trim() ? description.trim() : null,
+        active,
+        age: ageNum,
+        height_hh: heightNum,
+        price_per_day: priceNum,
+        location: location.trim() ? location.trim() : null,
+        location_name: locationName.trim() ? locationName.trim() : null,
+        lat,
+        lng,
+        latitude: null,
+        longitude: null,
+        image_url: imageUrl,
+        photo_url: null,
       });
 
-      if (upErr) throw upErr;
+      if (insErr) throw insErr;
 
-      // If your bucket is PUBLIC:
-      const { data: pub } = supabase.storage.from(bucket).getPublicUrl(fileName);
-      const publicUrl = pub?.publicUrl;
-
-      if (!publicUrl) throw new Error("Could not generate public URL.");
-
-      onChange(publicUrl);
-
-      // reset input so selecting same file again still triggers change
-      if (fileRef.current) fileRef.current.value = "";
+      router.push("/dashboard/owner/horses");
+      router.refresh();
     } catch (e: any) {
-      setErr(e?.message ?? "Upload failed.");
+      setError(e?.message ?? "Failed to add horse.");
     } finally {
-      setUploading(false);
+      setSubmitting(false);
     }
   }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: 10,
-        border: "1px solid rgba(15,23,42,0.10)",
-        borderRadius: 16,
-        padding: 12,
-        background: "white",
-      }}
-    >
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <div
-          style={{
-            width: 74,
-            height: 74,
-            borderRadius: 16,
-            overflow: "hidden",
-            background: "rgba(0,0,0,0.06)",
-            border: "1px solid rgba(0,0,0,0.10)",
-            flexShrink: 0,
-          }}
-        >
-          {isNonEmptyString(value) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={value} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          ) : null}
+    <>
+      <style>{`
+        .pmp-addHorse-grid2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+
+        .pmp-addHorse-grid3 {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 10px;
+        }
+
+        @media (max-width: 767px) {
+          .pmp-addHorse-grid2,
+          .pmp-addHorse-grid3 {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
+      <div className="pmp-pageShell">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div>
+            <div className="pmp-kicker">Owner tools</div>
+            <h1 className="pmp-pageTitle">Add a horse</h1>
+            <div className="pmp-mutedText" style={{ marginTop: 6 }}>
+              Create a listing with details, location search, and image upload.
+            </div>
+          </div>
+
+          <Link href="/dashboard/owner/horses" style={btn("secondary")}>
+            ← Back
+          </Link>
         </div>
 
-        <div style={{ display: "grid", gap: 6 }}>
-          <div style={{ fontWeight: 950 }}>{label}</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>{helper}</div>
+        <form onSubmit={onSubmit} style={{ marginTop: 16, ...card, padding: 16 }}>
+          <div style={{ display: "grid", gap: 12 }}>
+            <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+              Horse name *
+              <input value={name} onChange={(e) => setName(e.target.value)} style={input} placeholder="e.g. Apollo" />
+            </label>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <label
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                background: "white",
-                color: "black",
-                padding: "10px 12px",
-                borderRadius: 12,
-                fontSize: 13,
-                fontWeight: 950,
-                cursor: uploading ? "not-allowed" : "pointer",
-                opacity: uploading ? 0.6 : 1,
-              }}
-            >
-              {uploading ? "Uploading…" : "Choose file"}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                onChange={onPickFile}
-                disabled={uploading}
-                style={{ display: "none" }}
+            <div className="pmp-addHorse-grid2">
+              <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+                Breed (optional)
+                <input value={breed} onChange={(e) => setBreed(e.target.value)} style={input} placeholder="e.g. Irish Sport Horse" />
+              </label>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+                Temperament (optional)
+                <input value={temperament} onChange={(e) => setTemperament(e.target.value)} style={input} placeholder="e.g. Calm and experienced" />
+              </label>
+            </div>
+
+            <div className="pmp-addHorse-grid3">
+              <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+                Age (optional)
+                <input value={age} onChange={(e) => setAge(e.target.value)} style={input} placeholder="9" inputMode="numeric" />
+              </label>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+                Height (hh) (optional)
+                <input value={heightHh} onChange={(e) => setHeightHh(e.target.value)} style={input} placeholder="16.2" inputMode="decimal" />
+              </label>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+                Price per day (optional)
+                <input value={pricePerDay} onChange={(e) => setPricePerDay(e.target.value)} style={input} placeholder="40" inputMode="numeric" />
+              </label>
+            </div>
+
+            <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+              Description (optional)
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={5}
+                style={{ ...input, resize: "vertical" }}
+                placeholder="Tell borrowers about schooling, rider suitability, rules, etc."
               />
             </label>
 
-            {isNonEmptyString(value) ? (
-              <button
-                type="button"
-                onClick={() => onChange("")}
-                disabled={uploading}
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  background: "white",
-                  color: "black",
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  fontSize: 13,
-                  fontWeight: 900,
-                  cursor: uploading ? "not-allowed" : "pointer",
-                  opacity: uploading ? 0.6 : 1,
+            <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+              Location (search) (optional)
+              <LocationAutocomplete
+                value={location}
+                onChange={(v) => {
+                  setLocation(v);
+                  setLocationName("");
+                  setLat(null);
+                  setLng(null);
                 }}
-              >
-                Remove
-              </button>
-            ) : null}
+                onPlaceSelect={({ address, name, lat, lng }) => {
+                  setLocation(address);
+                  setLocationName(name && name !== address ? name : "");
+                  setLat(lat);
+                  setLng(lng);
+                }}
+              />
+              <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>
+                {lat && lng ? `Coordinates set: ${lat.toFixed(5)}, ${lng.toFixed(5)}` : "Pick a suggestion to set coordinates automatically."}
+              </div>
+            </label>
+
+            <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+              Image upload (optional)
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                style={{ fontSize: 13 }}
+              />
+              {imagePreviewUrl ? (
+                <img
+                  src={imagePreviewUrl}
+                  alt=""
+                  style={{
+                    marginTop: 10,
+                    width: 140,
+                    height: 140,
+                    objectFit: "cover",
+                    borderRadius: 16,
+                    border: "1px solid rgba(0,0,0,0.10)",
+                  }}
+                />
+              ) : null}
+            </label>
+
+            <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 900, color: palette.navy }}>
+              <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+              Set listing as active
+            </label>
+
+            {error ? <div className="pmp-errorBanner">{error}</div> : null}
+
+            <button type="submit" disabled={!canSubmit} style={{ ...btn("primary"), opacity: canSubmit ? 1 : 0.6 }}>
+              {submitting ? "Saving…" : "Create Listing"}
+            </button>
           </div>
-        </div>
+        </form>
       </div>
-
-      <div style={{ display: "grid", gap: 6 }}>
-        <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>Image URL</div>
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="https://..."
-          style={{
-            border: "1px solid rgba(15,23,42,0.12)",
-            borderRadius: 12,
-            padding: "12px 12px",
-            fontSize: 14,
-            outline: "none",
-            background: "white",
-          }}
-        />
-      </div>
-
-      {err ? (
-        <div
-          style={{
-            border: "1px solid rgba(255,0,0,0.25)",
-            background: "rgba(255,0,0,0.06)",
-            padding: 10,
-            borderRadius: 12,
-            fontSize: 13,
-          }}
-        >
-          {err}
-        </div>
-      ) : null}
-    </div>
+    </>
   );
 }

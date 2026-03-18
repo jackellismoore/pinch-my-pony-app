@@ -14,7 +14,7 @@ const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
 const DEFAULT_AVATAR_DATA_URI =
-  'data:image/svg+xml;utf8,' +
+  "data:image/svg+xml;utf8," +
   encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">
       <defs>
@@ -398,7 +398,15 @@ export default function ProfilePage() {
 
         <div className="pmp-sectionCard">
           <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
               <div style={{ fontWeight: 950, fontSize: 14 }}>Profile completeness</div>
               <div className="pmp-mutedText">{profileComplete}% complete</div>
             </div>
@@ -494,6 +502,9 @@ export default function ProfilePage() {
               <img
                 src={avatarUrl || DEFAULT_AVATAR_DATA_URI}
                 alt="Profile avatar"
+                onError={(e) => {
+                  e.currentTarget.src = DEFAULT_AVATAR_DATA_URI;
+                }}
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             </div>

@@ -130,8 +130,8 @@ export default function HorsePublicClient() {
             .eq("id", horseRow.owner_id)
             .maybeSingle();
 
-          if (!cancelled) {
-            if (!pErr) setOwner((p ?? null) as ProfileMini | null);
+          if (!cancelled && !pErr) {
+            setOwner((p ?? null) as ProfileMini | null);
           }
         } else {
           if (!cancelled) setOwner(null);
@@ -231,11 +231,23 @@ export default function HorsePublicClient() {
           .pmp-horsePublic-detailsRow {
             grid-template-columns: 1fr !important;
           }
+
+          .pmp-horsePublic-image {
+            height: 240px !important;
+          }
         }
       `}</style>
 
       <div className="pmp-pageShell">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
           <Link href="/browse" className="pmp-inlineLink">
             ← Back to browse
           </Link>
@@ -266,12 +278,19 @@ export default function HorsePublicClient() {
               <img
                 src={safeText(horse.image_url)}
                 alt={fmt(horse.name)}
-                style={{ width: "100%", height: 360, objectFit: "cover", display: "block" }}
+                className="pmp-horsePublic-image"
+                style={{
+                  width: "100%",
+                  height: 360,
+                  objectFit: "cover",
+                  display: "block",
+                }}
               />
             ) : (
               <div
+                className="pmp-horsePublic-image"
                 style={{
-                  height: 240,
+                  height: 280,
                   background:
                     "radial-gradient(900px 300px at 18% 0%, rgba(200,162,77,0.18), transparent 60%), radial-gradient(700px 260px at 92% 12%, rgba(31,61,43,0.12), transparent 60%), rgba(15,23,42,0.03)",
                   display: "grid",
@@ -295,11 +314,18 @@ export default function HorsePublicClient() {
                 }}
               >
                 <div style={{ minWidth: 0 }}>
-                  <h1 style={{ margin: 0, fontSize: 26, letterSpacing: -0.2, color: palette.navy }}>
+                  <h1
+                    style={{
+                      margin: 0,
+                      fontSize: 26,
+                      letterSpacing: -0.2,
+                      color: palette.navy,
+                    }}
+                  >
                     {fmt(horse.name)}
                   </h1>
 
-                  <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
+                  <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.6 }}>
                     Owner: <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
                     {ownerVerified ? <span> • Verified</span> : null}
                     {safeText(horse.location).trim() ? <span> • {fmt(horse.location)}</span> : null}
@@ -321,13 +347,23 @@ export default function HorsePublicClient() {
               </div>
 
               <div className="pmp-sectionCard" style={{ padding: 12 }}>
-                <div className="pmp-horsePublic-detailsRow" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                <div
+                  className="pmp-horsePublic-detailsRow"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 0,
+                  }}
+                >
                   <DetailRow label="Breed" value={fmt(horse.breed)} />
                   <DetailRow label="Age" value={fmt(horse.age)} />
                   <DetailRow label="Height" value={fmt(horse.height_hh ?? horse.height)} />
                   <DetailRow label="Temperament" value={fmt(horse.temperament)} />
                   <DetailRow label="Location" value={fmt(horse.location)} />
-                  <DetailRow label="Trust" value={ownerVerified ? "Verified owner profile" : "Owner not yet verified"} />
+                  <DetailRow
+                    label="Trust"
+                    value={ownerVerified ? "Verified owner profile" : "Owner not yet verified"}
+                  />
                 </div>
               </div>
 
@@ -343,7 +379,14 @@ export default function HorsePublicClient() {
 
               <div className="pmp-sectionCard" style={{ padding: 12 }}>
                 {safeText(horse.description).trim() ? (
-                  <div style={{ fontSize: 14.5, lineHeight: 1.75, color: palette.navy, opacity: 0.92 }}>
+                  <div
+                    style={{
+                      fontSize: 14.5,
+                      lineHeight: 1.75,
+                      color: palette.navy,
+                      opacity: 0.92,
+                    }}
+                  >
                     {safeText(horse.description).trim()}
                   </div>
                 ) : (
@@ -361,14 +404,20 @@ export default function HorsePublicClient() {
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <Link href={ctaHref} style={{ textDecoration: "none" }}>
-                <div className="pmp-ctaPrimary" style={{ width: "100%", display: "flex", justifyContent: "space-between" }}>
+                <div
+                  className="pmp-ctaPrimary"
+                  style={{ width: "100%", display: "flex", justifyContent: "space-between" }}
+                >
                   <span>{ctaLabel.replace(" →", "")}</span>
                   <span>→</span>
                 </div>
               </Link>
 
               <Link href="/faq" style={{ textDecoration: "none" }}>
-                <div className="pmp-ctaSecondary" style={{ width: "100%", display: "flex", justifyContent: "space-between" }}>
+                <div
+                  className="pmp-ctaSecondary"
+                  style={{ width: "100%", display: "flex", justifyContent: "space-between" }}
+                >
                   <span>Read FAQs</span>
                   <span>→</span>
                 </div>

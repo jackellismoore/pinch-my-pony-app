@@ -12,12 +12,8 @@ export type MapHorse = {
   image_url?: string | null;
   lat?: number | null;
   lng?: number | null;
-
-  // ✅ rating snippet for badge on pin
   rating_avg?: number | null;
   rating_count?: number | null;
-
-  // ✅ optional flags to control request CTA (non-breaking)
   is_own_listing?: boolean;
   can_request?: boolean;
 };
@@ -65,7 +61,7 @@ function pinWrapStyle(isHighlighted: boolean): React.CSSProperties {
   };
 }
 
-function pinStyle(_isHighlighted: boolean): React.CSSProperties {
+function pinStyle(): React.CSSProperties {
   return {
     position: "absolute",
     inset: 0,
@@ -118,7 +114,7 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
   const center = useMemo(() => {
     if (userLocation) return userLocation;
     if (withCoords.length) return { lat: withCoords[0].lat, lng: withCoords[0].lng };
-    return { lat: 51.5072, lng: -0.1276 }; // London default
+    return { lat: 51.5072, lng: -0.1276 };
   }, [userLocation, withCoords]);
 
   const selected = useMemo(() => {
@@ -184,7 +180,7 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
           const count = Number(h.rating_count ?? 0);
           const hasReviews = count > 0;
 
-          const getPixelPositionOffset = (_width: number, _height: number) => ({
+          const getPixelPositionOffset = () => ({
             x: -20,
             y: -38,
           });
@@ -206,7 +202,7 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
                 }}
                 style={pinWrapStyle(isHighlighted)}
               >
-                <div style={pinStyle(isHighlighted)}>
+                <div style={pinStyle()}>
                   <div style={pinCircleStyle(isHighlighted)} />
                   <div style={pinPointerStyle(isHighlighted)} />
                 </div>
@@ -221,7 +217,6 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
           <InfoWindow position={{ lat: selected.lat, lng: selected.lng }} onCloseClick={() => setSelectedId(null)}>
             <div style={{ width: 220 }}>
               {selected.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={selected.image_url}
                   alt={selected.name ?? "Horse"}

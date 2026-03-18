@@ -24,9 +24,11 @@ function loadGooglePlacesScript(apiKey: string) {
     const existing = document.querySelector<HTMLScriptElement>('script[data-pmp-google="1"]');
     if (existing) {
       existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Failed to load Google Maps script")), {
-        once: true,
-      });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("Failed to load Google Maps script")),
+        { once: true }
+      );
       return;
     }
 
@@ -87,7 +89,7 @@ export default function LocationAutocomplete({
           });
         });
       } catch {
-        // allow plain manual entry if script fails
+        // allow manual typing fallback
       }
     }
 

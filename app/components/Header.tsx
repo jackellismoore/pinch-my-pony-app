@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -59,6 +58,7 @@ export default function Header() {
   const [profile, setProfile] = useState<ProfileMini | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoErrored, setLogoErrored] = useState(false);
 
   const router = useRouter();
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
@@ -103,21 +103,19 @@ export default function Header() {
 
     init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const u = session?.user ?? null;
-        setUser(u);
-        setMenuOpen(false);
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      setMenuOpen(false);
 
-        if (u) {
-          registerPushForCurrentUser();
-          await loadProfile(u.id);
-        } else {
-          setProfile(null);
-          setProfileLoading(false);
-        }
+      if (u) {
+        registerPushForCurrentUser();
+        await loadProfile(u.id);
+      } else {
+        setProfile(null);
+        setProfileLoading(false);
       }
-    );
+    });
 
     return () => {
       cancelled = true;
@@ -157,14 +155,29 @@ export default function Header() {
         <div className="pmp-headerInner">
           <Link href="/" className="pmp-brand" onClick={() => setMenuOpen(false)}>
             <div className="pmp-brandBadge" aria-hidden="true">
-              <Image
-                src="/pmp-logo-web.png"
-                alt=""
-                width={32}
-                height={32}
-                priority
-                style={{ width: 32, height: 32, objectFit: "contain" }}
-              />
+              {logoErrored ? (
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 22,
+                    lineHeight: 1,
+                  }}
+                >
+                  🐴
+                </div>
+              ) : (
+                <img
+                  src="/pmp-logo-web.png"
+                  alt=""
+                  width={32}
+                  height={32}
+                  onError={() => setLogoErrored(true)}
+                  style={{ width: 32, height: 32, objectFit: "contain", display: "block" }}
+                />
+              )}
             </div>
 
             <div className="pmp-brandText">
