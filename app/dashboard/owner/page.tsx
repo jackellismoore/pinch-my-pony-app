@@ -10,7 +10,6 @@ import { AvailabilityBadge } from '@/components/AvailabilityBadge';
 const palette = {
   forest: '#1F3D2B',
   navy: '#1F2A44',
-  gold: '#C8A24D',
 };
 
 type HorseRow = { id: string; name: string | null };
@@ -39,16 +38,16 @@ type UnifiedRange = {
   sourceId: string;
 };
 
+type ProfileMini = {
+  verification_status?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
+  location?: string | null;
+};
+
 function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
-
-const card: React.CSSProperties = {
-  borderRadius: 22,
-  border: '1px solid rgba(31,42,68,0.12)',
-  background: 'rgba(255,255,255,0.86)',
-  boxShadow: '0 18px 50px rgba(31,42,68,0.08)',
-};
 
 const btn = (kind: 'primary' | 'secondary') =>
   ({
@@ -75,6 +74,7 @@ export default function OwnerDashboardOverview() {
 
   const [horses, setHorses] = useState<HorseRow[]>([]);
   const [ranges, setRanges] = useState<UnifiedRange[]>([]);
+  const [profile, setProfile] = useState<ProfileMini | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,16 +92,24 @@ export default function OwnerDashboardOverview() {
         if (userErr) throw userErr;
         if (!user) throw new Error('Not authenticated');
 
-        const horsesRes = await supabase
-          .from('horses')
-          .select('id,name')
-          .eq('owner_id', user.id)
-          .order('created_at', { ascending: false });
+        const [horsesRes, profileRes] = await Promise.all([
+          supabase
+            .from('horses')
+            .select('id,name')
+            .eq('owner_id', user.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('profiles')
+            .select('verification_status,avatar_url,bio,location')
+            .eq('id', user.id)
+            .maybeSingle(),
+        ]);
 
         if (horsesRes.error) throw horsesRes.error;
         const horseRows = (horsesRes.data ?? []) as HorseRow[];
         if (cancelled) return;
         setHorses(horseRows);
+        setProfile((profileRes.data ?? null) as ProfileMini | null);
 
         const horseIds = horseRows.map((h) => h.id);
         if (horseIds.length === 0) {
@@ -185,112 +193,146 @@ export default function OwnerDashboardOverview() {
   const bookingCount = useMemo(() => ranges.filter((r) => r.kind === 'booking').length, [ranges]);
   const blockedCount = useMemo(() => ranges.filter((r) => r.kind === 'blocked').length, [ranges]);
 
+  const trustChecks = useMemo(() => {
+    const isVerified = String(profile?.verification_status ?? '').toLowerCase() === 'verified';
+    return [
+      { label: 'Verification complete', done: isVerified },
+      { label: 'Profile photo added', done: Boolean(profile?.avatar_url) },
+      { label: 'Location added', done: Boolean(profile?.location) },
+      { label: 'Bio added', done: Boolean(profile?.bio) },
+    ];
+  }, [profile]);
+
   return (
-    <>
-      <style>{`
-        .pmp-owner-overview-top {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          align-items: center;
-          flex-wrap: wrap;
-        }
+    <div className="pmp-pageShell">
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div>
+          <div className="pmp-kicker">Owner dashboard</div>
+          <h1 className="pmp-pageTitle">Owner Overview</h1>
+          <div className="pmp-mutedText" style={{ marginTop: 6 }}>
+            Upcoming blocks and approved bookings across your horses.
+          </div>
+        </div>
 
-        .pmp-owner-overview-stats {
-          margin-top: 16px;
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 12px;
-        }
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Link href="/dashboard/owner/horses" style={btn('secondary')}>
+            Horses
+          </Link>
+          <Link href="/dashboard/owner/requests" style={btn('secondary')}>
+            Requests
+          </Link>
+          <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
+            Add a horse →
+          </Link>
+        </div>
+      </div>
 
-        @media (max-width: 767px) {
-          .pmp-owner-overview-stats {
-            grid-template-columns: 1fr;
-          }
+      <section className="pmp-statGrid" style={{ marginTop: 16 }}>
+        <article className="pmp-statCard">
+          <div className="pmp-statLabel">Active horses</div>
+          <div className="pmp-statValue">{horses.length}</div>
+        </article>
 
-          .pmp-owner-overview-top > * {
-            width: 100%;
-          }
-        }
-      `}</style>
+        <article className="pmp-statCard">
+          <div className="pmp-statLabel">Upcoming bookings</div>
+          <div className="pmp-statValue">{bookingCount}</div>
+        </article>
 
-      <div className="pmp-pageShell">
-        <div className="pmp-owner-overview-top">
+        <article className="pmp-statCard">
+          <div className="pmp-statLabel">Upcoming blocks</div>
+          <div className="pmp-statValue">{blockedCount}</div>
+        </article>
+
+        <article className="pmp-statCard">
+          <div className="pmp-statLabel">Trust readiness</div>
+          <div className="pmp-mutedText" style={{ marginTop: 10 }}>
+            Keep your profile and listings complete to improve borrower confidence.
+          </div>
+        </article>
+      </section>
+
+      {loading ? <div style={{ marginTop: 16 }} className="pmp-mutedText">Loading…</div> : null}
+      {error ? <div className="pmp-errorBanner" style={{ marginTop: 16 }}>{error}</div> : null}
+
+      <section className="pmp-actionGrid" style={{ marginTop: 16 }}>
+        <Link href="/dashboard/owner/horses/add" className="pmp-actionCard">
+          <div className="pmp-actionIcon">🐎</div>
           <div>
-            <div className="pmp-kicker">Owner dashboard</div>
-            <h1 className="pmp-pageTitle">Owner Overview</h1>
-            <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
-              Upcoming blocks and approved bookings across your horses.
-            </div>
+            <div className="pmp-actionTitle">Add another horse</div>
+            <div className="pmp-actionText">Grow your marketplace presence with another listing.</div>
           </div>
+        </Link>
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <Link href="/dashboard/owner/horses" style={btn('secondary')}>
-              Horses
-            </Link>
-            <Link href="/dashboard/owner/requests" style={btn('secondary')}>
-              Requests
-            </Link>
-            <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
-              Add a horse →
-            </Link>
+        <Link href="/profile" className="pmp-actionCard">
+          <div className="pmp-actionIcon">👤</div>
+          <div>
+            <div className="pmp-actionTitle">Improve trust profile</div>
+            <div className="pmp-actionText">Add photo, bio, location, and verification details.</div>
           </div>
-        </div>
+        </Link>
+      </section>
 
-        {loading ? <div style={{ marginTop: 16, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
-
-        {error ? (
-          <div className="pmp-errorBanner" style={{ marginTop: 16 }}>
-            {error}
-          </div>
-        ) : null}
-
-        <div className="pmp-owner-overview-stats">
-          <div style={{ ...card, padding: 14 }}>
-            <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 900 }}>Active horses</div>
-            <div style={{ marginTop: 6, fontSize: 26, fontWeight: 950, color: palette.navy }}>{horses.length}</div>
-          </div>
-
-          <div style={{ ...card, padding: 14 }}>
-            <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 900 }}>Upcoming bookings</div>
-            <div style={{ marginTop: 6, fontSize: 26, fontWeight: 950, color: palette.navy }}>{bookingCount}</div>
-          </div>
-
-          <div style={{ ...card, padding: 14 }}>
-            <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 900 }}>Upcoming blocks</div>
-            <div style={{ marginTop: 6, fontSize: 26, fontWeight: 950, color: palette.navy }}>{blockedCount}</div>
+      <section className="pmp-sectionCard" style={{ marginTop: 12 }}>
+        <div className="pmp-sectionHeader">
+          <div>
+            <div className="pmp-kicker">Trust checklist</div>
+            <h3 className="pmp-sectionTitle">What borrowers will notice</h3>
           </div>
         </div>
 
-        <div style={{ marginTop: 12, ...card, padding: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ fontWeight: 950, color: palette.navy }}>Upcoming activity</div>
-            <div style={{ fontSize: 13, color: 'rgba(0,0,0,0.60)' }}>
-              {ranges.length} upcoming range{ranges.length === 1 ? '' : 's'}
+        <div className="pmp-listStack">
+          {trustChecks.map((item) => (
+            <div key={item.label} className="pmp-horseRowCard">
+              <div className="pmp-horseRowMain">
+                <div className="pmp-horseThumb">{item.done ? '✅' : '⬜'}</div>
+                <div className="pmp-horseRowText">
+                  <h4 className="pmp-horseName">{item.label}</h4>
+                  <div className="pmp-mutedText">
+                    {item.done ? 'Completed' : 'Still worth adding to improve trust and conversion.'}
+                  </div>
+                </div>
+              </div>
+              {!item.done ? (
+                <div className="pmp-rowActions">
+                  <Link href="/profile" className="pmp-ctaSecondary">
+                    Update
+                  </Link>
+                </div>
+              ) : null}
             </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="pmp-sectionCard" style={{ marginTop: 12 }}>
+        <div className="pmp-sectionHeader">
+          <div>
+            <div className="pmp-kicker">Upcoming activity</div>
+            <h3 className="pmp-sectionTitle">Your next dates</h3>
           </div>
+          <div className="pmp-mutedText">
+            {ranges.length} upcoming range{ranges.length === 1 ? '' : 's'}
+          </div>
+        </div>
 
-          {!loading && !error && upcoming.length === 0 ? (
-            <div style={{ marginTop: 12, fontSize: 13, color: 'rgba(0,0,0,0.65)' }}>
-              No upcoming activity.
+        {!loading && !error && upcoming.length === 0 ? (
+          <div className="pmp-emptyState">
+            <div className="pmp-emptyIcon">📅</div>
+            <div className="pmp-emptyTitle">No upcoming activity</div>
+            <div className="pmp-emptyText">
+              Add a horse or update availability to start receiving and managing requests.
             </div>
-          ) : null}
-
-          <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
+            <Link href="/dashboard/owner/horses/add" className="pmp-ctaPrimary">
+              Add your next horse
+            </Link>
+          </div>
+        ) : (
+          <div className="pmp-listStack">
             {upcoming.map((r) => (
               <div
                 key={`${r.kind}-${r.sourceId}`}
-                style={{
-                  borderRadius: 18,
-                  border: '1px solid rgba(31,42,68,0.10)',
-                  background: 'linear-gradient(180deg, rgba(255,255,255,0.90) 0%, rgba(245,241,232,0.55) 140%)',
-                  padding: 14,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12,
-                  flexWrap: 'wrap',
-                }}
+                className="pmp-horseRowCard"
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
               >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -307,20 +349,14 @@ export default function OwnerDashboardOverview() {
                   </div>
                 </div>
 
-                <Link href={`/dashboard/owner/horses/${r.horseId}/availability`} style={btn('secondary')}>
+                <Link href={`/dashboard/owner/horses/${r.horseId}/availability`} className="pmp-ctaSecondary">
                   Availability
                 </Link>
               </div>
             ))}
           </div>
-
-          {ranges.length > upcoming.length ? (
-            <div style={{ marginTop: 12, fontSize: 12, opacity: 0.65 }}>
-              Showing first {upcoming.length} items.
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </>
+        )}
+      </section>
+    </div>
   );
 }

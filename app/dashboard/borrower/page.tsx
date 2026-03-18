@@ -1,8 +1,48 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function BorrowerDashboardHome() {
+  const [pendingCount, setPendingCount] = useState(0);
+  const [approvedCount, setApprovedCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || cancelled) return;
+
+      const [pendingRes, approvedRes] = await Promise.all([
+        supabase
+          .from('borrow_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('borrower_id', user.id)
+          .eq('status', 'pending'),
+        supabase
+          .from('borrow_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('borrower_id', user.id)
+          .eq('status', 'approved'),
+      ]);
+
+      if (!cancelled) {
+        setPendingCount(pendingRes.count ?? 0);
+        setApprovedCount(approvedRes.count ?? 0);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="pmp-pageShell">
       <div>
@@ -12,6 +52,32 @@ export default function BorrowerDashboardHome() {
           Browse active horses, request dates, and keep your riding plans organised.
         </div>
       </div>
+
+      <section className="pmp-statGrid" style={{ marginTop: 16 }}>
+        <article className="pmp-statCard">
+          <div className="pmp-statLabel">Pending requests</div>
+          <div className="pmp-statValue">{pendingCount}</div>
+        </article>
+
+        <article className="pmp-statCard">
+          <div className="pmp-statLabel">Approved rides</div>
+          <div className="pmp-statValue">{approvedCount}</div>
+        </article>
+
+        <article className="pmp-statCard">
+          <div className="pmp-statLabel">Next action</div>
+          <div className="pmp-mutedText" style={{ marginTop: 10 }}>
+            Browse new horses or check messages for updates.
+          </div>
+        </article>
+
+        <article className="pmp-statCard">
+          <div className="pmp-statLabel">Trust tip</div>
+          <div className="pmp-mutedText" style={{ marginTop: 10 }}>
+            A complete profile helps owners feel more confident approving requests.
+          </div>
+        </article>
+      </section>
 
       <section className="pmp-heroCard" style={{ marginTop: 16 }}>
         <div>
@@ -35,8 +101,8 @@ export default function BorrowerDashboardHome() {
       <section className="pmp-sectionCard">
         <div className="pmp-sectionHeader">
           <div>
-            <div className="pmp-kicker">Tips</div>
-            <h3 className="pmp-sectionTitle">Make your profile stronger</h3>
+            <div className="pmp-kicker">Checklist</div>
+            <h3 className="pmp-sectionTitle">Make your account stronger</h3>
           </div>
         </div>
 
@@ -67,6 +133,21 @@ export default function BorrowerDashboardHome() {
             <div className="pmp-rowActions">
               <Link href="/profile" className="pmp-ctaSecondary">
                 Update profile
+              </Link>
+            </div>
+          </div>
+
+          <div className="pmp-horseRowCard">
+            <div className="pmp-horseRowMain">
+              <div className="pmp-horseThumb">💬</div>
+              <div className="pmp-horseRowText">
+                <h4 className="pmp-horseName">Stay on top of replies</h4>
+                <div className="pmp-mutedText">Messages help you confirm details quickly and keep everything organised.</div>
+              </div>
+            </div>
+            <div className="pmp-rowActions">
+              <Link href="/messages" className="pmp-ctaSecondary">
+                Open messages
               </Link>
             </div>
           </div>

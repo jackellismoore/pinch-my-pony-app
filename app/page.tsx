@@ -63,24 +63,55 @@ export default function HomePage() {
         if (!cancelled) setProfile((p ?? null) as ProfileMini | null);
 
         try {
-          const [{ count: activeHorses }, { count: myPendingRequests }] = await Promise.all([
-            supabase.from("horses").select("*", { count: "exact", head: true }).eq("is_active", true),
-            supabase
-              .from("requests")
-              .select("*", { count: "exact", head: true })
-              .eq("status", "pending")
-              .eq("borrower_id", u.id),
+          const unreadPromise = supabase
+            .from("message_threads")
+            .select("request_id,unread_count")
+            .gt("unread_count", 0);
+
+          const pendingPromise =
+            p?.role === "owner"
+              ? supabase
+                  .from("borrow_requests")
+                  .select("*", { count: "exact", head: true })
+                  .eq("status", "pending")
+              : supabase
+                  .from("borrow_requests")
+                  .select("*", { count: "exact", head: true })
+                  .eq("status", "pending")
+                  .eq("borrower_id", u.id);
+
+          const activePromise =
+            p?.role === "owner"
+              ? supabase
+                  .from("horses")
+                  .select("*", { count: "exact", head: true })
+                  .eq("owner_id", u.id)
+                  .or("active.eq.true,is_active.eq.true")
+              : supabase
+                  .from("horses")
+                  .select("*", { count: "exact", head: true })
+                  .or("active.eq.true,is_active.eq.true");
+
+          const [activeRes, pendingRes, unreadRes] = await Promise.all([
+            activePromise,
+            pendingPromise,
+            unreadPromise,
           ]);
+
+          const unreadTotal = ((unreadRes.data ?? []) as Array<{ unread_count: number }>).reduce(
+            (sum, row) => sum + Number(row.unread_count ?? 0),
+            0
+          );
 
           if (!cancelled) {
             setStats({
-              activeHorses: activeHorses ?? 0,
-              myPendingRequests: myPendingRequests ?? 0,
-              unreadMessages: 0,
+              activeHorses: activeRes.count ?? 0,
+              myPendingRequests: pendingRes.count ?? 0,
+              unreadMessages: unreadTotal,
             });
           }
         } catch {
-          // non-fatal if schema differs
+          // non-fatal
         }
       } else {
         setProfile(null);
@@ -253,7 +284,7 @@ export default function HomePage() {
 
               <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7, opacity: 0.9, maxWidth: 680 }}>
                 {isAuthed
-                  ? "Manage requests, browse horses, and connect with confidence — everything stays organized in one place."
+                  ? "Manage requests, browse horses, and connect with confidence — everything stays organised in one place."
                   : "Pinch My Pony is a trusted horse-borrowing marketplace. Owners list horses, borrowers request dates, and everyone rides with clear rules and reviews."}
               </p>
 
@@ -330,9 +361,9 @@ export default function HomePage() {
                       marginTop: 14,
                     }}
                   >
-                    <StatChip title="Active Horses" value={stats.activeHorses} />
-                    <StatChip title="My Pending Requests" value={stats.myPendingRequests} />
-                    <StatChip title="Unread Messages" value={stats.unreadMessages} />
+                    <StatChip title={isOwner ? "My active horses" : "Active horses"} value={stats.activeHorses} />
+                    <StatChip title="Pending requests" value={stats.myPendingRequests} />
+                    <StatChip title="Unread messages" value={stats.unreadMessages} />
                   </div>
                 </>
               ) : (
@@ -460,9 +491,9 @@ export default function HomePage() {
                 <div style={{ height: 1, background: "rgba(31,42,68,0.10)", margin: "4px 0" }} />
 
                 <div style={{ display: "grid", gap: 10 }}>
-                  <MiniCard icon="🧭" title="Browse listings" copy="Explore horses, read profiles, and check details before you request." />
-                  <MiniCard icon="📅" title="Request dates" copy="Send a date range request — availability rules prevent conflicts." />
-                  <MiniCard icon="💬" title="Coordinate & ride" copy="Message inside the app, then leave a review to help the community." />
+                  <MiniCard icon="🧭" title="Browse listings" copy="Explore horses, read profiles, and compare listings quickly." />
+                  <MiniCard icon="📅" title="Request dates" copy="Send a request with date conflict protection built in." />
+                  <MiniCard icon="💬" title="Coordinate & ride" copy="Keep communication organised in one place." />
                 </div>
 
                 {isAuthed ? (
