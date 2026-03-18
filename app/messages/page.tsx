@@ -64,7 +64,6 @@ function timeLabel(iso: string | null) {
   if (!iso) return "";
   const d = new Date(iso);
   const now = new Date();
-
   const sameDay =
     d.getFullYear() === now.getFullYear() &&
     d.getMonth() === now.getMonth() &&
@@ -76,7 +75,7 @@ function timeLabel(iso: string | null) {
 
 function horseImageFromRow(h: HorseMini | null): string | null {
   if (!h) return null;
-  return (h.photo_url ?? h.image_url ?? h.cover_url ?? null) || null;
+  return h.image_url ?? h.photo_url ?? h.cover_url ?? null;
 }
 
 function norm(s: string) {
@@ -181,7 +180,6 @@ function StatusPill({ status }: { status: string | null | undefined }) {
           ? "#b91c1c"
           : "rgba(15,23,42,0.78)",
         whiteSpace: "nowrap",
-        textTransform: "capitalize",
       }}
     >
       {status}
@@ -372,7 +370,6 @@ export default function MessagesPage() {
     }
 
     const base = (data ?? []) as ThreadRow[];
-
     if (!uid || base.length === 0) {
       setThreads(
         base.map((t) => ({
@@ -426,13 +423,15 @@ export default function MessagesPage() {
       const reqMap = new Map<string, BorrowReqMini>();
       for (const r of (reqs ?? []) as BorrowReqMini[]) reqMap.set(r.id, r);
 
-      const horseIds = Array.from(new Set((reqs ?? []).map((r: any) => r.horse_id).filter(Boolean)));
+      const horseIds = Array.from(
+        new Set((reqs ?? []).map((r: any) => r.horse_id).filter(Boolean))
+      );
 
       let horses: HorseMini[] = [];
       if (horseIds.length) {
         const { data: hs, error: horseErr } = await supabase
           .from("horses")
-          .select("id, name, owner_id, photo_url, image_url, cover_url")
+          .select("id, name, owner_id, image_url, photo_url, cover_url")
           .in("id", horseIds);
 
         if (horseErr) throw horseErr;
@@ -454,7 +453,6 @@ export default function MessagesPage() {
 
       const uniqOtherIds = Array.from(new Set(otherIds));
       let profs: ProfileMini[] = [];
-
       if (uniqOtherIds.length) {
         const { data: ps, error: profErr } = await supabase
           .from("profiles")
@@ -479,7 +477,10 @@ export default function MessagesPage() {
 
           const p = otherId ? profMap.get(otherId) ?? null : null;
           const display =
-            cleanName(p?.display_name) || cleanName(p?.full_name) || t.other_display_name || "User";
+            cleanName(p?.display_name) ||
+            cleanName(p?.full_name) ||
+            t.other_display_name ||
+            "User";
 
           let role: "Owner" | "Borrower" | null = null;
           if (otherId && ownerId && borrowerId) {
@@ -496,9 +497,7 @@ export default function MessagesPage() {
                 .from(last.attachment_bucket)
                 .createSignedUrl(last.attachment_path, 60 * 30);
               if (!signedErr) signed = signedData?.signedUrl ?? null;
-            } catch {
-              signed = null;
-            }
+            } catch {}
           }
 
           return {
@@ -517,7 +516,7 @@ export default function MessagesPage() {
       );
 
       setThreads(hydrated);
-    } catch (e) {
+    } catch (e: any) {
       console.error("threads hydrate error:", e);
       setThreads(
         base.map((t) => ({
@@ -539,12 +538,11 @@ export default function MessagesPage() {
 
   useEffect(() => {
     load();
-
     const channel = supabase
       .channel("threads:refresh")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, load)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, load)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "borrow_requests" }, load)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => load())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, () => load())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "borrow_requests" }, () => load())
       .subscribe();
 
     return () => {
@@ -567,11 +565,7 @@ export default function MessagesPage() {
     const { error } = await supabase
       .from("message_thread_deletions")
       .upsert(
-        {
-          user_id: myUserId,
-          request_id: requestId,
-          deleted_at: new Date().toISOString(),
-        },
+        { user_id: myUserId, request_id: requestId, deleted_at: new Date().toISOString() },
         { onConflict: "user_id,request_id" }
       );
 
@@ -589,13 +583,9 @@ export default function MessagesPage() {
     return threads.filter((t) => {
       if (showUnreadOnly && !(t.unread_count > 0)) return false;
       if (!query) return true;
-
       const hay = norm(
-        [t.other_display_name, t.subtitle ?? "", t.horse_name ?? "", t.last_message ?? "", t.request_status ?? ""].join(
-          " "
-        )
+        [t.other_display_name, t.subtitle ?? "", t.horse_name ?? "", t.last_message ?? "", t.request_status ?? ""].join(" ")
       );
-
       return hay.includes(query);
     });
   }, [threads, q, showUnreadOnly]);
@@ -611,7 +601,8 @@ export default function MessagesPage() {
   }, [filtered]);
 
   const markAllRead = async () => {
-    if (!myUserId || markingAllRead) return;
+    if (!myUserId) return;
+    if (markingAllRead) return;
 
     const visibleIds = filtered.map((t) => t.request_id);
     if (visibleIds.length === 0) return;

@@ -157,12 +157,13 @@ export default function LoginInner() {
                   <div style={logoRow}>
                     <div style={logoBadge} aria-hidden="true">
                       <img
-                        src="/pmp-logo.png"
+                        src="/pmp-logo-web.png"
                         alt=""
                         style={{
-                          width: "86%",
-                          height: "86%",
+                          width: "100%",
+                          height: "100%",
                           objectFit: "contain",
+                          objectPosition: "center",
                           display: "block",
                         }}
                       />
@@ -491,6 +492,7 @@ const logoBadge: React.CSSProperties = {
   placeItems: "center",
   overflow: "hidden",
   flexShrink: 0,
+  padding: 6,
 };
 
 const pill: React.CSSProperties = {
