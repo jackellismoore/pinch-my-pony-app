@@ -268,10 +268,10 @@ export default function MembershipPage() {
                 lineHeight: 1.6,
               }}
             >
-              <b>Membership payments are currently disabled.</b>
+              <b>Membership checkout is turned off.</b>
               <div style={{ marginTop: 6, opacity: 0.92 }}>
-                All users can continue to use Pinch My Pony free of charge until 2027. Paid plans
-                will be enabled later, once the platform is more established.
+                Pinch My Pony will remain free until 2027 while we grow the platform and build our
+                customer base.
               </div>
             </div>
 
@@ -358,8 +358,7 @@ export default function MembershipPage() {
                 lineHeight: 1.7,
               }}
             >
-              This page is intentionally informational only for now. No Stripe checkout is started
-              from here.
+              This page is informational only for now. No Stripe checkout starts from here.
             </div>
           </div>
         </div>

@@ -18,7 +18,7 @@ type HorseRow = {
   breed: any;
   age: any;
   height: any;
-  height_hh?: any;
+  height_hh: any;
   temperament: any;
   description: any;
   is_active: any;
@@ -67,13 +67,13 @@ export default function EditHorsePage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
-
   const [breed, setBreed] = useState("");
   const [age, setAge] = useState("");
   const [height, setHeight] = useState("");
@@ -98,9 +98,7 @@ export default function EditHorsePage() {
       try {
         const { data, error } = await supabase
           .from("horses")
-          .select(
-            "id,owner_id,name,location,lat,lng,image_url,breed,age,height,height_hh,temperament,description,is_active"
-          )
+          .select("id,owner_id,name,location,lat,lng,image_url,breed,age,height,height_hh,temperament,description,is_active")
           .eq("id", id)
           .single();
 
@@ -174,31 +172,43 @@ export default function EditHorsePage() {
     }
   }
 
+  async function deleteHorse() {
+    if (!id) return;
+
+    const confirmed = window.confirm(
+      "Delete this horse listing? This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeleting(true);
+      setError(null);
+
+      const { error } = await supabase.from("horses").delete().eq("id", id);
+      if (error) throw error;
+
+      router.push("/dashboard/owner/horses");
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to delete horse");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <DashboardShell>
-        <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", opacity: 0.7 }}>Loading…</div>
+        <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", opacity: 0.7 }}>
+          Loading…
+        </div>
       </DashboardShell>
     );
   }
 
   return (
     <DashboardShell>
-      <style>{`
-        .pmp-editHorse-grid2 {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-        }
-
-        @media (max-width: 767px) {
-          .pmp-editHorse-grid2 {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
-
-      <div style={{ padding: 16, maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", paddingBottom: 110 }}>
         <div style={{ margin: 0, fontSize: 24, fontWeight: 950 }}>Edit Horse</div>
         <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
           Update details. Select a location suggestion to set the map pin.
@@ -240,8 +250,8 @@ export default function EditHorsePage() {
               onChange={setLocation}
               onPlaceSelect={({ address, lat, lng }) => {
                 setLocation(address);
-                setLat(lat !== null ? String(lat) : "");
-                setLng(lng !== null ? String(lng) : "");
+                setLat(lat == null ? "" : String(lat));
+                setLng(lng == null ? "" : String(lng));
               }}
               placeholder="Type a location and select a suggestion…"
             />
@@ -257,7 +267,7 @@ export default function EditHorsePage() {
             )}
           </div>
 
-          <div className="pmp-editHorse-grid2">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Field label="Breed">
               <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
             </Field>
@@ -266,22 +276,12 @@ export default function EditHorsePage() {
             </Field>
           </div>
 
-          <div className="pmp-editHorse-grid2">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Field label="Height (hh)">
-              <input
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-                placeholder="e.g. 15.2"
-                style={input()}
-              />
+              <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
             </Field>
             <Field label="Temperament">
-              <input
-                value={temperament}
-                onChange={(e) => setTemperament(e.target.value)}
-                placeholder="Calm, forward…"
-                style={input()}
-              />
+              <input value={temperament} onChange={(e) => setTemperament(e.target.value)} placeholder="Calm, forward…" style={input()} />
             </Field>
           </div>
 
@@ -297,7 +297,13 @@ export default function EditHorsePage() {
 
           <div style={{ display: "grid", gap: 8 }}>
             <div style={labelStyle()}>Photo</div>
-            <HorseImageUploader bucket="horses" value={imageUrl} onChange={(url: string) => setImageUrl(url)} />
+            <HorseImageUploader
+              bucket="horses"
+              value={imageUrl}
+              onChange={(url: string) => setImageUrl(url)}
+              label="Upload photo"
+              helper="Upload a horse image. Remove it if you want to replace it."
+            />
           </div>
 
           <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 900 }}>
@@ -307,20 +313,57 @@ export default function EditHorsePage() {
 
           <button
             onClick={save}
-            disabled={!canSave}
+            disabled={!canSave || deleting}
             style={{
               marginTop: 4,
               border: "none",
               borderRadius: 12,
               padding: "12px 14px",
-              background: !canSave ? "rgba(0,0,0,0.10)" : "black",
-              color: !canSave ? "rgba(0,0,0,0.55)" : "white",
+              background: !canSave || deleting ? "rgba(0,0,0,0.10)" : "black",
+              color: !canSave || deleting ? "rgba(0,0,0,0.55)" : "white",
               fontWeight: 950,
-              cursor: !canSave ? "not-allowed" : "pointer",
+              cursor: !canSave || deleting ? "not-allowed" : "pointer",
             }}
           >
             {saving ? "Saving…" : "Save changes"}
           </button>
+        </div>
+
+        <div
+          style={{
+            marginTop: 14,
+            border: "1px solid rgba(185,28,28,0.15)",
+            background: "rgba(185,28,28,0.03)",
+            borderRadius: 16,
+            padding: 14,
+            display: "grid",
+            gap: 10,
+          }}
+        >
+          <div style={{ fontWeight: 950, fontSize: 14, color: "#991b1b" }}>Delete horse</div>
+          <div style={{ fontSize: 13, color: "rgba(0,0,0,0.7)", lineHeight: 1.6 }}>
+            Permanently remove this horse listing.
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={deleteHorse}
+              disabled={deleting || saving}
+              style={{
+                border: "1px solid rgba(185,28,28,0.22)",
+                background: deleting ? "rgba(185,28,28,0.05)" : "rgba(185,28,28,0.08)",
+                color: "#991b1b",
+                borderRadius: 12,
+                padding: "11px 14px",
+                fontWeight: 950,
+                fontSize: 14,
+                cursor: deleting || saving ? "not-allowed" : "pointer",
+              }}
+            >
+              {deleting ? "Deleting horse…" : "Delete horse"}
+            </button>
+          </div>
         </div>
       </div>
     </DashboardShell>
