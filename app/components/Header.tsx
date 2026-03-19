@@ -103,21 +103,19 @@ export default function Header() {
 
     init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const u = session?.user ?? null;
-        setUser(u);
-        setMenuOpen(false);
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      setMenuOpen(false);
 
-        if (u) {
-          registerPushForCurrentUser();
-          await loadProfile(u.id);
-        } else {
-          setProfile(null);
-          setProfileLoading(false);
-        }
+      if (u) {
+        registerPushForCurrentUser();
+        await loadProfile(u.id);
+      } else {
+        setProfile(null);
+        setProfileLoading(false);
       }
-    );
+    });
 
     return () => {
       cancelled = true;
@@ -154,6 +152,13 @@ export default function Header() {
   return (
     <>
       <style>{`
+        .pmp-headerOnlyHamburger {
+          position: sticky;
+          top: 0;
+          z-index: 70;
+          backdrop-filter: blur(10px);
+        }
+
         .pmp-headerBrandBadge {
           width: 52px;
           height: 52px;
@@ -167,74 +172,102 @@ export default function Header() {
           align-items: center;
           justify-content: center;
           overflow: hidden;
-          padding: 8px;
+          padding: 6px;
+          flex-shrink: 0;
         }
 
-        .pmp-headerBrandBadge img {
+        .pmp-headerBrandImage {
           width: 100%;
           height: 100%;
           object-fit: contain;
           object-position: center;
           display: block;
+          transform: scale(1.18);
+        }
+
+        .pmp-headerBrandTextWrap {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+
+        .pmp-headerBrandTitle {
+          font-weight: 950;
+          font-size: 14px;
+          line-height: 1.1;
+          color: #1f2a44;
+          white-space: nowrap;
+        }
+
+        .pmp-headerBrandSub {
+          font-weight: 800;
+          font-size: 11px;
+          line-height: 1.2;
+          color: rgba(31,42,68,0.76);
+          white-space: nowrap;
+        }
+
+        .pmp-headerStatusRow {
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
 
         @media (max-width: 767px) {
-          .pmp-headerSignedInLinks {
+          .pmp-headerBrandBadge {
+            width: 46px;
+            height: 46px;
+            min-width: 46px;
+            min-height: 46px;
+            border-radius: 14px;
+            padding: 5px;
+          }
+
+          .pmp-headerBrandTitle {
+            font-size: 13px;
+          }
+
+          .pmp-headerBrandSub {
+            font-size: 10px;
+          }
+
+          .pmp-headerStatusRow {
             display: none !important;
           }
         }
       `}</style>
 
-      <header className="pmp-header">
+      <header className="pmp-header pmp-headerOnlyHamburger">
         <div className="pmp-headerInner">
-          <Link href="/" className="pmp-brand" onClick={() => setMenuOpen(false)}>
+          <Link
+            href={user ? (isOwner ? "/dashboard/owner" : "/") : "/"}
+            className="pmp-brand"
+            onClick={() => setMenuOpen(false)}
+            style={{ minWidth: 0 }}
+          >
             <div className="pmp-headerBrandBadge" aria-hidden="true">
               <Image
                 src="/pmp-logo-web.png"
-                alt=""
-                width={36}
-                height={36}
+                alt="Pinch My Pony"
+                width={52}
+                height={52}
                 priority
+                className="pmp-headerBrandImage"
               />
             </div>
 
-            <div className="pmp-brandText">
-              <div className="pmp-brandTitle">Pinch My Pony</div>
-              <div className="pmp-brandSub">Horse sharing marketplace</div>
+            <div className="pmp-headerBrandTextWrap">
+              <div className="pmp-headerBrandTitle">Pinch My Pony</div>
+              <div className="pmp-headerBrandSub">Horse sharing marketplace</div>
             </div>
           </Link>
 
-          {!user ? (
-            <div className="pmp-desktopLinks">
-              <Link href="/browse" className="pmp-topLink">
-                Browse
-              </Link>
-              <Link href="/faq" className="pmp-topLink">
-                FAQs
-              </Link>
-              <Link href="/contact" className="pmp-topLink">
-                Contact
-              </Link>
-            </div>
-          ) : (
-            <div className="pmp-desktopLinks pmp-headerSignedInLinks">
-              <Link href="/browse" className="pmp-topLink">
-                Browse
-              </Link>
-              <Link href="/messages" className="pmp-topLink">
-                Messages
-              </Link>
-              <Link href={isOwner ? "/dashboard/owner" : "/dashboard/borrower"} className="pmp-topLink">
-                Dashboard
-              </Link>
-            </div>
-          )}
-
           <div ref={menuWrapRef} className="pmp-headerActions">
             {user ? (
-              <>
+              <div className="pmp-headerStatusRow">
                 {!isVerified ? (
-                  <Link href="/verify" title="Verification required" className="pmp-hideOnSmall">
+                  <Link href="/verify" title="Verification required">
                     <VerificationBadge
                       status={profile?.verification_status ?? "unverified"}
                       verifiedAt={profile?.verified_at ?? null}
@@ -243,7 +276,7 @@ export default function Header() {
                     />
                   </Link>
                 ) : (
-                  <div title="Verified" className="pmp-hideOnSmall">
+                  <div title="Verified">
                     <VerificationBadge
                       status={profile?.verification_status ?? "verified"}
                       verifiedAt={profile?.verified_at ?? null}
@@ -253,10 +286,8 @@ export default function Header() {
                   </div>
                 )}
 
-                <div className="pmp-hideOnSmall">
-                  <NotificationBell />
-                </div>
-              </>
+                <NotificationBell />
+              </div>
             ) : null}
 
             <button
@@ -285,34 +316,62 @@ export default function Header() {
                       </Link>
                     ) : null}
 
-                    <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Browse Horses
-                    </Link>
-
                     <Link href="/messages" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                       Messages
                     </Link>
 
                     {isOwner ? (
-                      <Link
-                        href="/dashboard/owner"
-                        onClick={() => setMenuOpen(false)}
-                        className="pmp-menuItem"
-                      >
-                        Owner Dashboard
-                      </Link>
+                      <>
+                        <Link
+                          href="/dashboard/owner"
+                          onClick={() => setMenuOpen(false)}
+                          className="pmp-menuItem"
+                        >
+                          Owner Dashboard
+                        </Link>
+
+                        <Link
+                          href="/dashboard/owner/horses"
+                          onClick={() => setMenuOpen(false)}
+                          className="pmp-menuItem"
+                        >
+                          My Horses
+                        </Link>
+
+                        <Link
+                          href="/dashboard/owner/requests"
+                          onClick={() => setMenuOpen(false)}
+                          className="pmp-menuItem"
+                        >
+                          Requests
+                        </Link>
+                      </>
                     ) : (
-                      <Link
-                        href="/dashboard/borrower"
-                        onClick={() => setMenuOpen(false)}
-                        className="pmp-menuItem"
-                      >
-                        Rider Dashboard
-                      </Link>
+                      <>
+                        <Link
+                          href="/dashboard/borrower"
+                          onClick={() => setMenuOpen(false)}
+                          className="pmp-menuItem"
+                        >
+                          Rider Dashboard
+                        </Link>
+
+                        <Link
+                          href="/browse"
+                          onClick={() => setMenuOpen(false)}
+                          className="pmp-menuItem"
+                        >
+                          Browse Horses
+                        </Link>
+                      </>
                     )}
 
                     <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                       Profile
+                    </Link>
+
+                    <Link href="/membership" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Membership
                     </Link>
 
                     <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
@@ -335,10 +394,6 @@ export default function Header() {
 
                     <Link href="/signup" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                       Sign Up
-                    </Link>
-
-                    <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Browse Horses
                     </Link>
 
                     <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
