@@ -27,7 +27,7 @@ const items: Item[] = [
     href: "/messages",
     label: "Messages",
     icon: "💬",
-    match: (pathname) => pathname.startsWith("/messages"),
+    match: (pathname) => pathname === "/messages",
   },
   {
     href: "/dashboard",
@@ -48,6 +48,9 @@ const items: Item[] = [
 
 export default function MobileTabBar() {
   const pathname = usePathname() || "/";
+
+  // hide on thread pages so it doesn't clutter the composer / cover content
+  if (pathname.startsWith("/messages/")) return null;
 
   return (
     <nav className="pmp-mobileTabBar" aria-label="Mobile navigation">
