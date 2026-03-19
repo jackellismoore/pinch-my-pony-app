@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
-import HorseImageUploader from "@/components/HorseImageUploader";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -60,6 +59,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+const STORAGE_BUCKET = "horses";
+
 export default function EditHorsePage() {
   const params = useParams<{ id: string }>();
   const id = params?.id;
@@ -68,6 +69,7 @@ export default function EditHorsePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
@@ -131,7 +133,44 @@ export default function EditHorsePage() {
     };
   }, [id]);
 
-  const canSave = useMemo(() => !saving && name.trim().length > 0, [saving, name]);
+  const canSave = useMemo(() => !saving && !uploadingImage && name.trim().length > 0, [saving, uploadingImage, name]);
+
+  async function uploadImage(file: File) {
+    if (!id) return;
+    setError(null);
+
+    try {
+      setUploadingImage(true);
+
+      const {
+        data: { user },
+        error: userErr,
+      } = await supabase.auth.getUser();
+
+      if (userErr) throw userErr;
+      if (!user) throw new Error("Not authenticated");
+
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+
+      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+      if (upErr) throw upErr;
+
+      const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      const publicUrl = data?.publicUrl;
+      if (!publicUrl) throw new Error("Failed to get public image URL");
+
+      setImageUrl(publicUrl);
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+    }
+  }
 
   async function save() {
     if (!id) return;
@@ -172,18 +211,15 @@ export default function EditHorsePage() {
     }
   }
 
-  async function deleteHorse() {
+  async function removeHorse() {
     if (!id) return;
+    const ok = window.confirm("Delete this horse listing? This cannot be undone.");
+    if (!ok) return;
 
-    const confirmed = window.confirm(
-      "Delete this horse listing? This cannot be undone."
-    );
-    if (!confirmed) return;
+    setError(null);
 
     try {
       setDeleting(true);
-      setError(null);
-
       const { error } = await supabase.from("horses").delete().eq("id", id);
       if (error) throw error;
 
@@ -199,9 +235,7 @@ export default function EditHorsePage() {
   if (loading) {
     return (
       <DashboardShell>
-        <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", opacity: 0.7 }}>
-          Loading…
-        </div>
+        <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", opacity: 0.7 }}>Loading…</div>
       </DashboardShell>
     );
   }
@@ -209,6 +243,20 @@ export default function EditHorsePage() {
   return (
     <DashboardShell>
       <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", paddingBottom: 110 }}>
+        <style>{`
+          .pmp-editHorse-grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+          }
+
+          @media (max-width: 767px) {
+            .pmp-editHorse-grid2 {
+              grid-template-columns: 1fr;
+            }
+          }
+        `}</style>
+
         <div style={{ margin: 0, fontSize: 24, fontWeight: 950 }}>Edit Horse</div>
         <div style={{ marginTop: 6, fontSize: 13, opacity: 0.7 }}>
           Update details. Select a location suggestion to set the map pin.
@@ -247,7 +295,11 @@ export default function EditHorsePage() {
           <Field label="Location">
             <LocationAutocomplete
               value={location}
-              onChange={setLocation}
+              onChange={(value) => {
+                setLocation(value);
+                setLat("");
+                setLng("");
+              }}
               onPlaceSelect={({ address, lat, lng }) => {
                 setLocation(address);
                 setLat(lat == null ? "" : String(lat));
@@ -267,7 +319,7 @@ export default function EditHorsePage() {
             )}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="pmp-editHorse-grid2">
             <Field label="Breed">
               <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
             </Field>
@@ -276,7 +328,7 @@ export default function EditHorsePage() {
             </Field>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="pmp-editHorse-grid2">
             <Field label="Height (hh)">
               <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
             </Field>
@@ -296,14 +348,65 @@ export default function EditHorsePage() {
           </Field>
 
           <div style={{ display: "grid", gap: 8 }}>
-            <div style={labelStyle()}>Photo</div>
-            <HorseImageUploader
-              bucket="horses"
-              value={imageUrl}
-              onChange={(url: string) => setImageUrl(url)}
-              label="Upload photo"
-              helper="Upload a horse image. Remove it if you want to replace it."
+            <div style={labelStyle()}>Image upload</div>
+
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                if (file) {
+                  void uploadImage(file);
+                }
+                e.currentTarget.value = "";
+              }}
+              style={{ fontSize: 13 }}
+              disabled={uploadingImage}
             />
+
+            {imageUrl ? (
+              <div
+                style={{
+                  width: 140,
+                  height: 140,
+                  borderRadius: 16,
+                  overflow: "hidden",
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  background: "rgba(15,23,42,0.04)",
+                }}
+              >
+                <img
+                  src={imageUrl}
+                  alt="Horse"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              </div>
+            ) : null}
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setImageUrl("")}
+                disabled={!imageUrl || uploadingImage}
+                style={{
+                  border: "1px solid rgba(0,0,0,0.14)",
+                  background: "white",
+                  color: "black",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  fontSize: 13,
+                  fontWeight: 900,
+                  cursor: !imageUrl || uploadingImage ? "not-allowed" : "pointer",
+                  opacity: !imageUrl || uploadingImage ? 0.6 : 1,
+                }}
+              >
+                Remove image
+              </button>
+
+              {uploadingImage ? (
+                <div style={{ fontSize: 13, opacity: 0.7, alignSelf: "center" }}>Uploading image…</div>
+              ) : null}
+            </div>
           </div>
 
           <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 900 }}>
@@ -311,57 +414,38 @@ export default function EditHorsePage() {
             Active listing
           </label>
 
-          <button
-            onClick={save}
-            disabled={!canSave || deleting}
-            style={{
-              marginTop: 4,
-              border: "none",
-              borderRadius: 12,
-              padding: "12px 14px",
-              background: !canSave || deleting ? "rgba(0,0,0,0.10)" : "black",
-              color: !canSave || deleting ? "rgba(0,0,0,0.55)" : "white",
-              fontWeight: 950,
-              cursor: !canSave || deleting ? "not-allowed" : "pointer",
-            }}
-          >
-            {saving ? "Saving…" : "Save changes"}
-          </button>
-        </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              onClick={save}
+              disabled={!canSave}
+              style={{
+                border: "none",
+                borderRadius: 12,
+                padding: "12px 14px",
+                background: !canSave ? "rgba(0,0,0,0.10)" : "black",
+                color: !canSave ? "rgba(0,0,0,0.55)" : "white",
+                fontWeight: 950,
+                cursor: !canSave ? "not-allowed" : "pointer",
+              }}
+            >
+              {saving ? "Saving…" : "Save changes"}
+            </button>
 
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid rgba(185,28,28,0.15)",
-            background: "rgba(185,28,28,0.03)",
-            borderRadius: 16,
-            padding: 14,
-            display: "grid",
-            gap: 10,
-          }}
-        >
-          <div style={{ fontWeight: 950, fontSize: 14, color: "#991b1b" }}>Delete horse</div>
-          <div style={{ fontSize: 13, color: "rgba(0,0,0,0.7)", lineHeight: 1.6 }}>
-            Permanently remove this horse listing.
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button
               type="button"
-              onClick={deleteHorse}
+              onClick={removeHorse}
               disabled={deleting || saving}
               style={{
                 border: "1px solid rgba(185,28,28,0.22)",
                 background: deleting ? "rgba(185,28,28,0.05)" : "rgba(185,28,28,0.08)",
                 color: "#991b1b",
                 borderRadius: 12,
-                padding: "11px 14px",
+                padding: "12px 14px",
                 fontWeight: 950,
-                fontSize: 14,
-                cursor: deleting || saving ? "not-allowed" : "pointer",
+                cursor: deleting ? "not-allowed" : "pointer",
               }}
             >
-              {deleting ? "Deleting horse…" : "Delete horse"}
+              {deleting ? "Deleting…" : "Delete horse"}
             </button>
           </div>
         </div>

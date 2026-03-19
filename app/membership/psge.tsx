@@ -14,7 +14,6 @@ const palette = {
 type Profile = {
   id: string;
   role: "owner" | "borrower" | null;
-  beta_access: boolean | null;
   membership_tier: string | null;
   membership_status: string | null;
 };
@@ -25,7 +24,7 @@ function wrap(): React.CSSProperties {
     minHeight: "calc(100vh - 64px)",
     background:
       "radial-gradient(900px 420px at 20% 10%, rgba(200,162,77,0.18), transparent 55%), radial-gradient(900px 420px at 90% 30%, rgba(31,61,43,0.14), transparent 58%), linear-gradient(180deg, rgba(245,241,232,1) 0%, rgba(250,250,250,1) 65%)",
-    padding: "18px 0 calc(28px + env(safe-area-inset-bottom) + 76px)",
+    padding: "18px 0 110px",
   };
 }
 
@@ -92,6 +91,7 @@ function btn(kind: "primary" | "secondary", disabled?: boolean): React.CSSProper
       background: "rgba(31,42,68,0.06)",
       color: "rgba(31,42,68,0.45)",
       boxShadow: "none",
+      opacity: disabled ? 0.8 : 1,
     };
   }
 
@@ -134,7 +134,7 @@ export default function MembershipPage() {
 
       const { data: p, error: pErr } = await supabase
         .from("profiles")
-        .select("id,role,beta_access,membership_tier,membership_status")
+        .select("id,role,membership_tier,membership_status")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -166,203 +166,120 @@ export default function MembershipPage() {
   }, [authed, profile]);
 
   return (
-    <>
-      <style>{`
-        .pmp-membershipGrid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-        }
-
-        @media (max-width: 767px) {
-          .pmp-membershipGrid {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
-
-      <div style={wrap()}>
-        <div style={container()}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              alignItems: "flex-end",
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <div style={pill()}>💳 Memberships</div>
-              <h1
-                style={{
-                  margin: 0,
-                  marginTop: 10,
-                  fontSize: 24,
-                  fontWeight: 950,
-                  color: palette.navy,
-                  letterSpacing: -0.3,
-                }}
-              >
-                Memberships
-              </h1>
-              <div
-                style={{
-                  marginTop: 6,
-                  fontSize: 13,
-                  color: "rgba(31,42,68,0.72)",
-                  lineHeight: 1.7,
-                }}
-              >
-                Pinch My Pony will stay free until 2027 while we build our customer base.
-              </div>
+    <div style={wrap()}>
+      <div style={container()}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div>
+            <div style={pill()}>💳 Memberships</div>
+            <h1 style={{ margin: 0, marginTop: 10, fontSize: 24, fontWeight: 950, color: palette.navy, letterSpacing: -0.3 }}>
+              Memberships
+            </h1>
+            <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.72)", lineHeight: 1.7 }}>
+              Pinch My Pony will be free until 2027 while we build our customer base.
             </div>
-
-            <Link href="/" style={btn("secondary")}>
-              ← Home
-            </Link>
           </div>
 
-          <div style={{ marginTop: 14, ...card() }}>
-            {loading ? (
-              <div style={{ fontSize: 13, color: "rgba(31,42,68,0.70)", fontWeight: 850 }}>
-                Loading…
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: "rgba(31,42,68,0.78)", fontWeight: 900 }}>
-                {statusLine}
-              </div>
-            )}
+          <Link href="/browse" style={btn("secondary")}>
+            ← Browse
+          </Link>
+        </div>
 
-            {!authed ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  ...softCard(),
-                  fontSize: 13,
-                  color: "rgba(31,42,68,0.75)",
-                  lineHeight: 1.7,
-                }}
-              >
-                You’re not logged in.{" "}
-                <Link
-                  href="/login"
-                  style={{ color: palette.forest, fontWeight: 950, textDecoration: "none" }}
-                >
-                  Login
-                </Link>{" "}
-                to view your account details.
-              </div>
-            ) : null}
+        <div style={{ marginTop: 14, ...card() }}>
+          {loading ? (
+            <div style={{ fontSize: 13, color: "rgba(31,42,68,0.70)", fontWeight: 850 }}>Loading…</div>
+          ) : (
+            <div style={{ fontSize: 13, color: "rgba(31,42,68,0.78)", fontWeight: 900 }}>{statusLine}</div>
+          )}
 
+          {!authed ? (
+            <div style={{ marginTop: 12, ...softCard(), fontSize: 13, color: "rgba(31,42,68,0.75)", lineHeight: 1.7 }}>
+              You’re not logged in.{" "}
+              <Link href="/login" style={{ color: palette.forest, fontWeight: 950, textDecoration: "none" }}>
+                Login
+              </Link>{" "}
+              to view membership information.
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              marginTop: 12,
+              borderRadius: 18,
+              border: "1px solid rgba(200,162,77,0.22)",
+              background: "rgba(200,162,77,0.10)",
+              padding: 12,
+              fontSize: 13,
+              fontWeight: 850,
+              color: "rgba(31,42,68,0.82)",
+              lineHeight: 1.6,
+            }}
+          >
+            Membership billing is turned off.
+            <div style={{ marginTop: 6, opacity: 0.92 }}>
+              There are no live upgrade charges right now, and all upgrade buttons are intentionally disabled.
+            </div>
+          </div>
+
+          {error ? (
             <div
               style={{
                 marginTop: 12,
-                borderRadius: 18,
-                border: "1px solid rgba(200,162,77,0.22)",
-                background: "rgba(200,162,77,0.10)",
+                border: "1px solid rgba(255,0,0,0.25)",
+                background: "rgba(255,0,0,0.06)",
                 padding: 12,
+                borderRadius: 14,
                 fontSize: 13,
-                fontWeight: 850,
-                color: "rgba(31,42,68,0.82)",
-                lineHeight: 1.6,
               }}
             >
-              <b>Membership checkout is turned off.</b>
-              <div style={{ marginTop: 6, opacity: 0.92 }}>
-                Pinch My Pony will remain free until 2027 while we grow the platform and build our
-                customer base.
+              {error}
+            </div>
+          ) : null}
+
+          <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+            <div style={softCard()}>
+              <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Borrower Membership</div>
+              <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
+                £5 / month later. Free until 2027.
+              </div>
+
+              <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontSize: 13, opacity: 0.82, lineHeight: 1.7 }}>
+                <li>Priority features and perks</li>
+                <li>Member-only improvements later</li>
+                <li>Support the marketplace</li>
+              </ul>
+
+              <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button disabled style={btn("primary", true)}>
+                  Free until 2027
+                </button>
               </div>
             </div>
 
-            {error ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  border: "1px solid rgba(255,0,0,0.25)",
-                  background: "rgba(255,0,0,0.06)",
-                  padding: 12,
-                  borderRadius: 14,
-                  fontSize: 13,
-                }}
-              >
-                {error}
-              </div>
-            ) : null}
-
-            <div className="pmp-membershipGrid" style={{ marginTop: 14 }}>
-              <div style={softCard()}>
-                <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>
-                  Borrower Membership
-                </div>
-                <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
-                  £5 / month later. Free until 2027.
-                </div>
-
-                <ul
-                  style={{
-                    margin: "10px 0 0",
-                    paddingLeft: 18,
-                    fontSize: 13,
-                    opacity: 0.82,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  <li>Priority features and perks</li>
-                  <li>Member-only improvements</li>
-                  <li>Support the marketplace</li>
-                </ul>
-
-                <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button disabled style={btn("primary", true)}>
-                    Coming in 2027
-                  </button>
-                </div>
+            <div style={softCard()}>
+              <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Owner Membership</div>
+              <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
+                £10 / month later. Free until 2027.
               </div>
 
-              <div style={softCard()}>
-                <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>
-                  Owner Membership
-                </div>
-                <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
-                  £10 / month later. Free until 2027.
-                </div>
+              <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontSize: 13, opacity: 0.82, lineHeight: 1.7 }}>
+                <li>Enhanced listing tools</li>
+                <li>Better visibility and controls</li>
+                <li>Owner analytics later</li>
+              </ul>
 
-                <ul
-                  style={{
-                    margin: "10px 0 0",
-                    paddingLeft: 18,
-                    fontSize: 13,
-                    opacity: 0.82,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  <li>Enhanced listing tools</li>
-                  <li>Better visibility and controls</li>
-                  <li>Owner analytics</li>
-                </ul>
-
-                <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button disabled style={btn("primary", true)}>
-                    Coming in 2027
-                  </button>
-                </div>
+              <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button disabled style={btn("primary", true)}>
+                  Free until 2027
+                </button>
               </div>
             </div>
+          </div>
 
-            <div
-              style={{
-                marginTop: 14,
-                fontSize: 12,
-                color: "rgba(31,42,68,0.70)",
-                lineHeight: 1.7,
-              }}
-            >
-              This page is informational only for now. No Stripe checkout starts from here.
-            </div>
+          <div style={{ marginTop: 14, fontSize: 12, color: "rgba(31,42,68,0.70)", lineHeight: 1.7 }}>
+            This page is display-only for now, so it will not call Stripe or require any checkout environment variables.
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

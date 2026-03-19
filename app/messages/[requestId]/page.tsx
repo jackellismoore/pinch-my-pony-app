@@ -85,9 +85,8 @@ const SEND_COOLDOWN_MS = 800;
 
 export default function MessageThreadPage() {
   const router = useRouter();
-
   const params = useParams() as Record<string, string | string[] | undefined>;
-  const requestIdRaw = params.requestId ?? params.requestid;
+  const requestIdRaw = params?.requestId;
   const requestId = Array.isArray(requestIdRaw) ? requestIdRaw[0] : requestIdRaw ?? "";
 
   const [authLoading, setAuthLoading] = useState(true);
@@ -274,7 +273,7 @@ export default function MessageThreadPage() {
   }, [requestId, myUserId]);
 
   useEffect(() => {
-    if (!myUserId) return;
+    if (!myUserId || !requestId) return;
 
     const ch = supabase
       .channel("typing:threads", { config: { broadcast: { self: false } } })
@@ -432,6 +431,7 @@ export default function MessageThreadPage() {
           .from("messages")
           .update({ read_at: new Date().toISOString() })
           .in("id", idsNow);
+
         if (error) {
           console.error("mark read error:", error);
           return;
@@ -611,7 +611,11 @@ export default function MessageThreadPage() {
   if (!requestId) {
     return (
       <div className="pmp-pageShell">
-        <div className="pmp-errorBanner">Missing requestId in URL</div>
+        <div className="pmp-sectionCard">
+          <div className="pmp-errorBanner">
+            Missing or invalid request. Please return to messages.
+          </div>
+        </div>
       </div>
     );
   }
@@ -637,97 +641,16 @@ export default function MessageThreadPage() {
   const otherName = header?.other_user?.display_name ?? "User";
   const horseName = header?.horse_name ?? "";
   const avatarUrl = header?.other_user?.avatar_url ?? "";
-
-  const statusText = otherOnline
-    ? "Online"
-    : otherLastSeenAt
-    ? `Last seen ${timeAgo(otherLastSeenAt)}`
-    : "Offline";
-
+  const statusText = otherOnline ? "Online" : otherLastSeenAt ? `Last seen ${timeAgo(otherLastSeenAt)}` : "Offline";
   const showReviewCTA = isBorrower && requestStatus === "approved" && !reviewExists;
 
   return (
     <>
       <style>{`
-        .pmp-threadViewport {
-          height: calc(100dvh - 72px);
-          min-height: calc(100dvh - 72px);
-          display: flex;
-          flex-direction: column;
-          background: #f6f7fb;
-          border-radius: 24px;
-          overflow: hidden;
-        }
-
-        .pmp-threadHeaderTop {
-          display: grid;
-          grid-template-columns: 1fr auto;
-          gap: 10px;
-          align-items: start;
-        }
-
-        .pmp-threadIdentityRow {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-          min-width: 0;
-        }
-
-        .pmp-threadBackRow {
-          display: flex;
-          gap: 8px;
-          margin-top: 10px;
-          flex-wrap: wrap;
-        }
-
-        .pmp-threadBackBtn {
-          border: 1px solid rgba(15,23,42,0.12);
-          background: rgba(255,255,255,0.92);
-          color: #0f172a;
-          border-radius: 12px;
-          padding: 8px 10px;
-          font-size: 12px;
-          font-weight: 950;
-          cursor: pointer;
-          min-height: 38px;
-        }
-
-        .pmp-threadDangerBtn {
-          border: 1px solid rgba(239,68,68,0.25);
-          background: rgba(239,68,68,0.10);
-          color: #b91c1c;
-          cursor: pointer;
-          font-weight: 950;
-          font-size: 12px;
-          padding: 10px 12px;
-          border-radius: 14px;
-        }
-
-        .pmp-threadComposerWrap {
-          padding: 12px;
-          padding-bottom: calc(12px + env(safe-area-inset-bottom));
-          border-top: 1px solid rgba(15,23,42,0.10);
-          background: rgba(255,255,255,0.94);
-          backdrop-filter: blur(10px);
-        }
-
-        .pmp-threadScroller {
-          flex: 1;
-          overflow-y: auto;
-          padding: 14px;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          position: relative;
-          min-height: 0;
-          -webkit-overflow-scrolling: touch;
-        }
-
         @media (max-width: 767px) {
-          .pmp-threadViewport {
-            height: calc(100dvh - 64px);
-            min-height: calc(100dvh - 64px);
-            border-radius: 18px;
+          .pmp-threadRoot {
+            border-radius: 0 !important;
+            height: calc(100dvh - 60px) !important;
           }
 
           .pmp-threadHeader {
@@ -735,24 +658,32 @@ export default function MessageThreadPage() {
           }
 
           .pmp-threadHeaderTop {
-            grid-template-columns: 1fr;
+            align-items: flex-start !important;
           }
 
-          .pmp-threadIdentityRow {
-            align-items: center;
-          }
-
-          .pmp-threadActions {
+          .pmp-threadHeaderMain {
+            min-width: 0;
             width: 100%;
-            justify-content: stretch !important;
-          }
-
-          .pmp-threadActions > * {
-            flex: 1 1 0;
           }
 
           .pmp-threadBackRow {
             margin-top: 8px;
+            width: 100%;
+          }
+
+          .pmp-threadBackBtn {
+            min-height: 38px !important;
+            padding: 8px 12px !important;
+            font-size: 12px !important;
+          }
+
+          .pmp-threadHeaderActions {
+            width: 100%;
+            justify-content: stretch !important;
+          }
+
+          .pmp-threadHeaderActions > * {
+            flex: 1 1 0;
           }
 
           .pmp-threadComposerRow {
@@ -760,16 +691,22 @@ export default function MessageThreadPage() {
           }
 
           .pmp-threadComposerRow textarea {
-            min-height: 44px !important;
-          }
-
-          .pmp-threadScroller {
-            padding: 12px;
+            min-height: 48px !important;
           }
         }
       `}</style>
 
-      <div className="pmp-threadViewport">
+      <div
+        className="pmp-threadRoot"
+        style={{
+          height: "calc(100dvh - 60px)",
+          display: "flex",
+          flexDirection: "column",
+          background: "#f6f7fb",
+          borderRadius: 24,
+          overflow: "hidden",
+        }}
+      >
         <div
           className="pmp-threadHeader"
           style={{
@@ -783,9 +720,18 @@ export default function MessageThreadPage() {
             color: "#0f172a",
           }}
         >
-          <div className="pmp-threadHeaderTop">
-            <div>
-              <div className="pmp-threadIdentityRow">
+          <div
+            className="pmp-threadHeaderTop"
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+            }}
+          >
+            <div className="pmp-threadHeaderMain" style={{ minWidth: 0, display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
                 <div
                   style={{
                     width: 42,
@@ -823,15 +769,7 @@ export default function MessageThreadPage() {
                     >
                       {horseName}
                     </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        fontSize: 12,
-                        opacity: 0.85,
-                      }}
-                    >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.85 }}>
                       <span
                         style={{
                           width: 8,
@@ -847,10 +785,10 @@ export default function MessageThreadPage() {
                 </div>
               </div>
 
-              <div className="pmp-threadBackRow">
+              <div className="pmp-threadBackRow" style={{ display: "flex", justifyContent: "flex-start" }}>
                 <button
                   onClick={() => router.push("/messages")}
-                  className="pmp-threadBackBtn"
+                  className="pmp-ctaSecondary pmp-threadBackBtn"
                   type="button"
                 >
                   ← Back to messages
@@ -859,7 +797,7 @@ export default function MessageThreadPage() {
             </div>
 
             <div
-              className="pmp-threadActions"
+              className="pmp-threadHeaderActions"
               style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
             >
               {showReviewCTA ? (
@@ -872,10 +810,15 @@ export default function MessageThreadPage() {
                 onClick={deleteChatForMe}
                 disabled={deleting}
                 type="button"
-                className="pmp-threadDangerBtn"
                 style={{
-                  opacity: deleting ? 0.7 : 1,
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  background: deleting ? "rgba(239,68,68,0.22)" : "rgba(239,68,68,0.10)",
+                  color: "#b91c1c",
                   cursor: deleting ? "not-allowed" : "pointer",
+                  fontWeight: 950,
+                  fontSize: 12,
+                  padding: "10px 12px",
+                  borderRadius: 14,
                 }}
               >
                 {deleting ? "Deleting…" : "Delete"}
@@ -886,8 +829,14 @@ export default function MessageThreadPage() {
 
         <div
           ref={scrollerRef}
-          className="pmp-threadScroller"
           style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: 16,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            position: "relative",
             background:
               "radial-gradient(1000px 680px at 12% 6%, rgba(202,162,77,0.14), transparent 60%), radial-gradient(1000px 680px at 92% 10%, rgba(11,59,46,0.10), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.88), rgba(250,250,250,0.96))",
           }}
@@ -907,31 +856,13 @@ export default function MessageThreadPage() {
           <div ref={topSentinelRef} style={{ height: 1, position: "relative" }} />
 
           {hasMore && (
-            <div
-              style={{
-                textAlign: "center",
-                opacity: 0.65,
-                fontSize: 12,
-                padding: 8,
-                color: "#0f172a",
-                position: "relative",
-              }}
-            >
+            <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
               {loadingMore ? "Loading…" : "Scroll up for older messages"}
             </div>
           )}
 
           {loadingInitial && (
-            <div
-              style={{
-                textAlign: "center",
-                opacity: 0.65,
-                fontSize: 12,
-                padding: 8,
-                color: "#0f172a",
-                position: "relative",
-              }}
-            >
+            <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
               Loading messages…
             </div>
           )}
@@ -1000,7 +931,14 @@ export default function MessageThreadPage() {
           </div>
         </div>
 
-        <div className="pmp-threadComposerWrap">
+        <div
+          style={{
+            padding: "12px 12px calc(12px + env(safe-area-inset-bottom))",
+            borderTop: "1px solid rgba(15,23,42,0.10)",
+            background: "rgba(255,255,255,0.94)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
           <input
             ref={fileInputRef}
             type="file"
@@ -1036,11 +974,7 @@ export default function MessageThreadPage() {
                   flex: "0 0 auto",
                 }}
               >
-                <img
-                  src={pickedPreviewUrl}
-                  alt="Selected"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
+                <img src={pickedPreviewUrl} alt="Selected" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
 
               <div style={{ minWidth: 0, flex: 1 }}>
@@ -1059,15 +993,7 @@ export default function MessageThreadPage() {
                 <div style={{ fontSize: 12, opacity: 0.72, color: "#0f172a", marginTop: 2 }}>
                   {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • {pickedFile.type || "image"}
                 </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    opacity: 0.8,
-                    color: "#0b3b2e",
-                    marginTop: 4,
-                    fontWeight: 850,
-                  }}
-                >
+                <div style={{ fontSize: 12, opacity: 0.8, color: "#0b3b2e", marginTop: 4, fontWeight: 850 }}>
                   {uploading ? "Uploading…" : "Ready to send"}
                 </div>
               </div>
@@ -1094,15 +1020,7 @@ export default function MessageThreadPage() {
           ) : null}
 
           {composerError ? (
-            <div
-              style={{
-                marginBottom: 10,
-                fontSize: 12,
-                color: "#b91c1c",
-                fontWeight: 950,
-                whiteSpace: "pre-wrap",
-              }}
-            >
+            <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c", fontWeight: 950, whiteSpace: "pre-wrap" }}>
               {composerError}
             </div>
           ) : null}
