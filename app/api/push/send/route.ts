@@ -1,6 +1,7 @@
-import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
-import apn from "@parse/node-apn";
+import webpush from "web-push";
+import { createPrivateKey, sign as cryptoSign } from "crypto";
+import { connect } from "http2";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,136 @@ type Payload = {
   body: string;
   url: string;
 };
+
+function base64url(input: Buffer | string) {
+  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
+  return buf
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function createAppleJwt() {
+  const teamId = process.env.APPLE_TEAM_ID;
+  const keyId = process.env.APPLE_KEY_ID;
+  const privateKeyRaw = process.env.APPLE_PRIVATE_KEY;
+
+  if (!teamId || !keyId || !privateKeyRaw) {
+    throw new Error("Missing Apple push env vars");
+  }
+
+  const privateKeyPem = privateKeyRaw.includes("\\n")
+    ? privateKeyRaw.replace(/\\n/g, "\n")
+    : privateKeyRaw;
+
+  const header = {
+    alg: "ES256",
+    kid: keyId,
+  };
+
+  const claims = {
+    iss: teamId,
+    iat: Math.floor(Date.now() / 1000),
+  };
+
+  const encodedHeader = base64url(JSON.stringify(header));
+  const encodedClaims = base64url(JSON.stringify(claims));
+  const unsigned = `${encodedHeader}.${encodedClaims}`;
+
+  const key = createPrivateKey(privateKeyPem);
+  const signature = cryptoSign("sha256", Buffer.from(unsigned), {
+    key,
+    dsaEncoding: "ieee-p1363",
+  });
+
+  return `${unsigned}.${base64url(signature)}`;
+}
+
+function sendApnsNotification({
+  token,
+  title,
+  body,
+  url,
+}: {
+  token: string;
+  title: string;
+  body: string;
+  url: string;
+}) {
+  return new Promise<void>((resolve, reject) => {
+    const bundleId = process.env.APPLE_BUNDLE_ID;
+    const useProduction = String(process.env.APPLE_USE_PRODUCTION ?? "true").toLowerCase() === "true";
+
+    if (!bundleId) {
+      reject(new Error("Missing APPLE_BUNDLE_ID"));
+      return;
+    }
+
+    const jwt = createAppleJwt();
+    const host = useProduction ? "api.push.apple.com" : "api.sandbox.push.apple.com";
+
+    const client = connect(`https://${host}`);
+
+    client.on("error", (err) => {
+      client.close();
+      reject(err);
+    });
+
+    const payload = JSON.stringify({
+      aps: {
+        alert: {
+          title,
+          body,
+        },
+        sound: "default",
+        badge: 1,
+      },
+      url,
+    });
+
+    const req = client.request({
+      ":method": "POST",
+      ":path": `/3/device/${token}`,
+      authorization: `bearer ${jwt}`,
+      "apns-topic": bundleId,
+      "apns-push-type": "alert",
+      "apns-priority": "10",
+    });
+
+    let responseBody = "";
+    let statusCode = 0;
+
+    req.setEncoding("utf8");
+
+    req.on("response", (headers) => {
+      const status = headers[":status"];
+      statusCode = typeof status === "number" ? status : Number(status ?? 0);
+    });
+
+    req.on("data", (chunk) => {
+      responseBody += chunk;
+    });
+
+    req.on("end", () => {
+      client.close();
+
+      if (statusCode >= 200 && statusCode < 300) {
+        resolve();
+      } else {
+        reject(new Error(`APNs failed (${statusCode}): ${responseBody || "Unknown error"}`));
+      }
+    });
+
+    req.on("error", (err) => {
+      client.close();
+      reject(err);
+    });
+
+    req.write(payload);
+    req.end();
+  });
+}
 
 export async function POST(req: Request) {
   try {
@@ -26,116 +157,58 @@ export async function POST(req: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    let webSent = 0;
-    let webFailed = 0;
-    let nativeSent = 0;
-    let nativeFailed = 0;
+    const { data: subs, error } = await admin
+      .from("push_subscriptions")
+      .select("endpoint, p256dh, auth")
+      .eq("user_id", userId);
 
-    // ----------------------------
-    // Web push (existing browser/PWA path)
-    // ----------------------------
+    if (error) {
+      console.error("push_subscriptions select error:", error);
+      return new Response("Failed to fetch subscriptions", { status: 500 });
+    }
+
     const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
     const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
     if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-      const { data: webSubs, error: webErr } = await admin
-        .from("push_subscriptions")
-        .select("endpoint, p256dh, auth")
-        .eq("user_id", userId);
+      webpush.setVapidDetails("mailto:admin@pinchmypony.com", VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+    }
 
-      if (!webErr && webSubs?.length) {
-        webpush.setVapidDetails(
-          "mailto:admin@pinchmypony.com",
-          VAPID_PUBLIC_KEY,
-          VAPID_PRIVATE_KEY
-        );
+    const results = await Promise.allSettled(
+      (subs ?? []).map(async (s) => {
+        if (typeof s.endpoint === "string" && s.endpoint.startsWith("ios:")) {
+          const token = s.endpoint.slice(4);
+          if (!token) throw new Error("Empty iOS device token");
+
+          await sendApnsNotification({
+            token,
+            title,
+            body,
+            url,
+          });
+          return;
+        }
+
+        if (!s.endpoint || !s.p256dh || !s.auth) {
+          throw new Error("Incomplete web push subscription");
+        }
 
         const payload = JSON.stringify({ title, body, url });
 
-        const results = await Promise.allSettled(
-          webSubs.map((s) =>
-            webpush.sendNotification(
-              { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-              payload
-            )
-          )
-        );
-
-        webSent = results.filter((r) => r.status === "fulfilled").length;
-        webFailed = results.length - webSent;
-      }
-    }
-
-    // ----------------------------
-    // Native iOS APNs push
-    // ----------------------------
-    const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID;
-    const APPLE_KEY_ID = process.env.APPLE_KEY_ID;
-    const APPLE_PRIVATE_KEY = process.env.APPLE_PRIVATE_KEY;
-    const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID;
-    const APPLE_USE_PRODUCTION =
-      String(process.env.APPLE_USE_PRODUCTION ?? "true").toLowerCase() === "true";
-
-    if (APPLE_TEAM_ID && APPLE_KEY_ID && APPLE_PRIVATE_KEY && APPLE_BUNDLE_ID) {
-      const { data: nativeDevices, error: nativeErr } = await admin
-        .from("native_push_devices")
-        .select("token, platform")
-        .eq("user_id", userId);
-
-      if (!nativeErr && nativeDevices?.length) {
-        const provider = new apn.Provider({
-          token: {
-            key: APPLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-            keyId: APPLE_KEY_ID,
-            teamId: APPLE_TEAM_ID,
+        await webpush.sendNotification(
+          {
+            endpoint: s.endpoint,
+            keys: { p256dh: s.p256dh, auth: s.auth },
           },
-          production: APPLE_USE_PRODUCTION,
-        });
+          payload
+        );
+      })
+    );
 
-        const iosTargets = nativeDevices
-          .filter((d) => d.token && (d.platform === "ios" || d.platform === "native"))
-          .map((d) => d.token);
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const fail = results.length - ok;
 
-        if (iosTargets.length) {
-          const note = new apn.Notification();
-          note.topic = APPLE_BUNDLE_ID;
-          note.alert = {
-            title,
-            body,
-          };
-          note.sound = "default";
-          note.badge = 1;
-          note.payload = {
-            url,
-            path: url,
-          };
-
-          const result = await provider.send(note, iosTargets);
-
-          nativeSent = result.sent.length;
-          nativeFailed = result.failed.length;
-
-          // Cleanup invalid tokens
-          const badTokens = result.failed
-            .map((f: any) => f?.device)
-            .filter(Boolean);
-
-          if (badTokens.length) {
-            await admin.from("native_push_devices").delete().in("token", badTokens);
-          }
-        }
-
-        provider.shutdown();
-      }
-    }
-
-    return Response.json({
-      ok: true,
-      webSent,
-      webFailed,
-      nativeSent,
-      nativeFailed,
-    });
+    return Response.json({ ok: true, sent: ok, failed: fail });
   } catch (e: any) {
     console.error("push send route error:", e);
     return new Response(e?.message ?? "Error", { status: 500 });
