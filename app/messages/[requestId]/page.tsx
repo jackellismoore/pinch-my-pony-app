@@ -612,9 +612,7 @@ export default function MessageThreadPage() {
     return (
       <div className="pmp-pageShell">
         <div className="pmp-sectionCard">
-          <div className="pmp-errorBanner">
-            Missing or invalid request. Please return to messages.
-          </div>
+          <div className="pmp-errorBanner">Missing or invalid request. Please return to messages.</div>
         </div>
       </div>
     );

@@ -423,9 +423,7 @@ export default function MessagesPage() {
       const reqMap = new Map<string, BorrowReqMini>();
       for (const r of (reqs ?? []) as BorrowReqMini[]) reqMap.set(r.id, r);
 
-      const horseIds = Array.from(
-        new Set((reqs ?? []).map((r: any) => r.horse_id).filter(Boolean))
-      );
+      const horseIds = Array.from(new Set((reqs ?? []).map((r: any) => r.horse_id).filter(Boolean)));
 
       let horses: HorseMini[] = [];
       if (horseIds.length) {
