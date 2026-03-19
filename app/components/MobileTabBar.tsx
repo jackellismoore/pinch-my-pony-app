@@ -49,6 +49,7 @@ const items: Item[] = [
 export default function MobileTabBar() {
   const pathname = usePathname() || "/";
 
+  // Hide bottom tab bar inside an individual message thread
   if (pathname.startsWith("/messages/")) return null;
 
   return (
