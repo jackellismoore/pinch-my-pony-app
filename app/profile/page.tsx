@@ -128,28 +128,23 @@ export default function ProfilePage() {
     };
   }, [router]);
 
-  const completionItems = useMemo(
-    () => [
-      { key: "displayName", label: "Display name added", done: displayName.trim().length > 0 },
-      { key: "fullName", label: "Full name added", done: fullName.trim().length > 0 },
-      { key: "photo", label: "Profile photo uploaded", done: avatarUrl.trim().length > 0 },
-      { key: "location", label: "Location added", done: location.trim().length > 0 },
-      { key: "bio", label: "Bio added", done: bio.trim().length > 0 },
-      { key: "age", label: "Age added", done: age.trim().length > 0 },
-      { key: "verified", label: "Identity verified", done: isVerified },
-    ],
-    [displayName, fullName, avatarUrl, location, bio, age, isVerified]
-  );
+  const checklist = useMemo(() => {
+    const items = [
+      { key: "photo", label: "Profile photo uploaded", done: !!avatarUrl.trim() },
+      { key: "location", label: "Location added", done: !!location.trim() },
+      { key: "bio", label: "Bio added", done: !!bio.trim() },
+      { key: "age", label: "Age added", done: !!age.trim() },
+      { key: "verification", label: "Identity verified", done: isVerified },
+    ];
+    return items;
+  }, [avatarUrl, location, bio, age, isVerified]);
 
   const profileComplete = useMemo(() => {
-    const done = completionItems.filter((item) => item.done).length;
-    return Math.round((done / completionItems.length) * 100);
-  }, [completionItems]);
+    const done = checklist.filter((item) => item.done).length;
+    return Math.round((done / checklist.length) * 100);
+  }, [checklist]);
 
-  const missingItems = useMemo(
-    () => completionItems.filter((item) => !item.done).map((item) => item.label),
-    [completionItems]
-  );
+  const missingItems = useMemo(() => checklist.filter((item) => !item.done), [checklist]);
 
   async function tryUpdate(payload: Record<string, any>) {
     const attempt1 = await supabase.from("profiles").update(payload).eq("id", userId as string);
@@ -170,6 +165,7 @@ export default function ProfilePage() {
       avatar_url: payload.avatar_url,
       location: payload.location,
       age: payload.age,
+      bio: payload.bio,
     };
 
     const attempt2 = await supabase.from("profiles").update(coreOnly).eq("id", userId as string);
@@ -180,7 +176,7 @@ export default function ProfilePage() {
     return {
       ok: true as const,
       warn:
-        "Saved core fields. Optional fields (bio/location/stable_name) are not in your profiles table yet.",
+        "Saved core fields. Optional fields may not all exist in your profiles table yet.",
     };
   }
 
@@ -365,19 +361,6 @@ export default function ProfilePage() {
           flex-wrap: wrap;
         }
 
-        .pmp-profileChecklist {
-          display: grid;
-          gap: 8px;
-        }
-
-        .pmp-profileChecklistItem {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 13px;
-          color: rgba(0,0,0,0.78);
-        }
-
         @media (max-width: 767px) {
           .pmp-profileGrid2,
           .pmp-profileGridBio {
@@ -396,7 +379,7 @@ export default function ProfilePage() {
         }
       `}</style>
 
-      <div className="pmp-pageShell" style={{ paddingBottom: "calc(24px + env(safe-area-inset-bottom) + 76px)" }}>
+      <div className="pmp-pageShell" style={{ paddingBottom: 110 }}>
         <div className="pmp-profileTopRow">
           <div>
             <div className="pmp-kicker">Account</div>
@@ -422,7 +405,7 @@ export default function ProfilePage() {
         </div>
 
         <div className="pmp-sectionCard">
-          <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gap: 8 }}>
             <div
               style={{
                 display: "flex",
@@ -453,22 +436,32 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="pmp-profileChecklist">
-              {completionItems.map((item) => (
-                <div key={item.key} className="pmp-profileChecklistItem">
+            <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+              {checklist.map((item) => (
+                <div
+                  key={item.key}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    color: item.done ? "#0b3b2e" : "rgba(0,0,0,0.72)",
+                    fontWeight: item.done ? 900 : 700,
+                  }}
+                >
                   <span aria-hidden="true">{item.done ? "✅" : "⬜"}</span>
                   <span>{item.label}</span>
                 </div>
               ))}
             </div>
 
-            {missingItems.length > 0 ? (
-              <div className="pmp-mutedText" style={{ fontSize: 12 }}>
-                Missing: {missingItems.join(", ")}.
+            {missingItems.length ? (
+              <div className="pmp-mutedText" style={{ fontSize: 12, marginTop: 2 }}>
+                Missing: {missingItems.map((item) => item.label.toLowerCase()).join(", ")}.
               </div>
             ) : (
-              <div className="pmp-mutedText" style={{ fontSize: 12 }}>
-                Everything for your current checklist is complete.
+              <div className="pmp-mutedText" style={{ fontSize: 12, marginTop: 2 }}>
+                Everything needed for a complete profile is filled in.
               </div>
             )}
           </div>
@@ -614,7 +607,7 @@ export default function ProfilePage() {
               <input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Legal / full name"
+                placeholder="Legal / full name (optional)"
                 style={{
                   border: "1px solid rgba(0,0,0,0.14)",
                   borderRadius: 12,
@@ -626,7 +619,7 @@ export default function ProfilePage() {
             </label>
           </div>
 
-          <div style={{ marginTop: 6, fontWeight: 950, fontSize: 13 }}>Optional public details</div>
+          <div style={{ marginTop: 6, fontWeight: 950, fontSize: 13 }}>Public details</div>
 
           <div className="pmp-profileGrid2">
             <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
@@ -690,7 +683,7 @@ export default function ProfilePage() {
                 }}
               />
               <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
-                Age is required and must be a number.
+                Age is required for profile completion.
               </div>
             </label>
           </div>

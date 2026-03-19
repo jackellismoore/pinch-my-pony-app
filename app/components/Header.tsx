@@ -178,6 +178,11 @@ export default function Header() {
           display: block;
           transform: scale(1.08);
         }
+
+        .pmp-headerNotifWrap {
+          display: inline-flex;
+          align-items: center;
+        }
       `}</style>
 
       <header className="pmp-header">
@@ -216,9 +221,11 @@ export default function Header() {
                   </div>
                 )}
 
-                <div className="pmp-hideOnSmall">
-                  <NotificationBell />
-                </div>
+                {!menuOpen ? (
+                  <div className="pmp-headerNotifWrap">
+                    <NotificationBell />
+                  </div>
+                ) : null}
               </>
             ) : null}
 
