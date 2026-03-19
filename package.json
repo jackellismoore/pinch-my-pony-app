@@ -9,8 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor/app": "^8.0.1",
     "@capacitor/core": "^8.1.0",
+    "@capacitor/device": "^8.0.1",
     "@capacitor/ios": "^8.1.0",
+    "@capacitor/push-notifications": "^8.0.2",
+    "@parse/node-apn": "^7.1.0",
     "@react-google-maps/api": "^2.20.8",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/supabase-js": "^2.97.0",

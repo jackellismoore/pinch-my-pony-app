@@ -1,53 +1,143 @@
-import { supabase } from "@/lib/supabaseClient"
+import webpush from "web-push";
+import { createClient } from "@supabase/supabase-js";
+import apn from "@parse/node-apn";
 
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/")
-  const rawData = atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i)
-  return outputArray
-}
+export const runtime = "nodejs";
 
-export async function registerPushForCurrentUser() {
-  if (typeof window === "undefined") return
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return
+type Payload = {
+  userId: string;
+  title: string;
+  body: string;
+  url: string;
+};
 
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-  if (!publicKey) return
+export async function POST(req: Request) {
+  try {
+    const { userId, title, body, url } = (await req.json()) as Payload;
 
-  const { data } = await supabase.auth.getUser()
-  const user = data?.user
-  if (!user) return
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  const perm = await Notification.requestPermission()
-  if (perm !== "granted") return
+    if (!SUPABASE_URL || !SERVICE_ROLE) {
+      return new Response("Missing Supabase env vars", { status: 500 });
+    }
 
-  const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" })
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
-  const sub =
-    (await reg.pushManager.getSubscription()) ||
-    (await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-    }))
+    let webSent = 0;
+    let webFailed = 0;
+    let nativeSent = 0;
+    let nativeFailed = 0;
 
-  const json = sub.toJSON()
-  const endpoint = json.endpoint
-  const p256dh = json.keys?.p256dh
-  const auth = json.keys?.auth
-  if (!endpoint || !p256dh || !auth) return
+    // ----------------------------
+    // Web push (existing browser/PWA path)
+    // ----------------------------
+    const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+    const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
-  // upsert is not available cleanly without constraints in supabase-js insert
-  // but unique(user_id, endpoint) exists — duplicate errors are fine
-  const { error } = await supabase.from("push_subscriptions").insert({
-    user_id: user.id,
-    endpoint,
-    p256dh,
-    auth,
-  })
+    if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+      const { data: webSubs, error: webErr } = await admin
+        .from("push_subscriptions")
+        .select("endpoint, p256dh, auth")
+        .eq("user_id", userId);
 
-  if (error && !String(error.message).toLowerCase().includes("duplicate")) {
-    console.warn("push_subscriptions insert error:", error)
+      if (!webErr && webSubs?.length) {
+        webpush.setVapidDetails(
+          "mailto:admin@pinchmypony.com",
+          VAPID_PUBLIC_KEY,
+          VAPID_PRIVATE_KEY
+        );
+
+        const payload = JSON.stringify({ title, body, url });
+
+        const results = await Promise.allSettled(
+          webSubs.map((s) =>
+            webpush.sendNotification(
+              { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+              payload
+            )
+          )
+        );
+
+        webSent = results.filter((r) => r.status === "fulfilled").length;
+        webFailed = results.length - webSent;
+      }
+    }
+
+    // ----------------------------
+    // Native iOS APNs push
+    // ----------------------------
+    const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID;
+    const APPLE_KEY_ID = process.env.APPLE_KEY_ID;
+    const APPLE_PRIVATE_KEY = process.env.APPLE_PRIVATE_KEY;
+    const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID;
+    const APPLE_USE_PRODUCTION =
+      String(process.env.APPLE_USE_PRODUCTION ?? "true").toLowerCase() === "true";
+
+    if (APPLE_TEAM_ID && APPLE_KEY_ID && APPLE_PRIVATE_KEY && APPLE_BUNDLE_ID) {
+      const { data: nativeDevices, error: nativeErr } = await admin
+        .from("native_push_devices")
+        .select("token, platform")
+        .eq("user_id", userId);
+
+      if (!nativeErr && nativeDevices?.length) {
+        const provider = new apn.Provider({
+          token: {
+            key: APPLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+            keyId: APPLE_KEY_ID,
+            teamId: APPLE_TEAM_ID,
+          },
+          production: APPLE_USE_PRODUCTION,
+        });
+
+        const iosTargets = nativeDevices
+          .filter((d) => d.token && (d.platform === "ios" || d.platform === "native"))
+          .map((d) => d.token);
+
+        if (iosTargets.length) {
+          const note = new apn.Notification();
+          note.topic = APPLE_BUNDLE_ID;
+          note.alert = {
+            title,
+            body,
+          };
+          note.sound = "default";
+          note.badge = 1;
+          note.payload = {
+            url,
+            path: url,
+          };
+
+          const result = await provider.send(note, iosTargets);
+
+          nativeSent = result.sent.length;
+          nativeFailed = result.failed.length;
+
+          // Cleanup invalid tokens
+          const badTokens = result.failed
+            .map((f: any) => f?.device)
+            .filter(Boolean);
+
+          if (badTokens.length) {
+            await admin.from("native_push_devices").delete().in("token", badTokens);
+          }
+        }
+
+        provider.shutdown();
+      }
+    }
+
+    return Response.json({
+      ok: true,
+      webSent,
+      webFailed,
+      nativeSent,
+      nativeFailed,
+    });
+  } catch (e: any) {
+    console.error("push send route error:", e);
+    return new Response(e?.message ?? "Error", { status: 500 });
   }
 }
