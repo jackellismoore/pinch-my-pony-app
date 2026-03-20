@@ -895,3 +895,12 @@ main {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+.pmp-appMain {
+  padding-bottom: 80px;
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pmp-appMain {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+}
