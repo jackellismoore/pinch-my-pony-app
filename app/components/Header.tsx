@@ -164,11 +164,7 @@ export default function Header() {
           justify-content: space-between;
           gap: 10px;
           min-width: 0;
-          padding:
-            calc(12px + env(safe-area-inset-top))
-            12px
-            12px
-            12px;
+          padding: 10px 12px;
         }
 
         .pmp-brand {
@@ -203,7 +199,6 @@ export default function Header() {
           object-fit: contain;
           object-position: center center;
           display: block;
-          transform: scale(1.04);
         }
 
         .pmp-brandText {
@@ -326,11 +321,7 @@ export default function Header() {
         @media (max-width: 767px) {
           .pmp-headerInner {
             gap: 8px;
-            padding:
-              calc(14px + env(safe-area-inset-top))
-              10px
-              10px
-              10px;
+            padding: 10px 10px;
           }
 
           .pmp-brand {
