@@ -62,15 +62,23 @@ export default function Header() {
 
   const router = useRouter();
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
+  const profileLoadIdRef = useRef(0);
+
   useOutsideClick(menuWrapRef, () => setMenuOpen(false));
 
   useEffect(() => {
-    let cancelled = false;
+    let alive = true;
 
     async function loadProfile(uid: string) {
+      const loadId = ++profileLoadIdRef.current;
       setProfileLoading(true);
+
       try {
-        const { data: p, error } = await supabase
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("profile timeout")), 8000)
+        );
+
+        const query = supabase
           .from("profiles")
           .select(
             "id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
@@ -78,49 +86,65 @@ export default function Header() {
           .eq("id", uid)
           .maybeSingle();
 
-        if (!cancelled && !error) setProfile((p ?? null) as ProfileMini | null);
+        const result = (await Promise.race([query, timeout])) as Awaited<typeof query>;
+
+        if (!alive || loadId !== profileLoadIdRef.current) return;
+
+        if (!result.error) {
+          setProfile((result.data ?? null) as ProfileMini | null);
+        }
+      } catch (e) {
+        console.warn("Header profile load skipped:", e);
       } finally {
-        if (!cancelled) setProfileLoading(false);
+        if (alive && loadId === profileLoadIdRef.current) {
+          setProfileLoading(false);
+        }
       }
     }
 
     async function init() {
-      const { data } = await supabase.auth.getSession();
-      const u = data.session?.user ?? null;
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (!alive) return;
 
-      if (cancelled) return;
+        const u = error ? null : data?.user ?? null;
+        setUser(u);
 
-      setUser(u);
-
-      if (u) {
-        registerPushForCurrentUser();
-        await loadProfile(u.id);
-      } else {
+        if (u) {
+          void registerPushForCurrentUser();
+          void loadProfile(u.id);
+        } else {
+          setProfile(null);
+          setProfileLoading(false);
+        }
+      } catch (e) {
+        if (!alive) return;
+        console.warn("Header init getUser failed:", e);
+        setUser(null);
         setProfile(null);
         setProfileLoading(false);
       }
     }
 
-    init();
+    void init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const u = session?.user ?? null;
-        setUser(u);
-        setMenuOpen(false);
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      setMenuOpen(false);
 
-        if (u) {
-          registerPushForCurrentUser();
-          await loadProfile(u.id);
-        } else {
-          setProfile(null);
-          setProfileLoading(false);
-        }
+      if (u) {
+        void registerPushForCurrentUser();
+        void loadProfile(u.id);
+      } else {
+        profileLoadIdRef.current += 1;
+        setProfile(null);
+        setProfileLoading(false);
       }
-    );
+    });
 
     return () => {
-      cancelled = true;
+      alive = false;
       sub.subscription.unsubscribe();
     };
   }, []);
