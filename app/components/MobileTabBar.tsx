@@ -3,74 +3,38 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Item = {
-  href: string;
-  label: string;
-  icon: string;
-  match: (pathname: string) => boolean;
-};
-
-const items: Item[] = [
-  {
-    href: "/",
-    label: "Home",
-    icon: "🏠",
-    match: (pathname) => pathname === "/",
-  },
-  {
-    href: "/browse",
-    label: "Browse",
-    icon: "🗺️",
-    match: (pathname) => pathname.startsWith("/browse") || pathname.startsWith("/horse/"),
-  },
-  {
-    href: "/messages",
-    label: "Messages",
-    icon: "💬",
-    match: (pathname) => pathname.startsWith("/messages"),
-  },
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: "🐎",
-    match: (pathname) =>
-      pathname.startsWith("/dashboard") ||
-      pathname.startsWith("/owner") ||
-      pathname.startsWith("/request"),
-  },
-  {
-    href: "/profile",
-    label: "Profile",
-    icon: "👤",
-    match: (pathname) => pathname.startsWith("/profile") || pathname.startsWith("/verify"),
-  },
+const items = [
+  { href: "/", label: "Home" },
+  { href: "/messages", label: "Messages" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/profile", label: "Profile" },
 ];
 
 export default function MobileTabBar() {
-  const pathname = usePathname() || "/";
-
-  // Hide bottom tab bar inside an individual message thread
-  if (pathname.startsWith("/messages/")) return null;
+  const pathname = usePathname();
 
   return (
-    <nav className="pmp-mobileTabBar" aria-label="Mobile navigation">
-      {items.map((item) => {
-        const active = item.match(pathname);
-
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`pmp-mobileTabItem${active ? " is-active" : ""}`}
-            aria-current={active ? "page" : undefined}
-          >
-            <span className="pmp-mobileTabIcon" aria-hidden="true">
-              {item.icon}
-            </span>
-            <span className="pmp-mobileTabLabel">{item.label}</span>
-          </Link>
-        );
-      })}
+    <nav
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: "#fff",
+        borderTop: "1px solid #eee",
+        display: "flex",
+        justifyContent: "space-around",
+        padding: "10px 0",
+        zIndex: 1000,
+      }}
+    >
+      {items.map((item) => (
+        <Link key={item.href} href={item.href}>
+          <span style={{ fontWeight: pathname === item.href ? "bold" : "normal" }}>
+            {item.label}
+          </span>
+        </Link>
+      ))}
     </nav>
   );
 }

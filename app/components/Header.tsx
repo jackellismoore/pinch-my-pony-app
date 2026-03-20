@@ -32,24 +32,15 @@ function useOutsideClick<T extends HTMLElement>(
   onOutside: () => void
 ) {
   useEffect(() => {
-    function onDown(e: MouseEvent) {
-      const el = ref.current;
-      if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) onOutside();
+    function handler(e: any) {
+      if (!ref.current || ref.current.contains(e.target)) return;
+      onOutside();
     }
-
-    function onTouch(e: TouchEvent) {
-      const el = ref.current;
-      if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) onOutside();
-    }
-
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("touchstart", onTouch);
-
+    window.addEventListener("mousedown", handler);
+    window.addEventListener("touchstart", handler);
     return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("touchstart", onTouch);
+      window.removeEventListener("mousedown", handler);
+      window.removeEventListener("touchstart", handler);
     };
   }, [ref, onOutside]);
 }
@@ -57,292 +48,118 @@ function useOutsideClick<T extends HTMLElement>(
 export default function Header() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const router = useRouter();
-  const menuWrapRef = useRef<HTMLDivElement | null>(null);
-  const profileLoadIdRef = useRef(0);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  useOutsideClick(menuWrapRef, () => setMenuOpen(false));
+  useOutsideClick(menuRef, () => setMenuOpen(false));
 
   useEffect(() => {
-    let alive = true;
+    async function init() {
+      const { data } = await supabase.auth.getUser();
+      const u = data?.user ?? null;
+      setUser(u);
+
+      if (u) {
+        registerPushForCurrentUser();
+        loadProfile(u.id);
+      }
+    }
 
     async function loadProfile(uid: string) {
-      const loadId = ++profileLoadIdRef.current;
-      setProfileLoading(true);
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", uid)
+        .maybeSingle();
 
-      try {
-        const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("profile timeout")), 8000)
-        );
-
-        const query = supabase
-          .from("profiles")
-          .select(
-            "id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
-          )
-          .eq("id", uid)
-          .maybeSingle();
-
-        const result = (await Promise.race([query, timeout])) as Awaited<typeof query>;
-
-        if (!alive || loadId !== profileLoadIdRef.current) return;
-
-        if (!result.error) {
-          setProfile((result.data ?? null) as ProfileMini | null);
-        }
-      } catch (e) {
-        console.warn("Header profile load skipped:", e);
-      } finally {
-        if (alive && loadId === profileLoadIdRef.current) {
-          setProfileLoading(false);
-        }
-      }
+      setProfile(data ?? null);
     }
 
-    async function init() {
-      try {
-        const { data, error } = await supabase.auth.getUser();
-        if (!alive) return;
+    init();
 
-        const u = error ? null : data?.user ?? null;
-        setUser(u);
-
-        if (u) {
-          void registerPushForCurrentUser();
-          void loadProfile(u.id);
-        } else {
-          setProfile(null);
-          setProfileLoading(false);
-        }
-      } catch (e) {
-        if (!alive) return;
-        console.warn("Header init getUser failed:", e);
-        setUser(null);
-        setProfile(null);
-        setProfileLoading(false);
-      }
-    }
-
-    void init();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null;
       setUser(u);
       setMenuOpen(false);
 
       if (u) {
-        void registerPushForCurrentUser();
-        void loadProfile(u.id);
+        registerPushForCurrentUser();
+        loadProfile(u.id);
       } else {
-        profileLoadIdRef.current += 1;
         setProfile(null);
-        setProfileLoading(false);
       }
     });
 
     return () => {
-      alive = false;
       sub.subscription.unsubscribe();
     };
   }, []);
 
+  // ✅ FIXED LOGOUT
   const logout = async () => {
-    setMenuOpen(false);
-    setUser(null);
-    setProfile(null);
-    setProfileLoading(false);
-
-    const { error } = await supabase.auth.signOut();
-    router.replace("/");
-    router.refresh();
-
-    if (error) {
-      console.error("Logout error:", error.message);
-    }
+    await supabase.auth.signOut();
+    window.location.href = "/login";
   };
 
   const isOwner = profile?.role === "owner";
-  const isVerified = (profile?.verification_status ?? "unverified") === "verified";
+  const isVerified = (profile?.verification_status ?? "") === "verified";
 
-  const signedInLabel = useMemo(() => {
-    if (!user) return null;
-    const name = displayNameOrNull(profile);
-    if (name) return name;
-    if (profileLoading) return "Loading…";
-    return user.email ?? "Signed in";
-  }, [user, profile, profileLoading]);
+  const name = useMemo(() => displayNameOrNull(profile), [profile]);
 
   return (
     <>
-      <style>{`
-        .pmp-headerBrandBadge {
-          width: 52px;
-          height: 52px;
-          min-width: 52px;
-          min-height: 52px;
-          border-radius: 16px;
-          border: 1px solid rgba(15,23,42,0.10);
-          background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,247,240,0.96));
-          box-shadow: 0 10px 24px rgba(15,23,42,0.08);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-          padding: 6px;
-        }
-
-        .pmp-headerBrandBadge img {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-          object-position: center center;
-          display: block;
-          transform: scale(1.08);
-        }
-
-        .pmp-headerNotifWrap {
-          display: inline-flex;
-          align-items: center;
-        }
-      `}</style>
-
       <header className="pmp-header">
         <div className="pmp-headerInner">
-          <Link href="/" className="pmp-brand" onClick={() => setMenuOpen(false)}>
-            <div className="pmp-headerBrandBadge" aria-hidden="true">
-              <Image src="/pmp-logo-web.png" alt="" width={40} height={40} priority />
+          <Link href="/" className="pmp-brand">
+            <div className="pmp-headerBrandBadge">
+              <Image src="/pmp-logo-web.png" alt="" width={40} height={40} />
             </div>
-
-            <div className="pmp-brandText">
+            <div>
               <div className="pmp-brandTitle">Pinch My Pony</div>
               <div className="pmp-brandSub">Horse sharing marketplace</div>
             </div>
           </Link>
 
-          <div ref={menuWrapRef} className="pmp-headerActions">
-            {user ? (
-              <>
-                {!isVerified ? (
-                  <Link href="/verify" title="Verification required" className="pmp-hideOnSmall">
-                    <VerificationBadge
-                      status={profile?.verification_status ?? "unverified"}
-                      verifiedAt={profile?.verified_at ?? null}
-                      provider={profile?.verification_provider ?? null}
-                      compact
-                    />
-                  </Link>
-                ) : (
-                  <div title="Verified" className="pmp-hideOnSmall">
-                    <VerificationBadge
-                      status={profile?.verification_status ?? "verified"}
-                      verifiedAt={profile?.verified_at ?? null}
-                      provider={profile?.verification_provider ?? null}
-                      compact
-                    />
-                  </div>
-                )}
+          <div ref={menuRef} className="pmp-headerActions">
+            {user && <NotificationBell />}
 
-                {!menuOpen ? (
-                  <div className="pmp-headerNotifWrap">
-                    <NotificationBell />
-                  </div>
-                ) : null}
-              </>
-            ) : null}
+            <button onClick={() => setMenuOpen((v) => !v)}>☰</button>
 
-            <button
-              onClick={() => setMenuOpen((v) => !v)}
-              className={`pmp-menuButton${menuOpen ? " is-open" : ""}`}
-              aria-label="Menu"
-              aria-expanded={menuOpen}
-              title="Menu"
-              type="button"
-            >
-              ☰
-            </button>
-
-            {menuOpen ? (
+            {menuOpen && (
               <div className="pmp-menuPanel">
                 {user ? (
                   <>
-                    <div className="pmp-menuUser">
-                      <div className="pmp-menuUserLabel">Signed in as</div>
-                      <div className="pmp-menuUserName">{signedInLabel}</div>
-                    </div>
+                    <div>{name || user.email}</div>
 
-                    {!isVerified ? (
-                      <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                        Verify Identity
-                      </Link>
-                    ) : null}
+                    {!isVerified && <Link href="/verify">Verify</Link>}
 
-                    <Link href="/messages" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Messages
-                    </Link>
+                    <Link href="/messages">Messages</Link>
 
                     {isOwner ? (
-                      <Link
-                        href="/dashboard/owner"
-                        onClick={() => setMenuOpen(false)}
-                        className="pmp-menuItem"
-                      >
-                        Owner Dashboard
-                      </Link>
+                      <Link href="/dashboard/owner">Dashboard</Link>
                     ) : (
-                      <Link
-                        href="/dashboard/borrower"
-                        onClick={() => setMenuOpen(false)}
-                        className="pmp-menuItem"
-                      >
-                        Rider Dashboard
-                      </Link>
+                      <Link href="/dashboard/borrower">Dashboard</Link>
                     )}
 
-                    <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Profile
-                    </Link>
+                    <Link href="/profile">Profile</Link>
 
-                    <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      FAQs
-                    </Link>
-
-                    <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Contact Us
-                    </Link>
-
-                    <button onClick={logout} className="pmp-menuLogout" type="button">
-                      Logout
-                    </button>
+                    <button onClick={logout}>Logout</button>
                   </>
                 ) : (
                   <>
-                    <Link href="/login" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Login
-                    </Link>
-
-                    <Link href="/signup" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Sign Up
-                    </Link>
-
-                    <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      FAQs
-                    </Link>
-
-                    <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Contact Us
-                    </Link>
+                    <Link href="/login">Login</Link>
+                    <Link href="/signup">Signup</Link>
                   </>
                 )}
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       </header>
 
-      {user ? <MobileTabBar /> : null}
+      {user && <MobileTabBar />}
     </>
   );
 }
