@@ -4,7 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { registerPushForCurrentUser } from "@/lib/push/registerPush";
+import {
+  registerPushForCurrentUser,
+  syncPushTokenAfterAuth,
+} from "@/lib/push/registerPush";
 import NotificationBell from "@/components/NotificationBell";
 import { VerificationBadge } from "@/components/VerificationBadge";
 import MobileTabBar from "@/components/MobileTabBar";
@@ -85,6 +88,8 @@ export default function Header() {
     }
 
     async function init() {
+      registerPushForCurrentUser().catch(() => {});
+
       const { data } = await supabase.auth.getSession();
       const u = data.session?.user ?? null;
 
@@ -93,7 +98,7 @@ export default function Header() {
       setUser(u);
 
       if (u) {
-        registerPushForCurrentUser().catch(() => {});
+        syncPushTokenAfterAuth().catch(() => {});
         await loadProfile(u.id);
       } else {
         setProfile(null);
@@ -108,8 +113,10 @@ export default function Header() {
       setUser(u);
       setMenuOpen(false);
 
+      registerPushForCurrentUser().catch(() => {});
+
       if (u) {
-        registerPushForCurrentUser().catch(() => {});
+        syncPushTokenAfterAuth().catch(() => {});
         await loadProfile(u.id);
       } else {
         setProfile(null);
