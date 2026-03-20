@@ -52,9 +52,9 @@ export default function MobileTabBar() {
           display: flex;
           align-items: stretch;
           justify-content: space-between;
-          gap: 0;
+          gap: 8px;
           padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
-          background: rgba(255,255,255,0.94);
+          background: rgba(255,255,255,0.95);
           backdrop-filter: blur(14px);
           border-top: 1px solid rgba(15,23,42,0.08);
           box-shadow: 0 -8px 24px rgba(15,23,42,0.06);
@@ -68,37 +68,39 @@ export default function MobileTabBar() {
           align-items: center;
           justify-content: center;
           gap: 4px;
-          padding: 6px 4px;
+          padding: 8px 4px;
+          border-radius: 18px;
           text-decoration: none;
           color: rgba(15,23,42,0.62);
-          border-radius: 14px;
+          background: transparent;
         }
 
         .pmp-mobileTabIcon {
-          font-size: 18px;
+          font-size: 20px;
           line-height: 1;
         }
 
         .pmp-mobileTabLabel {
           font-size: 11px;
-          font-weight: 850;
           line-height: 1.1;
+          font-weight: 850;
+          color: inherit;
           text-align: center;
           white-space: nowrap;
-          color: inherit;
+          display: block;
         }
 
         .pmp-mobileTabItem.is-active {
+          background: rgba(31,61,43,0.10);
           color: #1F3D2B;
-          background: rgba(31,61,43,0.08);
         }
 
         .pmp-mobileTabItem.is-active .pmp-mobileTabLabel {
+          color: #1F3D2B;
           font-weight: 950;
           text-decoration: underline;
           text-underline-offset: 3px;
           text-decoration-thickness: 2px;
-          color: #1F3D2B;
         }
       `}</style>
 

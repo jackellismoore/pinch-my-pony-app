@@ -93,7 +93,7 @@ export default function Header() {
       setUser(u);
 
       if (u) {
-        registerPushForCurrentUser();
+        registerPushForCurrentUser().catch(() => {});
         await loadProfile(u.id);
       } else {
         setProfile(null);
@@ -109,7 +109,7 @@ export default function Header() {
       setMenuOpen(false);
 
       if (u) {
-        registerPushForCurrentUser();
+        registerPushForCurrentUser().catch(() => {});
         await loadProfile(u.id);
       } else {
         setProfile(null);
@@ -151,21 +151,24 @@ export default function Header() {
           position: sticky;
           top: 0;
           z-index: 1100;
-          padding-top: env(safe-area-inset-top);
-          background: rgba(255,255,255,0.92);
+          background: rgba(255,255,255,0.94);
           backdrop-filter: blur(14px);
           border-bottom: 1px solid rgba(15,23,42,0.08);
         }
 
         .pmp-headerInner {
+          max-width: 1120px;
+          margin: 0 auto;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 10px;
           min-width: 0;
-          max-width: 1120px;
-          margin: 0 auto;
-          padding: 10px 12px;
+          padding:
+            calc(12px + env(safe-area-inset-top))
+            12px
+            12px
+            12px;
         }
 
         .pmp-brand {
@@ -200,7 +203,7 @@ export default function Header() {
           object-fit: contain;
           object-position: center center;
           display: block;
-          transform: scale(1.08);
+          transform: scale(1.04);
         }
 
         .pmp-brandText {
@@ -323,7 +326,11 @@ export default function Header() {
         @media (max-width: 767px) {
           .pmp-headerInner {
             gap: 8px;
-            padding: 10px 10px;
+            padding:
+              calc(14px + env(safe-area-inset-top))
+              10px
+              10px
+              10px;
           }
 
           .pmp-brand {
@@ -331,10 +338,10 @@ export default function Header() {
           }
 
           .pmp-headerBrandBadge {
-            width: 46px;
-            height: 46px;
-            min-width: 46px;
-            min-height: 46px;
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            min-height: 44px;
             border-radius: 14px;
             padding: 5px;
           }
