@@ -645,8 +645,36 @@ export default function MessageThreadPage() {
   return (
     <>
       <style>{`
+        .pmp-threadViewport {
+          position: relative;
+          width: 100%;
+        }
+
+        .pmp-threadRoot {
+          display: flex;
+          flex-direction: column;
+          background: #f6f7fb;
+          border-radius: 24px;
+          overflow: hidden;
+          min-height: calc(100dvh - 72px);
+          height: calc(100dvh - 72px);
+        }
+
+        .pmp-threadHeader {
+          flex-shrink: 0;
+        }
+
+        .pmp-threadMessages {
+          flex: 1 1 auto;
+          min-height: 0;
+        }
+
+        .pmp-threadComposerWrap {
+          flex-shrink: 0;
+        }
+
         @media (max-width: 767px) {
-          .pmp-threadPageWrap {
+          .pmp-threadViewport {
             margin-left: calc(50% - 50vw);
             margin-right: calc(50% - 50vw);
             width: 100vw;
@@ -655,84 +683,107 @@ export default function MessageThreadPage() {
           .pmp-threadRoot {
             border-radius: 0 !important;
             width: 100vw !important;
-            min-height: calc(100dvh - 61px) !important;
-            height: calc(100dvh - 61px) !important;
+            min-height: calc(100dvh - 58px) !important;
+            height: calc(100dvh - 58px) !important;
           }
 
           .pmp-threadHeader {
-            padding: 10px 12px !important;
+            padding: 8px 10px !important;
           }
 
           .pmp-threadHeaderTop {
             align-items: flex-start !important;
+            gap: 8px !important;
           }
 
           .pmp-threadHeaderMain {
             min-width: 0;
             width: 100%;
+            gap: 6px !important;
+          }
+
+          .pmp-threadHeaderIdentity {
+            gap: 10px !important;
+          }
+
+          .pmp-threadAvatar {
+            width: 38px !important;
+            height: 38px !important;
+          }
+
+          .pmp-threadName {
+            font-size: 13px !important;
+          }
+
+          .pmp-threadMeta {
+            gap: 8px !important;
+          }
+
+          .pmp-threadHorse {
+            font-size: 11px !important;
+          }
+
+          .pmp-threadStatus {
+            font-size: 11px !important;
           }
 
           .pmp-threadBackRow {
-            margin-top: 8px;
+            margin-top: 2px;
             width: 100%;
           }
 
           .pmp-threadBackBtn {
-            min-height: 38px !important;
-            padding: 8px 12px !important;
-            font-size: 12px !important;
+            min-height: 34px !important;
+            padding: 6px 10px !important;
+            font-size: 11px !important;
           }
 
           .pmp-threadHeaderActions {
             width: 100%;
             justify-content: stretch !important;
+            gap: 6px !important;
           }
 
           .pmp-threadHeaderActions > * {
             flex: 1 1 0;
           }
 
+          .pmp-threadMessages {
+            padding: 10px !important;
+          }
+
           .pmp-threadComposerWrap {
             position: sticky;
             bottom: 0;
-            z-index: 10;
+            z-index: 20;
+            padding: 8px 10px calc(8px + env(safe-area-inset-bottom)) !important;
+            background: rgba(255,255,255,0.98) !important;
           }
 
           .pmp-threadComposerRow {
             align-items: stretch !important;
+            gap: 8px !important;
           }
 
           .pmp-threadComposerRow textarea {
-            min-height: 48px !important;
+            min-height: 44px !important;
           }
         }
       `}</style>
 
-      <div className="pmp-threadPageWrap">
-        <div
-          className="pmp-threadRoot"
-          style={{
-            minHeight: "calc(100dvh - 72px)",
-            height: "calc(100dvh - 72px)",
-            display: "flex",
-            flexDirection: "column",
-            background: "#f6f7fb",
-            borderRadius: 24,
-            overflow: "hidden",
-          }}
-        >
+      <div className="pmp-threadViewport">
+        <div className="pmp-threadRoot">
           <div
             className="pmp-threadHeader"
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 10,
+              gap: 8,
               padding: "12px 14px",
               borderBottom: "1px solid rgba(15,23,42,0.10)",
               background: "rgba(255,255,255,0.94)",
               backdropFilter: "blur(10px)",
               color: "#0f172a",
-              flexShrink: 0,
             }}
           >
             <div
@@ -746,8 +797,12 @@ export default function MessageThreadPage() {
               }}
             >
               <div className="pmp-threadHeaderMain" style={{ minWidth: 0, display: "grid", gap: 8 }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                <div
+                  className="pmp-threadHeaderIdentity"
+                  style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}
+                >
                   <div
+                    className="pmp-threadAvatar"
                     style={{
                       width: 42,
                       height: 42,
@@ -769,11 +824,12 @@ export default function MessageThreadPage() {
                   </div>
 
                   <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
-                    <div style={{ fontWeight: 950, lineHeight: 1.15, fontSize: 14 }}>
+                    <div className="pmp-threadName" style={{ fontWeight: 950, lineHeight: 1.15, fontSize: 14 }}>
                       {headerLoading ? "Loading…" : otherName}
                     </div>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <div className="pmp-threadMeta" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                       <div
+                        className="pmp-threadHorse"
                         style={{
                           opacity: 0.78,
                           fontSize: 12,
@@ -784,7 +840,10 @@ export default function MessageThreadPage() {
                       >
                         {horseName}
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.85 }}>
+                      <div
+                        className="pmp-threadStatus"
+                        style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.85 }}
+                      >
                         <span
                           style={{
                             width: 8,
@@ -844,9 +903,8 @@ export default function MessageThreadPage() {
 
           <div
             ref={scrollerRef}
+            className="pmp-threadMessages"
             style={{
-              flex: 1,
-              minHeight: 0,
               overflowY: "auto",
               padding: 16,
               display: "flex",
@@ -950,7 +1008,6 @@ export default function MessageThreadPage() {
           <div
             className="pmp-threadComposerWrap"
             style={{
-              flexShrink: 0,
               padding: "12px 12px calc(12px + env(safe-area-inset-bottom))",
               borderTop: "1px solid rgba(15,23,42,0.10)",
               background: "rgba(255,255,255,0.94)",
