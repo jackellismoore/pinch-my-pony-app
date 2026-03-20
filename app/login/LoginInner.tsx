@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { supabase, SUPABASE_ENV_OK } from "@/lib/supabaseClient";
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -39,7 +39,6 @@ function isValidEmail(v: string) {
 }
 
 export default function LoginInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const redirectTo = useMemo(
@@ -98,8 +97,9 @@ export default function LoginInner() {
 
       if (res.error) throw res.error;
 
-      router.replace(redirectTo);
-      router.refresh();
+      const target = sanitizeRedirectTo(redirectTo);
+      window.location.replace(target);
+      return;
     } catch (err: any) {
       setError(err?.message ?? "Login failed.");
     } finally {
