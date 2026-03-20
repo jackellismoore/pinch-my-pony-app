@@ -646,9 +646,17 @@ export default function MessageThreadPage() {
     <>
       <style>{`
         @media (max-width: 767px) {
+          .pmp-threadPageWrap {
+            margin-left: calc(50% - 50vw);
+            margin-right: calc(50% - 50vw);
+            width: 100vw;
+          }
+
           .pmp-threadRoot {
             border-radius: 0 !important;
-            height: calc(100dvh - 60px) !important;
+            width: 100vw !important;
+            min-height: calc(100dvh - 61px) !important;
+            height: calc(100dvh - 61px) !important;
           }
 
           .pmp-threadHeader {
@@ -684,6 +692,12 @@ export default function MessageThreadPage() {
             flex: 1 1 0;
           }
 
+          .pmp-threadComposerWrap {
+            position: sticky;
+            bottom: 0;
+            z-index: 10;
+          }
+
           .pmp-threadComposerRow {
             align-items: stretch !important;
           }
@@ -694,413 +708,420 @@ export default function MessageThreadPage() {
         }
       `}</style>
 
-      <div
-        className="pmp-threadRoot"
-        style={{
-          height: "calc(100dvh - 60px)",
-          display: "flex",
-          flexDirection: "column",
-          background: "#f6f7fb",
-          borderRadius: 24,
-          overflow: "hidden",
-        }}
-      >
+      <div className="pmp-threadPageWrap">
         <div
-          className="pmp-threadHeader"
+          className="pmp-threadRoot"
           style={{
+            minHeight: "calc(100dvh - 72px)",
+            height: "calc(100dvh - 72px)",
             display: "flex",
             flexDirection: "column",
-            gap: 10,
-            padding: "12px 14px",
-            borderBottom: "1px solid rgba(15,23,42,0.10)",
-            background: "rgba(255,255,255,0.94)",
-            backdropFilter: "blur(10px)",
-            color: "#0f172a",
+            background: "#f6f7fb",
+            borderRadius: 24,
+            overflow: "hidden",
           }}
         >
           <div
-            className="pmp-threadHeaderTop"
+            className="pmp-threadHeader"
             style={{
               display: "flex",
-              gap: 12,
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
+              flexDirection: "column",
+              gap: 10,
+              padding: "12px 14px",
+              borderBottom: "1px solid rgba(15,23,42,0.10)",
+              background: "rgba(255,255,255,0.94)",
+              backdropFilter: "blur(10px)",
+              color: "#0f172a",
+              flexShrink: 0,
             }}
           >
-            <div className="pmp-threadHeaderMain" style={{ minWidth: 0, display: "grid", gap: 8 }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 999,
-                    overflow: "hidden",
-                    background: "rgba(15,23,42,0.06)",
-                    border: "2px solid rgba(202,162,77,0.35)",
-                    boxShadow: "0 10px 20px rgba(15,23,42,0.10)",
-                    flexShrink: 0,
-                  }}
-                >
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt={otherName}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                  ) : null}
-                </div>
-
-                <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
-                  <div style={{ fontWeight: 950, lineHeight: 1.15, fontSize: 14 }}>
-                    {headerLoading ? "Loading…" : otherName}
-                  </div>
-                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <div
-                      style={{
-                        opacity: 0.78,
-                        fontSize: 12,
-                        whiteSpace: "nowrap",
-                        color: "#0b3b2e",
-                        fontWeight: 850,
-                      }}
-                    >
-                      {horseName}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.85 }}>
-                      <span
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 999,
-                          background: otherOnline ? "#22c55e" : "rgba(15,23,42,0.25)",
-                          display: "inline-block",
-                        }}
-                      />
-                      {statusText}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pmp-threadBackRow" style={{ display: "flex", justifyContent: "flex-start" }}>
-                <button
-                  onClick={() => router.push("/messages")}
-                  className="pmp-ctaSecondary pmp-threadBackBtn"
-                  type="button"
-                >
-                  ← Back to messages
-                </button>
-              </div>
-            </div>
-
             <div
-              className="pmp-threadHeaderActions"
-              style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
-            >
-              {showReviewCTA ? (
-                <Link href={`/review/${requestId}`} className="pmp-ctaSecondary">
-                  Leave a review
-                </Link>
-              ) : null}
-
-              <button
-                onClick={deleteChatForMe}
-                disabled={deleting}
-                type="button"
-                style={{
-                  border: "1px solid rgba(239,68,68,0.25)",
-                  background: deleting ? "rgba(239,68,68,0.22)" : "rgba(239,68,68,0.10)",
-                  color: "#b91c1c",
-                  cursor: deleting ? "not-allowed" : "pointer",
-                  fontWeight: 950,
-                  fontSize: 12,
-                  padding: "10px 12px",
-                  borderRadius: 14,
-                }}
-              >
-                {deleting ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div
-          ref={scrollerRef}
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: 16,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            position: "relative",
-            background:
-              "radial-gradient(1000px 680px at 12% 6%, rgba(202,162,77,0.14), transparent 60%), radial-gradient(1000px 680px at 92% 10%, rgba(11,59,46,0.10), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.88), rgba(250,250,250,0.96))",
-          }}
-        >
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              pointerEvents: "none",
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.18), transparent 25%, rgba(255,255,255,0.14)), radial-gradient(1200px 600px at 50% 0%, rgba(15,23,42,0.04), transparent 60%)",
-              mixBlendMode: "soft-light",
-            }}
-          />
-
-          <div ref={topSentinelRef} style={{ height: 1, position: "relative" }} />
-
-          {hasMore && (
-            <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
-              {loadingMore ? "Loading…" : "Scroll up for older messages"}
-            </div>
-          )}
-
-          {loadingInitial && (
-            <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
-              Loading messages…
-            </div>
-          )}
-
-          <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 8 }}>
-            {grouped.map(({ m, pos }, idx) => {
-              const prev = idx > 0 ? grouped[idx - 1]!.m : null;
-              const showDaySeparator = !prev || dateKey(prev.created_at) !== dateKey(m.created_at);
-              const showNewDivider = firstUnreadId && m.id === firstUnreadId;
-
-              return (
-                <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {showDaySeparator ? (
-                    <div style={{ display: "flex", justifyContent: "center" }}>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 950,
-                          color: "rgba(15,23,42,0.72)",
-                          padding: "6px 12px",
-                          borderRadius: 999,
-                          border: "1px solid rgba(15,23,42,0.10)",
-                          background: "rgba(255,255,255,0.66)",
-                          boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
-                          backdropFilter: "blur(8px)",
-                        }}
-                      >
-                        {dayLabel(m.created_at)}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {showNewDivider ? (
-                    <div style={{ display: "flex", justifyContent: "center" }}>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 950,
-                          color: "rgba(15,23,42,0.78)",
-                          padding: "7px 12px",
-                          borderRadius: 999,
-                          border: "1px solid rgba(202,162,77,0.38)",
-                          background:
-                            "radial-gradient(600px 160px at 15% 0%, rgba(202,162,77,0.20), transparent 60%), rgba(255,255,255,0.72)",
-                          boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
-                          backdropFilter: "blur(8px)",
-                        }}
-                      >
-                        New messages{firstUnreadCount > 0 ? ` (${firstUnreadCount})` : ""}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <MessageBubble
-                    message={m}
-                    isMine={m.sender_id === myUserId}
-                    groupPos={pos}
-                    showStatus={false}
-                    onRetry={(id) => retry(id)}
-                  />
-                </div>
-              );
-            })}
-
-            <TypingBubbleInline show={otherTyping} />
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: "12px 12px calc(12px + env(safe-area-inset-bottom))",
-            borderTop: "1px solid rgba(15,23,42,0.10)",
-            background: "rgba(255,255,255,0.94)",
-            backdropFilter: "blur(10px)",
-          }}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/webp"
-            style={{ display: "none" }}
-            onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-          />
-
-          {pickedFile && pickedPreviewUrl ? (
-            <div
+              className="pmp-threadHeaderTop"
               style={{
-                marginBottom: 10,
-                border: "1px solid rgba(15,23,42,0.10)",
-                borderRadius: 18,
-                background:
-                  "radial-gradient(700px 180px at 10% 0%, rgba(202,162,77,0.16), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,241,232,0.78))",
-                boxShadow: "0 14px 40px rgba(15,23,42,0.10)",
-                padding: 10,
                 display: "flex",
+                gap: 12,
                 alignItems: "center",
-                gap: 10,
+                justifyContent: "space-between",
                 flexWrap: "wrap",
               }}
             >
-              <div
-                style={{
-                  width: 62,
-                  height: 62,
-                  borderRadius: 16,
-                  overflow: "hidden",
-                  border: "1px solid rgba(15,23,42,0.12)",
-                  background: "rgba(15,23,42,0.04)",
-                  flex: "0 0 auto",
-                }}
-              >
-                <img src={pickedPreviewUrl} alt="Selected" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <div className="pmp-threadHeaderMain" style={{ minWidth: 0, display: "grid", gap: 8 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 999,
+                      overflow: "hidden",
+                      background: "rgba(15,23,42,0.06)",
+                      border: "2px solid rgba(202,162,77,0.35)",
+                      boxShadow: "0 10px 20px rgba(15,23,42,0.10)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={otherName}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : null}
+                  </div>
+
+                  <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+                    <div style={{ fontWeight: 950, lineHeight: 1.15, fontSize: 14 }}>
+                      {headerLoading ? "Loading…" : otherName}
+                    </div>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                      <div
+                        style={{
+                          opacity: 0.78,
+                          fontSize: 12,
+                          whiteSpace: "nowrap",
+                          color: "#0b3b2e",
+                          fontWeight: 850,
+                        }}
+                      >
+                        {horseName}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.85 }}>
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 999,
+                            background: otherOnline ? "#22c55e" : "rgba(15,23,42,0.25)",
+                            display: "inline-block",
+                          }}
+                        />
+                        {statusText}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pmp-threadBackRow" style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <button
+                    onClick={() => router.push("/messages")}
+                    className="pmp-ctaSecondary pmp-threadBackBtn"
+                    type="button"
+                  >
+                    ← Back to messages
+                  </button>
+                </div>
               </div>
 
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div
+              <div
+                className="pmp-threadHeaderActions"
+                style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+              >
+                {showReviewCTA ? (
+                  <Link href={`/review/${requestId}`} className="pmp-ctaSecondary">
+                    Leave a review
+                  </Link>
+                ) : null}
+
+                <button
+                  onClick={deleteChatForMe}
+                  disabled={deleting}
+                  type="button"
                   style={{
+                    border: "1px solid rgba(239,68,68,0.25)",
+                    background: deleting ? "rgba(239,68,68,0.22)" : "rgba(239,68,68,0.10)",
+                    color: "#b91c1c",
+                    cursor: deleting ? "not-allowed" : "pointer",
                     fontWeight: 950,
-                    fontSize: 13,
-                    color: "#0f172a",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    fontSize: 12,
+                    padding: "10px 12px",
+                    borderRadius: 14,
                   }}
                 >
-                  {pickedFile.name}
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.72, color: "#0f172a", marginTop: 2 }}>
-                  {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • {pickedFile.type || "image"}
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.8, color: "#0b3b2e", marginTop: 4, fontWeight: 850 }}>
-                  {uploading ? "Uploading…" : "Ready to send"}
-                </div>
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
               </div>
+            </div>
+          </div>
 
+          <div
+            ref={scrollerRef}
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              position: "relative",
+              background:
+                "radial-gradient(1000px 680px at 12% 6%, rgba(202,162,77,0.14), transparent 60%), radial-gradient(1000px 680px at 92% 10%, rgba(11,59,46,0.10), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.88), rgba(250,250,250,0.96))",
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.18), transparent 25%, rgba(255,255,255,0.14)), radial-gradient(1200px 600px at 50% 0%, rgba(15,23,42,0.04), transparent 60%)",
+                mixBlendMode: "soft-light",
+              }}
+            />
+
+            <div ref={topSentinelRef} style={{ height: 1, position: "relative" }} />
+
+            {hasMore && (
+              <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
+                {loadingMore ? "Loading…" : "Scroll up for older messages"}
+              </div>
+            )}
+
+            {loadingInitial && (
+              <div style={{ textAlign: "center", opacity: 0.65, fontSize: 12, padding: 8, color: "#0f172a", position: "relative" }}>
+                Loading messages…
+              </div>
+            )}
+
+            <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 8 }}>
+              {grouped.map(({ m, pos }, idx) => {
+                const prev = idx > 0 ? grouped[idx - 1]!.m : null;
+                const showDaySeparator = !prev || dateKey(prev.created_at) !== dateKey(m.created_at);
+                const showNewDivider = firstUnreadId && m.id === firstUnreadId;
+
+                return (
+                  <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {showDaySeparator ? (
+                      <div style={{ display: "flex", justifyContent: "center" }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 950,
+                            color: "rgba(15,23,42,0.72)",
+                            padding: "6px 12px",
+                            borderRadius: 999,
+                            border: "1px solid rgba(15,23,42,0.10)",
+                            background: "rgba(255,255,255,0.66)",
+                            boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
+                            backdropFilter: "blur(8px)",
+                          }}
+                        >
+                          {dayLabel(m.created_at)}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {showNewDivider ? (
+                      <div style={{ display: "flex", justifyContent: "center" }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 950,
+                            color: "rgba(15,23,42,0.78)",
+                            padding: "7px 12px",
+                            borderRadius: 999,
+                            border: "1px solid rgba(202,162,77,0.38)",
+                            background:
+                              "radial-gradient(600px 160px at 15% 0%, rgba(202,162,77,0.20), transparent 60%), rgba(255,255,255,0.72)",
+                            boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
+                            backdropFilter: "blur(8px)",
+                          }}
+                        >
+                          New messages{firstUnreadCount > 0 ? ` (${firstUnreadCount})` : ""}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <MessageBubble
+                      message={m}
+                      isMine={m.sender_id === myUserId}
+                      groupPos={pos}
+                      showStatus={false}
+                      onRetry={(id) => retry(id)}
+                    />
+                  </div>
+                );
+              })}
+
+              <TypingBubbleInline show={otherTyping} />
+            </div>
+          </div>
+
+          <div
+            className="pmp-threadComposerWrap"
+            style={{
+              flexShrink: 0,
+              padding: "12px 12px calc(12px + env(safe-area-inset-bottom))",
+              borderTop: "1px solid rgba(15,23,42,0.10)",
+              background: "rgba(255,255,255,0.94)",
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              style={{ display: "none" }}
+              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+            />
+
+            {pickedFile && pickedPreviewUrl ? (
+              <div
+                style={{
+                  marginBottom: 10,
+                  border: "1px solid rgba(15,23,42,0.10)",
+                  borderRadius: 18,
+                  background:
+                    "radial-gradient(700px 180px at 10% 0%, rgba(202,162,77,0.16), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,241,232,0.78))",
+                  boxShadow: "0 14px 40px rgba(15,23,42,0.10)",
+                  padding: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div
+                  style={{
+                    width: 62,
+                    height: 62,
+                    borderRadius: 16,
+                    overflow: "hidden",
+                    border: "1px solid rgba(15,23,42,0.12)",
+                    background: "rgba(15,23,42,0.04)",
+                    flex: "0 0 auto",
+                  }}
+                >
+                  <img src={pickedPreviewUrl} alt="Selected" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
+
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontWeight: 950,
+                      fontSize: 13,
+                      color: "#0f172a",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {pickedFile.name}
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.72, color: "#0f172a", marginTop: 2 }}>
+                    {(pickedFile.size / 1024 / 1024).toFixed(2)} MB • {pickedFile.type || "image"}
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.8, color: "#0b3b2e", marginTop: 4, fontWeight: 850 }}>
+                    {uploading ? "Uploading…" : "Ready to send"}
+                  </div>
+                </div>
+
+                <button
+                  onClick={clearPicked}
+                  disabled={uploading}
+                  type="button"
+                  style={{
+                    border: "1px solid rgba(239,68,68,0.25)",
+                    background: uploading ? "rgba(239,68,68,0.18)" : "rgba(239,68,68,0.10)",
+                    color: "#b91c1c",
+                    cursor: uploading ? "not-allowed" : "pointer",
+                    fontWeight: 950,
+                    fontSize: 12,
+                    padding: "8px 10px",
+                    borderRadius: 14,
+                    flex: "0 0 auto",
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ) : null}
+
+            {composerError ? (
+              <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c", fontWeight: 950, whiteSpace: "pre-wrap" }}>
+                {composerError}
+              </div>
+            ) : null}
+
+            <div className="pmp-threadComposerRow" style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
               <button
-                onClick={clearPicked}
+                onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
                 type="button"
                 style={{
-                  border: "1px solid rgba(239,68,68,0.25)",
-                  background: uploading ? "rgba(239,68,68,0.18)" : "rgba(239,68,68,0.10)",
-                  color: "#b91c1c",
-                  cursor: uploading ? "not-allowed" : "pointer",
-                  fontWeight: 950,
-                  fontSize: 12,
-                  padding: "8px 10px",
+                  width: 44,
+                  height: 44,
                   borderRadius: 14,
-                  flex: "0 0 auto",
+                  border: "1px solid rgba(15,23,42,0.12)",
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
+                  cursor: uploading ? "not-allowed" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 12px 24px rgba(15,23,42,0.08)",
+                  padding: 0,
+                  flexShrink: 0,
                 }}
+                title="Attach image"
+                aria-label="Attach image"
               >
-                Remove
+                <span style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true">
+                  📷
+                </span>
+              </button>
+
+              <textarea
+                ref={inputRef}
+                value={draft}
+                onChange={(e) => onDraftChange(e.target.value)}
+                onBlur={() => broadcastTyping(false)}
+                placeholder={pickedFile ? "Add a caption (optional)…" : "Message…"}
+                rows={1}
+                style={{
+                  flex: 1,
+                  resize: "none",
+                  padding: "12px 12px",
+                  borderRadius: 16,
+                  border: "1px solid rgba(15,23,42,0.12)",
+                  background: "rgba(15,23,42,0.03)",
+                  color: "#0f172a",
+                  outline: "none",
+                  lineHeight: 1.35,
+                  minHeight: 44,
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.65)",
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (canSend) void send();
+                  }
+                }}
+                disabled={uploading}
+              />
+
+              <button
+                onClick={() => void send()}
+                disabled={!canSend}
+                type="button"
+                style={{
+                  height: 44,
+                  padding: "0 14px",
+                  borderRadius: 16,
+                  border: "1px solid rgba(15,23,42,0.12)",
+                  fontWeight: 950,
+                  cursor: !canSend ? "not-allowed" : "pointer",
+                  background: !canSend
+                    ? "rgba(11,59,46,0.18)"
+                    : "linear-gradient(180deg, rgba(11,59,46,0.96), rgba(15,23,42,0.92))",
+                  color: "white",
+                  boxShadow: !canSend ? "none" : "0 14px 30px rgba(15,23,42,0.18)",
+                  flexShrink: 0,
+                }}
+                title={uploading ? "Uploading…" : "Send"}
+              >
+                {uploading ? "Sending…" : "Send"}
               </button>
             </div>
-          ) : null}
-
-          {composerError ? (
-            <div style={{ marginBottom: 10, fontSize: 12, color: "#b91c1c", fontWeight: 950, whiteSpace: "pre-wrap" }}>
-              {composerError}
-            </div>
-          ) : null}
-
-          <div className="pmp-threadComposerRow" style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              type="button"
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 14,
-                border: "1px solid rgba(15,23,42,0.12)",
-                background: "linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,241,232,0.78))",
-                cursor: uploading ? "not-allowed" : "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 12px 24px rgba(15,23,42,0.08)",
-                padding: 0,
-                flexShrink: 0,
-              }}
-              title="Attach image"
-              aria-label="Attach image"
-            >
-              <span style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true">
-                📷
-              </span>
-            </button>
-
-            <textarea
-              ref={inputRef}
-              value={draft}
-              onChange={(e) => onDraftChange(e.target.value)}
-              onBlur={() => broadcastTyping(false)}
-              placeholder={pickedFile ? "Add a caption (optional)…" : "Message…"}
-              rows={1}
-              style={{
-                flex: 1,
-                resize: "none",
-                padding: "12px 12px",
-                borderRadius: 16,
-                border: "1px solid rgba(15,23,42,0.12)",
-                background: "rgba(15,23,42,0.03)",
-                color: "#0f172a",
-                outline: "none",
-                lineHeight: 1.35,
-                minHeight: 44,
-                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.65)",
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (canSend) void send();
-                }
-              }}
-              disabled={uploading}
-            />
-
-            <button
-              onClick={() => void send()}
-              disabled={!canSend}
-              type="button"
-              style={{
-                height: 44,
-                padding: "0 14px",
-                borderRadius: 16,
-                border: "1px solid rgba(15,23,42,0.12)",
-                fontWeight: 950,
-                cursor: !canSend ? "not-allowed" : "pointer",
-                background: !canSend
-                  ? "rgba(11,59,46,0.18)"
-                  : "linear-gradient(180deg, rgba(11,59,46,0.96), rgba(15,23,42,0.92))",
-                color: "white",
-                boxShadow: !canSend ? "none" : "0 14px 30px rgba(15,23,42,0.18)",
-                flexShrink: 0,
-              }}
-              title={uploading ? "Uploading…" : "Send"}
-            >
-              {uploading ? "Sending…" : "Send"}
-            </button>
           </div>
         </div>
       </div>
