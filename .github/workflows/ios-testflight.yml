@@ -23,6 +23,9 @@ jobs:
       MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
 
+      FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+      FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+
       IOS_SCHEME: App
       APPLE_TEAM_ID: MBYRMXKNM4
       APP_BUNDLE_ID: com.pinchmypony.app
