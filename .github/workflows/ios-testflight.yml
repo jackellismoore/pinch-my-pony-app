@@ -311,18 +311,6 @@ jobs:
           set -euxo pipefail
           cat ios/App/App/App.entitlements
 
-      - name: Show effective build settings
-        shell: bash
-        run: |
-          set -euxo pipefail
-          xcodebuild \
-            -project ios/App/App.xcodeproj \
-            -scheme "$IOS_SCHEME" \
-            -configuration Release \
-            -showBuildSettings | tee build-settings.log
-
-          grep -E "CODE_SIGN_ENTITLEMENTS|PRODUCT_BUNDLE_IDENTIFIER|PROVISIONING_PROFILE_SPECIFIER" build-settings.log || true
-
       - name: Prepare App Store Connect API key for altool
         shell: bash
         run: |
@@ -390,7 +378,7 @@ jobs:
             PRODUCT_BUNDLE_IDENTIFIER="$APP_BUNDLE_ID" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_ENTITLEMENTS="App/App.entitlements" \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_IDENTITY="$EXPORT_CERT_NAME" \
             PROVISIONING_PROFILE_SPECIFIER="$EXPORT_PROFILE_NAME" \
             archive 2>&1 | tee xcodebuild-archive.log
 
@@ -462,7 +450,6 @@ jobs:
           name: ios-push-debug
           path: |
             ipa-entitlements.plist
-            build-settings.log
             xcodebuild-archive.log
             /tmp/profile.plist
 
