@@ -421,7 +421,7 @@ export default function Header() {
                       <div className="pmp-menuUserName">{signedInLabel}</div>
                     </div>
 
-                    <Link href="/" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                    <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                       Browse
                     </Link>
 
@@ -471,10 +471,6 @@ export default function Header() {
                   </>
                 ) : (
                   <>
-                    <Link href="/" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Browse
-                    </Link>
-
                     <Link href="/login" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                       Login
                     </Link>
