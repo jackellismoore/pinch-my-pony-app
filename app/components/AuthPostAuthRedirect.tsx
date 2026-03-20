@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type ProfileGate = {
@@ -15,14 +14,20 @@ export default function AuthPostAuthRedirect({
 }: {
   mode: "login" | "signup";
 }) {
-  const router = useRouter();
   const runningRef = useRef(false);
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
+    function hardRedirect(path: string) {
+      if (redirectedRef.current) return;
+      redirectedRef.current = true;
+      window.location.replace(path);
+    }
+
     async function routeUser(userId: string) {
-      if (runningRef.current) return;
+      if (runningRef.current || redirectedRef.current) return;
       runningRef.current = true;
 
       try {
@@ -32,24 +37,24 @@ export default function AuthPostAuthRedirect({
           .eq("id", userId)
           .maybeSingle();
 
-        if (cancelled) return;
+        if (cancelled || redirectedRef.current) return;
 
         const profile = !error ? (p as ProfileGate | null) : null;
         const role = profile?.role ?? null;
         const status = profile?.verification_status ?? "unverified";
 
         if (mode === "signup") {
-          router.replace("/verify");
+          hardRedirect("/verify");
           return;
         }
 
         if (status !== "verified") {
-          router.replace("/verify");
+          hardRedirect("/verify");
           return;
         }
 
-        const dash = role === "owner" ? "/dashboard/owner" : "/dashboard/borrower";
-        router.replace(dash);
+        const target = role === "owner" ? "/dashboard/owner" : "/dashboard/borrower";
+        hardRedirect(target);
       } finally {
         runningRef.current = false;
       }
@@ -58,7 +63,7 @@ export default function AuthPostAuthRedirect({
     async function checkExistingSession() {
       const { data } = await supabase.auth.getSession();
       const u = data.session?.user;
-      if (!u || cancelled) return;
+      if (!u || cancelled || redirectedRef.current) return;
       await routeUser(u.id);
     }
 
@@ -66,7 +71,7 @@ export default function AuthPostAuthRedirect({
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const u = session?.user;
-      if (!u || cancelled) return;
+      if (!u || cancelled || redirectedRef.current) return;
       await routeUser(u.id);
     });
 
@@ -74,7 +79,7 @@ export default function AuthPostAuthRedirect({
       cancelled = true;
       sub.subscription.unsubscribe();
     };
-  }, [router, mode]);
+  }, [mode]);
 
   return null;
 }
