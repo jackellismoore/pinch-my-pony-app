@@ -45,6 +45,7 @@ const btn = (kind: 'primary' | 'secondary') =>
     background: kind === 'primary' ? `linear-gradient(180deg, ${palette.forest}, #173223)` : 'rgba(255,255,255,0.72)',
     color: kind === 'primary' ? 'white' : palette.navy,
     boxShadow: kind === 'primary' ? '0 14px 34px rgba(31,61,43,0.18)' : '0 14px 34px rgba(31,42,68,0.08)',
+    minHeight: 44,
   }) as React.CSSProperties;
 
 const input: React.CSSProperties = {
@@ -55,18 +56,18 @@ const input: React.CSSProperties = {
   fontSize: 14,
   background: 'rgba(255,255,255,0.85)',
   outline: 'none',
+  boxSizing: 'border-box',
 };
 
 function splitLocation(loc: string | null) {
   const raw = (loc ?? '').trim();
   if (!raw) return { line1: '—', line2: '' };
 
-  // If it’s a long address, show a clean first line and remainder below.
   const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
   if (parts.length <= 2) return { line1: parts.join(', '), line2: '' };
 
-  const line1 = parts[0]; // "City / place"
-  const line2 = parts.slice(1).join(', '); // "rest (postcode/country etc)"
+  const line1 = parts[0];
+  const line2 = parts.slice(1).join(', ');
   return { line1, line2 };
 }
 
@@ -128,145 +129,241 @@ export default function OwnerHorsesPage() {
   const activeCount = useMemo(() => horses.filter((h) => !!h.is_active).length, [horses]);
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 34, letterSpacing: -0.3, color: palette.navy, fontWeight: 950 }}>
-            My Horses
-          </h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
-            {activeCount} active • {horses.length} total listings.
+    <>
+      <style>{`
+        .pmp-ownerHorsesHeader {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .pmp-ownerHorsesHeaderActions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .pmp-ownerHorseCard {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+          overflow: hidden;
+          padding: 14px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.90) 0%, rgba(245,241,232,0.55) 140%);
+        }
+
+        .pmp-ownerHorseMainRow {
+          display: flex;
+          gap: 14px;
+          align-items: center;
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .pmp-ownerHorseText {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+
+        .pmp-ownerHorseName {
+          font-weight: 950;
+          font-size: 18px;
+          color: ${palette.navy};
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .pmp-ownerHorseMeta {
+          margin-top: 6px;
+          font-size: 13px;
+          color: rgba(0,0,0,0.72);
+          line-height: 1.35;
+          min-width: 0;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+
+        .pmp-ownerHorseActions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-end;
+          flex: 0 1 320px;
+          min-width: 0;
+        }
+
+        .pmp-ownerHorseActions > a {
+          flex: 1 1 140px;
+          min-width: 0;
+          box-sizing: border-box;
+        }
+
+        @media (max-width: 767px) {
+          .pmp-ownerHorsesHeader {
+            align-items: stretch;
+          }
+
+          .pmp-ownerHorsesHeaderActions {
+            width: 100%;
+          }
+
+          .pmp-ownerHorsesHeaderActions > a {
+            flex: 1 1 100%;
+          }
+
+          .pmp-ownerHorseCard {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .pmp-ownerHorseMainRow {
+            align-items: flex-start;
+          }
+
+          .pmp-ownerHorseName {
+            white-space: normal;
+          }
+
+          .pmp-ownerHorseActions {
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: stretch;
+            flex: 1 1 auto;
+          }
+
+          .pmp-ownerHorseActions > a {
+            width: 100%;
+            flex: 1 1 auto;
+          }
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 1100, margin: '0 auto', minWidth: 0 }}>
+        <div className="pmp-ownerHorsesHeader">
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontSize: 34, letterSpacing: -0.3, color: palette.navy, fontWeight: 950 }}>
+              My Horses
+            </h1>
+            <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
+              {activeCount} active • {horses.length} total listings.
+            </div>
+          </div>
+
+          <div className="pmp-ownerHorsesHeaderActions">
+            <Link href="/dashboard/owner" style={btn('secondary')}>
+              ← Overview
+            </Link>
+            <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
+              Add a horse →
+            </Link>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <Link href="/dashboard/owner" style={btn('secondary')}>
-            ← Overview
-          </Link>
-          <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
-            Add a horse →
-          </Link>
+        <div style={{ marginTop: 14, ...card, padding: 12 }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by horse name or location…"
+            style={input}
+          />
         </div>
-      </div>
 
-      <div style={{ marginTop: 14, ...card, padding: 12 }}>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by horse name or location…"
-          style={input}
-        />
-      </div>
+        {loading ? <div style={{ marginTop: 16, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
 
-      {loading ? <div style={{ marginTop: 16, fontSize: 13, opacity: 0.7 }}>Loading…</div> : null}
-
-      {error ? (
-        <div
-          style={{
-            marginTop: 16,
-            border: '1px solid rgba(255,0,0,0.25)',
-            background: 'rgba(255,0,0,0.06)',
-            padding: 12,
-            borderRadius: 14,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
-
-      {!loading && !error && filtered.length === 0 ? (
-        <div style={{ marginTop: 16, ...card, padding: 16 }}>
-          <div style={{ fontWeight: 950, color: palette.navy }}>No matches.</div>
-          <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
-            Try a different search, or add a new horse.
+        {error ? (
+          <div
+            style={{
+              marginTop: 16,
+              border: '1px solid rgba(255,0,0,0.25)',
+              background: 'rgba(255,0,0,0.06)',
+              padding: 12,
+              borderRadius: 14,
+              fontSize: 13,
+            }}
+          >
+            {error}
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <div style={{ marginTop: 16, display: 'grid', gap: 14 }}>
-        {filtered.map((h) => {
-          const loc = splitLocation(h.location);
-          return (
-            <div
-              key={h.id}
-              style={{
-                ...card,
-                padding: 14,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.90) 0%, rgba(245,241,232,0.55) 140%)',
-              }}
-            >
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center', minWidth: 0 }}>
-                <div
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 18,
-                    overflow: 'hidden',
-                    border: '1px solid rgba(31,42,68,0.12)',
-                    background: 'rgba(0,0,0,0.06)',
-                    flexShrink: 0,
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={h.image_url ?? '/file.svg'}
-                    alt=""
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = '/file.svg';
+        {!loading && !error && filtered.length === 0 ? (
+          <div style={{ marginTop: 16, ...card, padding: 16 }}>
+            <div style={{ fontWeight: 950, color: palette.navy }}>No matches.</div>
+            <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
+              Try a different search, or add a new horse.
+            </div>
+          </div>
+        ) : null}
+
+        <div style={{ marginTop: 16, display: 'grid', gap: 14 }}>
+          {filtered.map((h) => {
+            const loc = splitLocation(h.location);
+
+            return (
+              <div key={h.id} className="pmp-ownerHorseCard" style={card}>
+                <div className="pmp-ownerHorseMainRow">
+                  <div
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 18,
+                      overflow: 'hidden',
+                      border: '1px solid rgba(31,42,68,0.12)',
+                      background: 'rgba(0,0,0,0.06)',
+                      flexShrink: 0,
                     }}
-                  />
-                </div>
+                  >
+                    <img
+                      src={h.image_url ?? '/file.svg'}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/file.svg';
+                      }}
+                    />
+                  </div>
 
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 950, fontSize: 18, color: palette.navy }}>{h.name ?? 'Horse'}</div>
+                  <div className="pmp-ownerHorseText">
+                    <div className="pmp-ownerHorseName">{h.name ?? 'Horse'}</div>
 
-                  <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.72)', lineHeight: 1.35 }}>
-                    <div>
-                      {loc.line1}{' '}
-                      <span style={{ opacity: 0.75 }}>•</span>{' '}
-                      <span style={{ fontWeight: 900, color: palette.forest }}>{h.is_active ? 'Active' : 'Inactive'}</span>
+                    <div className="pmp-ownerHorseMeta">
+                      <div>
+                        {loc.line1} <span style={{ opacity: 0.75 }}>•</span>{' '}
+                        <span style={{ fontWeight: 900, color: palette.forest }}>
+                          {h.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      {loc.line2 ? <div style={{ marginTop: 2 }}>{loc.line2}</div> : null}
                     </div>
-                    {loc.line2 ? <div style={{ marginTop: 2 }}>{loc.line2}</div> : null}
                   </div>
                 </div>
-              </div>
 
-              {/* ✅ FIX: buttons never stack; always side-by-side */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  flexWrap: 'nowrap',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  flexShrink: 0,
-                }}
-              >
-                <Link
-                  href={`/dashboard/owner/horses/edit/${h.id}`}
-                  style={{ ...btn('secondary'), minWidth: 110, whiteSpace: 'nowrap' }}
-                >
-                  Edit
-                </Link>
-                <Link
-                  href={`/dashboard/owner/horses/${h.id}/availability`}
-                  style={{ ...btn('secondary'), minWidth: 140, whiteSpace: 'nowrap' }}
-                >
-                  Availability
-                </Link>
+                <div className="pmp-ownerHorseActions">
+                  <Link href={`/dashboard/owner/horses/edit/${h.id}`} style={btn('secondary')}>
+                    Edit
+                  </Link>
+                  <Link href={`/dashboard/owner/horses/${h.id}/availability`} style={btn('secondary')}>
+                    Availability
+                  </Link>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        <div style={{ height: 24 }} />
       </div>
-
-      <div style={{ height: 24 }} />
-    </div>
+    </>
   );
 }
