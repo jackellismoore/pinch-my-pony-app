@@ -222,11 +222,31 @@ jobs:
           fi
 
           echo "Using provisioning profile: $PROFILE_PATH"
+          echo "PROFILE_PATH=$PROFILE_PATH" >> "$GITHUB_ENV"
 
           /usr/bin/security cms -D -i "$PROFILE_PATH" > /tmp/profile.plist
 
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist)
           echo "EXPORT_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
+      - name: Verify provisioning profile has push entitlement
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          /usr/bin/security cms -D -i "$PROFILE_PATH" > /tmp/profile.plist || true
+
+          echo "===== PROFILE ENTITLEMENTS ====="
+          /usr/libexec/PlistBuddy -c "Print :Entitlements" /tmp/profile.plist || true
+
+          APS_ENV=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:aps-environment" /tmp/profile.plist 2>/dev/null || true)
+
+          if [ -z "${APS_ENV:-}" ]; then
+            echo "Provisioning profile does NOT contain aps-environment"
+            exit 1
+          fi
+
+          echo "Provisioning profile aps-environment: $APS_ENV"
 
       - name: Prepare App Store Connect API key for altool
         shell: bash
@@ -307,12 +327,35 @@ jobs:
             exit $XCODE_EXIT
           fi
 
-      - name: Upload archive log
+      - name: Verify archived app entitlements
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          APP_PATH="build/App.xcarchive/Products/Applications/App.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Archived app not found at $APP_PATH"
+            exit 1
+          fi
+
+          echo "===== ARCHIVED APP ENTITLEMENTS ====="
+          codesign -d --entitlements :- "$APP_PATH" 2>&1 | tee archived-entitlements.plist
+
+          if ! grep -q "aps-environment" archived-entitlements.plist; then
+            echo "Archived app does NOT contain aps-environment entitlement"
+            exit 1
+          fi
+
+      - name: Upload entitlement artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-archive-log
-          path: xcodebuild-archive.log
+          name: ios-entitlement-debug
+          path: |
+            xcodebuild-archive.log
+            archived-entitlements.plist
+            /tmp/profile.plist
 
       - name: Export IPA
         shell: bash
