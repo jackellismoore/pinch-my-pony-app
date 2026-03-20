@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import AppResumeHandler from "@/components/AppResumeHandler";
+import PushBootstrap from "@/components/PushBootstrap";
 
 export const metadata: Metadata = {
   title: "Pinch My Pony",
@@ -22,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <PushBootstrap />
         <AppResumeHandler />
         <Header />
         <main className="pmp-appMain">{children}</main>
