@@ -172,7 +172,8 @@ jobs:
           set -euxo pipefail
           bundle exec fastlane run match \
             type:appstore \
-            readonly:true \
+            readonly:false \
+            force:true \
             git_url:"$MATCH_GIT_URL" \
             keychain_name:"$CI_KEYCHAIN_NAME" \
             keychain_password:"$CI_KEYCHAIN_PASSWORD" \
