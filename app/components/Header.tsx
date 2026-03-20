@@ -4,10 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  registerPushForCurrentUser,
-  syncPushTokenAfterAuth,
-} from "@/lib/push/registerPush";
+import { registerPushForCurrentUser } from "@/lib/push/registerPush";
 import NotificationBell from "@/components/NotificationBell";
 import { VerificationBadge } from "@/components/VerificationBadge";
 import MobileTabBar from "@/components/MobileTabBar";
@@ -88,8 +85,6 @@ export default function Header() {
     }
 
     async function init() {
-      registerPushForCurrentUser().catch(() => {});
-
       const { data } = await supabase.auth.getSession();
       const u = data.session?.user ?? null;
 
@@ -98,7 +93,7 @@ export default function Header() {
       setUser(u);
 
       if (u) {
-        syncPushTokenAfterAuth().catch(() => {});
+        registerPushForCurrentUser().catch(() => {});
         await loadProfile(u.id);
       } else {
         setProfile(null);
@@ -113,10 +108,8 @@ export default function Header() {
       setUser(u);
       setMenuOpen(false);
 
-      registerPushForCurrentUser().catch(() => {});
-
       if (u) {
-        syncPushTokenAfterAuth().catch(() => {});
+        registerPushForCurrentUser().catch(() => {});
         await loadProfile(u.id);
       } else {
         setProfile(null);
@@ -428,6 +421,10 @@ export default function Header() {
                       <div className="pmp-menuUserName">{signedInLabel}</div>
                     </div>
 
+                    <Link href="/" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Browse
+                    </Link>
+
                     {!isVerified ? (
                       <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                         Verify Identity
@@ -474,6 +471,10 @@ export default function Header() {
                   </>
                 ) : (
                   <>
+                    <Link href="/" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Browse
+                    </Link>
+
                     <Link href="/login" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                       Login
                     </Link>
