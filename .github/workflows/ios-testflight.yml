@@ -394,25 +394,29 @@ jobs:
           echo "IPA_PATH=$IPA_PATH" >> "$GITHUB_ENV"
           echo "Using IPA: $IPA_PATH"
 
-      - name: Verify exported app entitlements
+      - name: Verify IPA entitlements
         shell: bash
         run: |
           set -euxo pipefail
 
-          EXPORT_APP_PATH=$(find build/export -maxdepth 3 -type d -name "*.app" | head -n 1)
+          rm -rf /tmp/ipa_unzip
+          mkdir -p /tmp/ipa_unzip
+          unzip -q "$IPA_PATH" -d /tmp/ipa_unzip
 
-          if [ -z "${EXPORT_APP_PATH:-}" ]; then
-            echo "No exported .app found"
-            find build/export -maxdepth 4 | sort || true
+          IPA_APP_PATH=$(find /tmp/ipa_unzip/Payload -maxdepth 1 -type d -name "*.app" | head -n 1)
+
+          if [ -z "${IPA_APP_PATH:-}" ]; then
+            echo "No .app found inside IPA"
+            find /tmp/ipa_unzip -maxdepth 4 | sort || true
             exit 1
           fi
 
-          echo "Using exported app: $EXPORT_APP_PATH"
-          echo "===== EXPORTED APP ENTITLEMENTS ====="
-          codesign -d --entitlements :- "$EXPORT_APP_PATH" 2>&1 | tee exported-entitlements.plist
+          echo "Using IPA app: $IPA_APP_PATH"
+          echo "===== IPA APP ENTITLEMENTS ====="
+          codesign -d --entitlements :- "$IPA_APP_PATH" 2>&1 | tee ipa-entitlements.plist
 
-          if ! grep -q "aps-environment" exported-entitlements.plist; then
-            echo "Exported app does NOT contain aps-environment entitlement"
+          if ! grep -q "aps-environment" ipa-entitlements.plist; then
+            echo "IPA app does NOT contain aps-environment entitlement"
             exit 1
           fi
 
@@ -422,7 +426,7 @@ jobs:
         with:
           name: ios-entitlement-debug
           path: |
-            exported-entitlements.plist
+            ipa-entitlements.plist
             xcodebuild-archive.log
             /tmp/profile.plist
 
