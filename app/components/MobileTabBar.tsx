@@ -40,6 +40,11 @@ const items: Item[] = [
 export default function MobileTabBar() {
   const pathname = usePathname() || "/";
 
+  const hideOnMessages =
+    pathname === "/messages" || pathname.startsWith("/messages/");
+
+  if (hideOnMessages) return null;
+
   return (
     <>
       <style>{`

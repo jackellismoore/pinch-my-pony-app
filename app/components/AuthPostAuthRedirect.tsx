@@ -22,7 +22,6 @@ export default function AuthPostAuthRedirect({
     let cancelled = false;
 
     async function routeUser(userId: string) {
-      // prevent double runs from auth events
       if (runningRef.current) return;
       runningRef.current = true;
 
@@ -33,20 +32,25 @@ export default function AuthPostAuthRedirect({
           .eq("id", userId)
           .maybeSingle();
 
-        const role = (!error && (p as ProfileGate | null)?.role) || null;
-        const status = (!error && (p as ProfileGate | null)?.verification_status) || "unverified";
+        if (cancelled) return;
 
-        // Always send unverified users to verify
+        const profile = !error ? (p as ProfileGate | null) : null;
+        const role = profile?.role ?? null;
+        const status = profile?.verification_status ?? "unverified";
+
+        if (mode === "signup") {
+          router.replace("/verify");
+          return;
+        }
+
         if (status !== "verified") {
           router.replace("/verify");
           return;
         }
 
-        // Verified users go to dashboard
         const dash = role === "owner" ? "/dashboard/owner" : "/dashboard/borrower";
         router.replace(dash);
       } finally {
-        // allow re-run if needed
         runningRef.current = false;
       }
     }
@@ -54,8 +58,7 @@ export default function AuthPostAuthRedirect({
     async function checkExistingSession() {
       const { data } = await supabase.auth.getSession();
       const u = data.session?.user;
-      if (!u) return;
-      if (cancelled) return;
+      if (!u || cancelled) return;
       await routeUser(u.id);
     }
 
@@ -63,10 +66,7 @@ export default function AuthPostAuthRedirect({
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const u = session?.user;
-      if (!u) return;
-
-      // For signup pages, we *always* want to go to /verify after a new account is created
-      // even if they verified earlier (rare), but if already verified, they'll pass through quickly.
+      if (!u || cancelled) return;
       await routeUser(u.id);
     });
 
