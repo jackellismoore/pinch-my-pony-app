@@ -332,7 +332,7 @@ jobs:
             exit $XCODE_EXIT
           fi
 
-      - name: Verify archived app entitlements
+      - name: Inspect archive app bundle
         shell: bash
         run: |
           set -euxo pipefail
@@ -344,23 +344,29 @@ jobs:
             exit 1
           fi
 
-          echo "===== ARCHIVED APP ENTITLEMENTS ====="
-          codesign -d --entitlements :- "$APP_PATH" 2>&1 | tee archived-entitlements.plist
+          echo "===== ARCHIVE APP CONTENTS ====="
+          ls -la "$APP_PATH"
 
-          if ! grep -q "aps-environment" archived-entitlements.plist; then
-            echo "Archived app does NOT contain aps-environment entitlement"
-            exit 1
+          if [ -f "$APP_PATH/embedded.mobileprovision" ]; then
+            echo "===== ARCHIVE EMBEDDED PROFILE ENTITLEMENTS ====="
+            /usr/bin/security cms -D -i "$APP_PATH/embedded.mobileprovision" > /tmp/archive-embedded-profile.plist
+            /usr/libexec/PlistBuddy -c "Print :Entitlements" /tmp/archive-embedded-profile.plist || true
+          else
+            echo "No embedded.mobileprovision found in archive app bundle"
           fi
 
-      - name: Upload entitlement artifacts
+          echo "===== ARCHIVE CODESIGN CHECK ====="
+          codesign -dv "$APP_PATH" 2>&1 || true
+
+      - name: Upload archive inspection artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-entitlement-debug
+          name: ios-archive-debug
           path: |
             xcodebuild-archive.log
-            archived-entitlements.plist
             /tmp/profile.plist
+            /tmp/archive-embedded-profile.plist
 
       - name: Export IPA
         shell: bash
@@ -387,6 +393,38 @@ jobs:
 
           echo "IPA_PATH=$IPA_PATH" >> "$GITHUB_ENV"
           echo "Using IPA: $IPA_PATH"
+
+      - name: Verify exported app entitlements
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          EXPORT_APP_PATH=$(find build/export -maxdepth 3 -type d -name "*.app" | head -n 1)
+
+          if [ -z "${EXPORT_APP_PATH:-}" ]; then
+            echo "No exported .app found"
+            find build/export -maxdepth 4 | sort || true
+            exit 1
+          fi
+
+          echo "Using exported app: $EXPORT_APP_PATH"
+          echo "===== EXPORTED APP ENTITLEMENTS ====="
+          codesign -d --entitlements :- "$EXPORT_APP_PATH" 2>&1 | tee exported-entitlements.plist
+
+          if ! grep -q "aps-environment" exported-entitlements.plist; then
+            echo "Exported app does NOT contain aps-environment entitlement"
+            exit 1
+          fi
+
+      - name: Upload entitlement artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-entitlement-debug
+          path: |
+            exported-entitlements.plist
+            xcodebuild-archive.log
+            /tmp/profile.plist
 
       - name: Validate IPA
         shell: bash
