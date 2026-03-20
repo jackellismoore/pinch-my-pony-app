@@ -249,7 +249,6 @@ jobs:
               name = plist.get("Name", "")
               uuid = plist.get("UUID", "")
               created = plist.get("CreationDate")
-              expires = plist.get("ExpirationDate")
 
               if app_id != expected_app_id:
                   continue
@@ -260,14 +259,12 @@ jobs:
                   "uuid": uuid,
                   "aps": aps,
                   "created": created,
-                  "expires": expires,
               })
 
           if not matches:
               print(f"No profile matched application-identifier {expected_app_id}", file=sys.stderr)
               sys.exit(1)
 
-          # Prefer profiles with aps-environment, then newest creation date
           matches.sort(key=lambda m: (1 if m["aps"] else 0, m["created"]), reverse=True)
           chosen = matches[0]
 
@@ -284,7 +281,6 @@ jobs:
               f.write(f'PROFILE_PATH={chosen["path"]}\n')
               f.write(f'EXPORT_PROFILE_NAME={chosen["name"]}\n')
               f.write(f'EXPORT_PROFILE_UUID={chosen["uuid"]}\n')
-              f.write(f'PROFILE_APS_ENV={chosen["aps"]}\n')
           PY
 
       - name: Verify selected profile has push entitlement
@@ -308,6 +304,24 @@ jobs:
           fi
 
           echo "Provisioning profile aps-environment: $APS_ENV"
+
+      - name: Show entitlements file
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cat ios/App/App/App.entitlements
+
+      - name: Show effective build settings
+        shell: bash
+        run: |
+          set -euxo pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme "$IOS_SCHEME" \
+            -configuration Release \
+            -showBuildSettings | tee build-settings.log
+
+          grep -E "CODE_SIGN_ENTITLEMENTS|PRODUCT_BUNDLE_IDENTIFIER|PROVISIONING_PROFILE_SPECIFIER" build-settings.log || true
 
       - name: Prepare App Store Connect API key for altool
         shell: bash
@@ -375,6 +389,7 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$APP_BUNDLE_ID" \
             CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_ENTITLEMENTS="App/App.entitlements" \
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER="$EXPORT_PROFILE_NAME" \
             archive 2>&1 | tee xcodebuild-archive.log
@@ -440,13 +455,14 @@ jobs:
             exit 1
           fi
 
-      - name: Upload entitlement artifacts
+      - name: Upload debug artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-entitlement-debug
+          name: ios-push-debug
           path: |
             ipa-entitlements.plist
+            build-settings.log
             xcodebuild-archive.log
             /tmp/profile.plist
 
