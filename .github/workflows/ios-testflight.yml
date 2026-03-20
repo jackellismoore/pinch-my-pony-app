@@ -205,42 +205,98 @@ jobs:
 
           echo "EXPORT_CERT_NAME=$CERT_NAME" >> "$GITHUB_ENV"
 
-      - name: Detect installed provisioning profile
+      - name: Select correct provisioning profile for app bundle
         shell: bash
         run: |
           set -euxo pipefail
 
-          PROFILE_DIRS=()
-          [ -d "$HOME/Library/MobileDevice/Provisioning Profiles" ] && PROFILE_DIRS+=("$HOME/Library/MobileDevice/Provisioning Profiles")
-          [ -d "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" ] && PROFILE_DIRS+=("$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles")
+          python3 <<'PY'
+          import os
+          import glob
+          import plistlib
+          import subprocess
+          import sys
 
-          if [ ${#PROFILE_DIRS[@]} -eq 0 ]; then
-            echo "No provisioning profile directories found"
-            exit 1
-          fi
+          team_id = os.environ["APPLE_TEAM_ID"]
+          bundle_id = os.environ["APP_BUNDLE_ID"]
+          expected_app_id = f"{team_id}.{bundle_id}"
 
-          PROFILE_PATH=$(find "${PROFILE_DIRS[@]}" -name "*.mobileprovision" | head -n 1)
+          profile_dirs = [
+              os.path.expanduser("~/Library/MobileDevice/Provisioning Profiles"),
+              os.path.expanduser("~/Library/Developer/Xcode/UserData/Provisioning Profiles"),
+          ]
 
-          if [ -z "${PROFILE_PATH:-}" ]; then
-            echo "No provisioning profile found"
-            exit 1
-          fi
+          candidates = []
+          for d in profile_dirs:
+              if os.path.isdir(d):
+                  candidates.extend(glob.glob(os.path.join(d, "*.mobileprovision")))
 
-          echo "Using provisioning profile: $PROFILE_PATH"
-          echo "PROFILE_PATH=$PROFILE_PATH" >> "$GITHUB_ENV"
+          if not candidates:
+              print("No provisioning profiles found", file=sys.stderr)
+              sys.exit(1)
+
+          matches = []
+          for path in candidates:
+              try:
+                  raw = subprocess.check_output(["/usr/bin/security", "cms", "-D", "-i", path])
+                  plist = plistlib.loads(raw)
+              except Exception:
+                  continue
+
+              ent = plist.get("Entitlements", {})
+              app_id = ent.get("application-identifier", "")
+              aps = ent.get("aps-environment", "")
+              name = plist.get("Name", "")
+              uuid = plist.get("UUID", "")
+              created = plist.get("CreationDate")
+              expires = plist.get("ExpirationDate")
+
+              if app_id != expected_app_id:
+                  continue
+
+              matches.append({
+                  "path": path,
+                  "name": name,
+                  "uuid": uuid,
+                  "aps": aps,
+                  "created": created,
+                  "expires": expires,
+              })
+
+          if not matches:
+              print(f"No profile matched application-identifier {expected_app_id}", file=sys.stderr)
+              sys.exit(1)
+
+          # Prefer profiles with aps-environment, then newest creation date
+          matches.sort(key=lambda m: (1 if m["aps"] else 0, m["created"]), reverse=True)
+          chosen = matches[0]
+
+          print("Chosen provisioning profile:")
+          for k, v in chosen.items():
+              print(f"  {k}: {v}")
+
+          if not chosen["aps"]:
+              print("Chosen profile does NOT contain aps-environment", file=sys.stderr)
+              sys.exit(1)
+
+          envfile = os.environ["GITHUB_ENV"]
+          with open(envfile, "a", encoding="utf-8") as f:
+              f.write(f'PROFILE_PATH={chosen["path"]}\n')
+              f.write(f'EXPORT_PROFILE_NAME={chosen["name"]}\n')
+              f.write(f'EXPORT_PROFILE_UUID={chosen["uuid"]}\n')
+              f.write(f'PROFILE_APS_ENV={chosen["aps"]}\n')
+          PY
+
+      - name: Verify selected profile has push entitlement
+        shell: bash
+        run: |
+          set -euxo pipefail
 
           /usr/bin/security cms -D -i "$PROFILE_PATH" > /tmp/profile.plist
 
-          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/profile.plist)
-          echo "EXPORT_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
-
-      - name: Verify provisioning profile has push entitlement
-        shell: bash
-        run: |
-          set -euxo pipefail
-
-          /usr/bin/security cms -D -i "$PROFILE_PATH" > /tmp/profile.plist || true
-
+          echo "Using provisioning profile: $PROFILE_PATH"
+          echo "Using profile name: $EXPORT_PROFILE_NAME"
+          echo "Using profile uuid: $EXPORT_PROFILE_UUID"
           echo "===== PROFILE ENTITLEMENTS ====="
           /usr/libexec/PlistBuddy -c "Print :Entitlements" /tmp/profile.plist || true
 
@@ -331,42 +387,6 @@ jobs:
             tail -n 200 xcodebuild-archive.log
             exit $XCODE_EXIT
           fi
-
-      - name: Inspect archive app bundle
-        shell: bash
-        run: |
-          set -euxo pipefail
-
-          APP_PATH="build/App.xcarchive/Products/Applications/App.app"
-
-          if [ ! -d "$APP_PATH" ]; then
-            echo "Archived app not found at $APP_PATH"
-            exit 1
-          fi
-
-          echo "===== ARCHIVE APP CONTENTS ====="
-          ls -la "$APP_PATH"
-
-          if [ -f "$APP_PATH/embedded.mobileprovision" ]; then
-            echo "===== ARCHIVE EMBEDDED PROFILE ENTITLEMENTS ====="
-            /usr/bin/security cms -D -i "$APP_PATH/embedded.mobileprovision" > /tmp/archive-embedded-profile.plist
-            /usr/libexec/PlistBuddy -c "Print :Entitlements" /tmp/archive-embedded-profile.plist || true
-          else
-            echo "No embedded.mobileprovision found in archive app bundle"
-          fi
-
-          echo "===== ARCHIVE CODESIGN CHECK ====="
-          codesign -dv "$APP_PATH" 2>&1 || true
-
-      - name: Upload archive inspection artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-archive-debug
-          path: |
-            xcodebuild-archive.log
-            /tmp/profile.plist
-            /tmp/archive-embedded-profile.plist
 
       - name: Export IPA
         shell: bash
