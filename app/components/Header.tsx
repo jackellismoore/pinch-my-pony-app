@@ -147,6 +147,36 @@ export default function Header() {
   return (
     <>
       <style>{`
+        .pmp-header {
+          position: sticky;
+          top: 0;
+          z-index: 1100;
+          padding-top: env(safe-area-inset-top);
+          background: rgba(255,255,255,0.92);
+          backdrop-filter: blur(14px);
+          border-bottom: 1px solid rgba(15,23,42,0.08);
+        }
+
+        .pmp-headerInner {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          min-width: 0;
+          max-width: 1120px;
+          margin: 0 auto;
+          padding: 10px 12px;
+        }
+
+        .pmp-brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+          flex: 1 1 auto;
+          text-decoration: none;
+        }
+
         .pmp-headerBrandBadge {
           width: 52px;
           height: 52px;
@@ -173,35 +203,27 @@ export default function Header() {
           transform: scale(1.08);
         }
 
-        .pmp-headerInner {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          min-width: 0;
-        }
-
-        .pmp-brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          min-width: 0;
-          flex: 1 1 auto;
-          text-decoration: none;
-        }
-
         .pmp-brandText {
           min-width: 0;
           overflow: hidden;
         }
 
         .pmp-brandTitle {
+          font-size: 18px;
+          font-weight: 950;
+          line-height: 1.05;
+          color: #1F2A44;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
         .pmp-brandSub {
+          margin-top: 2px;
+          font-size: 11px;
+          font-weight: 800;
+          line-height: 1.05;
+          color: rgba(31,42,68,0.72);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -221,9 +243,87 @@ export default function Header() {
           flex-shrink: 0;
         }
 
+        .pmp-menuButton {
+          width: 42px;
+          height: 42px;
+          border-radius: 14px;
+          border: 1px solid rgba(15,23,42,0.10);
+          background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,247,240,0.96));
+          box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font-size: 20px;
+          color: #1F2A44;
+        }
+
+        .pmp-menuPanel {
+          position: absolute;
+          top: calc(100% + 8px);
+          right: 0;
+          min-width: 240px;
+          max-width: min(88vw, 320px);
+          border-radius: 18px;
+          border: 1px solid rgba(15,23,42,0.10);
+          background: rgba(255,255,255,0.98);
+          box-shadow: 0 20px 50px rgba(15,23,42,0.14);
+          backdrop-filter: blur(14px);
+          padding: 10px;
+          display: grid;
+          gap: 6px;
+        }
+
+        .pmp-menuUser {
+          padding: 8px 10px 10px;
+          border-bottom: 1px solid rgba(15,23,42,0.08);
+          margin-bottom: 2px;
+        }
+
+        .pmp-menuUserLabel {
+          font-size: 11px;
+          font-weight: 800;
+          color: rgba(15,23,42,0.55);
+        }
+
+        .pmp-menuUserName {
+          margin-top: 2px;
+          font-size: 14px;
+          font-weight: 950;
+          color: #1F2A44;
+          word-break: break-word;
+        }
+
+        .pmp-menuItem,
+        .pmp-menuLogout {
+          min-height: 42px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          padding: 0 12px;
+          font-size: 14px;
+          font-weight: 900;
+          text-decoration: none;
+          color: #1F2A44;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          text-align: left;
+        }
+
+        .pmp-menuItem:hover,
+        .pmp-menuLogout:hover {
+          background: rgba(31,42,68,0.06);
+        }
+
+        .pmp-menuLogout {
+          color: #b91c1c;
+        }
+
         @media (max-width: 767px) {
           .pmp-headerInner {
             gap: 8px;
+            padding: 10px 10px;
           }
 
           .pmp-brand {
@@ -240,13 +340,21 @@ export default function Header() {
           }
 
           .pmp-brandTitle {
-            font-size: 15px !important;
-            line-height: 1.1;
+            font-size: 15px;
           }
 
           .pmp-brandSub {
-            font-size: 10px !important;
-            line-height: 1.1;
+            font-size: 10px;
+          }
+
+          .pmp-menuButton {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+          }
+
+          .pmp-hideOnSmall {
+            display: none !important;
           }
         }
       `}</style>
@@ -297,7 +405,7 @@ export default function Header() {
 
             <button
               onClick={() => setMenuOpen((v) => !v)}
-              className={`pmp-menuButton${menuOpen ? " is-open" : ""}`}
+              className="pmp-menuButton"
               aria-label="Menu"
               aria-expanded={menuOpen}
               title="Menu"

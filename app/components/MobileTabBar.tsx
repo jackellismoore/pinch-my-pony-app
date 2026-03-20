@@ -50,27 +50,28 @@ export default function MobileTabBar() {
           bottom: 0;
           z-index: 1000;
           display: flex;
-          justify-content: space-around;
-          align-items: center;
-          padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
-          background: rgba(255,255,255,0.92);
-          backdrop-filter: blur(12px);
-          border-top: 1px solid rgba(0,0,0,0.08);
+          align-items: stretch;
+          justify-content: space-between;
+          gap: 0;
+          padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+          background: rgba(255,255,255,0.94);
+          backdrop-filter: blur(14px);
+          border-top: 1px solid rgba(15,23,42,0.08);
           box-shadow: 0 -8px 24px rgba(15,23,42,0.06);
         }
 
         .pmp-mobileTabItem {
+          flex: 1 1 0;
+          min-width: 0;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 2px;
-          min-width: 0;
-          padding: 4px 6px;
-          color: rgba(15,23,42,0.62);
+          gap: 4px;
+          padding: 6px 4px;
           text-decoration: none;
-          font-size: 11px;
-          font-weight: 800;
+          color: rgba(15,23,42,0.62);
+          border-radius: 14px;
         }
 
         .pmp-mobileTabIcon {
@@ -79,17 +80,25 @@ export default function MobileTabBar() {
         }
 
         .pmp-mobileTabLabel {
+          font-size: 11px;
+          font-weight: 850;
           line-height: 1.1;
+          text-align: center;
+          white-space: nowrap;
+          color: inherit;
         }
 
         .pmp-mobileTabItem.is-active {
           color: #1F3D2B;
+          background: rgba(31,61,43,0.08);
         }
 
         .pmp-mobileTabItem.is-active .pmp-mobileTabLabel {
+          font-weight: 950;
           text-decoration: underline;
           text-underline-offset: 3px;
           text-decoration-thickness: 2px;
+          color: #1F3D2B;
         }
       `}</style>
 
