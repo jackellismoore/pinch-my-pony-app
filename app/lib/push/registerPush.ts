@@ -2,7 +2,12 @@
 
 import { supabase } from "@/lib/supabaseClient";
 import { Capacitor } from "@capacitor/core";
-import { PushNotifications, Token, ActionPerformed } from "@capacitor/push-notifications";
+import {
+  PushNotifications,
+  Token,
+  ActionPerformed,
+  PermissionStatus,
+} from "@capacitor/push-notifications";
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -16,27 +21,60 @@ function urlBase64ToUint8Array(base64String: string) {
 let listenersBound = false;
 let registerInFlight = false;
 
+async function getCurrentUserId() {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) {
+    console.warn("[push] supabase.auth.getUser error:", error);
+    return null;
+  }
+  return data?.user?.id ?? null;
+}
+
 async function saveSubscriptionRow(row: {
   endpoint: string;
   p256dh: string;
   auth: string;
 }) {
-  const { data } = await supabase.auth.getUser();
-  const user = data?.user;
-  if (!user) return;
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    console.warn("[push] saveSubscriptionRow skipped: no signed-in user");
+    return;
+  }
 
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
-      user_id: user.id,
-      endpoint: row.endpoint,
-      p256dh: row.p256dh,
-      auth: row.auth,
-    },
-    { onConflict: "user_id,endpoint" }
-  );
+  const payload = {
+    user_id: userId,
+    endpoint: row.endpoint,
+    p256dh: row.p256dh,
+    auth: row.auth,
+  };
+
+  const { error } = await supabase.from("push_subscriptions").upsert(payload, {
+    onConflict: "user_id,endpoint",
+  });
 
   if (error) {
-    console.warn("push_subscriptions upsert error:", error);
+    console.warn("[push] push_subscriptions upsert error:", error, payload);
+    return;
+  }
+
+  console.log("[push] saved subscription row:", {
+    userId,
+    endpointPreview: row.endpoint.slice(0, 40),
+  });
+}
+
+async function deleteExistingNativeRowsForUser(platformPrefix: "ios:" | "android:") {
+  const userId = await getCurrentUserId();
+  if (!userId) return;
+
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .delete()
+    .eq("user_id", userId)
+    .like("endpoint", `${platformPrefix}%`);
+
+  if (error) {
+    console.warn(`[push] failed clearing old ${platformPrefix} rows:`, error);
   }
 }
 
@@ -44,26 +82,46 @@ async function bindNativeListenersOnce() {
   if (listenersBound) return;
   listenersBound = true;
 
-  PushNotifications.addListener("registration", async (token: Token) => {
-    if (!token?.value) return;
-    await saveSubscriptionRow({
-      endpoint: `ios:${token.value}`,
-      p256dh: "",
-      auth: "",
-    });
+  await PushNotifications.addListener("registration", async (token: Token) => {
+    try {
+      if (!token?.value) {
+        console.warn("[push] registration callback received empty token");
+        return;
+      }
+
+      console.log("[push] registration success:", {
+        platform: Capacitor.getPlatform(),
+        tokenPreview: `${token.value.slice(0, 20)}...`,
+      });
+
+      const platform = Capacitor.getPlatform();
+      const prefix = platform === "android" ? "android:" : "ios:";
+
+      await deleteExistingNativeRowsForUser(prefix as "ios:" | "android:");
+
+      await saveSubscriptionRow({
+        endpoint: `${prefix}${token.value}`,
+        p256dh: "",
+        auth: "",
+      });
+    } catch (error) {
+      console.warn("[push] registration save error:", error);
+    }
   });
 
-  PushNotifications.addListener("registrationError", (error) => {
-    console.warn("Push registration error:", error);
+  await PushNotifications.addListener("registrationError", (error) => {
+    console.warn("[push] registration error:", error);
   });
 
-  PushNotifications.addListener("pushNotificationReceived", (notification) => {
-    console.log("Push received:", notification);
+  await PushNotifications.addListener("pushNotificationReceived", (notification) => {
+    console.log("[push] notification received:", notification);
   });
 
-  PushNotifications.addListener(
+  await PushNotifications.addListener(
     "pushNotificationActionPerformed",
     (notification: ActionPerformed) => {
+      console.log("[push] notification action performed:", notification);
+
       const url = notification.notification?.data?.url;
       if (typeof window !== "undefined" && typeof url === "string" && url.startsWith("/")) {
         window.location.assign(url);
@@ -79,17 +137,23 @@ async function registerNativePushOnce() {
   try {
     await bindNativeListenersOnce();
 
-    const permStatus = await PushNotifications.checkPermissions();
-    let receive = permStatus.receive;
+    let permStatus: PermissionStatus = await PushNotifications.checkPermissions();
+    console.log("[push] native permission status before request:", permStatus);
 
-    if (receive !== "granted") {
-      const req = await PushNotifications.requestPermissions();
-      receive = req.receive;
+    if (permStatus.receive !== "granted") {
+      permStatus = await PushNotifications.requestPermissions();
+      console.log("[push] native permission status after request:", permStatus);
     }
 
-    if (receive !== "granted") return;
+    if (permStatus.receive !== "granted") {
+      console.warn("[push] native permission not granted");
+      return;
+    }
 
+    console.log("[push] calling PushNotifications.register()");
     await PushNotifications.register();
+  } catch (error) {
+    console.warn("[push] native registration failed:", error);
   } finally {
     registerInFlight = false;
   }
@@ -104,14 +168,22 @@ async function registerWebPushOnce() {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
 
     const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (!publicKey) return;
+    if (!publicKey) {
+      console.warn("[push] missing NEXT_PUBLIC_VAPID_PUBLIC_KEY");
+      return;
+    }
 
-    const { data } = await supabase.auth.getUser();
-    const user = data?.user;
-    if (!user) return;
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.warn("[push] web registration skipped: no signed-in user");
+      return;
+    }
 
     const perm = await Notification.requestPermission();
-    if (perm !== "granted") return;
+    if (perm !== "granted") {
+      console.warn("[push] web notification permission not granted");
+      return;
+    }
 
     const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
 
@@ -127,9 +199,14 @@ async function registerWebPushOnce() {
     const p256dh = json.keys?.p256dh;
     const auth = json.keys?.auth;
 
-    if (!endpoint || !p256dh || !auth) return;
+    if (!endpoint || !p256dh || !auth) {
+      console.warn("[push] incomplete web push subscription");
+      return;
+    }
 
     await saveSubscriptionRow({ endpoint, p256dh, auth });
+  } catch (error) {
+    console.warn("[push] web registration failed:", error);
   } finally {
     registerInFlight = false;
   }
@@ -138,7 +215,15 @@ async function registerWebPushOnce() {
 export async function registerPushForCurrentUser() {
   if (typeof window === "undefined") return;
 
-  if (Capacitor.isNativePlatform()) {
+  const isNative = Capacitor.isNativePlatform();
+  const platform = Capacitor.getPlatform();
+
+  console.log("[push] registerPushForCurrentUser", {
+    isNative,
+    platform,
+  });
+
+  if (isNative) {
     await registerNativePushOnce();
     return;
   }

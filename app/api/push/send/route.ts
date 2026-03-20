@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import webpush from "web-push";
 import { createPrivateKey, sign as cryptoSign } from "crypto";
 import { connect } from "http2";
@@ -10,6 +10,12 @@ type Payload = {
   title: string;
   body: string;
   url: string;
+};
+
+type PushRow = {
+  endpoint: string;
+  p256dh: string | null;
+  auth: string | null;
 };
 
 function base64url(input: Buffer | string) {
@@ -57,7 +63,7 @@ function createAppleJwt() {
   return `${unsigned}.${base64url(signature)}`;
 }
 
-function sendApnsNotification({
+async function sendApnsNotification({
   token,
   title,
   body,
@@ -68,18 +74,18 @@ function sendApnsNotification({
   body: string;
   url: string;
 }) {
+  const bundleId = process.env.APPLE_BUNDLE_ID;
+  const useProduction =
+    String(process.env.APPLE_USE_PRODUCTION ?? "true").toLowerCase() === "true";
+
+  if (!bundleId) {
+    throw new Error("Missing APPLE_BUNDLE_ID");
+  }
+
+  const jwt = createAppleJwt();
+  const host = useProduction ? "api.push.apple.com" : "api.sandbox.push.apple.com";
+
   return new Promise<void>((resolve, reject) => {
-    const bundleId = process.env.APPLE_BUNDLE_ID;
-    const useProduction = String(process.env.APPLE_USE_PRODUCTION ?? "true").toLowerCase() === "true";
-
-    if (!bundleId) {
-      reject(new Error("Missing APPLE_BUNDLE_ID"));
-      return;
-    }
-
-    const jwt = createAppleJwt();
-    const host = useProduction ? "api.push.apple.com" : "api.sandbox.push.apple.com";
-
     const client = connect(`https://${host}`);
 
     client.on("error", (err) => {
@@ -127,9 +133,14 @@ function sendApnsNotification({
 
       if (statusCode >= 200 && statusCode < 300) {
         resolve();
-      } else {
-        reject(new Error(`APNs failed (${statusCode}): ${responseBody || "Unknown error"}`));
+        return;
       }
+
+      reject(
+        new Error(
+          `APNs failed (${statusCode}) host=${host} bundleId=${bundleId} body=${responseBody || "Unknown error"}`
+        )
+      );
     });
 
     req.on("error", (err) => {
@@ -142,9 +153,21 @@ function sendApnsNotification({
   });
 }
 
+async function deleteBadSubscription(admin: SupabaseClient, endpoint: string) {
+  const { error } = await admin.from("push_subscriptions").delete().eq("endpoint", endpoint);
+
+  if (error) {
+    console.warn("[push] failed deleting bad subscription:", endpoint, error);
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { userId, title, body, url } = (await req.json()) as Payload;
+
+    if (!userId || !title || !body || !url) {
+      return new Response("Missing required fields", { status: 400 });
+    }
 
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -163,54 +186,116 @@ export async function POST(req: Request) {
       .eq("user_id", userId);
 
     if (error) {
-      console.error("push_subscriptions select error:", error);
+      console.error("[push] push_subscriptions select error:", error);
       return new Response("Failed to fetch subscriptions", { status: 500 });
+    }
+
+    if (!subs || subs.length === 0) {
+      console.warn("[push] no subscriptions found for user:", userId);
+      return Response.json({
+        ok: true,
+        sent: 0,
+        failed: 0,
+        details: [],
+      });
     }
 
     const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
     const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
     if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-      webpush.setVapidDetails("mailto:admin@pinchmypony.com", VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+      webpush.setVapidDetails(
+        "mailto:admin@pinchmypony.com",
+        VAPID_PUBLIC_KEY,
+        VAPID_PRIVATE_KEY
+      );
     }
 
-    const results = await Promise.allSettled(
-      (subs ?? []).map(async (s) => {
-        if (typeof s.endpoint === "string" && s.endpoint.startsWith("ios:")) {
-          const token = s.endpoint.slice(4);
-          if (!token) throw new Error("Empty iOS device token");
+    const details = await Promise.all(
+      (subs as PushRow[]).map(async (s) => {
+        try {
+          if (typeof s.endpoint === "string" && s.endpoint.startsWith("ios:")) {
+            const token = s.endpoint.slice(4).trim();
+            if (!token) throw new Error("Empty iOS device token");
 
-          await sendApnsNotification({
-            token,
-            title,
-            body,
-            url,
-          });
-          return;
-        }
+            await sendApnsNotification({
+              token,
+              title,
+              body,
+              url,
+            });
 
-        if (!s.endpoint || !s.p256dh || !s.auth) {
-          throw new Error("Incomplete web push subscription");
-        }
+            return {
+              endpoint: s.endpoint.slice(0, 28) + "...",
+              type: "ios",
+              ok: true,
+            };
+          }
 
-        const payload = JSON.stringify({ title, body, url });
+          if (!s.endpoint || !s.p256dh || !s.auth) {
+            throw new Error("Incomplete web push subscription");
+          }
 
-        await webpush.sendNotification(
-          {
+          const payload = JSON.stringify({ title, body, url });
+
+          await webpush.sendNotification(
+            {
+              endpoint: s.endpoint,
+              keys: { p256dh: s.p256dh, auth: s.auth },
+            },
+            payload
+          );
+
+          return {
+            endpoint: s.endpoint.slice(0, 60) + "...",
+            type: "web",
+            ok: true,
+          };
+        } catch (error: any) {
+          const message = error?.message ?? "Unknown push error";
+          console.error("[push] delivery failed:", {
             endpoint: s.endpoint,
-            keys: { p256dh: s.p256dh, auth: s.auth },
-          },
-          payload
-        );
+            message,
+          });
+
+          if (
+            typeof s.endpoint === "string" &&
+            (s.endpoint.startsWith("ios:") ||
+              message.includes("410") ||
+              message.includes("BadDeviceToken") ||
+              message.includes("Unregistered"))
+          ) {
+            await deleteBadSubscription(admin, s.endpoint);
+          }
+
+          return {
+            endpoint: s.endpoint.slice(0, 60) + "...",
+            type: s.endpoint.startsWith("ios:") ? "ios" : "web",
+            ok: false,
+            error: message,
+          };
+        }
       })
     );
 
-    const ok = results.filter((r) => r.status === "fulfilled").length;
-    const fail = results.length - ok;
+    const sent = details.filter((d) => d.ok).length;
+    const failed = details.length - sent;
 
-    return Response.json({ ok: true, sent: ok, failed: fail });
+    console.log("[push] send completed:", {
+      userId,
+      sent,
+      failed,
+      details,
+    });
+
+    return Response.json({
+      ok: true,
+      sent,
+      failed,
+      details,
+    });
   } catch (e: any) {
-    console.error("push send route error:", e);
+    console.error("[push] send route error:", e);
     return new Response(e?.message ?? "Error", { status: 500 });
   }
 }
