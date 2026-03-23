@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type ProfileGate = {
@@ -14,72 +15,66 @@ export default function AuthPostAuthRedirect({
 }: {
   mode: "login" | "signup";
 }) {
+  const router = useRouter();
   const runningRef = useRef(false);
-  const redirectedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    function hardRedirect(path: string) {
-      if (redirectedRef.current || cancelled) return;
-      redirectedRef.current = true;
-      window.location.replace(path);
-    }
-
     async function routeUser(userId: string) {
-      if (runningRef.current || redirectedRef.current || cancelled) return;
+      // prevent double runs from auth events
+      if (runningRef.current) return;
       runningRef.current = true;
 
       try {
-        const { data, error } = await supabase
+        const { data: p, error } = await supabase
           .from("profiles")
           .select("id, role, verification_status")
           .eq("id", userId)
           .maybeSingle();
 
-        if (cancelled || redirectedRef.current) return;
+        const role = (!error && (p as ProfileGate | null)?.role) || null;
+        const status = (!error && (p as ProfileGate | null)?.verification_status) || "unverified";
 
-        const profile = !error ? (data as ProfileGate | null) : null;
-        const role = profile?.role ?? null;
-        const status = profile?.verification_status ?? "unverified";
-
-        if (mode === "signup") {
-          hardRedirect("/verify");
-          return;
-        }
-
+        // Always send unverified users to verify
         if (status !== "verified") {
-          hardRedirect("/verify");
+          router.replace("/verify");
           return;
         }
 
-        hardRedirect(role === "owner" ? "/dashboard/owner" : "/dashboard/borrower");
+        // Verified users go to dashboard
+        const dash = role === "owner" ? "/dashboard/owner" : "/dashboard/borrower";
+        router.replace(dash);
       } finally {
+        // allow re-run if needed
         runningRef.current = false;
       }
     }
 
     async function checkExistingSession() {
-      const { data, error } = await supabase.auth.getUser();
-      const user = !error ? data.user : null;
-      if (!user || cancelled || redirectedRef.current) return;
-      await routeUser(user.id);
+      const { data } = await supabase.auth.getSession();
+      const u = data.session?.user;
+      if (!u) return;
+      if (cancelled) return;
+      await routeUser(u.id);
     }
 
     checkExistingSession();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async () => {
-      const { data, error } = await supabase.auth.getUser();
-      const user = !error ? data.user : null;
-      if (!user || cancelled || redirectedRef.current) return;
-      await routeUser(user.id);
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user;
+      if (!u) return;
+
+      // For signup pages, we *always* want to go to /verify after a new account is created
+      // even if they verified earlier (rare), but if already verified, they'll pass through quickly.
+      await routeUser(u.id);
     });
 
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
     };
-  }, [mode]);
+  }, [router, mode]);
 
   return null;
 }

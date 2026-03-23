@@ -76,21 +76,17 @@ export default function Header() {
           .eq("id", uid)
           .maybeSingle();
 
-        if (!cancelled) {
-          if (!error) {
-            setProfile((p ?? null) as ProfileMini | null);
-          } else {
-            setProfile(null);
-          }
+        if (!cancelled && !error) {
+          setProfile((p ?? null) as ProfileMini | null);
         }
       } finally {
         if (!cancelled) setProfileLoading(false);
       }
     }
 
-    async function syncAuthState() {
-      const { data, error } = await supabase.auth.getUser();
-      const u = !error ? data.user ?? null : null;
+    async function init() {
+      const { data } = await supabase.auth.getSession();
+      const u = data.session?.user ?? null;
 
       if (cancelled) return;
 
@@ -105,11 +101,20 @@ export default function Header() {
       }
     }
 
-    syncAuthState();
+    init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async () => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
       setMenuOpen(false);
-      await syncAuthState();
+
+      if (u) {
+        registerPushForCurrentUser().catch(() => {});
+        await loadProfile(u.id);
+      } else {
+        setProfile(null);
+        setProfileLoading(false);
+      }
     });
 
     return () => {
@@ -125,7 +130,7 @@ export default function Header() {
     setProfileLoading(false);
 
     await supabase.auth.signOut();
-    window.location.replace("/login");
+    window.location.href = "/login";
   };
 
   const isOwner = profile?.role === "owner";
@@ -159,7 +164,11 @@ export default function Header() {
           justify-content: space-between;
           gap: 10px;
           min-width: 0;
-          padding: 10px 12px;
+          padding:
+            calc(12px + env(safe-area-inset-top))
+            12px
+            12px
+            12px;
         }
 
         .pmp-brand {
@@ -194,6 +203,7 @@ export default function Header() {
           object-fit: contain;
           object-position: center center;
           display: block;
+          transform: scale(1.04);
         }
 
         .pmp-brandText {
@@ -316,7 +326,11 @@ export default function Header() {
         @media (max-width: 767px) {
           .pmp-headerInner {
             gap: 8px;
-            padding: 10px 10px;
+            padding:
+              calc(14px + env(safe-area-inset-top))
+              10px
+              10px
+              10px;
           }
 
           .pmp-brand {
@@ -415,10 +429,6 @@ export default function Header() {
                       <div className="pmp-menuUserLabel">Signed in as</div>
                       <div className="pmp-menuUserName">{signedInLabel}</div>
                     </div>
-
-                    <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Browse
-                    </Link>
 
                     {!isVerified ? (
                       <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
