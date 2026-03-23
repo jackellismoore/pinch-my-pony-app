@@ -21,17 +21,17 @@ export default function AuthPostAuthRedirect({
     let cancelled = false;
 
     function hardRedirect(path: string) {
-      if (redirectedRef.current) return;
+      if (redirectedRef.current || cancelled) return;
       redirectedRef.current = true;
       window.location.replace(path);
     }
 
     async function routeUser(userId: string) {
-      if (runningRef.current || redirectedRef.current) return;
+      if (runningRef.current || redirectedRef.current || cancelled) return;
       runningRef.current = true;
 
       try {
-        const { data: p, error } = await supabase
+        const { data, error } = await supabase
           .from("profiles")
           .select("id, role, verification_status")
           .eq("id", userId)
@@ -39,7 +39,7 @@ export default function AuthPostAuthRedirect({
 
         if (cancelled || redirectedRef.current) return;
 
-        const profile = !error ? (p as ProfileGate | null) : null;
+        const profile = !error ? (data as ProfileGate | null) : null;
         const role = profile?.role ?? null;
         const status = profile?.verification_status ?? "unverified";
 
@@ -53,8 +53,7 @@ export default function AuthPostAuthRedirect({
           return;
         }
 
-        const target = role === "owner" ? "/dashboard/owner" : "/dashboard/borrower";
-        hardRedirect(target);
+        hardRedirect(role === "owner" ? "/dashboard/owner" : "/dashboard/borrower");
       } finally {
         runningRef.current = false;
       }
@@ -62,17 +61,17 @@ export default function AuthPostAuthRedirect({
 
     async function checkExistingSession() {
       const { data } = await supabase.auth.getSession();
-      const u = data.session?.user;
-      if (!u || cancelled || redirectedRef.current) return;
-      await routeUser(u.id);
+      const user = data.session?.user;
+      if (!user || cancelled || redirectedRef.current) return;
+      await routeUser(user.id);
     }
 
     checkExistingSession();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const u = session?.user;
-      if (!u || cancelled || redirectedRef.current) return;
-      await routeUser(u.id);
+      const user = session?.user;
+      if (!user || cancelled || redirectedRef.current) return;
+      await routeUser(user.id);
     });
 
     return () => {

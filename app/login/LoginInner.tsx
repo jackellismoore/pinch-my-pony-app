@@ -5,19 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase, SUPABASE_ENV_OK } from "@/lib/supabaseClient";
 
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
-    p.then((v) => {
-      clearTimeout(t);
-      resolve(v);
-    }).catch((e) => {
-      clearTimeout(t);
-      reject(e);
-    });
-  });
-}
-
 function sanitizeRedirectTo(v: string | null) {
   if (!v) return "/";
   if (!v.startsWith("/")) return "/";
@@ -86,19 +73,14 @@ export default function LoginInner() {
     try {
       setLoading(true);
 
-      const res = await withTimeout(
-        supabase.auth.signInWithPassword({
-          email: emailTrim,
-          password,
-        }),
-        15000,
-        "signInWithPassword"
-      );
+      const res = await supabase.auth.signInWithPassword({
+        email: emailTrim,
+        password,
+      });
 
       if (res.error) throw res.error;
 
-      const target = sanitizeRedirectTo(redirectTo);
-      window.location.replace(target);
+      window.location.replace(redirectTo);
       return;
     } catch (err: any) {
       setError(err?.message ?? "Login failed.");
@@ -240,14 +222,7 @@ export default function LoginInner() {
                   </div>
 
                   <button onClick={login} disabled={!canSubmit} style={primaryBtn(loading, canSubmit)}>
-                    {loading ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-                        <span className="pmpSpinner" aria-hidden="true" />
-                        Logging in…
-                      </span>
-                    ) : (
-                      "Login"
-                    )}
+                    {loading ? "Logging in…" : "Login"}
                   </button>
 
                   <div style={fineRow}>
@@ -309,20 +284,6 @@ const css = `
     * { animation: none !important; transition: none !important; }
   }
 
-  @keyframes pmpSpin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-
-  .pmpSpinner {
-    width: 16px;
-    height: 16px;
-    border-radius: 999px;
-    border: 2px solid rgba(255,255,255,0.45);
-    border-top-color: rgba(255,255,255,0.95);
-    animation: pmpSpin 700ms linear infinite;
-  }
-
   .pmp-authGrid {
     position: relative;
     display: grid;
@@ -345,16 +306,8 @@ const css = `
   }
 `;
 
-const pageWrap: React.CSSProperties = {
-  width: "100%",
-};
-
-const container: React.CSSProperties = {
-  maxWidth: 1120,
-  margin: "0 auto",
-  padding: "0 12px",
-};
-
+const pageWrap: React.CSSProperties = { width: "100%" };
+const container: React.CSSProperties = { maxWidth: 1120, margin: "0 auto", padding: "0 12px" };
 const heroSection: React.CSSProperties = {
   position: "relative",
   overflow: "hidden",
@@ -362,14 +315,12 @@ const heroSection: React.CSSProperties = {
   background: palette.cream,
   borderRadius: 24,
 };
-
 const heroBg: React.CSSProperties = {
   position: "absolute",
   inset: 0,
   background:
     "radial-gradient(900px 420px at 20% 10%, rgba(200,162,77,0.18), transparent 55%), radial-gradient(900px 420px at 90% 30%, rgba(31,61,43,0.14), transparent 58%), linear-gradient(180deg, rgba(245,241,232,1) 0%, rgba(250,250,250,1) 68%)",
 };
-
 const leftCol: React.CSSProperties = {
   position: "relative",
   zIndex: 1,
@@ -379,13 +330,7 @@ const leftCol: React.CSSProperties = {
   paddingTop: 6,
   minWidth: 0,
 };
-
-const rightCol: React.CSSProperties = {
-  position: "relative",
-  zIndex: 1,
-  minWidth: 0,
-};
-
+const rightCol: React.CSSProperties = { position: "relative", zIndex: 1, minWidth: 0 };
 const eyebrowPill: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -400,7 +345,6 @@ const eyebrowPill: React.CSSProperties = {
   fontWeight: 900,
   fontSize: 13,
 };
-
 const title: React.CSSProperties = {
   margin: 0,
   fontSize: "clamp(28px, 7vw, 56px)",
@@ -409,7 +353,6 @@ const title: React.CSSProperties = {
   color: palette.navy,
   maxWidth: 760,
 };
-
 const accent: React.CSSProperties = {
   color: palette.forest,
   textDecoration: "underline",
@@ -417,7 +360,6 @@ const accent: React.CSSProperties = {
   textUnderlineOffset: "6px",
   textDecorationColor: "rgba(200,162,77,0.42)",
 };
-
 const subtitle: React.CSSProperties = {
   margin: 0,
   fontSize: "clamp(15px, 3.8vw, 18px)",
@@ -425,7 +367,6 @@ const subtitle: React.CSSProperties = {
   opacity: 0.9,
   maxWidth: 640,
 };
-
 const tipCard: React.CSSProperties = {
   marginTop: 2,
   padding: 16,
@@ -435,27 +376,19 @@ const tipCard: React.CSSProperties = {
   boxShadow: "0 18px 50px rgba(31,42,68,0.08)",
   maxWidth: 520,
 };
-
-const tipTitle: React.CSSProperties = {
-  fontWeight: 950,
-  fontSize: 16,
-  color: palette.navy,
-};
-
+const tipTitle: React.CSSProperties = { fontWeight: 950, fontSize: 16, color: palette.navy };
 const tipText: React.CSSProperties = {
   marginTop: 6,
   fontSize: 15,
   lineHeight: 1.65,
   color: "rgba(15,23,42,0.76)",
 };
-
 const tipActions: React.CSSProperties = {
   display: "flex",
   gap: 10,
   flexWrap: "wrap",
   marginTop: 14,
 };
-
 const card: React.CSSProperties = {
   borderRadius: 22,
   border: "1px solid rgba(31,42,68,0.12)",
@@ -464,7 +397,6 @@ const card: React.CSSProperties = {
   padding: 16,
   minWidth: 0,
 };
-
 const cardTopRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -473,14 +405,12 @@ const cardTopRow: React.CSSProperties = {
   marginBottom: 14,
   flexWrap: "wrap",
 };
-
 const logoRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 12,
   minWidth: 0,
 };
-
 const logoBadge: React.CSSProperties = {
   width: 48,
   height: 48,
@@ -494,7 +424,6 @@ const logoBadge: React.CSSProperties = {
   flexShrink: 0,
   padding: 6,
 };
-
 const pill: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -508,7 +437,6 @@ const pill: React.CSSProperties = {
   fontSize: 12,
   maxWidth: "100%",
 };
-
 const errorBand: React.CSSProperties = {
   borderRadius: 16,
   border: "1px solid rgba(122,31,31,0.20)",
@@ -516,12 +444,7 @@ const errorBand: React.CSSProperties = {
   padding: 12,
   marginBottom: 12,
 };
-
-const formGrid: React.CSSProperties = {
-  display: "grid",
-  gap: 14,
-};
-
+const formGrid: React.CSSProperties = { display: "grid", gap: 14 };
 const baseInput: React.CSSProperties = {
   width: "100%",
   minHeight: 48,
@@ -533,7 +456,6 @@ const baseInput: React.CSSProperties = {
   color: palette.navy,
   fontSize: 16,
 };
-
 function inputStyle(hasError: boolean): React.CSSProperties {
   return {
     ...baseInput,
@@ -541,7 +463,6 @@ function inputStyle(hasError: boolean): React.CSSProperties {
     boxShadow: hasError ? "0 0 0 3px rgba(122,31,31,0.12)" : "none",
   };
 }
-
 const primaryBtn = (loading: boolean, enabled: boolean): React.CSSProperties => ({
   width: "100%",
   minHeight: 50,
@@ -562,7 +483,6 @@ const primaryBtn = (loading: boolean, enabled: boolean): React.CSSProperties => 
   cursor: enabled ? "pointer" : "not-allowed",
   opacity: loading ? 0.92 : 1,
 });
-
 const secondaryBtn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -576,7 +496,6 @@ const secondaryBtn: React.CSSProperties = {
   border: "1px solid rgba(31,42,68,0.18)",
   boxShadow: "0 14px 34px rgba(31,42,68,0.08)",
 };
-
 const ghostBtn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -589,26 +508,16 @@ const ghostBtn: React.CSSProperties = {
   fontWeight: 950,
   border: "1px solid rgba(31,42,68,0.14)",
 };
-
 const inlineLinksRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: 12,
   flexWrap: "wrap",
 };
-
-const fineRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "center",
-  paddingTop: 2,
-};
-
+const fineRow: React.CSSProperties = { display: "flex", justifyContent: "center", paddingTop: 2 };
 const inlineLink: React.CSSProperties = {
   color: palette.forest,
   fontWeight: 900,
   textDecoration: "none",
 };
-
-const linkReset: React.CSSProperties = {
-  textDecoration: "none",
-};
+const linkReset: React.CSSProperties = { textDecoration: "none" };
