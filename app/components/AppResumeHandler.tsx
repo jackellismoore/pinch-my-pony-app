@@ -22,7 +22,7 @@ export default function AppResumeHandler() {
 
       try {
         const handle = await CapacitorApp.addListener("appStateChange", () => {
-          // intentionally no forced refresh/reload
+          // no forced refresh or reload
         });
 
         removeAppListener = () => {

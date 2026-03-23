@@ -23,32 +23,42 @@ function BellIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-function useOutsideClick<T extends HTMLElement>(ref: React.RefObject<T | null>, onOutside: () => void) {
+function useOutsideClick<T extends HTMLElement>(
+  ref: React.RefObject<T | null>,
+  onOutside: () => void
+) {
   useEffect(() => {
     function onDown(e: MouseEvent) {
       const el = ref.current;
       if (!el) return;
       if (e.target instanceof Node && !el.contains(e.target)) onOutside();
     }
+
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
   }, [ref, onOutside]);
 }
 
 export default function NotificationBell() {
-  const [counts, setCounts] = useState<Counts>({ unreadMessages: 0, pendingRequests: 0 });
+  const [counts, setCounts] = useState<Counts>({
+    unreadMessages: 0,
+    pendingRequests: 0,
+  });
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(rootRef, () => setOpen(false));
 
-  const total = useMemo(() => counts.unreadMessages + counts.pendingRequests, [counts]);
+  const total = useMemo(
+    () => counts.unreadMessages + counts.pendingRequests,
+    [counts]
+  );
 
   async function refreshCounts() {
     try {
-      const { data: userRes, error: userErr } = await supabase.auth.getUser();
-      const uid = !userErr ? userRes.user?.id ?? null : null;
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user?.id ?? null;
 
       if (!uid) {
         setCounts({ unreadMessages: 0, pendingRequests: 0 });
@@ -56,41 +66,62 @@ export default function NotificationBell() {
         return;
       }
 
-      const unreadPromise = supabase
-        .from("message_threads")
-        .select("request_id, unread_count")
-        .gt("unread_count", 0);
+      const { data: myHorses, error: horsesErr } = await supabase
+        .from("horses")
+        .select("id")
+        .eq("owner_id", uid);
 
-      const horsesPromise = supabase.from("horses").select("id").eq("owner_id", uid);
+      if (horsesErr) throw horsesErr;
 
-      const [unreadRes, horsesRes] = await Promise.all([unreadPromise, horsesPromise]);
+      const myHorseIds = (myHorses ?? []).map((r: any) => r.id).filter(Boolean);
+
+      const [borrowerReqs, ownerReqs] = await Promise.all([
+        supabase.from("borrow_requests").select("id").eq("borrower_id", uid),
+        myHorseIds.length
+          ? supabase.from("borrow_requests").select("id").in("horse_id", myHorseIds)
+          : Promise.resolve({ data: [], error: null } as any),
+      ]);
+
+      if (borrowerReqs.error) throw borrowerReqs.error;
+      if (ownerReqs.error) throw ownerReqs.error;
+
+      const requestIds = Array.from(
+        new Set(
+          [...(borrowerReqs.data ?? []), ...(ownerReqs.data ?? [])]
+            .map((r: any) => r.id)
+            .filter(Boolean)
+        )
+      );
 
       let unreadMessages = 0;
-      if (!unreadRes.error) {
-        unreadMessages = ((unreadRes.data ?? []) as Array<{ unread_count: number }>).reduce(
-          (sum, row) => sum + Number(row.unread_count ?? 0),
-          0
-        );
+      if (requestIds.length) {
+        const { count, error } = await supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .in("request_id", requestIds)
+          .neq("sender_id", uid)
+          .is("read_at", null);
+
+        if (error) throw error;
+        unreadMessages = count ?? 0;
       }
 
       let pendingRequests = 0;
-      if (!horsesRes.error) {
-        const horseIds = (horsesRes.data ?? []).map((r: any) => r.id).filter(Boolean);
+      if (myHorseIds.length) {
+        const { count, error } = await supabase
+          .from("borrow_requests")
+          .select("id", { count: "exact", head: true })
+          .in("horse_id", myHorseIds)
+          .eq("status", "pending");
 
-        if (horseIds.length > 0) {
-          const { count, error } = await supabase
-            .from("borrow_requests")
-            .select("id", { count: "exact", head: true })
-            .in("horse_id", horseIds)
-            .eq("status", "pending");
-
-          if (!error) pendingRequests = count ?? 0;
-        }
+        if (error) throw error;
+        pendingRequests = count ?? 0;
       }
 
       setCounts({ unreadMessages, pendingRequests });
       setReady(true);
-    } catch {
+    } catch (error) {
+      console.warn("[NotificationBell] refreshCounts failed:", error);
       setReady(true);
     }
   }
@@ -107,12 +138,20 @@ export default function NotificationBell() {
 
     const msgCh = supabase
       .channel("rt:messages")
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => mounted && refreshCounts())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messages" },
+        () => mounted && refreshCounts()
+      )
       .subscribe();
 
     const reqCh = supabase
       .channel("rt:borrow_requests")
-      .on("postgres_changes", { event: "*", schema: "public", table: "borrow_requests" }, () => mounted && refreshCounts())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "borrow_requests" },
+        () => mounted && refreshCounts()
+      )
       .subscribe();
 
     return () => {
@@ -188,7 +227,9 @@ export default function NotificationBell() {
             zIndex: 50,
           }}
         >
-          <div style={{ fontWeight: 950, fontSize: 14, marginBottom: 8 }}>Notifications</div>
+          <div style={{ fontWeight: 950, fontSize: 14, marginBottom: 8 }}>
+            Notifications
+          </div>
 
           <div style={{ display: "grid", gap: 8 }}>
             <Link
@@ -228,7 +269,9 @@ export default function NotificationBell() {
             </Link>
           </div>
 
-          <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>Updates live when messages or requests change.</div>
+          <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
+            Updates live when messages or requests change.
+          </div>
         </div>
       ) : null}
     </div>

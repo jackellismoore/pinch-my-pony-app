@@ -14,7 +14,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false,
     storageKey: "pinch-my-pony-auth",
     storage: typeof window !== "undefined" ? window.localStorage : undefined,
   },
