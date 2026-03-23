@@ -1,52 +1,45 @@
 "use client";
 
 import { useEffect } from "react";
-import {
-  registerPushForCurrentUser,
-  syncPushTokenAfterAuth,
-} from "@/lib/push/registerPush";
-import { supabase } from "@/lib/supabaseClient";
 
 export default function PushBootstrap() {
   useEffect(() => {
     let cancelled = false;
 
-    async function init() {
-      try {
-        await registerPushForCurrentUser();
+    async function cleanupBrowserServiceWorkers() {
+      if (typeof window === "undefined") return;
+      if (!("serviceWorker" in navigator)) return;
 
-        const { data } = await supabase.auth.getSession();
-        const user = data.session?.user ?? null;
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+
+        await Promise.all(
+          regs.map(async (reg) => {
+            try {
+              await reg.unregister();
+            } catch {}
+          })
+        );
 
         if (cancelled) return;
 
-        if (user) {
-          await syncPushTokenAfterAuth();
+        if ("caches" in window) {
+          try {
+            const cacheKeys = await caches.keys();
+            await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+          } catch {}
         }
+
+        console.log("[push-bootstrap] browser service workers cleared");
       } catch (error) {
-        console.warn("[push-bootstrap] init failed:", error);
+        console.warn("[push-bootstrap] failed to clear service workers", error);
       }
     }
 
-    init();
-
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      try {
-        if (cancelled) return;
-
-        await registerPushForCurrentUser();
-
-        if (session?.user) {
-          await syncPushTokenAfterAuth();
-        }
-      } catch (error) {
-        console.warn("[push-bootstrap] auth sync failed:", error);
-      }
-    });
+    cleanupBrowserServiceWorkers();
 
     return () => {
       cancelled = true;
-      sub.subscription.unsubscribe();
     };
   }, []);
 

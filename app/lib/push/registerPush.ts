@@ -12,15 +12,6 @@ import {
 const PENDING_NATIVE_TOKEN_KEY = "pmp_pending_native_push_token";
 const PENDING_NATIVE_PLATFORM_KEY = "pmp_pending_native_push_platform";
 
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
-  return outputArray;
-}
-
 let listenersBound = false;
 let registerInFlight = false;
 
@@ -217,53 +208,6 @@ async function registerNativePushOnce() {
   }
 }
 
-async function registerWebPushOnce() {
-  if (registerInFlight) return;
-  registerInFlight = true;
-
-  try {
-    if (typeof window === "undefined") return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-
-    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (!publicKey) {
-      console.warn("[push] missing NEXT_PUBLIC_VAPID_PUBLIC_KEY");
-      return;
-    }
-
-    const perm = await Notification.requestPermission();
-    if (perm !== "granted") {
-      console.warn("[push] web notification permission not granted");
-      return;
-    }
-
-    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-
-    const sub =
-      (await reg.pushManager.getSubscription()) ||
-      (await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
-      }));
-
-    const json = sub.toJSON();
-    const endpoint = json.endpoint;
-    const p256dh = json.keys?.p256dh;
-    const auth = json.keys?.auth;
-
-    if (!endpoint || !p256dh || !auth) {
-      console.warn("[push] incomplete web push subscription");
-      return;
-    }
-
-    await saveSubscriptionRow({ endpoint, p256dh, auth });
-  } catch (error) {
-    console.warn("[push] web registration failed:", error);
-  } finally {
-    registerInFlight = false;
-  }
-}
-
 export async function registerPushForCurrentUser() {
   if (!isBrowser()) return;
 
@@ -272,12 +216,12 @@ export async function registerPushForCurrentUser() {
 
   console.log("[push] registerPushForCurrentUser", { isNative, platform });
 
-  if (isNative) {
-    await registerNativePushOnce();
+  if (!isNative) {
+    console.log("[push] skipping browser web push registration");
     return;
   }
 
-  await registerWebPushOnce();
+  await registerNativePushOnce();
 }
 
 export async function syncPushTokenAfterAuth() {

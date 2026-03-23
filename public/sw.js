@@ -1,31 +1,25 @@
-self.addEventListener("push", (event) => {
-  let data = {}
-  try {
-    data = event.data ? event.data.json() : {}
-  } catch (e) {}
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
 
-  const title = data.title || "Pinch My Pony"
-  const body = data.body || "New message"
-  const url = data.url || "/messages"
-
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      data: { url },
-    })
-  )
-})
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+      await self.clients.claim();
+    })()
+  );
+});
+
+self.addEventListener("fetch", () => {
+  // Intentionally no-op.
+});
+
+self.addEventListener("push", () => {
+  // Intentionally disabled. Native iOS/Android push only.
+});
 
 self.addEventListener("notificationclick", (event) => {
-  event.notification.close()
-  const url = event.notification?.data?.url || "/messages"
-
-  event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes(url) && "focus" in client) return client.focus()
-      }
-      if (clients.openWindow) return clients.openWindow(url)
-    })
-  )
-})
+  event.notification.close();
+});
