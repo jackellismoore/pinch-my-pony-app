@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
 import LoginInner from "./LoginInner";
-import AuthPostAuthRedirect from "../components/AuthPostAuthRedirect";
 
 function LoadingFallback() {
   return (
@@ -19,7 +18,6 @@ function LoadingFallback() {
 export default function LoginPage() {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <AuthPostAuthRedirect mode="login" />
       <LoginInner />
     </Suspense>
   );

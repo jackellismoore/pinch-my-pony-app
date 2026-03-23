@@ -20,9 +20,45 @@ const palette = {
   gold: "#C8A24D",
 };
 
+type ProfileGate = {
+  id: string;
+  role: "owner" | "borrower" | null;
+  verification_status: string | null;
+};
+
 function isValidEmail(v: string) {
   const s = v.trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+async function routeAfterLogin(userId: string, fallbackRedirect: string) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, role, verification_status")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const profile = !error ? (data as ProfileGate | null) : null;
+  const role = profile?.role ?? null;
+  const status = profile?.verification_status ?? "unverified";
+
+  if (status !== "verified") {
+    window.location.replace("/verify");
+    return;
+  }
+
+  // If caller passed a real in-app redirect, honor it.
+  if (
+    fallbackRedirect &&
+    fallbackRedirect !== "/" &&
+    fallbackRedirect !== "/login" &&
+    fallbackRedirect !== "/signup"
+  ) {
+    window.location.replace(fallbackRedirect);
+    return;
+  }
+
+  window.location.replace(role === "owner" ? "/dashboard/owner" : "/dashboard/borrower");
 }
 
 export default function LoginInner() {
@@ -87,7 +123,12 @@ export default function LoginInner() {
 
       if (res.error) throw res.error;
 
-      window.location.replace(redirectTo);
+      const userId = res.data.user?.id;
+      if (!userId) {
+        throw new Error("Signed in, but no user was returned.");
+      }
+
+      await routeAfterLogin(userId, redirectTo);
       return;
     } catch (err: any) {
       setError(err?.message ?? "Login failed.");
