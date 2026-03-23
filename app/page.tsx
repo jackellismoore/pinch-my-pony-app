@@ -33,6 +33,22 @@ function pickName(p: ProfileMini | null) {
   return dn || fn || "there";
 }
 
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = window.setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+
+    Promise.resolve(promise)
+      .then((value) => {
+        window.clearTimeout(t);
+        resolve(value);
+      })
+      .catch((err) => {
+        window.clearTimeout(t);
+        reject(err);
+      });
+  });
+}
+
 export default function HomePage() {
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
@@ -46,75 +62,135 @@ export default function HomePage() {
     let cancelled = false;
 
     async function init() {
-      const { data } = await supabase.auth.getSession();
-      const u = data.session?.user ?? null;
+      try {
+        const { data } = await withTimeout(
+          supabase.auth.getSession(),
+          5000,
+          "session load"
+        );
 
-      if (cancelled) return;
+        const u = data.session?.user ?? null;
 
-      setSessionUserId(u?.id ?? null);
+        if (cancelled) return;
 
-      if (u?.id) {
-        const { data: p } = await supabase
-          .from("profiles")
-          .select("id,role,display_name,full_name,avatar_url,verification_status")
-          .eq("id", u.id)
-          .maybeSingle();
+        setSessionUserId(u?.id ?? null);
 
-        if (!cancelled) setProfile((p ?? null) as ProfileMini | null);
+        if (!u?.id) {
+          setProfile(null);
+          setStats({
+            activeHorses: 0,
+            myPendingRequests: 0,
+            unreadMessages: 0,
+          });
+          return;
+        }
+
+        let nextProfile: ProfileMini | null = null;
 
         try {
-          const unreadPromise = supabase
+          const profileRes = await withTimeout(
+            supabase
+              .from("profiles")
+              .select("id,role,display_name,full_name,avatar_url,verification_status")
+              .eq("id", u.id)
+              .maybeSingle(),
+            5000,
+            "profile load"
+          );
+
+          nextProfile = (profileRes.data ?? null) as ProfileMini | null;
+        } catch {
+          nextProfile = null;
+        }
+
+        if (cancelled) return;
+
+        setProfile(nextProfile);
+
+        const role = nextProfile?.role ?? null;
+
+        const unreadPromise = withTimeout(
+          supabase
             .from("message_threads")
             .select("request_id,unread_count")
-            .gt("unread_count", 0);
+            .gt("unread_count", 0),
+          5000,
+          "message thread stats"
+        );
 
-          const pendingPromise =
-            p?.role === "owner"
-              ? supabase
+        const pendingPromise =
+          role === "owner"
+            ? withTimeout(
+                supabase
+                  .from("borrow_requests")
+                  .select("*", { count: "exact", head: true })
+                  .eq("status", "pending"),
+                5000,
+                "pending requests"
+              )
+            : withTimeout(
+                supabase
                   .from("borrow_requests")
                   .select("*", { count: "exact", head: true })
                   .eq("status", "pending")
-              : supabase
-                  .from("borrow_requests")
-                  .select("*", { count: "exact", head: true })
-                  .eq("status", "pending")
-                  .eq("borrower_id", u.id);
+                  .eq("borrower_id", u.id),
+                5000,
+                "pending requests"
+              );
 
-          const activePromise =
-            p?.role === "owner"
-              ? supabase
+        const activePromise =
+          role === "owner"
+            ? withTimeout(
+                supabase
                   .from("horses")
                   .select("*", { count: "exact", head: true })
                   .eq("owner_id", u.id)
-                  .or("active.eq.true,is_active.eq.true")
-              : supabase
+                  .or("active.eq.true,is_active.eq.true"),
+                5000,
+                "active horses"
+              )
+            : withTimeout(
+                supabase
                   .from("horses")
                   .select("*", { count: "exact", head: true })
-                  .or("active.eq.true,is_active.eq.true");
+                  .or("active.eq.true,is_active.eq.true"),
+                5000,
+                "active horses"
+              );
 
-          const [activeRes, pendingRes, unreadRes] = await Promise.all([
-            activePromise,
-            pendingPromise,
-            unreadPromise,
-          ]);
+        const [activeRes, pendingRes, unreadRes] = await Promise.allSettled([
+          activePromise,
+          pendingPromise,
+          unreadPromise,
+        ]);
 
-          const unreadTotal = ((unreadRes.data ?? []) as Array<{ unread_count: number }>).reduce(
-            (sum, row) => sum + Number(row.unread_count ?? 0),
-            0
-          );
+        const unreadTotal =
+          unreadRes.status === "fulfilled"
+            ? ((unreadRes.value.data ?? []) as Array<{ unread_count: number }>).reduce(
+                (sum, row) => sum + Number(row.unread_count ?? 0),
+                0
+              )
+            : 0;
 
-          if (!cancelled) {
-            setStats({
-              activeHorses: activeRes.count ?? 0,
-              myPendingRequests: pendingRes.count ?? 0,
-              unreadMessages: unreadTotal,
-            });
-          }
-        } catch {
-          // non-fatal
+        if (!cancelled) {
+          setStats({
+            activeHorses:
+              activeRes.status === "fulfilled" ? (activeRes.value.count ?? 0) : 0,
+            myPendingRequests:
+              pendingRes.status === "fulfilled" ? (pendingRes.value.count ?? 0) : 0,
+            unreadMessages: unreadTotal,
+          });
         }
-      } else {
-        setProfile(null);
+      } catch {
+        if (!cancelled) {
+          setSessionUserId(null);
+          setProfile(null);
+          setStats({
+            activeHorses: 0,
+            myPendingRequests: 0,
+            unreadMessages: 0,
+          });
+        }
       }
     }
 
