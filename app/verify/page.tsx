@@ -25,7 +25,12 @@ export default function VerifyPage() {
       const uid = data.session?.user?.id;
       if (!uid) return;
 
-      const { data: p } = await supabase.from("profiles").select("verification_status").eq("id", uid).maybeSingle();
+      const { data: p } = await supabase
+        .from("profiles")
+        .select("verification_status")
+        .eq("id", uid)
+        .maybeSingle();
+
       if (cancelled) return;
 
       const s = (p as any)?.verification_status ?? "unverified";
@@ -41,10 +46,20 @@ export default function VerifyPage() {
   async function startVerification() {
     setError(null);
     setLoading(true);
+
     try {
       const { data: sess } = await supabase.auth.getSession();
+      const user = sess.session?.user;
       const token = sess.session?.access_token;
-      if (!token) throw new Error("Not signed in");
+
+      if (!user?.id || !token) {
+        throw new Error("Not signed in");
+      }
+
+      const returnUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/verify`
+          : "/verify";
 
       const res = await fetch("/api/identity/session", {
         method: "POST",
@@ -52,10 +67,17 @@ export default function VerifyPage() {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({
+          userId: user.id,
+          returnUrl,
+        }),
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to start verification");
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to start verification");
+      }
 
       if (json?.url) {
         window.location.assign(json.url);

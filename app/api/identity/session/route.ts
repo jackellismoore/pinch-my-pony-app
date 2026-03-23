@@ -8,10 +8,14 @@ export async function POST(req: Request) {
     const stripe = getStripe();
 
     const body = await req.json();
-    const { userId, returnUrl } = body;
+    const { userId, returnUrl } = body ?? {};
 
     if (!userId) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    }
+
+    if (!returnUrl) {
+      return NextResponse.json({ error: "Missing returnUrl" }, { status: 400 });
     }
 
     const session = await stripe.identity.verificationSessions.create({
@@ -23,15 +27,15 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({
-      clientSecret: session.client_secret,
       id: session.id,
+      url: session.url,
+      clientSecret: session.client_secret,
     });
-
-  } catch (err) {
+  } catch (err: any) {
     console.error("Identity session error:", err);
 
     return NextResponse.json(
-      { error: "Failed to create identity session" },
+      { error: err?.message || "Failed to create identity session" },
       { status: 500 }
     );
   }
