@@ -35,19 +35,6 @@ function useOutsideClick<T extends HTMLElement>(ref: React.RefObject<T | null>, 
   }, [ref, onOutside]);
 }
 
-async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
-    p.then((v) => {
-      clearTimeout(t);
-      resolve(v);
-    }).catch((e) => {
-      clearTimeout(t);
-      reject(e);
-    });
-  });
-}
-
 export default function NotificationBell() {
   const [counts, setCounts] = useState<Counts>({ unreadMessages: 0, pendingRequests: 0 });
   const [open, setOpen] = useState(false);
@@ -60,8 +47,8 @@ export default function NotificationBell() {
 
   async function refreshCounts() {
     try {
-      const { data: userRes } = await withTimeout(supabase.auth.getUser(), 2500, "getUser");
-      const uid = userRes.user?.id;
+      const { data: userRes, error: userErr } = await supabase.auth.getUser();
+      const uid = !userErr ? userRes.user?.id ?? null : null;
 
       if (!uid) {
         setCounts({ unreadMessages: 0, pendingRequests: 0 });
@@ -69,48 +56,36 @@ export default function NotificationBell() {
         return;
       }
 
-      const { data: myHorses, error: horsesErr } = await supabase.from("horses").select("id").eq("owner_id", uid);
-      if (horsesErr) throw horsesErr;
+      const unreadPromise = supabase
+        .from("message_threads")
+        .select("request_id, unread_count")
+        .gt("unread_count", 0);
 
-      const myHorseIds = (myHorses ?? []).map((r: any) => r.id).filter(Boolean);
+      const horsesPromise = supabase.from("horses").select("id").eq("owner_id", uid);
 
-      const [borrowerReqs, ownerReqs] = await Promise.all([
-        supabase.from("borrow_requests").select("id").eq("borrower_id", uid),
-        myHorseIds.length
-          ? supabase.from("borrow_requests").select("id").in("horse_id", myHorseIds)
-          : Promise.resolve({ data: [], error: null } as any),
-      ]);
-
-      if (borrowerReqs.error) throw borrowerReqs.error;
-      if (ownerReqs.error) throw ownerReqs.error;
-
-      const requestIds = Array.from(
-        new Set([...(borrowerReqs.data ?? []), ...(ownerReqs.data ?? [])].map((r: any) => r.id))
-      );
+      const [unreadRes, horsesRes] = await Promise.all([unreadPromise, horsesPromise]);
 
       let unreadMessages = 0;
-      if (requestIds.length) {
-        const { count, error } = await supabase
-          .from("messages")
-          .select("id", { count: "exact", head: true })
-          .in("request_id", requestIds)
-          .neq("sender_id", uid)
-          .is("read_at", null);
-
-        if (error) throw error;
-        unreadMessages = count ?? 0;
+      if (!unreadRes.error) {
+        unreadMessages = ((unreadRes.data ?? []) as Array<{ unread_count: number }>).reduce(
+          (sum, row) => sum + Number(row.unread_count ?? 0),
+          0
+        );
       }
 
       let pendingRequests = 0;
-      if (myHorseIds.length) {
-        const { count, error } = await supabase
-          .from("borrow_requests")
-          .select("id", { count: "exact", head: true })
-          .in("horse_id", myHorseIds)
-          .eq("status", "pending");
+      if (!horsesRes.error) {
+        const horseIds = (horsesRes.data ?? []).map((r: any) => r.id).filter(Boolean);
 
-        if (error) throw error;
-        pendingRequests = count ?? 0;
+        if (horseIds.length > 0) {
+          const { count, error } = await supabase
+            .from("borrow_requests")
+            .select("id", { count: "exact", head: true })
+            .in("horse_id", horseIds)
+            .eq("status", "pending");
+
+          if (!error) pendingRequests = count ?? 0;
+        }
       }
 
       setCounts({ unreadMessages, pendingRequests });
@@ -253,7 +228,7 @@ export default function NotificationBell() {
             </Link>
           </div>
 
-          <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>Updates live when messages/requests change.</div>
+          <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>Updates live when messages or requests change.</div>
         </div>
       ) : null}
     </div>

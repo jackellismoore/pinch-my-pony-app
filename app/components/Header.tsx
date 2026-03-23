@@ -76,17 +76,21 @@ export default function Header() {
           .eq("id", uid)
           .maybeSingle();
 
-        if (!cancelled && !error) {
-          setProfile((p ?? null) as ProfileMini | null);
+        if (!cancelled) {
+          if (!error) {
+            setProfile((p ?? null) as ProfileMini | null);
+          } else {
+            setProfile(null);
+          }
         }
       } finally {
         if (!cancelled) setProfileLoading(false);
       }
     }
 
-    async function init() {
-      const { data } = await supabase.auth.getSession();
-      const u = data.session?.user ?? null;
+    async function syncAuthState() {
+      const { data, error } = await supabase.auth.getUser();
+      const u = !error ? data.user ?? null : null;
 
       if (cancelled) return;
 
@@ -101,20 +105,11 @@ export default function Header() {
       }
     }
 
-    init();
+    syncAuthState();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const u = session?.user ?? null;
-      setUser(u);
+    const { data: sub } = supabase.auth.onAuthStateChange(async () => {
       setMenuOpen(false);
-
-      if (u) {
-        registerPushForCurrentUser().catch(() => {});
-        await loadProfile(u.id);
-      } else {
-        setProfile(null);
-        setProfileLoading(false);
-      }
+      await syncAuthState();
     });
 
     return () => {
@@ -130,7 +125,7 @@ export default function Header() {
     setProfileLoading(false);
 
     await supabase.auth.signOut();
-    window.location.href = "/login";
+    window.location.replace("/login");
   };
 
   const isOwner = profile?.role === "owner";

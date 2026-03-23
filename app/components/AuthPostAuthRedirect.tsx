@@ -60,16 +60,17 @@ export default function AuthPostAuthRedirect({
     }
 
     async function checkExistingSession() {
-      const { data } = await supabase.auth.getSession();
-      const user = data.session?.user;
+      const { data, error } = await supabase.auth.getUser();
+      const user = !error ? data.user : null;
       if (!user || cancelled || redirectedRef.current) return;
       await routeUser(user.id);
     }
 
     checkExistingSession();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const user = session?.user;
+    const { data: sub } = supabase.auth.onAuthStateChange(async () => {
+      const { data, error } = await supabase.auth.getUser();
+      const user = !error ? data.user : null;
       if (!user || cancelled || redirectedRef.current) return;
       await routeUser(user.id);
     });
