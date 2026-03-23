@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   try {
     const stripe = getStripe();
 
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const { userId, returnUrl } = body ?? {};
 
     if (!userId) {
@@ -28,8 +28,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       id: session.id,
-      url: session.url,
-      clientSecret: session.client_secret,
+      url: session.url ?? null,
+      clientSecret: session.client_secret ?? null,
     });
   } catch (err: any) {
     console.error("Identity session error:", err);

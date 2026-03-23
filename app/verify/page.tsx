@@ -12,6 +12,24 @@ const palette = {
   gold: "#C8A24D",
 };
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = window.setTimeout(() => {
+      reject(new Error(`${label} timed out`));
+    }, ms);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(t);
+        resolve(value);
+      })
+      .catch((err) => {
+        window.clearTimeout(t);
+        reject(err);
+      });
+  });
+}
+
 export default function VerifyPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>("checking");
@@ -44,6 +62,8 @@ export default function VerifyPage() {
   }, []);
 
   async function startVerification() {
+    if (loading) return;
+
     setError(null);
     setLoading(true);
 
@@ -61,35 +81,52 @@ export default function VerifyPage() {
           ? `${window.location.origin}/verify`
           : "/verify";
 
-      const res = await fetch("/api/identity/session", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          returnUrl,
+      const res = await withTimeout(
+        fetch("/api/identity/session", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            returnUrl,
+          }),
         }),
-      });
+        20000,
+        "Verification start request"
+      );
 
-      const json = await res.json();
+      const raw = await res.text();
 
-      if (!res.ok) {
-        throw new Error(json?.error || "Failed to start verification");
+      let json: any = null;
+      try {
+        json = raw ? JSON.parse(raw) : null;
+      } catch {
+        json = null;
       }
 
-      if (json?.url) {
+      if (!res.ok) {
+        throw new Error(
+          json?.error ||
+            raw ||
+            `Failed to start verification (${res.status})`
+        );
+      }
+
+      if (json?.url && typeof json.url === "string") {
         window.location.assign(json.url);
         return;
       }
 
-      throw new Error("Missing verification URL");
+      throw new Error("Verification session created but no redirect URL was returned");
     } catch (e: any) {
       setError(e?.message ?? "Something went wrong");
-    } finally {
       setLoading(false);
+      return;
     }
+
+    setLoading(false);
   }
 
   const isVerified = status === "verified";
