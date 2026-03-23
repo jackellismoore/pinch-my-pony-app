@@ -56,7 +56,8 @@ export default function LoginInner() {
 
   const canSubmit = !loading && !emailErr && !pwdErr;
 
-  async function login() {
+  async function login(e?: React.FormEvent<HTMLFormElement>) {
+    e?.preventDefault();
     setError(null);
 
     if (!SUPABASE_ENV_OK) {
@@ -65,8 +66,14 @@ export default function LoginInner() {
     }
 
     if (!canSubmit) {
-      if (emailErr) return setError(emailErr);
-      if (pwdErr) return setError(pwdErr);
+      if (emailErr) {
+        setError(emailErr);
+        return;
+      }
+      if (pwdErr) {
+        setError(pwdErr);
+        return;
+      }
       return;
     }
 
@@ -176,13 +183,16 @@ export default function LoginInner() {
                   </div>
                 ) : null}
 
-                <div style={formGrid}>
+                <form onSubmit={login} style={formGrid} autoComplete="on" noValidate>
                   <Field
                     label="Email"
+                    htmlFor="login-email"
                     hint="Use the address you signed up with."
                     error={emailTrim ? emailErr : null}
                   >
                     <input
+                      id="login-email"
+                      name="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       type="email"
@@ -195,19 +205,19 @@ export default function LoginInner() {
 
                   <Field
                     label="Password"
+                    htmlFor="login-password"
                     hint="At least 6 characters."
                     error={pwdTrim ? pwdErr : null}
                   >
                     <input
+                      id="login-password"
+                      name="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       type="password"
                       autoComplete="current-password"
                       placeholder="••••••••"
                       style={inputStyle(!!(pwdTrim && pwdErr))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") login();
-                      }}
                     />
                   </Field>
 
@@ -221,7 +231,7 @@ export default function LoginInner() {
                     </Link>
                   </div>
 
-                  <button onClick={login} disabled={!canSubmit} style={primaryBtn(loading, canSubmit)}>
+                  <button type="submit" disabled={!canSubmit} style={primaryBtn(loading, canSubmit)}>
                     {loading ? "Logging in…" : "Login"}
                   </button>
 
@@ -236,7 +246,7 @@ export default function LoginInner() {
                       </Link>
                     </div>
                   </div>
-                </div>
+                </form>
               </div>
             </div>
           </div>
@@ -248,11 +258,13 @@ export default function LoginInner() {
 
 function Field({
   label,
+  htmlFor,
   hint,
   error,
   children,
 }: {
   label: string;
+  htmlFor: string;
   hint?: string;
   error?: string | null;
   children: React.ReactNode;
@@ -268,7 +280,9 @@ function Field({
           flexWrap: "wrap",
         }}
       >
-        <label style={{ fontWeight: 950, color: palette.navy }}>{label}</label>
+        <label htmlFor={htmlFor} style={{ fontWeight: 950, color: palette.navy }}>
+          {label}
+        </label>
         {hint ? <span style={{ fontSize: 12, opacity: 0.7 }}>{hint}</span> : null}
       </div>
       {children}
