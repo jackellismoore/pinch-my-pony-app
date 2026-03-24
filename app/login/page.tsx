@@ -2,44 +2,57 @@
 
 export const dynamic = "force-dynamic";
 
-import { Suspense, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef } from "react";
+import LoginInner from "./LoginInner";
 import { supabase } from "@/lib/supabaseClient";
 
-import LoginInner from "./LoginInner";
-import AuthPostAuthRedirect from "../components/AuthPostAuthRedirect";
+type ProfileGate = {
+  id: string;
+  role: "owner" | "borrower" | null;
+  verification_status: string | null;
+};
 
 function SessionRedirector() {
-  const router = useRouter();
+  const ranRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function check() {
-      const { data } = await supabase.auth.getSession();
-      const u = data.session?.user ?? null;
+    async function run() {
+      if (ranRef.current) return;
+      ranRef.current = true;
 
-      if (!cancelled && u) {
-        router.replace("/");
-        router.refresh();
+      const { data: userRes, error: userErr } = await supabase.auth.getUser();
+      const user = !userErr ? userRes.user : null;
+
+      if (!user || cancelled) return;
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, role, verification_status")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      const profile = !error ? (data as ProfileGate | null) : null;
+      const role = profile?.role ?? null;
+      const status = profile?.verification_status ?? "unverified";
+
+      if (status !== "verified") {
+        window.location.replace("/verify");
+        return;
       }
+
+      window.location.replace(role === "owner" ? "/dashboard/owner" : "/dashboard/borrower");
     }
 
-    check();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      const u = session?.user ?? null;
-      if (u) {
-        router.replace("/");
-        router.refresh();
-      }
-    });
+    run();
 
     return () => {
       cancelled = true;
-      sub.subscription.unsubscribe();
     };
-  }, [router]);
+  }, []);
 
   return null;
 }
@@ -58,7 +71,6 @@ export default function LoginPage() {
   return (
     <Suspense fallback={<LoadingFallback />}>
       <SessionRedirector />
-      <AuthPostAuthRedirect mode="login" />
       <LoginInner />
     </Suspense>
   );
