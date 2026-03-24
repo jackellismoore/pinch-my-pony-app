@@ -1,52 +1,33 @@
-"use client";
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import Header from "@/components/Header";
+import AppResumeHandler from "@/components/AppResumeHandler";
+import PushBootstrap from "@/components/PushBootstrap";
 
-import { useEffect } from "react";
+export const metadata: Metadata = {
+  title: "Pinch My Pony",
+  description: "Horse sharing marketplace",
+};
 
-const RESET_FLAG = "pmp_browser_cache_reset_v1";
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
-export default function PushBootstrap() {
-  useEffect(() => {
-    let cancelled = false;
-
-    async function runOnce() {
-      if (typeof window === "undefined") return;
-      if (!("serviceWorker" in navigator)) return;
-
-      const alreadyRan = window.localStorage.getItem(RESET_FLAG);
-      if (alreadyRan === "done") return;
-
-      try {
-        const regs = await navigator.serviceWorker.getRegistrations();
-
-        await Promise.all(
-          regs.map(async (reg) => {
-            try {
-              await reg.unregister();
-            } catch {}
-          })
-        );
-
-        if ("caches" in window) {
-          try {
-            const keys = await caches.keys();
-            await Promise.all(keys.map((key) => caches.delete(key)));
-          } catch {}
-        }
-
-        if (!cancelled) {
-          window.localStorage.setItem(RESET_FLAG, "done");
-        }
-      } catch (err) {
-        console.warn("[PushBootstrap] cache/service worker reset failed", err);
-      }
-    }
-
-    runOnce();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return null;
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body>
+        <PushBootstrap />
+        <AppResumeHandler />
+        <Header />
+        <main className="pmp-appMain">{children}</main>
+      </body>
+    </html>
+  );
 }
