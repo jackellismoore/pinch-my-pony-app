@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -35,22 +33,6 @@ function pickName(p: ProfileMini | null) {
   return dn || fn || "there";
 }
 
-function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = window.setTimeout(() => reject(new Error(`${label} timed out`)), ms);
-
-    Promise.resolve(promise)
-      .then((value) => {
-        window.clearTimeout(t);
-        resolve(value);
-      })
-      .catch((err) => {
-        window.clearTimeout(t);
-        reject(err);
-      });
-  });
-}
-
 export default function HomePage() {
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
@@ -65,19 +47,15 @@ export default function HomePage() {
 
     async function init() {
       try {
-        const { data } = await withTimeout(
-          supabase.auth.getSession(),
-          5000,
-          "session load"
-        );
-
-        const u = data.session?.user ?? null;
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
 
         if (cancelled) return;
 
-        setSessionUserId(u?.id ?? null);
-
-        if (!u?.id) {
+        if (error || !user) {
+          setSessionUserId(null);
           setProfile(null);
           setStats({
             activeHorses: 0,
@@ -87,20 +65,18 @@ export default function HomePage() {
           return;
         }
 
+        setSessionUserId(user.id);
+
         let nextProfile: ProfileMini | null = null;
 
         try {
-          const profileRes = await withTimeout(
-            supabase
-              .from("profiles")
-              .select("id,role,display_name,full_name,avatar_url,verification_status")
-              .eq("id", u.id)
-              .maybeSingle(),
-            5000,
-            "profile load"
-          );
+          const { data, error: profileError } = await supabase
+            .from("profiles")
+            .select("id,role,display_name,full_name,avatar_url,verification_status")
+            .eq("id", user.id)
+            .maybeSingle();
 
-          nextProfile = (profileRes.data ?? null) as ProfileMini | null;
+          nextProfile = !profileError ? ((data ?? null) as ProfileMini | null) : null;
         } catch {
           nextProfile = null;
         }
@@ -111,60 +87,42 @@ export default function HomePage() {
 
         const role = nextProfile?.role ?? null;
 
-        const unreadPromise = withTimeout(
-          supabase
-            .from("message_threads")
-            .select("request_id,unread_count")
-            .gt("unread_count", 0),
-          5000,
-          "message thread stats"
-        );
+        const unreadPromise = supabase
+          .from("message_threads")
+          .select("request_id,unread_count")
+          .gt("unread_count", 0);
 
         const pendingPromise =
           role === "owner"
-            ? withTimeout(
-                supabase
-                  .from("borrow_requests")
-                  .select("*", { count: "exact", head: true })
-                  .eq("status", "pending"),
-                5000,
-                "pending requests"
-              )
-            : withTimeout(
-                supabase
-                  .from("borrow_requests")
-                  .select("*", { count: "exact", head: true })
-                  .eq("status", "pending")
-                  .eq("borrower_id", u.id),
-                5000,
-                "pending requests"
-              );
+            ? supabase
+                .from("borrow_requests")
+                .select("*", { count: "exact", head: true })
+                .eq("status", "pending")
+            : supabase
+                .from("borrow_requests")
+                .select("*", { count: "exact", head: true })
+                .eq("status", "pending")
+                .eq("borrower_id", user.id);
 
         const activePromise =
           role === "owner"
-            ? withTimeout(
-                supabase
-                  .from("horses")
-                  .select("*", { count: "exact", head: true })
-                  .eq("owner_id", u.id)
-                  .or("active.eq.true,is_active.eq.true"),
-                5000,
-                "active horses"
-              )
-            : withTimeout(
-                supabase
-                  .from("horses")
-                  .select("*", { count: "exact", head: true })
-                  .or("active.eq.true,is_active.eq.true"),
-                5000,
-                "active horses"
-              );
+            ? supabase
+                .from("horses")
+                .select("*", { count: "exact", head: true })
+                .eq("owner_id", user.id)
+                .or("active.eq.true,is_active.eq.true")
+            : supabase
+                .from("horses")
+                .select("*", { count: "exact", head: true })
+                .or("active.eq.true,is_active.eq.true");
 
         const [activeRes, pendingRes, unreadRes] = await Promise.allSettled([
           activePromise,
           pendingPromise,
           unreadPromise,
         ]);
+
+        if (cancelled) return;
 
         const unreadTotal =
           unreadRes.status === "fulfilled"
@@ -174,15 +132,11 @@ export default function HomePage() {
               )
             : 0;
 
-        if (!cancelled) {
-          setStats({
-            activeHorses:
-              activeRes.status === "fulfilled" ? (activeRes.value.count ?? 0) : 0,
-            myPendingRequests:
-              pendingRes.status === "fulfilled" ? (pendingRes.value.count ?? 0) : 0,
-            unreadMessages: unreadTotal,
-          });
-        }
+        setStats({
+          activeHorses: activeRes.status === "fulfilled" ? (activeRes.value.count ?? 0) : 0,
+          myPendingRequests: pendingRes.status === "fulfilled" ? (pendingRes.value.count ?? 0) : 0,
+          unreadMessages: unreadTotal,
+        });
       } catch {
         if (!cancelled) {
           setSessionUserId(null);
@@ -199,13 +153,16 @@ export default function HomePage() {
     init();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
-      const u = sess?.user ?? null;
-      setSessionUserId(u?.id ?? null);
+      const nextUser = sess?.user ?? null;
 
-      if (!u) {
+      if (!nextUser) {
+        setSessionUserId(null);
         setProfile(null);
         setStats({ activeHorses: 0, myPendingRequests: 0, unreadMessages: 0 });
+        return;
       }
+
+      setSessionUserId(nextUser.id);
     });
 
     return () => {

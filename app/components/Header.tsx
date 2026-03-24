@@ -67,8 +67,9 @@ export default function Header() {
 
     async function loadProfile(uid: string) {
       setProfileLoading(true);
+
       try {
-        const { data: p, error } = await supabase
+        const { data, error } = await supabase
           .from("profiles")
           .select(
             "id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
@@ -76,45 +77,68 @@ export default function Header() {
           .eq("id", uid)
           .maybeSingle();
 
-        if (!cancelled && !error) {
-          setProfile((p ?? null) as ProfileMini | null);
+        if (!cancelled) {
+          if (error) {
+            setProfile(null);
+          } else {
+            setProfile((data ?? null) as ProfileMini | null);
+          }
         }
+      } catch {
+        if (!cancelled) setProfile(null);
       } finally {
         if (!cancelled) setProfileLoading(false);
       }
     }
 
     async function init() {
-      const { data } = await supabase.auth.getSession();
-      const u = data.session?.user ?? null;
+      setProfileLoading(true);
 
-      if (cancelled) return;
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
 
-      setUser(u);
+        if (cancelled) return;
 
-      if (u) {
+        if (error || !user) {
+          setUser(null);
+          setProfile(null);
+          setProfileLoading(false);
+          return;
+        }
+
+        setUser(user);
         registerPushForCurrentUser().catch(() => {});
-        await loadProfile(u.id);
-      } else {
-        setProfile(null);
-        setProfileLoading(false);
+        await loadProfile(user.id);
+      } catch {
+        if (!cancelled) {
+          setUser(null);
+          setProfile(null);
+          setProfileLoading(false);
+        }
       }
     }
 
     init();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const u = session?.user ?? null;
-      setUser(u);
+      const nextUser = session?.user ?? null;
+
+      if (cancelled) return;
+
+      setUser(nextUser);
       setMenuOpen(false);
 
-      if (u) {
-        registerPushForCurrentUser().catch(() => {});
-        await loadProfile(u.id);
-      } else {
+      if (!nextUser) {
         setProfile(null);
         setProfileLoading(false);
+        return;
       }
+
+      registerPushForCurrentUser().catch(() => {});
+      await loadProfile(nextUser.id);
     });
 
     return () => {
@@ -422,6 +446,10 @@ export default function Header() {
                       <div className="pmp-menuUserLabel">Signed in as</div>
                       <div className="pmp-menuUserName">{signedInLabel}</div>
                     </div>
+
+                    <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Browse
+                    </Link>
 
                     {!isVerified ? (
                       <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
