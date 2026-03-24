@@ -1,0 +1,101 @@
+[33mb319b94[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Remove login redirect race and handle redirect in LoginInner
+[33m572f132[m Remove invalid revalidate from client pages
+[33m1e708bd[m Disable stale caching on auth-sensitive pages
+[33m8a23cd1[m Fix login form semantics and browser autofill
+[33mca3bb50[m Fix auth hang by removing cache clearing and restoring stable Supabase client
+[33mf42caf3[m cc
+[33mf99c6cf[m cc
+[33mc753737[m Remove login hangs and disable aggressive resume refresh
+[33mf838b72[m Replace hard app resume reload with soft session refresh
+[33m30b5400[m Use hard redirect after successful login
+[33m56cbd80[m Fix post-login redirect from login page
+[33m83fbd88[m Fix browse menu route and hide browse when logged out
+[33me8818db[m Add browse link back to hamburger menu
+[33m92586d4[m Fix login redirect and hide mobile footer in messages
+[33m1025321[m Bootstrap native push registration from root layout
+[33mb4014da[m commit
+[33m351382a[m Fix iOS native safe area and restore resume recovery
+[33m401e865[m Fix iOS safe area header and restore stable auth session handling
+[33m41d5ac3[m Fix iOS safe area header and equal mobile tab bar layout
+[33m84a4145[m Fix iOS header sizing, restore styled tab bar, and prevent footer overlap
+[33m719eab7[m Fix logout redirect + mobile footer overlap globally
+[33m25e1038[m Stabilize header auth flow and native push registration
+[33m7903fbb[m Fix native iOS push and persistent session
+[33mdfa5d80[m commmt
+[33m2079797[m commit
+[33md0c5886[m fix: improve mobile header, chat layout, tab bar visibility, and profile completeness
+[33m52bc968[m commit
+[33mbb57085[m fix: simplify header nav and improve logo fit
+[33me864c94[m fix: center header logo and clean signed-in header
+[33m6c02f75[m fix: update header logo and signed-in nav
+[33m1cf01c2[m fix: show message avatars and center login logo
+[33m4eb8f93[m feat: mobile polish, profile avatar flow, messages UX, and app store readiness updates
+[33mdc79dfa[m Fix forgot-password Suspense boundary for Next build
+[33m36cf4a4[m Mobile UI fixes + responsive layout + remove camera upload + avatar improvements + App Store readiness fixes
+[33m23aacd1[m Fix auth pages for mobile layout
+[33mc71357a[m Mobile UX pass 1: add bottom nav and improve dashboard/browse
+[33mb83dd46[m Add forgot password + reset password flow
+[33mb7c2727[m com
+[33m8eb5fb3[m commit
+[33m176ae47[m Restore globals.css and messaging UI polish
+[33mf263dfd[m Restore globals.css and messaging UI polish
+[33m4ea4672[m Restore globals.css and messaging UI polish
+[33m09ce573[m Restore globals.css and messaging UI polish
+[33ma3bf7ff[m Add verification badges and post-auth redirect flow
+[33m8f186f7[m Add reviews & ratings (reviews table, owner/browse ratings, review flow)
+[33m61174b2[m Add reviews & ratings (reviews table, owner/browse ratings, review flow)
+[33m8bfbeb8[m Add reviews & ratings (reviews table, owner/browse ratings, review flow)
+[33m803f559[m Add reviews & ratings (reviews table, owner/browse ratings, review flow)
+[33m7d221c3[m Add reviews & ratings (reviews table, owner/browse ratings, review flow)
+[33m3ab4202[m Add reviews & ratings (reviews table, owner/browse ratings, review flow)
+[33m8e0f657[m Add reviews & ratings (reviews table, owner/browse ratings, review flow)
+[33m36a25e8[m Add realtime notification bell, add-horse image upload, public horse page, browse updates
+[33m05789b7[m Add realtime notification bell, add-horse image upload, public horse page, browse updates
+[33md4259e0[m Add realtime notification bell, add-horse image upload, public horse page, browse updates
+[33mc819e11[m Header: add notifications bell + fix TS type issues
+[33m73d9186[m Header: add notifications bell + fix TS type issues
+[33m0496e50[m Fix login timeout (use realistic auth timeout + better error handling)
+[33m8114345[m Hide dashboard link until role is loaded (prevents misrouting)
+[33m3c447d3[m Make header mobile-ready with hamburger nav and role-aware dashboard label
+[33mfbf82c1[m Reskin header and simplify nav (Profile label, role-aware Dashboard, remove My Horses)
+[33m3eec9ae[m Fix auth loading: export SUPABASE_ENV_OK and remove .catch TS errors
+[33m33c4d53[m Harden supabase client and prevent infinite auth loading
+[33m3d7ec9b[m Add My Profile to header and upgrade profile page to editable customer profile
+[33m9bc0923[m Fix push files + correct imports
+[33mf75cdf3[m Fix routing + header layout + chat height issue
+[33m348cb13[m Stabilised header and owner dashboard
+[33m734b8ce[m Global unread badge
+[33mb7066f5[m Restore full header navigation with My Horses
+[33m1f2e6bb[m Restore full header and Google map browse layout
+[33mbc42fab[m Restore homepage, fix logout, protect routes
+[33mae48ccd[m Clean modern header with active state styling
+[33m63260bc[m Add Owner My Horses management page
+[33m04501f3[m Restore My Horses and Add Horse tabs to header
+[33m07be0a6[m Add global messages page and header link
+[33mc2f30c9[m Fix header navigation and remove add horse link
+[33md0f407f[m Add My Horses tab to header for owners
+[33m1fdf44d[m Add animated realtime notification bell with dropdown and mark-as-seen
+[33mf5a4389[m Add approve/decline, show borrower name, fix header auth behavior
+[33m606f52e[m Upgrade notification bell to realtime subscription
+[33m84b7ca8[m Add auto-refresh owner notification bell with dropdown
+[33m9f6f69a[m Add owner notification badge for pending requests
+[33m5ae15d1[m Add profile page and header profile link
+[33m45452bb[m Restore header navigation and horse images on browse
+[33mfb659fc[m Restore stable header with auth buttons
+[33m1c9111b[m Fix Supabase import paths and restrict owner-only actions
+[33mb9272e3[m Fix supabase import path in header
+[33m85bd96a[m Auth-aware header with login/logout
+[33m23f246f[m Role-aware header and dashboard redirects
+[33mb62206d[m Auth flow: signup, login, logout (full files)
+[33m35595c4[m Add Supabase signup and profile creation
+[33md7d9302[m Configure Supabase client and TypeScript
+[33m164a47b[m Polish header and home page UI
+[33madbbf24[m Restore demo login placeholder and enhance home page
+[33mc44a3f4[m Add horse browse placeholders and basic navigation
+[33mdb0661c[m Polish UI styling across app
+[33m483563f[m Add borrow requests and owner dashboard
+[33mc0b1297[m Add browse horses page
+[33m24b8144[m Stabilize app with safe full-file updates
+[33mb33055c[m Add login page
+[33mf4b1f4d[m Add header navigation
+[33m0ce1e5e[m Add navigation header

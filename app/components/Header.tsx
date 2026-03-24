@@ -62,90 +62,68 @@ export default function Header() {
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(menuWrapRef, () => setMenuOpen(false));
 
-  useEffect(() => {
-    let cancelled = false;
+ useEffect(() => {
+  let cancelled = false;
 
-    async function loadProfile(uid: string) {
-      setProfileLoading(true);
+  async function loadProfile(uid: string) {
+    setProfileLoading(true);
+    try {
+      const { data: p, error } = await supabase
+        .from("profiles")
+        .select(
+          "id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
+        )
+        .eq("id", uid)
+        .maybeSingle();
 
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select(
-            "id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
-          )
-          .eq("id", uid)
-          .maybeSingle();
-
-        if (!cancelled) {
-          if (error) {
-            setProfile(null);
-          } else {
-            setProfile((data ?? null) as ProfileMini | null);
-          }
-        }
-      } catch {
-        if (!cancelled) setProfile(null);
-      } finally {
-        if (!cancelled) setProfileLoading(false);
+      if (!cancelled && !error) {
+        setProfile((p ?? null) as ProfileMini | null);
       }
+    } finally {
+      if (!cancelled) setProfileLoading(false);
     }
+  }
 
-    async function init() {
-      setProfileLoading(true);
+  async function init() {
+    const { data } = await supabase.auth.getSession();
+    const u = data.session?.user ?? null;
 
-      try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
+    if (cancelled) return;
 
-        if (cancelled) return;
+    setUser(u);
 
-        if (error || !user) {
-          setUser(null);
-          setProfile(null);
-          setProfileLoading(false);
-          return;
-        }
-
-        setUser(user);
-        registerPushForCurrentUser().catch(() => {});
-        await loadProfile(user.id);
-      } catch {
-        if (!cancelled) {
-          setUser(null);
-          setProfile(null);
-          setProfileLoading(false);
-        }
-      }
-    }
-
-    init();
-
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const nextUser = session?.user ?? null;
-
-      if (cancelled) return;
-
-      setUser(nextUser);
-      setMenuOpen(false);
-
-      if (!nextUser) {
-        setProfile(null);
-        setProfileLoading(false);
-        return;
-      }
-
+    if (u) {
       registerPushForCurrentUser().catch(() => {});
-      await loadProfile(nextUser.id);
-    });
+      loadProfile(u.id);
+    } else {
+      setProfile(null);
+      setProfileLoading(false);
+    }
+  }
 
-    return () => {
-      cancelled = true;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
+  init();
+
+  const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const u = session?.user ?? null;
+
+    if (cancelled) return;
+
+    setUser(u);
+
+    if (u) {
+      registerPushForCurrentUser().catch(() => {});
+      loadProfile(u.id);
+    } else {
+      setProfile(null);
+      setProfileLoading(false);
+    }
+  });
+
+  return () => {
+    cancelled = true;
+    sub.subscription.unsubscribe();
+  };
+}, []);
 
   const logout = async () => {
     setMenuOpen(false);
