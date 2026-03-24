@@ -82,6 +82,7 @@ function dayLabel(iso: string) {
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const SEND_COOLDOWN_MS = 800;
+const MAX_TEXTAREA_HEIGHT = 140;
 
 export default function MessageThreadPage() {
   const router = useRouter();
@@ -120,9 +121,12 @@ export default function MessageThreadPage() {
   const typingStopTimerRef = useRef<number | null>(null);
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLDivElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   const didAutoScrollRef = useRef(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
 
   const {
     messages,
@@ -385,6 +389,41 @@ export default function MessageThreadPage() {
     });
   }, [lastMsgKey, isNearBottom]);
 
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
+  }, [draft]);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const updateKeyboardOffset = () => {
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardOffset(offset);
+    };
+
+    updateKeyboardOffset();
+    vv.addEventListener("resize", updateKeyboardOffset);
+    vv.addEventListener("scroll", updateKeyboardOffset);
+
+    return () => {
+      vv.removeEventListener("resize", updateKeyboardOffset);
+      vv.removeEventListener("scroll", updateKeyboardOffset);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!keyboardOffset) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    requestAnimationFrame(() => {
+      scroller.scrollTop = scroller.scrollHeight;
+    });
+  }, [keyboardOffset]);
+
   const unreadIds = useMemo(() => {
     if (!myUserId) return [];
     return messages
@@ -646,48 +685,65 @@ export default function MessageThreadPage() {
     <>
       <style>{`
         .pmp-threadViewport {
-          position: relative;
+          position: fixed;
+          top: var(--pmp-header-height);
+          left: 0;
+          right: 0;
+          bottom: 0;
           width: 100%;
-          height: calc(100dvh - var(--pmp-header-height));
+          z-index: 1;
+          background: #f6f7fb;
         }
 
         .pmp-threadRoot {
           display: flex;
           flex-direction: column;
           background: #f6f7fb;
-          border-radius: 24px;
           overflow: hidden;
           height: 100%;
           min-height: 0;
+          width: 100%;
+          max-width: var(--pmp-max-width);
+          margin: 0 auto;
+          border-radius: 24px;
         }
 
         .pmp-threadHeader {
           flex-shrink: 0;
+          position: sticky;
+          top: 0;
+          z-index: 3;
         }
 
         .pmp-threadMessages {
           flex: 1 1 auto;
           min-height: 0;
           overflow-y: auto;
+          overflow-x: hidden;
           overscroll-behavior: contain;
           -webkit-overflow-scrolling: touch;
+          scroll-behavior: smooth;
         }
 
         .pmp-threadComposerWrap {
           flex-shrink: 0;
-          position: relative;
+          position: sticky;
+          bottom: 0;
+          z-index: 3;
         }
 
         @media (max-width: 767px) {
           .pmp-threadViewport {
-            margin-left: calc(50% - 50vw);
-            margin-right: calc(50% - 50vw);
+            top: var(--pmp-header-height);
+            left: 0;
+            right: 0;
+            bottom: 0;
             width: 100vw;
-            height: calc(100dvh - var(--pmp-header-height));
           }
 
           .pmp-threadRoot {
             border-radius: 0 !important;
+            max-width: none !important;
             width: 100vw !important;
           }
 
@@ -762,7 +818,7 @@ export default function MessageThreadPage() {
           }
 
           .pmp-threadComposerRow {
-            align-items: stretch !important;
+            align-items: flex-end !important;
             gap: 8px !important;
           }
 
@@ -773,7 +829,7 @@ export default function MessageThreadPage() {
       `}</style>
 
       <div className="pmp-threadViewport">
-        <div className="pmp-threadRoot">
+        <div ref={rootRef} className="pmp-threadRoot">
           <div
             className="pmp-threadHeader"
             style={{
@@ -1027,12 +1083,15 @@ export default function MessageThreadPage() {
           </div>
 
           <div
+            ref={composerRef}
             className="pmp-threadComposerWrap"
             style={{
-              padding: "12px 12px calc(12px + env(safe-area-inset-bottom))",
+              padding: "12px 12px calc(12px + env(safe-area-inset-bottom) + 0px)",
               borderTop: "1px solid rgba(15,23,42,0.10)",
               background: "rgba(255,255,255,0.94)",
               backdropFilter: "blur(10px)",
+              transform: keyboardOffset ? `translateY(-${keyboardOffset}px)` : "translateY(0)",
+              transition: "transform 0.18s ease-out",
             }}
           >
             <input
@@ -1159,6 +1218,13 @@ export default function MessageThreadPage() {
                 value={draft}
                 onChange={(e) => onDraftChange(e.target.value)}
                 onBlur={() => broadcastTyping(false)}
+                onFocus={() => {
+                  const scroller = scrollerRef.current;
+                  if (!scroller) return;
+                  requestAnimationFrame(() => {
+                    scroller.scrollTop = scroller.scrollHeight;
+                  });
+                }}
                 placeholder={pickedFile ? "Add a caption (optional)…" : "Message…"}
                 rows={1}
                 style={{
@@ -1172,6 +1238,8 @@ export default function MessageThreadPage() {
                   outline: "none",
                   lineHeight: 1.35,
                   minHeight: 44,
+                  maxHeight: MAX_TEXTAREA_HEIGHT,
+                  overflowY: "auto",
                   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.65)",
                 }}
                 onKeyDown={(e) => {
