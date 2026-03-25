@@ -842,7 +842,6 @@ export default function MessagesPage() {
             const time = timeLabel(t.last_message_at);
             const hasUnread = (t.unread_count ?? 0) > 0;
             const deleting = deletingId === t.request_id;
-
             const initial = t.other_display_name?.slice(0, 1)?.toUpperCase() ?? "U";
 
             return (

@@ -16,6 +16,15 @@ type Profile = {
   last_seen_at: string | null;
 };
 
+type HorseMini = {
+  id: string;
+  name: string;
+  owner_id: string;
+  image_url: string | null;
+  photo_url: string | null;
+  cover_url?: string | null;
+};
+
 type OtherUser = {
   id: string;
   display_name: string;
@@ -25,6 +34,7 @@ type OtherUser = {
 
 type ThreadHeader = {
   horse_name: string;
+  horse_image_url: string | null;
   other_user: OtherUser | null;
 };
 
@@ -77,6 +87,11 @@ function dayLabel(iso: string) {
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+function horseImageFromRow(h: HorseMini | null): string | null {
+  if (!h) return null;
+  return h.image_url ?? h.photo_url ?? h.cover_url ?? null;
 }
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -200,7 +215,7 @@ export default function MessageThreadPage() {
 
       const { data: horse, error: horseErr } = await supabase
         .from("horses")
-        .select("id, name, owner_id")
+        .select("id, name, owner_id, image_url, photo_url, cover_url")
         .eq("id", req.horse_id)
         .single();
 
@@ -212,7 +227,8 @@ export default function MessageThreadPage() {
         return;
       }
 
-      const otherId: string = horse.owner_id === myUserId ? req.borrower_id : horse.owner_id;
+      const horseRow = horse as HorseMini;
+      const otherId: string = horseRow.owner_id === myUserId ? req.borrower_id : horseRow.owner_id;
 
       const { data: prof } = await supabase
         .from("profiles")
@@ -228,7 +244,8 @@ export default function MessageThreadPage() {
       setOtherLastSeenAt(p?.last_seen_at ?? null);
 
       setHeader({
-        horse_name: horse.name,
+        horse_name: horseRow.name,
+        horse_image_url: horseImageFromRow(horseRow),
         other_user: {
           id: otherId,
           display_name: display,
@@ -677,7 +694,8 @@ export default function MessageThreadPage() {
 
   const otherName = header?.other_user?.display_name ?? "User";
   const horseName = header?.horse_name ?? "";
-  const avatarUrl = header?.other_user?.avatar_url ?? "";
+  const userAvatarUrl = header?.other_user?.avatar_url ?? "";
+  const horseImageUrl = header?.horse_image_url ?? "";
   const statusText = otherOnline ? "Online" : otherLastSeenAt ? `Last seen ${timeAgo(otherLastSeenAt)}` : "Offline";
   const showReviewCTA = isBorrower && requestStatus === "approved" && !reviewExists;
 
@@ -772,10 +790,19 @@ export default function MessageThreadPage() {
         .pmp-threadIdentityCard {
           display: flex;
           align-items: center;
+          justify-content: space-between;
           gap: 12px;
           min-width: 0;
           width: 100%;
           padding: 2px 0 0;
+        }
+
+        .pmp-threadIdentityLeft {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+          flex: 1 1 auto;
         }
 
         .pmp-threadIdentityText {
@@ -821,6 +848,24 @@ export default function MessageThreadPage() {
           display: inline-block;
           max-width: 100%;
           vertical-align: bottom;
+        }
+
+        .pmp-threadRightActions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex: 0 0 auto;
+        }
+
+        .pmp-threadHorseThumb {
+          width: 46px;
+          height: 46px;
+          border-radius: 14px;
+          overflow: hidden;
+          background: rgba(15,23,42,0.06);
+          border: 1px solid rgba(15,23,42,0.10);
+          box-shadow: 0 10px 20px rgba(15,23,42,0.08);
+          flex-shrink: 0;
         }
 
         @media (max-width: 767px) {
@@ -875,9 +920,19 @@ export default function MessageThreadPage() {
             align-items: center !important;
           }
 
+          .pmp-threadIdentityLeft {
+            gap: 10px !important;
+          }
+
           .pmp-threadAvatar {
             width: 42px !important;
             height: 42px !important;
+          }
+
+          .pmp-threadHorseThumb {
+            width: 40px !important;
+            height: 40px !important;
+            border-radius: 12px !important;
           }
 
           .pmp-threadName {
@@ -896,7 +951,7 @@ export default function MessageThreadPage() {
           }
 
           .pmp-threadHorseValue {
-            max-width: min(52vw, 220px);
+            max-width: min(46vw, 180px);
           }
 
           .pmp-threadMessages {
@@ -948,14 +1003,6 @@ export default function MessageThreadPage() {
 
               <div className="pmp-threadTopRowRight">
                 <button
-                  onClick={() => router.push("/messages")}
-                  className="pmp-ctaSecondary pmp-threadBackBtn pmp-threadActionBtn"
-                  type="button"
-                >
-                  ← Back
-                </button>
-
-                <button
                   onClick={deleteChatForMe}
                   disabled={deleting}
                   type="button"
@@ -977,83 +1024,131 @@ export default function MessageThreadPage() {
             </div>
 
             <div className="pmp-threadIdentityCard">
-              <div
-                className="pmp-threadAvatar"
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 999,
-                  overflow: "hidden",
-                  background: "rgba(15,23,42,0.06)",
-                  border: "2px solid rgba(202,162,77,0.35)",
-                  boxShadow: "0 10px 20px rgba(15,23,42,0.10)",
-                  flexShrink: 0,
-                }}
-              >
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt={otherName}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                ) : null}
+              <div className="pmp-threadIdentityLeft">
+                <div
+                  className="pmp-threadAvatar"
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    background: "rgba(15,23,42,0.06)",
+                    border: "2px solid rgba(202,162,77,0.35)",
+                    boxShadow: "0 10px 20px rgba(15,23,42,0.10)",
+                    flexShrink: 0,
+                  }}
+                >
+                  {userAvatarUrl ? (
+                    <img
+                      src={userAvatarUrl}
+                      alt={otherName}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "grid",
+                        placeItems: "center",
+                        fontWeight: 950,
+                        color: "rgba(15,23,42,0.65)",
+                        fontSize: 16,
+                      }}
+                    >
+                      {otherName.slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pmp-threadIdentityText">
+                  <div className="pmp-threadNameRow">
+                    <div
+                      className="pmp-threadName"
+                      style={{
+                        fontWeight: 950,
+                        lineHeight: 1.15,
+                        fontSize: 15,
+                      }}
+                    >
+                      {headerLoading ? "Loading…" : otherName}
+                    </div>
+                  </div>
+
+                  <div className="pmp-threadHorseRow">
+                    <div
+                      className="pmp-threadHorseLabel"
+                      style={{
+                        fontSize: 12,
+                        color: "#0b3b2e",
+                        fontWeight: 950,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <span style={{ opacity: 0.7 }}>Horse:</span>
+                      <span className="pmp-threadHorseValue">{horseName || "—"}</span>
+                    </div>
+
+                    <div
+                      className="pmp-threadStatus"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 12,
+                        opacity: 0.85,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 999,
+                          background: otherOnline ? "#22c55e" : "rgba(15,23,42,0.25)",
+                          display: "inline-block",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {statusText}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pmp-threadHorseThumb" title={horseName || "Horse"}>
+                  {horseImageUrl ? (
+                    <img
+                      src={horseImageUrl}
+                      alt={horseName || "Horse"}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "grid",
+                        placeItems: "center",
+                        fontSize: 18,
+                      }}
+                    >
+                      🐴
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="pmp-threadIdentityText">
-                <div className="pmp-threadNameRow">
-                  <div
-                    className="pmp-threadName"
-                    style={{
-                      fontWeight: 950,
-                      lineHeight: 1.15,
-                      fontSize: 15,
-                    }}
-                  >
-                    {headerLoading ? "Loading…" : otherName}
-                  </div>
-                </div>
-
-                <div className="pmp-threadHorseRow">
-                  <div
-                    className="pmp-threadHorseLabel"
-                    style={{
-                      fontSize: 12,
-                      color: "#0b3b2e",
-                      fontWeight: 950,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    <span style={{ opacity: 0.7 }}>Horse:</span>
-                    <span className="pmp-threadHorseValue">{horseName || "—"}</span>
-                  </div>
-
-                  <div
-                    className="pmp-threadStatus"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      fontSize: 12,
-                      opacity: 0.85,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 999,
-                        background: otherOnline ? "#22c55e" : "rgba(15,23,42,0.25)",
-                        display: "inline-block",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {statusText}
-                    </span>
-                  </div>
-                </div>
+              <div className="pmp-threadRightActions">
+                <button
+                  onClick={() => router.push("/messages")}
+                  className="pmp-ctaSecondary pmp-threadBackBtn pmp-threadActionBtn"
+                  type="button"
+                >
+                  ← Back to messages
+                </button>
               </div>
             </div>
           </div>
