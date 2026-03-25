@@ -46,7 +46,6 @@ type HorseMini = {
   owner_id: string;
   photo_url?: string | null;
   image_url?: string | null;
-  cover_url?: string | null;
 };
 
 type LastMessageMini = {
@@ -77,7 +76,7 @@ function timeLabel(iso: string | null) {
 
 function horseImageFromRow(h: HorseMini | null): string | null {
   if (!h) return null;
-  return h.image_url ?? h.photo_url ?? h.cover_url ?? null;
+  return h.image_url ?? h.photo_url ?? null;
 }
 
 function norm(s: string) {
@@ -485,7 +484,7 @@ export default function MessagesPage() {
       if (horseIds.length) {
         const { data: hs, error: horseErr } = await supabase
           .from("horses")
-          .select("id, name, owner_id, image_url, photo_url, cover_url")
+          .select("id, name, owner_id, image_url, photo_url")
           .in("id", horseIds);
 
         if (horseErr) throw horseErr;

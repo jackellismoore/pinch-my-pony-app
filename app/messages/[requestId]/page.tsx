@@ -22,7 +22,6 @@ type HorseMini = {
   owner_id: string;
   image_url: string | null;
   photo_url: string | null;
-  cover_url?: string | null;
 };
 
 type OtherUser = {
@@ -91,7 +90,7 @@ function dayLabel(iso: string) {
 
 function horseImageFromRow(h: HorseMini | null): string | null {
   if (!h) return null;
-  return h.image_url ?? h.photo_url ?? h.cover_url ?? null;
+  return h.image_url ?? h.photo_url ?? null;
 }
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -215,7 +214,7 @@ export default function MessageThreadPage() {
 
       const { data: horse, error: horseErr } = await supabase
         .from("horses")
-        .select("id, name, owner_id, image_url, photo_url, cover_url")
+        .select("id, name, owner_id, image_url, photo_url")
         .eq("id", req.horse_id)
         .single();
 
@@ -521,37 +520,6 @@ export default function MessageThreadPage() {
     await retryOptimistic(tempId);
   };
 
-  const [deleting, setDeleting] = useState(false);
-  const deleteChatForMe = async () => {
-    if (!myUserId || !requestId) return;
-    const ok = window.confirm("Delete this chat for you? It will reappear if a new message is sent.");
-    if (!ok) return;
-
-    setDeleting(true);
-
-    const { error } = await supabase
-      .from("message_thread_deletions")
-      .upsert(
-        {
-          user_id: myUserId,
-          request_id: requestId,
-          deleted_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,request_id" }
-      );
-
-    setDeleting(false);
-
-    if (error) {
-      console.error("deleteChatForMe error:", error);
-      alert("Could not delete chat: " + error.message);
-      return;
-    }
-
-    router.push("/messages");
-    router.refresh();
-  };
-
   const clearPicked = () => {
     setComposerError(null);
     setPickedFile(null);
@@ -751,7 +719,6 @@ export default function MessageThreadPage() {
         }
 
         .pmp-threadActionBtn,
-        .pmp-threadDeleteBtn,
         .pmp-threadReviewBtn,
         .pmp-threadBackBtn {
           min-height: 38px;
@@ -906,7 +873,6 @@ export default function MessageThreadPage() {
           }
 
           .pmp-threadActionBtn,
-          .pmp-threadDeleteBtn,
           .pmp-threadReviewBtn,
           .pmp-threadBackBtn {
             min-height: 34px !important;
@@ -1001,26 +967,7 @@ export default function MessageThreadPage() {
                 ) : null}
               </div>
 
-              <div className="pmp-threadTopRowRight">
-                <button
-                  onClick={deleteChatForMe}
-                  disabled={deleting}
-                  type="button"
-                  className="pmp-threadDeleteBtn pmp-threadActionBtn"
-                  style={{
-                    border: "1px solid rgba(239,68,68,0.25)",
-                    background: deleting ? "rgba(239,68,68,0.22)" : "rgba(239,68,68,0.10)",
-                    color: "#b91c1c",
-                    cursor: deleting ? "not-allowed" : "pointer",
-                    fontWeight: 950,
-                    fontSize: 12,
-                    padding: "10px 12px",
-                    borderRadius: 14,
-                  }}
-                >
-                  {deleting ? "Deleting…" : "Delete"}
-                </button>
-              </div>
+              <div className="pmp-threadTopRowRight" />
             </div>
 
             <div className="pmp-threadIdentityCard">
