@@ -154,6 +154,7 @@ export default function RequestClient() {
   const horseId = searchParams.get("horseId");
 
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const [accessChecked, setAccessChecked] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,15 +168,38 @@ export default function RequestClient() {
     async function load() {
       setLoading(true);
       setError(null);
+      setAccessChecked(false);
 
       try {
-        // get viewer
         const { data: userData, error: userErr } = await supabase.auth.getUser();
-        if (!cancelled) setViewerId(userData.user?.id ?? null);
+        const viewer = userData.user ?? null;
+
         if (userErr) {
-          // not fatal; just means logged out
           console.warn("getUser error:", userErr.message);
         }
+
+        if (!viewer) {
+          router.replace("/login");
+          return;
+        }
+
+        if (!cancelled) setViewerId(viewer.id);
+
+        const { data: profileRow, error: profileErr } = await supabase
+          .from("profiles")
+          .select("verification_status")
+          .eq("id", viewer.id)
+          .maybeSingle();
+
+        if (profileErr) throw profileErr;
+
+        const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
+        if (String(verificationStatus).toLowerCase() !== "verified") {
+          router.replace("/verify");
+          return;
+        }
+
+        if (!cancelled) setAccessChecked(true);
 
         if (!horseId) {
           setHorse(null);
@@ -202,7 +226,11 @@ export default function RequestClient() {
           return;
         }
 
-        const pRes = await supabase.from("profiles").select("id,display_name,full_name").eq("id", h.owner_id).single();
+        const pRes = await supabase
+          .from("profiles")
+          .select("id,display_name,full_name")
+          .eq("id", h.owner_id)
+          .single();
 
         if (!cancelled) {
           if (!pRes.error) setOwnerProfile((pRes.data ?? null) as ProfileMini | null);
@@ -218,7 +246,7 @@ export default function RequestClient() {
     return () => {
       cancelled = true;
     };
-  }, [horseId]);
+  }, [horseId, router]);
 
   const isOwnHorse = !!viewerId && !!horse?.owner_id && viewerId === horse.owner_id;
 
@@ -239,6 +267,22 @@ export default function RequestClient() {
       },
     ];
   }, [horse, ownerProfile, isOwnHorse]);
+
+  if (!accessChecked && loading) {
+    return (
+      <div style={wrap()}>
+        <div style={container()}>
+          <div style={card()}>
+            <div style={hintPill()}>🔒 Verification required</div>
+            <h1 style={{ ...pageTitle(), marginTop: 10 }}>Checking your access…</h1>
+            <div style={{ marginTop: 10, fontSize: 13, color: "rgba(31,42,68,0.72)", lineHeight: 1.7 }}>
+              We’re confirming your account status before opening requests.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!horseId) {
     return (
@@ -269,7 +313,15 @@ export default function RequestClient() {
   return (
     <div style={wrap()}>
       <div style={container()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
           <div>
             <div style={hintPill()}>📅 Request dates</div>
             <h1 style={{ ...pageTitle(), marginTop: 10 }}>Request</h1>
@@ -300,7 +352,6 @@ export default function RequestClient() {
           </div>
         ) : null}
 
-        {/* If horse exists but is inactive, show a friendly note */}
         {horse && !isHorseActive(horse) ? (
           <div style={{ marginTop: 14, ...card() }}>
             <div style={hintPill()}>ℹ️ Not available</div>
@@ -322,7 +373,6 @@ export default function RequestClient() {
           </div>
         ) : null}
 
-        {/* Owner trying to request own horse: block the whole flow */}
         {horse && isHorseActive(horse) && isOwnHorse ? (
           <div style={{ marginTop: 14, ...card() }}>
             <div style={hintPill()}>✅ Your listing</div>
@@ -347,14 +397,22 @@ export default function RequestClient() {
           </div>
         ) : null}
 
-        {/* Normal request experience */}
         {horse && isHorseActive(horse) && !isOwnHorse ? (
           <>
-            {/* Horse/Owner header card */}
             <div style={{ marginTop: 14, ...card() }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "flex-start",
+                  flexWrap: "wrap",
+                }}
+              >
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>{horse.name ?? "Horse"}</div>
+                  <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>
+                    {horse.name ?? "Horse"}
+                  </div>
                   <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.72)" }}>
                     Owner: <span style={{ fontWeight: 950, color: palette.forest }}>{ownerLabel(ownerProfile)}</span>
                   </div>
@@ -382,12 +440,10 @@ export default function RequestClient() {
               </div>
             </div>
 
-            {/* Map */}
             <div style={{ marginTop: 14, ...softCard() }}>
               <HorseMap horses={mapHorses as any} userLocation={null} highlightedId={null} />
             </div>
 
-            {/* Availability */}
             <div style={{ marginTop: 14, ...card() }}>
               <div style={{ fontWeight: 950, color: palette.navy }}>Availability</div>
               <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
@@ -399,7 +455,6 @@ export default function RequestClient() {
               </div>
             </div>
 
-            {/* Request form */}
             <div style={{ marginTop: 14, ...card() }}>
               <div style={{ fontWeight: 950, color: palette.navy }}>Send request</div>
               <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
