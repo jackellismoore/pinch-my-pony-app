@@ -734,7 +734,8 @@ export default function MessageThreadPage() {
 
         .pmp-threadActionBtn,
         .pmp-threadDeleteBtn,
-        .pmp-threadReviewBtn {
+        .pmp-threadReviewBtn,
+        .pmp-threadBackBtn {
           min-height: 38px;
           display: inline-flex;
           align-items: center;
@@ -756,6 +757,16 @@ export default function MessageThreadPage() {
           align-items: center;
           gap: 8px;
           min-width: 0;
+        }
+
+        .pmp-threadTopRowLeft {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+
+        .pmp-threadTopRowRight {
+          flex: 0 0 auto;
+          justify-content: flex-end;
         }
 
         .pmp-threadIdentityCard {
@@ -836,13 +847,17 @@ export default function MessageThreadPage() {
             gap: 8px !important;
           }
 
+          .pmp-threadTopRowLeft,
+          .pmp-threadTopRowRight {
+            min-width: 0 !important;
+          }
+
           .pmp-threadTopRowLeft {
-            flex: 1 1 auto;
+            flex: 1 1 auto !important;
           }
 
           .pmp-threadTopRowRight {
-            flex: 0 0 auto;
-            justify-content: flex-end;
+            flex: 0 0 auto !important;
           }
 
           .pmp-threadActionBtn,
@@ -921,16 +936,6 @@ export default function MessageThreadPage() {
           >
             <div className="pmp-threadTopRow">
               <div className="pmp-threadTopRowLeft">
-                <button
-                  onClick={() => router.push("/messages")}
-                  className="pmp-ctaSecondary pmp-threadBackBtn pmp-threadActionBtn"
-                  type="button"
-                >
-                  ← Back to messages
-                </button>
-              </div>
-
-              <div className="pmp-threadTopRowRight">
                 {showReviewCTA ? (
                   <Link
                     href={`/review/${requestId}`}
@@ -939,6 +944,16 @@ export default function MessageThreadPage() {
                     Leave a review
                   </Link>
                 ) : null}
+              </div>
+
+              <div className="pmp-threadTopRowRight">
+                <button
+                  onClick={() => router.push("/messages")}
+                  className="pmp-ctaSecondary pmp-threadBackBtn pmp-threadActionBtn"
+                  type="button"
+                >
+                  ← Back
+                </button>
 
                 <button
                   onClick={deleteChatForMe}

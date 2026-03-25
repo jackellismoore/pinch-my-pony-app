@@ -189,6 +189,60 @@ function StatusPill({ status }: { status: string | null | undefined }) {
   );
 }
 
+function MediaThumb({
+  src,
+  alt,
+  shape = "circle",
+  size = 46,
+  fallback,
+  border,
+}: {
+  src: string | null | undefined;
+  alt: string;
+  shape?: "circle" | "rounded";
+  size?: number;
+  fallback: React.ReactNode;
+  border?: string;
+}) {
+  const [broken, setBroken] = useState(false);
+  const showImage = Boolean(src) && !broken;
+
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: shape === "circle" ? 999 : 16,
+        overflow: "hidden",
+        background: "rgba(15,23,42,0.06)",
+        border: border ?? "1px solid rgba(15,23,42,0.10)",
+        boxShadow: "0 14px 28px rgba(15,23,42,0.10)",
+        flexShrink: 0,
+      }}
+    >
+      {showImage ? (
+        <img
+          src={src as string}
+          alt={alt}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          onError={() => setBroken(true)}
+        />
+      ) : (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
+          {fallback}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SwipeRow({
   requestId,
   onDelete,
@@ -657,6 +711,14 @@ export default function MessagesPage() {
           .pmp-msg-cardBody {
             padding: 12px !important;
           }
+
+          .pmp-msg-mediaStack {
+            gap: 8px !important;
+          }
+
+          .pmp-msg-cardMain {
+            align-items: flex-start !important;
+          }
         }
       `}</style>
 
@@ -781,6 +843,8 @@ export default function MessagesPage() {
             const hasUnread = (t.unread_count ?? 0) > 0;
             const deleting = deletingId === t.request_id;
 
+            const initial = t.other_display_name?.slice(0, 1)?.toUpperCase() ?? "U";
+
             return (
               <SwipeRow
                 key={t.request_id}
@@ -809,28 +873,27 @@ export default function MessagesPage() {
                       }}
                     >
                       <div className="pmp-msg-cardBody" style={{ padding: 14, cursor: "pointer" }}>
-                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
-                            <div
-                              style={{
-                                width: 46,
-                                height: 46,
-                                borderRadius: 999,
-                                overflow: "hidden",
-                                background: "rgba(15,23,42,0.06)",
-                                border: hasUnread
+                        <div className="pmp-msg-cardMain" style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                          <div
+                            className="pmp-msg-mediaStack"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              flex: "0 0 auto",
+                            }}
+                          >
+                            <MediaThumb
+                              src={t.other_avatar_url}
+                              alt={t.other_display_name}
+                              shape="circle"
+                              size={50}
+                              border={
+                                hasUnread
                                   ? "2px solid rgba(202,162,77,0.45)"
-                                  : "2px solid rgba(15,23,42,0.10)",
-                                boxShadow: "0 14px 28px rgba(15,23,42,0.10)",
-                              }}
-                            >
-                              {t.other_avatar_url ? (
-                                <img
-                                  src={t.other_avatar_url}
-                                  alt={t.other_display_name}
-                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                />
-                              ) : (
+                                  : "2px solid rgba(15,23,42,0.10)"
+                              }
+                              fallback={
                                 <div
                                   style={{
                                     width: "100%",
@@ -839,45 +902,33 @@ export default function MessagesPage() {
                                     placeItems: "center",
                                     fontWeight: 950,
                                     color: "rgba(15,23,42,0.65)",
+                                    fontSize: 16,
                                   }}
                                 >
-                                  {t.other_display_name?.slice(0, 1)?.toUpperCase() ?? "U"}
+                                  {initial}
                                 </div>
-                              )}
-                            </div>
+                              }
+                            />
 
-                            <div
-                              style={{
-                                width: 46,
-                                height: 46,
-                                borderRadius: 16,
-                                overflow: "hidden",
-                                background: "rgba(15,23,42,0.06)",
-                                border: "1px solid rgba(15,23,42,0.10)",
-                                boxShadow: "0 14px 28px rgba(15,23,42,0.08)",
-                              }}
-                              title={t.subtitle ?? ""}
-                            >
-                              {t.horse_image_url ? (
-                                <img
-                                  src={t.horse_image_url}
-                                  alt={t.subtitle ?? "Horse"}
-                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                                />
-                              ) : (
+                            <MediaThumb
+                              src={t.horse_image_url}
+                              alt={t.subtitle ?? "Horse"}
+                              shape="rounded"
+                              size={50}
+                              fallback={
                                 <div
                                   style={{
                                     width: "100%",
                                     height: "100%",
                                     display: "grid",
                                     placeItems: "center",
-                                    fontSize: 16,
+                                    fontSize: 18,
                                   }}
                                 >
                                   🐴
                                 </div>
-                              )}
-                            </div>
+                              }
+                            />
                           </div>
 
                           <div style={{ minWidth: 0, flex: 1 }}>

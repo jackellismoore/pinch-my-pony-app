@@ -329,28 +329,48 @@ export default function ProfilePage() {
         .pmp-profileGrid2 {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 10px;
+          gap: 12px;
         }
 
         .pmp-profileGridBio {
           display: grid;
           grid-template-columns: 1fr 220px;
-          gap: 10px;
-        }
-
-        .pmp-profileTopRow {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
           gap: 12px;
+        }
+
+        .pmp-profileHero {
+          display: grid;
+          grid-template-columns: 112px 1fr;
+          gap: 16px;
+          align-items: center;
+        }
+
+        .pmp-profileHeaderMeta {
+          display: flex;
+          align-items: center;
+          gap: 10px;
           flex-wrap: wrap;
         }
 
-        .pmp-profileAvatarRow {
-          display: flex;
-          gap: 14px;
-          align-items: center;
-          flex-wrap: wrap;
+        .pmp-profileSectionTitle {
+          font-weight: 950;
+          font-size: 14px;
+          color: #0f172a;
+        }
+
+        .pmp-profileInput,
+        .pmp-profileTextarea {
+          border: 1px solid rgba(15,23,42,0.12);
+          border-radius: 14px;
+          padding: 12px 12px;
+          font-size: 14px;
+          width: 100%;
+          background: rgba(255,255,255,0.88);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.75);
+        }
+
+        .pmp-profileTextarea {
+          resize: vertical;
         }
 
         .pmp-profileFooterRow {
@@ -363,16 +383,15 @@ export default function ProfilePage() {
 
         @media (max-width: 767px) {
           .pmp-profileGrid2,
-          .pmp-profileGridBio {
+          .pmp-profileGridBio,
+          .pmp-profileHero {
             grid-template-columns: 1fr;
           }
 
-          .pmp-profileTopRow > *,
           .pmp-profileFooterRow > * {
             width: 100%;
           }
 
-          .pmp-profileTopRow button,
           .pmp-profileFooterRow button {
             width: 100%;
           }
@@ -380,28 +399,103 @@ export default function ProfilePage() {
       `}</style>
 
       <div className="pmp-pageShell" style={{ paddingBottom: 110 }}>
-        <div className="pmp-profileTopRow">
-          <div>
-            <div className="pmp-kicker">Account</div>
-            <h1 className="pmp-pageTitle">{title}</h1>
-            <div className="pmp-mutedText" style={{ marginTop: 6 }}>
-              Edit your public profile details and build trust with riders.
-            </div>
-          </div>
-
-          <button
-            onClick={onSave}
-            disabled={saving || deleting}
-            className="pmp-ctaPrimary"
+        <div className="pmp-sectionCard" style={{ overflow: "hidden" }}>
+          <div
             style={{
-              border: "1px solid rgba(0,0,0,0.14)",
-              background: saving ? "rgba(0,0,0,0.06)" : "#111111",
-              color: saving ? "rgba(0,0,0,0.55)" : "white",
-              cursor: saving ? "not-allowed" : "pointer",
+              padding: 2,
+              borderRadius: 22,
+              background:
+                "linear-gradient(135deg, rgba(31,61,43,0.12), rgba(200,162,77,0.18), rgba(31,42,68,0.10))",
             }}
           >
-            {saving ? "Saving…" : "Save"}
-          </button>
+            <div
+              style={{
+                borderRadius: 20,
+                padding: 18,
+                background:
+                  "radial-gradient(900px 240px at 0% 0%, rgba(200,162,77,0.12), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245,241,232,0.84))",
+                boxShadow: "0 18px 44px rgba(15,23,42,0.06)",
+              }}
+            >
+              <div className="pmp-profileHero">
+                <div
+                  style={{
+                    width: 112,
+                    height: 112,
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    background: "rgba(0,0,0,0.06)",
+                    border: "2px solid rgba(200,162,77,0.35)",
+                    boxShadow: "0 18px 34px rgba(15,23,42,0.10)",
+                  }}
+                >
+                  <img
+                    src={avatarUrl || DEFAULT_AVATAR_DATA_URI}
+                    alt="Profile avatar"
+                    onError={(e) => {
+                      e.currentTarget.src = DEFAULT_AVATAR_DATA_URI;
+                    }}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div>
+                    <div className="pmp-kicker">Account</div>
+                    <h1 className="pmp-pageTitle" style={{ marginBottom: 4 }}>
+                      {title}
+                    </h1>
+                    <div className="pmp-mutedText">
+                      Edit your public profile details and build trust with riders.
+                    </div>
+                  </div>
+
+                  <div className="pmp-profileHeaderMeta">
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 900,
+                        color: "rgba(11,59,46,0.82)",
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                        border: "1px solid rgba(11,59,46,0.18)",
+                        background: "rgba(255,255,255,0.76)",
+                        boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
+                      }}
+                    >
+                      {profileComplete}% complete
+                    </div>
+
+                    <VerificationBadge
+                      status={verificationStatus}
+                      verifiedAt={verifiedAt}
+                      provider={verificationProvider}
+                    />
+
+                    {verificationProvider ? (
+                      <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
+                    ) : null}
+                  </div>
+
+                  {!isVerified ? (
+                    <div>
+                      <button
+                        onClick={() => router.push("/verify")}
+                        className="pmp-ctaPrimary"
+                        style={{
+                          border: "1px solid rgba(0,0,0,0.14)",
+                          background: "#111111",
+                          color: "white",
+                        }}
+                      >
+                        Verify now →
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="pmp-sectionCard">
@@ -415,7 +509,7 @@ export default function ProfilePage() {
                 flexWrap: "wrap",
               }}
             >
-              <div style={{ fontWeight: 950, fontSize: 14 }}>Profile completeness</div>
+              <div className="pmp-profileSectionTitle">Profile completeness</div>
               <div className="pmp-mutedText">{profileComplete}% complete</div>
             </div>
 
@@ -467,43 +561,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div
-          className="pmp-sectionCard"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontWeight: 950, fontSize: 13 }}>Trust & identity</div>
-            <VerificationBadge
-              status={verificationStatus}
-              verifiedAt={verifiedAt}
-              provider={verificationProvider}
-            />
-            {verificationProvider ? (
-              <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
-            ) : null}
-          </div>
-
-          {!isVerified ? (
-            <button
-              onClick={() => router.push("/verify")}
-              className="pmp-ctaPrimary"
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                background: "#111111",
-                color: "white",
-              }}
-            >
-              Verify now →
-            </button>
-          ) : null}
-        </div>
-
         {error ? <div className="pmp-errorBanner">{error}</div> : null}
 
         {notice ? (
@@ -519,173 +576,212 @@ export default function ProfilePage() {
           </div>
         ) : null}
 
-        <div className="pmp-sectionCard" style={{ display: "grid", gap: 12 }}>
-          <div className="pmp-profileAvatarRow">
+        <div
+          className="pmp-sectionCard"
+          style={{
+            display: "grid",
+            gap: 16,
+            background:
+              "radial-gradient(900px 220px at 0% 0%, rgba(200,162,77,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,246,241,0.92))",
+          }}
+        >
+          <div style={{ display: "grid", gap: 10 }}>
+            <div className="pmp-profileSectionTitle">Profile photo</div>
+
             <div
               style={{
-                width: 72,
-                height: 72,
-                borderRadius: 999,
-                overflow: "hidden",
-                background: "rgba(0,0,0,0.06)",
-                border: "1px solid rgba(0,0,0,0.10)",
-                flexShrink: 0,
+                display: "flex",
+                gap: 14,
+                alignItems: "center",
+                flexWrap: "wrap",
+                padding: 14,
+                borderRadius: 18,
+                border: "1px solid rgba(15,23,42,0.08)",
+                background: "rgba(255,255,255,0.72)",
               }}
             >
-              <img
-                src={avatarUrl || DEFAULT_AVATAR_DATA_URI}
-                alt="Profile avatar"
-                onError={(e) => {
-                  e.currentTarget.src = DEFAULT_AVATAR_DATA_URI;
+              <div
+                style={{
+                  width: 84,
+                  height: 84,
+                  borderRadius: 999,
+                  overflow: "hidden",
+                  background: "rgba(0,0,0,0.06)",
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  flexShrink: 0,
                 }}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-            </div>
+              >
+                <img
+                  src={avatarUrl || DEFAULT_AVATAR_DATA_URI}
+                  alt="Profile avatar"
+                  onError={(e) => {
+                    e.currentTarget.src = DEFAULT_AVATAR_DATA_URI;
+                  }}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              </div>
 
-            <div style={{ flex: 1, minWidth: 240, display: "grid", gap: 8 }}>
-              <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
-                <div style={{ fontWeight: 900 }}>Profile photo</div>
+              <div style={{ flex: 1, minWidth: 240, display: "grid", gap: 8 }}>
                 <div style={{ fontSize: 12, color: "rgba(0,0,0,0.6)", lineHeight: 1.6 }}>
                   Upload a JPG, PNG, or WebP image from your photo library or files. Maximum size 5MB.
                 </div>
-              </div>
 
-              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <label
-                  style={{
-                    border: "1px solid rgba(0,0,0,0.14)",
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    fontWeight: 900,
-                    fontSize: 13,
-                    cursor: "pointer",
-                    background: "white",
-                    minHeight: 44,
-                    display: "inline-flex",
-                    alignItems: "center",
-                  }}
-                >
-                  Choose photo
-                  <input
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                    style={{ display: "none" }}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) onUploadAvatar(f);
-                      e.currentTarget.value = "";
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <label
+                    style={{
+                      border: "1px solid rgba(0,0,0,0.14)",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      fontWeight: 900,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      background: "white",
+                      minHeight: 44,
+                      display: "inline-flex",
+                      alignItems: "center",
                     }}
-                  />
-                </label>
+                  >
+                    Choose photo
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) onUploadAvatar(f);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
 
-                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.6)" }}>
-                  Placeholder stays until you upload your own image.
+                  <div style={{ fontSize: 12, color: "rgba(0,0,0,0.6)" }}>
+                    Placeholder stays until you upload your own image.
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="pmp-profileGrid2">
-            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-              Display name
-              <input
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="What riders will see"
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  borderRadius: 12,
-                  padding: "12px 12px",
-                  fontSize: 14,
-                  width: "100%",
-                }}
-              />
-            </label>
+          <div style={{ display: "grid", gap: 10 }}>
+            <div className="pmp-profileSectionTitle">Identity & trust</div>
 
-            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-              Full name
-              <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Legal / full name (optional)"
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  borderRadius: 12,
-                  padding: "12px 12px",
-                  fontSize: 14,
-                  width: "100%",
-                }}
-              />
-            </label>
-          </div>
-
-          <div style={{ marginTop: 6, fontWeight: 950, fontSize: 13 }}>Public details</div>
-
-          <div className="pmp-profileGrid2">
-            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-              Stable name
-              <input
-                value={stableName}
-                onChange={(e) => setStableName(e.target.value)}
-                placeholder="(optional)"
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  borderRadius: 12,
-                  padding: "12px 12px",
-                  fontSize: 14,
-                  width: "100%",
-                }}
-              />
-            </label>
-
-            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-              Location
-              <LocationAutocomplete
-                value={location}
-                onChange={setLocation}
-                onPlaceSelect={({ address }) => setLocation(address)}
-              />
-            </label>
-          </div>
-
-          <div className="pmp-profileGridBio">
-            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-              Bio
-              <textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                rows={5}
-                placeholder="A short intro…"
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  borderRadius: 12,
-                  padding: "12px 12px",
-                  fontSize: 14,
-                  resize: "vertical",
-                  width: "100%",
-                }}
-              />
-            </label>
-
-            <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
-              Age *
-              <input
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                placeholder="Required"
-                inputMode="numeric"
-                style={{
-                  border: "1px solid rgba(0,0,0,0.14)",
-                  borderRadius: 12,
-                  padding: "12px 12px",
-                  fontSize: 14,
-                  width: "100%",
-                }}
-              />
-              <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
-                Age is required for profile completion.
+            <div
+              style={{
+                border: "1px solid rgba(15,23,42,0.08)",
+                borderRadius: 18,
+                background: "rgba(255,255,255,0.72)",
+                padding: 14,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 900 }}>Trust & identity</div>
+                <VerificationBadge
+                  status={verificationStatus}
+                  verifiedAt={verifiedAt}
+                  provider={verificationProvider}
+                />
+                {verificationProvider ? (
+                  <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
+                ) : null}
               </div>
-            </label>
+
+              {!isVerified ? (
+                <button
+                  onClick={() => router.push("/verify")}
+                  className="pmp-ctaPrimary"
+                  style={{
+                    border: "1px solid rgba(0,0,0,0.14)",
+                    background: "#111111",
+                    color: "white",
+                  }}
+                >
+                  Verify now →
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            <div className="pmp-profileSectionTitle">Names</div>
+
+            <div className="pmp-profileGrid2">
+              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                Display name
+                <input
+                  className="pmp-profileInput"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="What riders will see"
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                Full name
+                <input
+                  className="pmp-profileInput"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Legal / full name (optional)"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            <div className="pmp-profileSectionTitle">Public details</div>
+
+            <div className="pmp-profileGrid2">
+              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                Stable name
+                <input
+                  className="pmp-profileInput"
+                  value={stableName}
+                  onChange={(e) => setStableName(e.target.value)}
+                  placeholder="(optional)"
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                Location
+                <LocationAutocomplete
+                  value={location}
+                  onChange={setLocation}
+                  onPlaceSelect={({ address }) => setLocation(address)}
+                />
+              </label>
+            </div>
+
+            <div className="pmp-profileGridBio">
+              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                Bio
+                <textarea
+                  className="pmp-profileTextarea"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  rows={5}
+                  placeholder="A short intro…"
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 13 }}>
+                Age *
+                <input
+                  className="pmp-profileInput"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  placeholder="Required"
+                  inputMode="numeric"
+                />
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
+                  Age is required for profile completion.
+                </div>
+              </label>
+            </div>
           </div>
 
           <div className="pmp-profileFooterRow">
@@ -705,9 +801,10 @@ export default function ProfilePage() {
                 background: saving ? "rgba(0,0,0,0.06)" : "#111111",
                 color: saving ? "rgba(0,0,0,0.55)" : "white",
                 cursor: saving ? "not-allowed" : "pointer",
+                minWidth: 160,
               }}
             >
-              {saving ? "Saving…" : "Save"}
+              {saving ? "Saving…" : "Save changes"}
             </button>
           </div>
         </div>
