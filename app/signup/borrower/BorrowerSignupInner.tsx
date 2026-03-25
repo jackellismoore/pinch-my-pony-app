@@ -20,27 +20,41 @@ function sanitizeRedirectTo(v: string | null): string {
 }
 
 function getErrorMessage(err: unknown): string {
-  if (!err) return "Sign up failed.";
-  if (typeof err === "string") return err;
-  if (err instanceof Error && err.message) return err.message;
+  if (!err) return "We couldn't create your account. Please try again.";
+
+  if (typeof err === "string" && err.trim()) return err;
+
+  if (err instanceof Error && err.message?.trim()) return err.message;
 
   if (typeof err === "object") {
-    const anyErr = err as Record<string, unknown>;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) return anyErr.message;
-    if (typeof anyErr.error_description === "string" && anyErr.error_description.trim()) {
-      return anyErr.error_description;
+    const obj = err as Record<string, unknown>;
+
+    if (typeof obj.message === "string" && obj.message.trim()) return obj.message;
+    if (typeof obj.error_description === "string" && obj.error_description.trim()) {
+      return obj.error_description;
     }
-    if (typeof anyErr.error === "string" && anyErr.error.trim()) return anyErr.error;
+    if (typeof obj.error === "string" && obj.error.trim()) return obj.error;
+    if (typeof obj.code === "string" && obj.code.trim()) {
+      return `Sign up failed (${obj.code}).`;
+    }
+
+    try {
+      const named: Record<string, unknown> = {};
+      for (const key of Object.getOwnPropertyNames(obj)) {
+        named[key] = obj[key];
+      }
+      if (typeof named.message === "string" && named.message.trim()) return named.message;
+      if (typeof named.error_description === "string" && named.error_description.trim()) {
+        return named.error_description;
+      }
+      if (typeof named.error === "string" && named.error.trim()) return named.error;
+    } catch {}
   }
 
-  try {
-    return JSON.stringify(err);
-  } catch {
-    return "Sign up failed.";
-  }
+  return "We couldn't create your account. Please try again or use a different email address.";
 }
 
-export default function OwnerSignupInner() {
+export default function BorrowerSignupInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -57,7 +71,7 @@ export default function OwnerSignupInner() {
   const [error, setError] = useState<string | null>(null);
   const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
 
-  async function signupOwner() {
+  async function signupBorrower() {
     setError(null);
     setEmailSentTo(null);
 
@@ -92,15 +106,21 @@ export default function OwnerSignupInner() {
           emailRedirectTo: `${origin}/verify`,
           data: {
             display_name: displayName.trim() || null,
-            role: "owner",
+            role: "borrower",
           },
         },
       });
 
-      if (res.error) throw res.error;
+      console.log("borrower signup response:", res);
 
-      // If email confirmation is required, Supabase may create the user
-      // without creating a session yet. In that case, do NOT redirect.
+      if (res.error) {
+        throw res.error;
+      }
+
+      if (!res.data.user) {
+        throw new Error("No user was returned from sign up.");
+      }
+
       if (!res.data.session) {
         setEmailSentTo(e);
         return;
@@ -109,6 +129,7 @@ export default function OwnerSignupInner() {
       router.replace(redirectTo);
       router.refresh();
     } catch (err: unknown) {
+      console.error("borrower signup error:", err);
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
@@ -116,7 +137,7 @@ export default function OwnerSignupInner() {
   }
 
   const loginHref = `/login?redirectTo=${encodeURIComponent(redirectTo)}`;
-  const borrowerHref = `/signup/borrower?redirectTo=${encodeURIComponent(redirectTo)}`;
+  const ownerHref = `/signup/owner?redirectTo=${encodeURIComponent(redirectTo)}`;
 
   if (emailSentTo) {
     return (
@@ -125,7 +146,7 @@ export default function OwnerSignupInner() {
 
         <div style={container}>
           <div style={card}>
-            <div style={eyebrow}>Pinch My Pony · Owner</div>
+            <div style={eyebrow}>Pinch My Pony · Borrower</div>
 
             <h1 style={title}>Check your email</h1>
 
@@ -138,8 +159,8 @@ export default function OwnerSignupInner() {
             </div>
 
             <div style={formGrid}>
-              <Link href="/verify" style={primaryBtnLink}>
-                Go to verification →
+              <Link href="/login" style={primaryBtnLink}>
+                Go to login →
               </Link>
 
               <Link href={loginHref} style={inlineLink}>
@@ -158,12 +179,12 @@ export default function OwnerSignupInner() {
 
       <div style={container}>
         <div style={card}>
-          <div style={eyebrow}>Pinch My Pony · Owner</div>
+          <div style={eyebrow}>Pinch My Pony · Borrower</div>
 
-          <h1 style={title}>Create your owner account</h1>
+          <h1 style={title}>Create your borrower account</h1>
 
           <p style={subtitle}>
-            List horses, manage availability, and approve rider requests from one place.
+            Request horses, message owners, and manage your rides from one place.
           </p>
 
           {error ? <div style={errorBox}>{error}</div> : null}
@@ -174,7 +195,7 @@ export default function OwnerSignupInner() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 style={input}
-                placeholder="e.g. Jack"
+                placeholder="e.g. Alice"
               />
             </Field>
 
@@ -201,20 +222,20 @@ export default function OwnerSignupInner() {
             </Field>
 
             <button
-              onClick={signupOwner}
+              onClick={signupBorrower}
               disabled={loading}
               style={{ ...primaryBtn, opacity: loading ? 0.75 : 1 }}
               type="button"
             >
-              {loading ? "Creating account…" : "Create owner account"}
+              {loading ? "Creating account…" : "Create borrower account"}
             </button>
 
             <div style={footerLinks}>
               <Link href={loginHref} style={inlineLink}>
                 Already have an account?
               </Link>
-              <Link href={borrowerHref} style={inlineLink}>
-                I want to borrow a horse instead
+              <Link href={ownerHref} style={inlineLink}>
+                I want to list my horse instead
               </Link>
             </div>
           </div>

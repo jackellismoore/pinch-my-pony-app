@@ -20,24 +20,38 @@ function sanitizeRedirectTo(v: string | null): string {
 }
 
 function getErrorMessage(err: unknown): string {
-  if (!err) return "Sign up failed.";
-  if (typeof err === "string") return err;
-  if (err instanceof Error && err.message) return err.message;
+  if (!err) return "We couldn't create your account. Please try again.";
+
+  if (typeof err === "string" && err.trim()) return err;
+
+  if (err instanceof Error && err.message?.trim()) return err.message;
 
   if (typeof err === "object") {
-    const anyErr = err as Record<string, unknown>;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) return anyErr.message;
-    if (typeof anyErr.error_description === "string" && anyErr.error_description.trim()) {
-      return anyErr.error_description;
+    const obj = err as Record<string, unknown>;
+
+    if (typeof obj.message === "string" && obj.message.trim()) return obj.message;
+    if (typeof obj.error_description === "string" && obj.error_description.trim()) {
+      return obj.error_description;
     }
-    if (typeof anyErr.error === "string" && anyErr.error.trim()) return anyErr.error;
+    if (typeof obj.error === "string" && obj.error.trim()) return obj.error;
+    if (typeof obj.code === "string" && obj.code.trim()) {
+      return `Sign up failed (${obj.code}).`;
+    }
+
+    try {
+      const named: Record<string, unknown> = {};
+      for (const key of Object.getOwnPropertyNames(obj)) {
+        named[key] = obj[key];
+      }
+      if (typeof named.message === "string" && named.message.trim()) return named.message;
+      if (typeof named.error_description === "string" && named.error_description.trim()) {
+        return named.error_description;
+      }
+      if (typeof named.error === "string" && named.error.trim()) return named.error;
+    } catch {}
   }
 
-  try {
-    return JSON.stringify(err);
-  } catch {
-    return "Sign up failed.";
-  }
+  return "We couldn't create your account. Please try again or use a different email address.";
 }
 
 export default function OwnerSignupInner() {
@@ -97,10 +111,16 @@ export default function OwnerSignupInner() {
         },
       });
 
-      if (res.error) throw res.error;
+      console.log("owner signup response:", res);
 
-      // If email confirmation is required, Supabase may create the user
-      // without creating a session yet. In that case, do NOT redirect.
+      if (res.error) {
+        throw res.error;
+      }
+
+      if (!res.data.user) {
+        throw new Error("No user was returned from sign up.");
+      }
+
       if (!res.data.session) {
         setEmailSentTo(e);
         return;
@@ -109,6 +129,7 @@ export default function OwnerSignupInner() {
       router.replace(redirectTo);
       router.refresh();
     } catch (err: unknown) {
+      console.error("owner signup error:", err);
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
@@ -138,8 +159,8 @@ export default function OwnerSignupInner() {
             </div>
 
             <div style={formGrid}>
-              <Link href="/verify" style={primaryBtnLink}>
-                Go to verification →
+              <Link href="/login" style={primaryBtnLink}>
+                Go to login →
               </Link>
 
               <Link href={loginHref} style={inlineLink}>
