@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import HorseMap from "@/components/HorseMap";
 import { supabase } from "@/lib/supabaseClient";
 import { AvailabilityBadge } from "@/components/AvailabilityBadge";
@@ -70,6 +71,8 @@ function safeText(v: unknown) {
 }
 
 export default function BrowsePage() {
+  const router = useRouter();
+
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +97,27 @@ export default function BrowsePage() {
       try {
         const { data: sessData } = await supabase.auth.getSession();
         const viewer = sessData.session?.user ?? null;
-        if (!cancelled) setViewerId(viewer?.id ?? null);
+
+        if (!viewer) {
+          router.replace("/login");
+          return;
+        }
+
+        const { data: profileRow, error: profileErr } = await supabase
+          .from("profiles")
+          .select("verification_status")
+          .eq("id", viewer.id)
+          .maybeSingle();
+
+        if (profileErr) throw profileErr;
+
+        const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
+        if (String(verificationStatus).toLowerCase() !== "verified") {
+          router.replace("/verify");
+          return;
+        }
+
+        if (!cancelled) setViewerId(viewer.id);
 
         const { data: horsesData, error: horsesErr } = await supabase
           .from("horses")
@@ -225,7 +248,7 @@ export default function BrowsePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   function ownerLabel(ownerId: string) {
     const p = profilesById[ownerId];

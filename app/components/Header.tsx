@@ -62,68 +62,68 @@ export default function Header() {
   const menuWrapRef = useRef<HTMLDivElement | null>(null);
   useOutsideClick(menuWrapRef, () => setMenuOpen(false));
 
- useEffect(() => {
-  let cancelled = false;
+  useEffect(() => {
+    let cancelled = false;
 
-  async function loadProfile(uid: string) {
-    setProfileLoading(true);
-    try {
-      const { data: p, error } = await supabase
-        .from("profiles")
-        .select(
-          "id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
-        )
-        .eq("id", uid)
-        .maybeSingle();
+    async function loadProfile(uid: string) {
+      setProfileLoading(true);
+      try {
+        const { data: p, error } = await supabase
+          .from("profiles")
+          .select(
+            "id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
+          )
+          .eq("id", uid)
+          .maybeSingle();
 
-      if (!cancelled && !error) {
-        setProfile((p ?? null) as ProfileMini | null);
+        if (!cancelled && !error) {
+          setProfile((p ?? null) as ProfileMini | null);
+        }
+      } finally {
+        if (!cancelled) setProfileLoading(false);
       }
-    } finally {
-      if (!cancelled) setProfileLoading(false);
     }
-  }
 
-  async function init() {
-    const { data } = await supabase.auth.getSession();
-    const u = data.session?.user ?? null;
+    async function init() {
+      const { data } = await supabase.auth.getSession();
+      const u = data.session?.user ?? null;
 
-    if (cancelled) return;
+      if (cancelled) return;
 
-    setUser(u);
+      setUser(u);
 
-    if (u) {
-      registerPushForCurrentUser().catch(() => {});
-      loadProfile(u.id);
-    } else {
-      setProfile(null);
-      setProfileLoading(false);
+      if (u) {
+        registerPushForCurrentUser().catch(() => {});
+        loadProfile(u.id);
+      } else {
+        setProfile(null);
+        setProfileLoading(false);
+      }
     }
-  }
 
-  init();
+    init();
 
-  const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-    const u = session?.user ?? null;
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user ?? null;
 
-    if (cancelled) return;
+      if (cancelled) return;
 
-    setUser(u);
+      setUser(u);
 
-    if (u) {
-      registerPushForCurrentUser().catch(() => {});
-      loadProfile(u.id);
-    } else {
-      setProfile(null);
-      setProfileLoading(false);
-    }
-  });
+      if (u) {
+        registerPushForCurrentUser().catch(() => {});
+        loadProfile(u.id);
+      } else {
+        setProfile(null);
+        setProfileLoading(false);
+      }
+    });
 
-  return () => {
-    cancelled = true;
-    sub.subscription.unsubscribe();
-  };
-}, []);
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   const logout = async () => {
     setMenuOpen(false);
@@ -397,7 +397,7 @@ export default function Header() {
                   </div>
                 )}
 
-                {!menuOpen ? (
+                {isVerified && !menuOpen ? (
                   <div className="pmp-headerNotifWrap">
                     <NotificationBell />
                   </div>
@@ -425,49 +425,61 @@ export default function Header() {
                       <div className="pmp-menuUserName">{signedInLabel}</div>
                     </div>
 
-                    <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Browse
-                    </Link>
-
                     {!isVerified ? (
-                      <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                        Verify Identity
-                      </Link>
-                    ) : null}
+                      <>
+                        <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          Verify Identity
+                        </Link>
 
-                    <Link href="/messages" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Messages
-                    </Link>
+                        <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          FAQs
+                        </Link>
 
-                    {isOwner ? (
-                      <Link
-                        href="/dashboard/owner"
-                        onClick={() => setMenuOpen(false)}
-                        className="pmp-menuItem"
-                      >
-                        Owner Dashboard
-                      </Link>
+                        <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          Contact Us
+                        </Link>
+                      </>
                     ) : (
-                      <Link
-                        href="/dashboard/borrower"
-                        onClick={() => setMenuOpen(false)}
-                        className="pmp-menuItem"
-                      >
-                        Rider Dashboard
-                      </Link>
+                      <>
+                        <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          Browse
+                        </Link>
+
+                        <Link href="/messages" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          Messages
+                        </Link>
+
+                        {isOwner ? (
+                          <Link
+                            href="/dashboard/owner"
+                            onClick={() => setMenuOpen(false)}
+                            className="pmp-menuItem"
+                          >
+                            Owner Dashboard
+                          </Link>
+                        ) : (
+                          <Link
+                            href="/dashboard/borrower"
+                            onClick={() => setMenuOpen(false)}
+                            className="pmp-menuItem"
+                          >
+                            Rider Dashboard
+                          </Link>
+                        )}
+
+                        <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          Profile
+                        </Link>
+
+                        <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          FAQs
+                        </Link>
+
+                        <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          Contact Us
+                        </Link>
+                      </>
                     )}
-
-                    <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Profile
-                    </Link>
-
-                    <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      FAQs
-                    </Link>
-
-                    <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Contact Us
-                    </Link>
 
                     <button onClick={logout} className="pmp-menuLogout" type="button">
                       Logout
@@ -498,7 +510,7 @@ export default function Header() {
         </div>
       </header>
 
-      {user ? <MobileTabBar /> : null}
+      {user && isVerified ? <MobileTabBar /> : null}
     </>
   );
 }

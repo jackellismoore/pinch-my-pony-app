@@ -3,6 +3,7 @@ import "./globals.css";
 import Header from "@/components/Header";
 import AppResumeHandler from "@/components/AppResumeHandler";
 import PushBootstrap from "@/components/PushBootstrap";
+import VerificationGate from "@/components/VerificationGate";
 
 export const metadata: Metadata = {
   title: "Pinch My Pony",
@@ -25,8 +26,10 @@ export default function RootLayout({
       <body>
         <PushBootstrap />
         <AppResumeHandler />
-        <Header />
-        <main className="pmp-appMain">{children}</main>
+        <VerificationGate>
+          <Header />
+          <main className="pmp-appMain">{children}</main>
+        </VerificationGate>
       </body>
     </html>
   );
