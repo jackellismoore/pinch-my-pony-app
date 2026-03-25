@@ -85,6 +85,8 @@ export default function RequestForm({
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [checkingOwner, setCheckingOwner] = useState(true);
+  const [isVerified, setIsVerified] = useState(false);
+  const [checkingVerification, setCheckingVerification] = useState(true);
 
   const isOwnHorse = !!viewerId && !!ownerId && viewerId === ownerId;
 
@@ -93,6 +95,7 @@ export default function RequestForm({
 
     async function init() {
       setCheckingOwner(true);
+      setCheckingVerification(true);
       setSubmitError(null);
 
       try {
@@ -104,16 +107,37 @@ export default function RequestForm({
         if (cancelled) return;
 
         if (userErr) throw userErr;
-        setViewerId(userData.user?.id ?? null);
+
+        const user = userData.user ?? null;
+        setViewerId(user?.id ?? null);
 
         if (horseRes.error) throw horseRes.error;
         setOwnerId((horseRes.data as any)?.owner_id ?? null);
+
+        if (!user) {
+          setIsVerified(false);
+          return;
+        }
+
+        const { data: profileRow, error: profileErr } = await supabase
+          .from("profiles")
+          .select("verification_status")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (profileErr) throw profileErr;
+
+        const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
+        setIsVerified(String(verificationStatus).toLowerCase() === "verified");
       } catch (e: any) {
         if (!cancelled) {
-          setSubmitError(e?.message ?? "Could not verify horse ownership.");
+          setSubmitError(e?.message ?? "Could not verify request permissions.");
         }
       } finally {
-        if (!cancelled) setCheckingOwner(false);
+        if (!cancelled) {
+          setCheckingOwner(false);
+          setCheckingVerification(false);
+        }
       }
     }
 
@@ -130,7 +154,9 @@ export default function RequestForm({
     startDate > endDate ||
     blockedOrLoading ||
     checkingOwner ||
-    isOwnHorse;
+    checkingVerification ||
+    isOwnHorse ||
+    !isVerified;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -148,6 +174,11 @@ export default function RequestForm({
       return;
     }
 
+    if (!isVerified) {
+      setSubmitError("You must verify your identity before sending requests.");
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -158,6 +189,21 @@ export default function RequestForm({
 
       if (userErr) throw userErr;
       if (!user) throw new Error("Not authenticated");
+
+      const { data: profileRow, error: profileErr } = await supabase
+        .from("profiles")
+        .select("verification_status")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileErr) throw profileErr;
+
+      const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
+      if (String(verificationStatus).toLowerCase() !== "verified") {
+        setSubmitError("You must verify your identity before sending requests.");
+        setSubmitting(false);
+        return;
+      }
 
       const { data: horseMini, error: horseErr } = await supabase
         .from("horses")
@@ -229,9 +275,25 @@ export default function RequestForm({
       <form onSubmit={handleSubmit} style={card()}>
         <div style={{ fontWeight: 950, color: palette.navy, fontSize: 15 }}>Request Dates</div>
 
-        {checkingOwner ? (
+        {checkingOwner || checkingVerification ? (
           <div style={{ fontSize: 13, color: "rgba(31,42,68,0.70)", fontWeight: 850 }}>
-            Checking listing…
+            Checking request access…
+          </div>
+        ) : null}
+
+        {!checkingVerification && !isVerified ? (
+          <div
+            style={{
+              border: "1px solid rgba(180,0,0,0.18)",
+              background: "rgba(180,0,0,0.06)",
+              borderRadius: 14,
+              padding: 12,
+              fontSize: 13,
+              fontWeight: 900,
+              color: "rgba(140,0,0,0.92)",
+            }}
+          >
+            You must verify your identity before sending requests.
           </div>
         ) : null}
 
@@ -298,7 +360,13 @@ export default function RequestForm({
         ) : null}
 
         <button type="submit" disabled={submitDisabled} style={btnPrimary(submitDisabled)}>
-          {isOwnHorse ? "Unavailable (your listing)" : submitting ? "Submitting…" : "Submit Borrow Request →"}
+          {!isVerified
+            ? "Verification required"
+            : isOwnHorse
+            ? "Unavailable (your listing)"
+            : submitting
+            ? "Submitting…"
+            : "Submit Borrow Request →"}
         </button>
 
         <div style={{ fontSize: 12, color: "rgba(31,42,68,0.62)", lineHeight: 1.6 }}>
