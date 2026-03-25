@@ -1,25 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-const PUBLIC_PATHS = [
+type VerificationStatus =
+  | "verified"
+  | "processing"
+  | "failed"
+  | "unverified"
+  | string
+  | null;
+
+const PUBLIC_PATH_PREFIXES = [
   "/",
   "/login",
   "/signup",
-  "/signup/owner",
-  "/signup/borrower",
   "/verify",
   "/contact",
   "/faq",
 ];
 
-function isPublicPath(pathname: string | null) {
+function isPublicPath(pathname: string) {
   if (!pathname) return true;
 
-  // allow anything that starts with these
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  if (pathname === "/") return true;
+
+  return PUBLIC_PATH_PREFIXES.some((prefix) => {
+    if (prefix === "/") return false;
+    return pathname === prefix || pathname.startsWith(`${prefix}/`);
+  });
 }
 
 export default function VerificationGate({
@@ -27,60 +37,105 @@ export default function VerificationGate({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() || "/";
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(true);
+  const [allowed, setAllowed] = useState(false);
+
+  const publicRoute = useMemo(() => isPublicPath(pathname), [pathname]);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function check() {
+    async function run() {
       try {
-        const { data } = await supabase.auth.getSession();
-        const user = data.session?.user ?? null;
-
-        // ✅ allow public routes ALWAYS (signup fix)
-        if (isPublicPath(pathname)) {
-          if (!cancelled) setLoading(false);
+        if (publicRoute) {
+          if (!cancelled) {
+            setAllowed(true);
+            setChecking(false);
+          }
           return;
         }
 
-        // ❌ not logged in → go login
+        setChecking(true);
+
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+
+        const session = data.session;
+        const user = session?.user ?? null;
+
         if (!user) {
-          router.replace("/login");
+          if (!cancelled) {
+            setAllowed(false);
+            setChecking(false);
+            router.replace("/login");
+          }
           return;
         }
 
-        // check verification
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("verification_status")
           .eq("id", user.id)
           .maybeSingle();
 
-        const status = profile?.verification_status ?? "unverified";
+        if (profileError) throw profileError;
 
-        // ❌ not verified → force verify page
-        if (status !== "verified") {
-          router.replace("/verify");
+        const status = ((profile as any)?.verification_status ?? "unverified") as VerificationStatus;
+        const verified = String(status).toLowerCase() === "verified";
+
+        if (!verified) {
+          if (!cancelled) {
+            setAllowed(false);
+            setChecking(false);
+            router.replace("/verify");
+          }
           return;
         }
 
-        if (!cancelled) setLoading(false);
-      } catch {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setAllowed(true);
+          setChecking(false);
+        }
+      } catch (err) {
+        console.error("VerificationGate error:", err);
+
+        if (!cancelled) {
+          if (publicRoute) {
+            setAllowed(true);
+            setChecking(false);
+          } else {
+            setAllowed(false);
+            setChecking(false);
+            router.replace("/login");
+          }
+        }
       }
     }
 
-    check();
+    run();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      run();
+    });
 
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
-  }, [pathname, router]);
+  }, [publicRoute, pathname, router]);
 
-  if (loading) return null;
+  if (checking) {
+    return null;
+  }
+
+  if (!allowed) {
+    return null;
+  }
 
   return <>{children}</>;
 }
