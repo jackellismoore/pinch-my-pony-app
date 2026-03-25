@@ -19,7 +19,28 @@ function sanitizeRedirectTo(v: string | null): string {
   return v;
 }
 
-export default function BorrowerSignupInner() {
+function getErrorMessage(err: unknown): string {
+  if (!err) return "Sign up failed.";
+  if (typeof err === "string") return err;
+  if (err instanceof Error && err.message) return err.message;
+
+  if (typeof err === "object") {
+    const anyErr = err as Record<string, unknown>;
+    if (typeof anyErr.message === "string" && anyErr.message.trim()) return anyErr.message;
+    if (typeof anyErr.error_description === "string" && anyErr.error_description.trim()) {
+      return anyErr.error_description;
+    }
+    if (typeof anyErr.error === "string" && anyErr.error.trim()) return anyErr.error;
+  }
+
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return "Sign up failed.";
+  }
+}
+
+export default function OwnerSignupInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -34,9 +55,11 @@ export default function BorrowerSignupInner() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
 
-  async function signupBorrower() {
+  async function signupOwner() {
     setError(null);
+    setEmailSentTo(null);
 
     if (!SUPABASE_ENV_OK) {
       setError(
@@ -51,33 +74,83 @@ export default function BorrowerSignupInner() {
       return;
     }
 
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     try {
       setLoading(true);
+
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "https://pinchmypony.com";
 
       const res = await supabase.auth.signUp({
         email: e,
         password,
         options: {
+          emailRedirectTo: `${origin}/verify`,
           data: {
             display_name: displayName.trim() || null,
-            role: "borrower",
+            role: "owner",
           },
         },
       });
 
       if (res.error) throw res.error;
 
+      // If email confirmation is required, Supabase may create the user
+      // without creating a session yet. In that case, do NOT redirect.
+      if (!res.data.session) {
+        setEmailSentTo(e);
+        return;
+      }
+
       router.replace(redirectTo);
       router.refresh();
-    } catch (err: any) {
-      setError(err?.message ?? "Sign up failed.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
   }
 
   const loginHref = `/login?redirectTo=${encodeURIComponent(redirectTo)}`;
-  const ownerHref = `/signup/owner?redirectTo=${encodeURIComponent(redirectTo)}`;
+  const borrowerHref = `/signup/borrower?redirectTo=${encodeURIComponent(redirectTo)}`;
+
+  if (emailSentTo) {
+    return (
+      <div style={wrap}>
+        <div style={bg} aria-hidden="true" />
+
+        <div style={container}>
+          <div style={card}>
+            <div style={eyebrow}>Pinch My Pony · Owner</div>
+
+            <h1 style={title}>Check your email</h1>
+
+            <p style={subtitle}>
+              We’ve sent a confirmation link to <strong>{emailSentTo}</strong>.
+            </p>
+
+            <div style={successBox}>
+              Please open the email and confirm your address before signing in.
+            </div>
+
+            <div style={formGrid}>
+              <Link href="/verify" style={primaryBtnLink}>
+                Go to verification →
+              </Link>
+
+              <Link href={loginHref} style={inlineLink}>
+                Back to login
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={wrap}>
@@ -85,12 +158,12 @@ export default function BorrowerSignupInner() {
 
       <div style={container}>
         <div style={card}>
-          <div style={eyebrow}>Pinch My Pony · Borrower</div>
+          <div style={eyebrow}>Pinch My Pony · Owner</div>
 
-          <h1 style={title}>Create your borrower account</h1>
+          <h1 style={title}>Create your owner account</h1>
 
           <p style={subtitle}>
-            Request horses, message owners, and manage your rides from one place.
+            List horses, manage availability, and approve rider requests from one place.
           </p>
 
           {error ? <div style={errorBox}>{error}</div> : null}
@@ -101,7 +174,7 @@ export default function BorrowerSignupInner() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 style={input}
-                placeholder="e.g. Alice"
+                placeholder="e.g. Jack"
               />
             </Field>
 
@@ -128,19 +201,20 @@ export default function BorrowerSignupInner() {
             </Field>
 
             <button
-              onClick={signupBorrower}
+              onClick={signupOwner}
               disabled={loading}
               style={{ ...primaryBtn, opacity: loading ? 0.75 : 1 }}
+              type="button"
             >
-              {loading ? "Creating account…" : "Create borrower account"}
+              {loading ? "Creating account…" : "Create owner account"}
             </button>
 
             <div style={footerLinks}>
               <Link href={loginHref} style={inlineLink}>
                 Already have an account?
               </Link>
-              <Link href={ownerHref} style={inlineLink}>
-                I want to list my horse instead
+              <Link href={borrowerHref} style={inlineLink}>
+                I want to borrow a horse instead
               </Link>
             </div>
           </div>
@@ -226,6 +300,17 @@ const errorBox: React.CSSProperties = {
   fontSize: 13,
 };
 
+const successBox: React.CSSProperties = {
+  marginTop: 14,
+  border: "1px solid rgba(31,61,43,0.20)",
+  background: "rgba(31,61,43,0.08)",
+  padding: 12,
+  borderRadius: 14,
+  fontSize: 13,
+  color: "rgba(31,61,43,0.92)",
+  fontWeight: 800,
+};
+
 const formGrid: React.CSSProperties = {
   marginTop: 16,
   display: "grid",
@@ -265,6 +350,11 @@ const primaryBtn: React.CSSProperties = {
   fontWeight: 950,
   boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
   cursor: "pointer",
+};
+
+const primaryBtnLink: React.CSSProperties = {
+  ...primaryBtn,
+  textDecoration: "none",
 };
 
 const footerLinks: React.CSSProperties = {
