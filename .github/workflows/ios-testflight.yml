@@ -358,6 +358,40 @@ jobs:
           print("Selected profile:", preferred["name"], preferred["uuid"], preferred["aps"])
           PY
 
+      - name: Increment iOS build number
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          PBXPROJ="ios/App/App.xcodeproj/project.pbxproj"
+
+          CURRENT_BUILD=$(python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          text = Path("ios/App/App.xcodeproj/project.pbxproj").read_text()
+          matches = re.findall(r'CURRENT_PROJECT_VERSION = (\d+);', text)
+          if not matches:
+              raise SystemExit("Could not find CURRENT_PROJECT_VERSION in project.pbxproj")
+          print(max(int(x) for x in matches))
+          PY
+          )
+
+          NEXT_BUILD=$((CURRENT_BUILD + 1))
+
+          python3 <<PY
+          from pathlib import Path
+          import re
+
+          pbxproj = Path("$PBXPROJ")
+          text = pbxproj.read_text()
+          text = re.sub(r'CURRENT_PROJECT_VERSION = \d+;', 'CURRENT_PROJECT_VERSION = $NEXT_BUILD;', text)
+          pbxproj.write_text(text)
+          print("Updated CURRENT_PROJECT_VERSION to $NEXT_BUILD")
+          PY
+
+          echo "IOS_BUILD_NUMBER=$NEXT_BUILD" >> "$GITHUB_ENV"
+
       - name: Clean build folder
         shell: bash
         run: |
@@ -392,6 +426,7 @@ jobs:
             CODE_SIGN_IDENTITY="$EXPORT_CERT_NAME" \
             PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
             CODE_SIGN_ENTITLEMENTS="App/App.entitlements" \
+            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
             archive | tee xcodebuild-archive.log
           XCODE_EXIT=${PIPESTATUS[0]}
           set -e
