@@ -195,6 +195,32 @@ jobs:
 
           ! grep -R 'https://github.com/ionic-team/capacitor-swift-pm.git' ios/App/CapApp-SPM node_modules/@capacitor/app node_modules/@capacitor/device node_modules/@capacitor/push-notifications node_modules/@capacitor/status-bar
 
+      - name: Ensure push entitlements file exists
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          ENTITLEMENTS_FILE="ios/App/App/App.entitlements"
+
+          if [ ! -f "$ENTITLEMENTS_FILE" ]; then
+            cat > "$ENTITLEMENTS_FILE" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>aps-environment</key>
+            <string>production</string>
+          </dict>
+          </plist>
+          EOF
+          fi
+
+          /usr/libexec/PlistBuddy -c "Delete :aps-environment" "$ENTITLEMENTS_FILE" || true
+          /usr/libexec/PlistBuddy -c "Add :aps-environment string production" "$ENTITLEMENTS_FILE"
+
+          echo "===== App.entitlements ====="
+          cat "$ENTITLEMENTS_FILE"
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -358,6 +384,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="$EXPORT_CERT_NAME" \
             PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
+            CODE_SIGN_ENTITLEMENTS="App/App.entitlements" \
             archive | tee xcodebuild-archive.log
           XCODE_EXIT=${PIPESTATUS[0]}
           set -e
