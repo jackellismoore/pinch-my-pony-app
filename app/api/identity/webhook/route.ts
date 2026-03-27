@@ -1,1 +1,3 @@
-export { POST, dynamic } from "../../stripe/webhook/route";
+export const dynamic = "force-dynamic";
+
+export { POST } from "../../stripe/webhook/route";
