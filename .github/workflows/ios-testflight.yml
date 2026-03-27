@@ -68,7 +68,7 @@ jobs:
       - name: Capacitor sync iOS
         run: npx cap sync ios
 
-      - name: Patch Capacitor Swift package binaries only
+      - name: Create local Capacitor Swift package
         shell: bash
         run: |
           set -euxo pipefail
@@ -100,43 +100,6 @@ jobs:
           )
           EOF
 
-      - name: Force CapApp-SPM to use local Capacitor package
-        shell: bash
-        run: |
-          set -euxo pipefail
-
-          FILE="ios/App/CapApp-SPM/Package.swift"
-
-          echo "Before patch:"
-          cat "$FILE"
-
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          file = Path("ios/App/CapApp-SPM/Package.swift")
-          text = file.read_text()
-
-          text = re.sub(
-              r'\.package\(url: "https://github\.com/ionic-team/capacitor-swift-pm\.git",\s*(from|exact):\s*"[^"]+"\)',
-              '.package(path: "../capacitor-swift-pm")',
-              text
-          )
-
-          file.write_text(text)
-          print("After patch:")
-          print(file.read_text())
-          PY
-
-      - name: Verify CapApp-SPM contains push plugin and local package path
-        shell: bash
-        run: |
-          set -euxo pipefail
-          cat ios/App/CapApp-SPM/Package.swift
-          grep -q 'CapacitorPushNotifications' ios/App/CapApp-SPM/Package.swift
-          grep -q '\.package(path: "../capacitor-swift-pm")' ios/App/CapApp-SPM/Package.swift
-          ! grep -q 'https://github.com/ionic-team/capacitor-swift-pm.git' ios/App/CapApp-SPM/Package.swift
-
       - name: Download local Capacitor xcframeworks
         shell: bash
         run: |
@@ -156,6 +119,81 @@ jobs:
 
           unzip -q /tmp/pmp-capacitor-downloads/Capacitor.xcframework.zip -d ios/App/capacitor-swift-pm/Frameworks
           unzip -q /tmp/pmp-capacitor-downloads/Cordova.xcframework.zip -d ios/App/capacitor-swift-pm/Frameworks
+
+      - name: Force all Capacitor packages to local capacitor-swift-pm
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          files = []
+
+          for root in [Path("ios"), Path("node_modules/@capacitor")]:
+              if root.exists():
+                  files.extend(root.rglob("Package.swift"))
+
+          pattern = re.compile(
+              r'\.package\(\s*url:\s*"https://github\.com/ionic-team/capacitor-swift-pm\.git"\s*,\s*(?:from|exact):\s*"[^"]+"\s*\)'
+          )
+
+          patched = []
+          for file in files:
+              text = file.read_text()
+              if "capacitor-swift-pm.git" not in text:
+                  continue
+
+              if "node_modules/@capacitor" in str(file):
+                  replacement = '.package(path: "../../../ios/App/capacitor-swift-pm")'
+              elif "ios/App/CapApp-SPM" in str(file):
+                  replacement = '.package(path: "../capacitor-swift-pm")'
+              else:
+                  replacement = '.package(path: "../capacitor-swift-pm")'
+
+              new_text = pattern.sub(replacement, text)
+              if new_text != text:
+                  file.write_text(new_text)
+                  patched.append(str(file))
+
+          print("Patched files:")
+          for p in patched:
+              print(p)
+
+          if not patched:
+              raise SystemExit("No Package.swift files were patched")
+          PY
+
+      - name: Verify local package wiring
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          echo "===== ios/App/CapApp-SPM/Package.swift ====="
+          cat ios/App/CapApp-SPM/Package.swift
+
+          echo "===== @capacitor/push-notifications/Package.swift ====="
+          cat node_modules/@capacitor/push-notifications/Package.swift
+
+          echo "===== @capacitor/status-bar/Package.swift ====="
+          cat node_modules/@capacitor/status-bar/Package.swift
+
+          echo "===== @capacitor/device/Package.swift ====="
+          cat node_modules/@capacitor/device/Package.swift
+
+          echo "===== @capacitor/app/Package.swift ====="
+          cat node_modules/@capacitor/app/Package.swift
+
+          grep -q 'CapacitorPushNotifications' ios/App/CapApp-SPM/Package.swift
+          grep -q '\.package(path: "../capacitor-swift-pm")' ios/App/CapApp-SPM/Package.swift
+
+          grep -q '\.package(path: "../../../ios/App/capacitor-swift-pm")' node_modules/@capacitor/push-notifications/Package.swift
+          grep -q '\.package(path: "../../../ios/App/capacitor-swift-pm")' node_modules/@capacitor/status-bar/Package.swift
+          grep -q '\.package(path: "../../../ios/App/capacitor-swift-pm")' node_modules/@capacitor/device/Package.swift
+          grep -q '\.package(path: "../../../ios/App/capacitor-swift-pm")' node_modules/@capacitor/app/Package.swift
+
+          ! grep -R 'https://github.com/ionic-team/capacitor-swift-pm.git' ios/App/CapApp-SPM node_modules/@capacitor/app node_modules/@capacitor/device node_modules/@capacitor/push-notifications node_modules/@capacitor/status-bar
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
