@@ -444,8 +444,9 @@ jobs:
         run: |
           set -euxo pipefail
 
-          mkdir -p fastlane/private_keys
-          printf '%s' "$ASC_KEY_P8" > fastlane/private_keys/AuthKey_$ASC_KEY_ID.p8
+          rm -rf private_keys
+          mkdir -p private_keys
+          printf '%s' "$ASC_KEY_P8" > "private_keys/AuthKey_${ASC_KEY_ID}.p8"
 
           xcrun altool \
             --upload-app \
