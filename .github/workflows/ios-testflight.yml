@@ -358,6 +358,13 @@ jobs:
           print("Selected profile:", preferred["name"], preferred["uuid"], preferred["aps"])
           PY
 
+      - name: Clean build folder
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf build
+          mkdir -p build
+
       - name: Archive app
         shell: bash
         run: |
@@ -402,6 +409,9 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+
+          rm -rf build/export
+          mkdir -p build/export
 
           cat > ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
