@@ -75,11 +75,14 @@ jobs:
 
           mkdir -p ios/App/capacitor-swift-pm
           cat > ios/App/capacitor-swift-pm/Package.swift <<'EOF'
-          // swift-tools-version:5.3
+          // swift-tools-version:5.9
           import PackageDescription
 
           let package = Package(
               name: "capacitor-swift-pm",
+              platforms: [
+                  .iOS(.v14)
+              ],
               products: [
                   .library(name: "Capacitor", targets: ["Capacitor"]),
                   .library(name: "Cordova", targets: ["Cordova"])
@@ -97,12 +100,50 @@ jobs:
           )
           EOF
 
-      - name: Verify CapApp-SPM contains push plugin
+      - name: Force CapApp-SPM to use local Capacitor package
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          FILE="ios/App/CapApp-SPM/Package.swift"
+
+          echo "Before patch:"
+          cat "$FILE"
+
+          python3 <<'PY'
+          from pathlib import Path
+          file = Path("ios/App/CapApp-SPM/Package.swift")
+          text = file.read_text()
+
+          text = text.replace(
+              '.package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", from: "8.0.0")',
+              '.package(path: "../capacitor-swift-pm")'
+          )
+          text = text.replace(
+              '.package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", from: "8.1.0")',
+              '.package(path: "../capacitor-swift-pm")'
+          )
+          text = text.replace(
+              '.package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0")',
+              '.package(path: "../capacitor-swift-pm")'
+          )
+          text = text.replace(
+              '.package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.1.0")',
+              '.package(path: "../capacitor-swift-pm")'
+          )
+
+          file.write_text(text)
+          print(file.read_text())
+          PY
+
+      - name: Verify CapApp-SPM contains push plugin and local package path
         shell: bash
         run: |
           set -euxo pipefail
           cat ios/App/CapApp-SPM/Package.swift
           grep -q 'CapacitorPushNotifications' ios/App/CapApp-SPM/Package.swift
+          grep -q '\.package(path: "../capacitor-swift-pm")' ios/App/CapApp-SPM/Package.swift
+          ! grep -q 'https://github.com/ionic-team/capacitor-swift-pm.git' ios/App/CapApp-SPM/Package.swift
 
       - name: Download local Capacitor xcframeworks
         shell: bash
@@ -266,6 +307,14 @@ jobs:
         run: |
           set -euxo pipefail
 
+          (
+            while true; do
+              echo "heartbeat: archive still running at $(date)"
+              sleep 30
+            done
+          ) &
+          HEARTBEAT_PID=$!
+
           xcodebuild \
             -project ios/App/App.xcodeproj \
             -scheme "$IOS_SCHEME" \
@@ -278,7 +327,9 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="$EXPORT_CERT_NAME" \
             PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
-            archive
+            archive | tee xcodebuild-archive.log
+
+          kill $HEARTBEAT_PID || true
 
       - name: Export IPA
         shell: bash
