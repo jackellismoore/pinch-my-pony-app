@@ -112,27 +112,19 @@ jobs:
 
           python3 <<'PY'
           from pathlib import Path
+          import re
+
           file = Path("ios/App/CapApp-SPM/Package.swift")
           text = file.read_text()
 
-          text = text.replace(
-              '.package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", from: "8.0.0")',
-              '.package(path: "../capacitor-swift-pm")'
-          )
-          text = text.replace(
-              '.package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", from: "8.1.0")',
-              '.package(path: "../capacitor-swift-pm")'
-          )
-          text = text.replace(
-              '.package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.0.0")',
-              '.package(path: "../capacitor-swift-pm")'
-          )
-          text = text.replace(
-              '.package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.1.0")',
-              '.package(path: "../capacitor-swift-pm")'
+          text = re.sub(
+              r'\.package\(url: "https://github\.com/ionic-team/capacitor-swift-pm\.git",\s*(from|exact):\s*"[^"]+"\)',
+              '.package(path: "../capacitor-swift-pm")',
+              text
           )
 
           file.write_text(text)
+          print("After patch:")
           print(file.read_text())
           PY
 
@@ -315,6 +307,7 @@ jobs:
           ) &
           HEARTBEAT_PID=$!
 
+          set +e
           xcodebuild \
             -project ios/App/App.xcodeproj \
             -scheme "$IOS_SCHEME" \
@@ -328,8 +321,17 @@ jobs:
             CODE_SIGN_IDENTITY="$EXPORT_CERT_NAME" \
             PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
             archive | tee xcodebuild-archive.log
+          XCODE_EXIT=${PIPESTATUS[0]}
+          set -e
 
           kill $HEARTBEAT_PID || true
+
+          if [ "$XCODE_EXIT" -ne 0 ]; then
+            echo "========== LAST 200 LINES OF XCODE ARCHIVE LOG =========="
+            tail -n 200 xcodebuild-archive.log || true
+            echo "========================================================="
+            exit "$XCODE_EXIT"
+          fi
 
       - name: Export IPA
         shell: bash
