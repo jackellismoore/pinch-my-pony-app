@@ -452,7 +452,7 @@ export async function GET(req: Request) {
         scheduledFor: today,
         includeOwner: true,
         includeBorrower: false,
-        ownerUrl: "/dashboard/owner/requests",
+        ownerUrl: (row) => `/dashboard/owner/${row.id}`,
         onlyIfCreatedMoreThanHoursAgo: 24,
       }
     );
@@ -467,7 +467,7 @@ export async function GET(req: Request) {
         scheduledFor: today,
         includeOwner: true,
         includeBorrower: false,
-        ownerUrl: "/dashboard/owner/requests",
+        ownerUrl: (row) => `/dashboard/owner/${row.id}`,
         onlyIfCreatedMoreThanHoursAgo: 48,
       }
     );

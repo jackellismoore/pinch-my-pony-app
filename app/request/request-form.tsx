@@ -258,7 +258,7 @@ export default function RequestForm({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId: horseOwnerId,
-            url: "/dashboard/owner/requests",
+            url: `/dashboard/owner/${inserted.id}`,
             eventType: "borrow_request_created",
             requestId: inserted.id,
           }),
@@ -373,7 +373,9 @@ export default function RequestForm({
         </label>
 
         {submitError ? (
-          <div style={{ fontSize: 13, color: "rgba(180,0,0,0.9)", fontWeight: 850 }}>{submitError}</div>
+          <div style={{ fontSize: 13, color: "rgba(180,0,0,0.9)", fontWeight: 850 }}>
+            {submitError}
+          </div>
         ) : null}
 
         <button type="submit" disabled={submitDisabled} style={btnPrimary(submitDisabled)}>

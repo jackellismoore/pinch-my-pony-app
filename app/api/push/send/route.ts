@@ -49,6 +49,14 @@ type ProfileMini = {
   full_name: string | null;
 };
 
+type NotificationPreferences = {
+  user_id: string;
+  messages_enabled: boolean;
+  request_updates_enabled: boolean;
+  booking_reminders_enabled: boolean;
+  review_notifications_enabled: boolean;
+};
+
 type BorrowRequestForMessage = {
   id: string;
   horse_id: string | null;
@@ -152,6 +160,54 @@ function formatDateShort(input: string | null | undefined) {
   });
 }
 
+function resolveEffectiveEventType(payload: Payload): EventType | null {
+  if (payload.eventType) return payload.eventType;
+
+  if (payload.senderId && payload.requestId && payload.messageText) {
+    return "message";
+  }
+
+  return null;
+}
+
+function isEventAllowedByPreferences(
+  prefs: NotificationPreferences | null,
+  eventType: EventType | null
+) {
+  if (!eventType || !prefs) return true;
+
+  if (eventType === "message") {
+    return prefs.messages_enabled;
+  }
+
+  if (
+    eventType === "borrow_request_created" ||
+    eventType === "borrow_request_status_changed" ||
+    eventType === "pending_request_owner_reminder" ||
+    eventType === "pending_request_owner_reminder_48h"
+  ) {
+    return prefs.request_updates_enabled;
+  }
+
+  if (
+    eventType === "booking_starts_tomorrow" ||
+    eventType === "booking_starts_today" ||
+    eventType === "booking_ends_tomorrow"
+  ) {
+    return prefs.booking_reminders_enabled;
+  }
+
+  if (
+    eventType === "review_left_for_owner" ||
+    eventType === "review_reminder_borrower" ||
+    eventType === "review_reminder_borrower_48h"
+  ) {
+    return prefs.review_notifications_enabled;
+  }
+
+  return true;
+}
+
 async function getProfile(
   admin: SupabaseClient,
   userId: string | null | undefined
@@ -163,6 +219,26 @@ async function getProfile(
     .select("id, display_name, full_name")
     .eq("id", userId)
     .maybeSingle<ProfileMini>();
+
+  return data ?? null;
+}
+
+async function getNotificationPreferences(
+  admin: SupabaseClient,
+  userId: string
+): Promise<NotificationPreferences | null> {
+  const { data, error } = await admin
+    .from("notification_preferences")
+    .select(
+      "user_id, messages_enabled, request_updates_enabled, booking_reminders_enabled, review_notifications_enabled"
+    )
+    .eq("user_id", userId)
+    .maybeSingle<NotificationPreferences>();
+
+  if (error) {
+    console.warn("[push] failed loading notification preferences", error);
+    return null;
+  }
 
   return data ?? null;
 }
@@ -535,6 +611,20 @@ export async function POST(req: Request) {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    const effectiveEventType = resolveEffectiveEventType(payload);
+    const prefs = await getNotificationPreferences(admin, payload.userId);
+
+    if (!isEventAllowedByPreferences(prefs, effectiveEventType)) {
+      return Response.json({
+        ok: true,
+        sent: 0,
+        failed: 0,
+        skippedByPreference: true,
+        eventType: effectiveEventType,
+        details: [],
+      });
+    }
 
     const copy = await buildNotificationCopy(admin, payload);
 

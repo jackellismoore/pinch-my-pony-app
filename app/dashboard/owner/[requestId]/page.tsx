@@ -55,7 +55,8 @@ const btn = (kind: "primary" | "secondary" | "danger") =>
         ? "rgba(255,255,255,0.72)"
         : "rgba(255,255,255,0.72)",
     color: kind === "primary" ? "white" : kind === "danger" ? "rgba(160,0,0,0.95)" : palette.navy,
-    boxShadow: kind === "primary" ? "0 14px 34px rgba(31,61,43,0.18)" : "0 14px 34px rgba(31,42,68,0.08)",
+    boxShadow:
+      kind === "primary" ? "0 14px 34px rgba(31,61,43,0.18)" : "0 14px 34px rgba(31,42,68,0.08)",
     cursor: "pointer",
   }) as React.CSSProperties;
 
@@ -77,15 +78,35 @@ function pill(kind: string): React.CSSProperties {
   };
 
   if (kind === "approved" || kind === "accepted")
-    return { ...base, background: "rgba(31,61,43,0.10)", color: palette.forest, border: "1px solid rgba(31,61,43,0.18)" };
+    return {
+      ...base,
+      background: "rgba(31,61,43,0.10)",
+      color: palette.forest,
+      border: "1px solid rgba(31,61,43,0.18)",
+    };
 
   if (kind === "rejected")
-    return { ...base, background: "rgba(220,0,0,0.08)", color: "rgba(160,0,0,0.95)", border: "1px solid rgba(220,0,0,0.18)" };
+    return {
+      ...base,
+      background: "rgba(220,0,0,0.08)",
+      color: "rgba(160,0,0,0.95)",
+      border: "1px solid rgba(220,0,0,0.18)",
+    };
 
   if (kind === "pending")
-    return { ...base, background: "rgba(200,162,77,0.16)", color: "rgba(110,75,0,0.95)", border: "1px solid rgba(200,162,77,0.28)" };
+    return {
+      ...base,
+      background: "rgba(200,162,77,0.16)",
+      color: "rgba(110,75,0,0.95)",
+      border: "1px solid rgba(200,162,77,0.28)",
+    };
 
-  return { ...base, background: "rgba(0,0,0,0.04)", color: "rgba(0,0,0,0.70)", border: "1px solid rgba(31,42,68,0.12)" };
+  return {
+    ...base,
+    background: "rgba(0,0,0,0.04)",
+    color: "rgba(0,0,0,0.70)",
+    border: "1px solid rgba(31,42,68,0.12)",
+  };
 }
 
 function pickBorrowerName(r: RequestDetail | null) {
@@ -166,7 +187,7 @@ export default function OwnerRequestDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: req.borrower_id,
-          url: "/dashboard/borrower",
+          url: `/messages/${requestId}`,
           eventType: "borrow_request_status_changed",
           requestId,
           status: "approved",
@@ -199,7 +220,7 @@ export default function OwnerRequestDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: req.borrower_id,
-          url: "/dashboard/borrower",
+          url: `/messages/${requestId}`,
           eventType: "borrow_request_status_changed",
           requestId,
           status: "rejected",
@@ -217,9 +238,27 @@ export default function OwnerRequestDetailPage() {
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
         <div>
-          <h1 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy, fontWeight: 950 }}>Request Details</h1>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 28,
+              letterSpacing: -0.3,
+              color: palette.navy,
+              fontWeight: 950,
+            }}
+          >
+            Request Details
+          </h1>
           <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.62)", lineHeight: 1.6 }}>
             Review the request, then approve or reject.
           </div>
@@ -253,7 +292,9 @@ export default function OwnerRequestDetailPage() {
       ) : null}
 
       {!loading && !error && !req ? (
-        <div style={{ marginTop: 16, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>Request not found.</div>
+        <div style={{ marginTop: 16, fontSize: 13, color: "rgba(0,0,0,0.65)" }}>
+          Request not found.
+        </div>
       ) : null}
 
       {!loading && req ? (
@@ -263,14 +304,24 @@ export default function OwnerRequestDetailPage() {
               marginTop: 16,
               ...card,
               padding: 16,
-              background: "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,241,232,0.55) 140%)",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,241,232,0.55) 140%)",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "flex-start",
+                flexWrap: "wrap",
+              }}
+            >
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>{horseName}</div>
                 <div style={{ marginTop: 8, fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
-                  Borrower: <span style={{ fontWeight: 950, color: "rgba(0,0,0,0.85)" }}>{borrowerName}</span>
+                  Borrower:{" "}
+                  <span style={{ fontWeight: 950, color: "rgba(0,0,0,0.85)" }}>{borrowerName}</span>
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
                   Dates:{" "}
@@ -280,7 +331,15 @@ export default function OwnerRequestDetailPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  justifyContent: "flex-end",
+                }}
+              >
                 <span style={pill(status)}>{status.toUpperCase()}</span>
 
                 {req.horse_id ? (
@@ -297,14 +356,30 @@ export default function OwnerRequestDetailPage() {
 
             <div style={{ marginTop: 14, borderTop: "1px solid rgba(31,42,68,0.10)", paddingTop: 14 }}>
               <div style={{ fontWeight: 950, fontSize: 13, color: palette.navy }}>Message</div>
-              <div style={{ marginTop: 8, fontSize: 13, color: "rgba(0,0,0,0.78)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 13,
+                  color: "rgba(0,0,0,0.78)",
+                  whiteSpace: "pre-wrap",
+                  lineHeight: 1.6,
+                }}
+              >
                 {req.message?.trim() ? req.message : "No message provided."}
               </div>
             </div>
           </div>
 
           <div style={{ marginTop: 16, ...card, padding: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
               <div>
                 <div style={{ fontWeight: 950, color: palette.navy }}>Actions</div>
                 <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.62)", lineHeight: 1.6 }}>
@@ -313,10 +388,18 @@ export default function OwnerRequestDetailPage() {
               </div>
 
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <button onClick={approve} disabled={!canAct || busy} style={{ ...btn("primary"), opacity: !canAct || busy ? 0.6 : 1 }}>
+                <button
+                  onClick={approve}
+                  disabled={!canAct || busy}
+                  style={{ ...btn("primary"), opacity: !canAct || busy ? 0.6 : 1 }}
+                >
                   {busy ? "Working…" : "Approve"}
                 </button>
-                <button onClick={reject} disabled={!canAct || busy} style={{ ...btn("danger"), opacity: !canAct || busy ? 0.6 : 1 }}>
+                <button
+                  onClick={reject}
+                  disabled={!canAct || busy}
+                  style={{ ...btn("danger"), opacity: !canAct || busy ? 0.6 : 1 }}
+                >
                   Reject
                 </button>
               </div>

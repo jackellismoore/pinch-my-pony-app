@@ -10,6 +10,13 @@ import LocationAutocomplete from "@/components/LocationAutocomplete";
 
 type ProfileAny = Record<string, any>;
 
+type NotificationPreferences = {
+  messages_enabled: boolean;
+  request_updates_enabled: boolean;
+  booking_reminders_enabled: boolean;
+  review_notifications_enabled: boolean;
+};
+
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
@@ -28,6 +35,13 @@ const DEFAULT_AVATAR_DATA_URI =
       <text x="80" y="96" text-anchor="middle" font-size="64">🐴</text>
     </svg>
   `);
+
+const defaultPrefs: NotificationPreferences = {
+  messages_enabled: true,
+  request_updates_enabled: true,
+  booking_reminders_enabled: true,
+  review_notifications_enabled: true,
+};
 
 function safeTrim(v: any) {
   const s = typeof v === "string" ? v.trim() : "";
@@ -67,6 +81,10 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("");
   const [age, setAge] = useState("");
 
+  const [prefs, setPrefs] = useState<NotificationPreferences>(defaultPrefs);
+  const [ownerReviewCount, setOwnerReviewCount] = useState(0);
+  const [ownerAverageRating, setOwnerAverageRating] = useState<string | null>(null);
+
   const title = useMemo(() => {
     const dn = displayName.trim();
     const fn = fullName.trim();
@@ -77,6 +95,7 @@ export default function ProfilePage() {
   const verifiedAt = (profile?.verified_at ?? null) as string | null;
   const verificationProvider = (profile?.verification_provider ?? null) as string | null;
   const isVerified = String(verificationStatus).toLowerCase() === "verified";
+  const role = String(profile?.role ?? "").toLowerCase();
 
   useEffect(() => {
     let cancelled = false;
@@ -100,12 +119,23 @@ export default function ProfilePage() {
         if (cancelled) return;
         setUserId(user.id);
 
-        const res = await supabase.from("profiles").select("*").eq("id", user.id).single();
+        const [profileRes, prefsRes, reviewsRes] = await Promise.all([
+          supabase.from("profiles").select("*").eq("id", user.id).single(),
+          supabase
+            .from("notification_preferences")
+            .select(
+              "messages_enabled, request_updates_enabled, booking_reminders_enabled, review_notifications_enabled"
+            )
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase.from("reviews").select("rating, owner_id").eq("owner_id", user.id),
+        ]);
 
         if (cancelled) return;
-        if (res.error) throw res.error;
 
-        const p = (res.data ?? null) as ProfileAny | null;
+        if (profileRes.error) throw profileRes.error;
+
+        const p = (profileRes.data ?? null) as ProfileAny | null;
         setProfile(p);
 
         setFullName(p?.full_name ?? "");
@@ -115,6 +145,37 @@ export default function ProfilePage() {
         setLocation(p?.location ?? "");
         setBio(p?.bio ?? "");
         setAge(p?.age !== null && p?.age !== undefined ? String(p.age) : "");
+
+        if (prefsRes.error) {
+          console.warn("notification preferences load error:", prefsRes.error);
+          setPrefs(defaultPrefs);
+        } else {
+          setPrefs({
+            messages_enabled: prefsRes.data?.messages_enabled ?? true,
+            request_updates_enabled: prefsRes.data?.request_updates_enabled ?? true,
+            booking_reminders_enabled: prefsRes.data?.booking_reminders_enabled ?? true,
+            review_notifications_enabled: prefsRes.data?.review_notifications_enabled ?? true,
+          });
+        }
+
+        if (reviewsRes.error) {
+          console.warn("reviews load error:", reviewsRes.error);
+          setOwnerReviewCount(0);
+          setOwnerAverageRating(null);
+        } else {
+          const ratings = ((reviewsRes.data ?? []) as Array<{ rating: number | null }>)
+            .map((r) => Number(r.rating))
+            .filter((n) => Number.isFinite(n) && n > 0);
+
+          setOwnerReviewCount(ratings.length);
+
+          if (ratings.length > 0) {
+            const avg = ratings.reduce((sum, n) => sum + n, 0) / ratings.length;
+            setOwnerAverageRating(avg.toFixed(1));
+          } else {
+            setOwnerAverageRating(null);
+          }
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load profile.");
       } finally {
@@ -180,6 +241,25 @@ export default function ProfilePage() {
     };
   }
 
+  async function saveNotificationPreferences() {
+    if (!userId) return;
+
+    const { error } = await supabase.from("notification_preferences").upsert(
+      {
+        user_id: userId,
+        messages_enabled: prefs.messages_enabled,
+        request_updates_enabled: prefs.request_updates_enabled,
+        booking_reminders_enabled: prefs.booking_reminders_enabled,
+        review_notifications_enabled: prefs.review_notifications_enabled,
+      },
+      {
+        onConflict: "user_id",
+      }
+    );
+
+    if (error) throw error;
+  }
+
   async function onSave() {
     setError(null);
     setNotice(null);
@@ -209,14 +289,14 @@ export default function ProfilePage() {
     try {
       setSaving(true);
 
-      const r = await tryUpdate(payload);
+      const [profileSave] = await Promise.all([tryUpdate(payload), saveNotificationPreferences()]);
 
-      if (!r.ok) {
+      if (!profileSave.ok) {
         // @ts-ignore
-        throw r.error;
+        throw profileSave.error;
       }
 
-      if (r.warn) setNotice(r.warn);
+      if (profileSave.warn) setNotice(profileSave.warn);
       else setNotice("Saved.");
 
       const res = await supabase.from("profiles").select("*").eq("id", userId).single();
@@ -381,6 +461,34 @@ export default function ProfilePage() {
           flex-wrap: wrap;
         }
 
+        .pmp-prefGrid {
+          display: grid;
+          gap: 10px;
+        }
+
+        .pmp-prefRow {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+          border: 1px solid rgba(15,23,42,0.08);
+          border-radius: 16px;
+          background: rgba(255,255,255,0.72);
+          padding: 12px 14px;
+        }
+
+        .pmp-prefToggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+          font-weight: 900;
+          color: rgba(15,23,42,0.88);
+          cursor: pointer;
+          user-select: none;
+        }
+
         @media (max-width: 767px) {
           .pmp-profileGrid2,
           .pmp-profileGridBio,
@@ -475,6 +583,25 @@ export default function ProfilePage() {
                     {verificationProvider ? (
                       <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
                     ) : null}
+
+                    {role === "owner" ? (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 900,
+                          color: paletteText(ownerAverageRating ? "#7a5b16" : "rgba(15,23,42,0.72)"),
+                          padding: "6px 10px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(200,162,77,0.28)",
+                          background: "rgba(255,255,255,0.76)",
+                          boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
+                        }}
+                      >
+                        {ownerAverageRating
+                          ? `⭐ ${ownerAverageRating}/5 · ${ownerReviewCount} review${ownerReviewCount === 1 ? "" : "s"}`
+                          : "⭐ No reviews yet"}
+                      </div>
+                    ) : null}
                   </div>
 
                   {!isVerified ? (
@@ -558,6 +685,110 @@ export default function ProfilePage() {
                 Everything needed for a complete profile is filled in.
               </div>
             )}
+          </div>
+        </div>
+
+        <div
+          className="pmp-sectionCard"
+          style={{
+            display: "grid",
+            gap: 12,
+            background:
+              "radial-gradient(900px 220px at 0% 0%, rgba(200,162,77,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,246,241,0.92))",
+          }}
+        >
+          <div style={{ display: "grid", gap: 6 }}>
+            <div className="pmp-profileSectionTitle">Notification preferences</div>
+            <div className="pmp-mutedText" style={{ fontSize: 12 }}>
+              Choose which push notifications you want to receive. Changes are saved when you click
+              Save changes.
+            </div>
+          </div>
+
+          <div className="pmp-prefGrid">
+            <div className="pmp-prefRow">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
+                  Messages
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
+                  New incoming message notifications.
+                </div>
+              </div>
+              <label className="pmp-prefToggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.messages_enabled}
+                  onChange={(e) =>
+                    setPrefs((prev) => ({ ...prev, messages_enabled: e.target.checked }))
+                  }
+                />
+                Enabled
+              </label>
+            </div>
+
+            <div className="pmp-prefRow">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
+                  Request updates
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
+                  New borrow requests, approvals, rejections, and pending reminders.
+                </div>
+              </div>
+              <label className="pmp-prefToggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.request_updates_enabled}
+                  onChange={(e) =>
+                    setPrefs((prev) => ({ ...prev, request_updates_enabled: e.target.checked }))
+                  }
+                />
+                Enabled
+              </label>
+            </div>
+
+            <div className="pmp-prefRow">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
+                  Booking reminders
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
+                  Booking starts today, tomorrow, and ends tomorrow.
+                </div>
+              </div>
+              <label className="pmp-prefToggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.booking_reminders_enabled}
+                  onChange={(e) =>
+                    setPrefs((prev) => ({ ...prev, booking_reminders_enabled: e.target.checked }))
+                  }
+                />
+                Enabled
+              </label>
+            </div>
+
+            <div className="pmp-prefRow">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
+                  Review notifications
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
+                  Review received and review reminder notifications.
+                </div>
+              </div>
+              <label className="pmp-prefToggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.review_notifications_enabled}
+                  onChange={(e) =>
+                    setPrefs((prev) => ({ ...prev, review_notifications_enabled: e.target.checked }))
+                  }
+                />
+                Enabled
+              </label>
+            </div>
           </div>
         </div>
 
@@ -847,4 +1078,8 @@ export default function ProfilePage() {
       </div>
     </>
   );
+}
+
+function paletteText(color: string) {
+  return color;
 }
