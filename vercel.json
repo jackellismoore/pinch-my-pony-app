@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/booking-reminders?secret=3246cad8d7a7781a22639f8d8c9a56e0cb04ed97c82663430773cc551c1efbc7",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/booking-reminders?secret=3246cad8d7a7781a22639f8d8c9a56e0cb04ed97c82663430773cc551c1efbc7",
+      "schedule": "0 18 * * *"
+    }
+  ]
+}
