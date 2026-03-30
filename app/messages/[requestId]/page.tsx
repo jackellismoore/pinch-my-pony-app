@@ -674,7 +674,7 @@ export default function MessageThreadPage() {
       <style>{`
         .pmp-threadViewport {
           position: fixed;
-          top: var(--pmp-header-height);
+          top: calc(var(--pmp-header-height) + env(safe-area-inset-top) + 12px);
           left: 0;
           right: 0;
           bottom: 0;
@@ -839,7 +839,8 @@ export default function MessageThreadPage() {
 
         @media (max-width: 767px) {
           .pmp-threadViewport {
-            top: var(--pmp-header-height);
+            position: fixed;
+            top: calc(var(--pmp-header-height) + env(safe-area-inset-top) + 12px);
             left: 0;
             right: 0;
             bottom: 0;
@@ -1083,9 +1084,7 @@ export default function MessageThreadPage() {
                           flexShrink: 0,
                         }}
                       />
-                      <span style={{ minWidth: 0 }}>
-                        {statusText}
-                      </span>
+                      <span style={{ minWidth: 0 }}>{statusText}</span>
                     </div>
                   </div>
                 </div>
