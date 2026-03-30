@@ -63,7 +63,8 @@ export default function ProfilePage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPrefs, setSavingPrefs] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
@@ -236,8 +237,7 @@ export default function ProfilePage() {
 
     return {
       ok: true as const,
-      warn:
-        "Saved core fields. Optional fields may not all exist in your profiles table yet.",
+      warn: "Saved core fields. Optional fields may not all exist in your profiles table yet.",
     };
   }
 
@@ -260,7 +260,7 @@ export default function ProfilePage() {
     if (error) throw error;
   }
 
-  async function onSave() {
+  async function onSaveProfile() {
     setError(null);
     setNotice(null);
 
@@ -287,9 +287,9 @@ export default function ProfilePage() {
     };
 
     try {
-      setSaving(true);
+      setSavingProfile(true);
 
-      const [profileSave] = await Promise.all([tryUpdate(payload), saveNotificationPreferences()]);
+      const profileSave = await tryUpdate(payload);
 
       if (!profileSave.ok) {
         // @ts-ignore
@@ -297,14 +297,29 @@ export default function ProfilePage() {
       }
 
       if (profileSave.warn) setNotice(profileSave.warn);
-      else setNotice("Saved.");
+      else setNotice("Profile saved.");
 
       const res = await supabase.from("profiles").select("*").eq("id", userId).single();
       if (!res.error) setProfile(res.data as any);
     } catch (e: any) {
-      setError(e?.message ?? "Failed to save.");
+      setError(e?.message ?? "Failed to save profile.");
     } finally {
-      setSaving(false);
+      setSavingProfile(false);
+    }
+  }
+
+  async function onSavePrefs() {
+    setError(null);
+    setNotice(null);
+
+    try {
+      setSavingPrefs(true);
+      await saveNotificationPreferences();
+      setNotice("Notification preferences saved.");
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to save notification preferences.");
+    } finally {
+      setSavingPrefs(false);
     }
   }
 
@@ -325,7 +340,7 @@ export default function ProfilePage() {
     }
 
     try {
-      setSaving(true);
+      setSavingProfile(true);
 
       const bucket = "avatars";
       const ext = file.name.includes(".") ? file.name.split(".").pop() : "jpg";
@@ -343,11 +358,11 @@ export default function ProfilePage() {
       const url = pub.data.publicUrl;
 
       setAvatarUrl(url);
-      setNotice("Avatar uploaded. Click Save to persist.");
+      setNotice("Avatar uploaded. Click Save changes in Profile details to persist.");
     } catch (e: any) {
       setError(e?.message ?? "Avatar upload failed.");
     } finally {
-      setSaving(false);
+      setSavingProfile(false);
     }
   }
 
@@ -467,31 +482,45 @@ export default function ProfilePage() {
         }
 
         .pmp-prefRow {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
           gap: 12px;
-          flex-wrap: wrap;
+          align-items: center;
           border: 1px solid rgba(15,23,42,0.08);
           border-radius: 16px;
           background: rgba(255,255,255,0.72);
-          padding: 12px 14px;
+          padding: 14px;
         }
 
         .pmp-prefToggle {
           display: inline-flex;
           align-items: center;
+          justify-content: flex-end;
           gap: 10px;
           font-size: 13px;
           font-weight: 900;
           color: rgba(15,23,42,0.88);
           cursor: pointer;
           user-select: none;
+          white-space: nowrap;
+        }
+
+        .pmp-prefToggle input {
+          width: 18px;
+          height: 18px;
+          margin: 0;
+          accent-color: #1F3D2B;
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 900px) {
+          .pmp-profileGridBio {
+            grid-template-columns: 1fr;
+          }
         }
 
         @media (max-width: 767px) {
           .pmp-profileGrid2,
-          .pmp-profileGridBio,
           .pmp-profileHero {
             grid-template-columns: 1fr;
           }
@@ -502,6 +531,15 @@ export default function ProfilePage() {
 
           .pmp-profileFooterRow button {
             width: 100%;
+          }
+
+          .pmp-prefRow {
+            grid-template-columns: 1fr;
+            align-items: start;
+          }
+
+          .pmp-prefToggle {
+            justify-content: flex-start;
           }
         }
       `}</style>
@@ -589,7 +627,7 @@ export default function ProfilePage() {
                         style={{
                           fontSize: 12,
                           fontWeight: 900,
-                          color: paletteText(ownerAverageRating ? "#7a5b16" : "rgba(15,23,42,0.72)"),
+                          color: ownerAverageRating ? "rgba(110,75,0,0.95)" : "rgba(15,23,42,0.72)",
                           padding: "6px 10px",
                           borderRadius: 999,
                           border: "1px solid rgba(200,162,77,0.28)",
@@ -685,110 +723,6 @@ export default function ProfilePage() {
                 Everything needed for a complete profile is filled in.
               </div>
             )}
-          </div>
-        </div>
-
-        <div
-          className="pmp-sectionCard"
-          style={{
-            display: "grid",
-            gap: 12,
-            background:
-              "radial-gradient(900px 220px at 0% 0%, rgba(200,162,77,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,246,241,0.92))",
-          }}
-        >
-          <div style={{ display: "grid", gap: 6 }}>
-            <div className="pmp-profileSectionTitle">Notification preferences</div>
-            <div className="pmp-mutedText" style={{ fontSize: 12 }}>
-              Choose which push notifications you want to receive. Changes are saved when you click
-              Save changes.
-            </div>
-          </div>
-
-          <div className="pmp-prefGrid">
-            <div className="pmp-prefRow">
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
-                  Messages
-                </div>
-                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
-                  New incoming message notifications.
-                </div>
-              </div>
-              <label className="pmp-prefToggle">
-                <input
-                  type="checkbox"
-                  checked={prefs.messages_enabled}
-                  onChange={(e) =>
-                    setPrefs((prev) => ({ ...prev, messages_enabled: e.target.checked }))
-                  }
-                />
-                Enabled
-              </label>
-            </div>
-
-            <div className="pmp-prefRow">
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
-                  Request updates
-                </div>
-                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
-                  New borrow requests, approvals, rejections, and pending reminders.
-                </div>
-              </div>
-              <label className="pmp-prefToggle">
-                <input
-                  type="checkbox"
-                  checked={prefs.request_updates_enabled}
-                  onChange={(e) =>
-                    setPrefs((prev) => ({ ...prev, request_updates_enabled: e.target.checked }))
-                  }
-                />
-                Enabled
-              </label>
-            </div>
-
-            <div className="pmp-prefRow">
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
-                  Booking reminders
-                </div>
-                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
-                  Booking starts today, tomorrow, and ends tomorrow.
-                </div>
-              </div>
-              <label className="pmp-prefToggle">
-                <input
-                  type="checkbox"
-                  checked={prefs.booking_reminders_enabled}
-                  onChange={(e) =>
-                    setPrefs((prev) => ({ ...prev, booking_reminders_enabled: e.target.checked }))
-                  }
-                />
-                Enabled
-              </label>
-            </div>
-
-            <div className="pmp-prefRow">
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
-                  Review notifications
-                </div>
-                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
-                  Review received and review reminder notifications.
-                </div>
-              </div>
-              <label className="pmp-prefToggle">
-                <input
-                  type="checkbox"
-                  checked={prefs.review_notifications_enabled}
-                  onChange={(e) =>
-                    setPrefs((prev) => ({ ...prev, review_notifications_enabled: e.target.checked }))
-                  }
-                />
-                Enabled
-              </label>
-            </div>
           </div>
         </div>
 
@@ -1024,18 +958,143 @@ export default function ProfilePage() {
             </div>
 
             <button
-              onClick={onSave}
-              disabled={saving || deleting}
+              onClick={onSaveProfile}
+              disabled={savingProfile || deleting || savingPrefs}
               className="pmp-ctaPrimary"
               style={{
                 border: "1px solid rgba(0,0,0,0.14)",
-                background: saving ? "rgba(0,0,0,0.06)" : "#111111",
-                color: saving ? "rgba(0,0,0,0.55)" : "white",
-                cursor: saving ? "not-allowed" : "pointer",
+                background: savingProfile ? "rgba(0,0,0,0.06)" : "#111111",
+                color: savingProfile ? "rgba(0,0,0,0.55)" : "white",
+                cursor: savingProfile ? "not-allowed" : "pointer",
                 minWidth: 160,
               }}
             >
-              {saving ? "Saving…" : "Save changes"}
+              {savingProfile ? "Saving…" : "Save profile changes"}
+            </button>
+          </div>
+        </div>
+
+        <div
+          className="pmp-sectionCard"
+          style={{
+            display: "grid",
+            gap: 12,
+            background:
+              "radial-gradient(900px 220px at 0% 0%, rgba(200,162,77,0.10), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,246,241,0.92))",
+          }}
+        >
+          <div style={{ display: "grid", gap: 6 }}>
+            <div className="pmp-profileSectionTitle">Notification preferences</div>
+            <div className="pmp-mutedText" style={{ fontSize: 12 }}>
+              Choose which push notifications you want to receive. Save these separately from your
+              profile details.
+            </div>
+          </div>
+
+          <div className="pmp-prefGrid">
+            <div className="pmp-prefRow">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
+                  Messages
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
+                  New incoming message notifications.
+                </div>
+              </div>
+              <label className="pmp-prefToggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.messages_enabled}
+                  onChange={(e) =>
+                    setPrefs((prev) => ({ ...prev, messages_enabled: e.target.checked }))
+                  }
+                />
+                Enabled
+              </label>
+            </div>
+
+            <div className="pmp-prefRow">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
+                  Request updates
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
+                  New borrow requests, approvals, rejections, and pending reminders.
+                </div>
+              </div>
+              <label className="pmp-prefToggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.request_updates_enabled}
+                  onChange={(e) =>
+                    setPrefs((prev) => ({ ...prev, request_updates_enabled: e.target.checked }))
+                  }
+                />
+                Enabled
+              </label>
+            </div>
+
+            <div className="pmp-prefRow">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
+                  Booking reminders
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
+                  Booking starts today, tomorrow, and ends tomorrow.
+                </div>
+              </div>
+              <label className="pmp-prefToggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.booking_reminders_enabled}
+                  onChange={(e) =>
+                    setPrefs((prev) => ({ ...prev, booking_reminders_enabled: e.target.checked }))
+                  }
+                />
+                Enabled
+              </label>
+            </div>
+
+            <div className="pmp-prefRow">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 950, color: "rgba(15,23,42,0.88)" }}>
+                  Review notifications
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.58)", marginTop: 4 }}>
+                  Review received and review reminder notifications.
+                </div>
+              </div>
+              <label className="pmp-prefToggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.review_notifications_enabled}
+                  onChange={(e) =>
+                    setPrefs((prev) => ({ ...prev, review_notifications_enabled: e.target.checked }))
+                  }
+                />
+                Enabled
+              </label>
+            </div>
+          </div>
+
+          <div className="pmp-profileFooterRow">
+            <div className="pmp-mutedText" style={{ fontSize: 12 }}>
+              These settings affect push notifications on web and iPhone.
+            </div>
+
+            <button
+              onClick={onSavePrefs}
+              disabled={savingPrefs || deleting || savingProfile}
+              className="pmp-ctaPrimary"
+              style={{
+                border: "1px solid rgba(0,0,0,0.14)",
+                background: savingPrefs ? "rgba(0,0,0,0.06)" : "#111111",
+                color: savingPrefs ? "rgba(0,0,0,0.55)" : "white",
+                cursor: savingPrefs ? "not-allowed" : "pointer",
+                minWidth: 160,
+              }}
+            >
+              {savingPrefs ? "Saving…" : "Save notification preferences"}
             </button>
           </div>
         </div>
@@ -1059,7 +1118,7 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={deleteAccount}
-              disabled={deleting || saving}
+              disabled={deleting || savingProfile || savingPrefs}
               style={{
                 border: "1px solid rgba(185,28,28,0.22)",
                 background: deleting ? "rgba(185,28,28,0.05)" : "rgba(185,28,28,0.08)",
@@ -1078,8 +1137,4 @@ export default function ProfilePage() {
       </div>
     </>
   );
-}
-
-function paletteText(color: string) {
-  return color;
 }
