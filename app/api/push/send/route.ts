@@ -5,6 +5,17 @@ import { connect } from "http2";
 
 export const runtime = "nodejs";
 
+type EventType =
+  | "message"
+  | "borrow_request_created"
+  | "borrow_request_status_changed"
+  | "booking_starts_tomorrow"
+  | "booking_starts_today"
+  | "booking_ends_tomorrow"
+  | "owner_booking_starts_tomorrow"
+  | "owner_booking_starts_today"
+  | "owner_booking_ends_tomorrow";
+
 type Payload = {
   userId: string;
   url: string;
@@ -16,7 +27,7 @@ type Payload = {
   requestId?: string;
   messageText?: string;
 
-  eventType?: "message" | "borrow_request_created" | "borrow_request_status_changed";
+  eventType?: EventType;
   status?: "pending" | "approved" | "rejected";
 };
 
@@ -123,12 +134,31 @@ function formatDateShort(input: string | null | undefined) {
   });
 }
 
+async function getRequestWithHorse(
+  admin: SupabaseClient,
+  requestId: string
+): Promise<BorrowRequestForRequestEvent | null> {
+  const { data } = await admin
+    .from("borrow_requests")
+    .select(
+      "id, horse_id, borrower_id, start_date, end_date, status, horses(id, name, owner_id)"
+    )
+    .eq("id", requestId)
+    .maybeSingle<BorrowRequestForRequestEvent>();
+
+  return data ?? null;
+}
+
 async function buildNotificationCopy(
   admin: SupabaseClient,
   payload: Payload
 ): Promise<{ title: string; body: string }> {
   if (
-    (payload.eventType === "message" || (!payload.eventType && payload.senderId && payload.requestId && payload.messageText)) &&
+    (payload.eventType === "message" ||
+      (!payload.eventType &&
+        payload.senderId &&
+        payload.requestId &&
+        payload.messageText)) &&
     payload.senderId &&
     payload.requestId &&
     payload.messageText
@@ -156,11 +186,7 @@ async function buildNotificationCopy(
   }
 
   if (payload.eventType === "borrow_request_created" && payload.requestId) {
-    const { data: request } = await admin
-      .from("borrow_requests")
-      .select("id, horse_id, borrower_id, start_date, end_date, status, horses(id, name, owner_id)")
-      .eq("id", payload.requestId)
-      .maybeSingle<BorrowRequestForRequestEvent>();
+    const request = await getRequestWithHorse(admin, payload.requestId);
 
     let borrowerName = "Someone";
     if (request?.borrower_id) {
@@ -183,12 +209,7 @@ async function buildNotificationCopy(
   }
 
   if (payload.eventType === "borrow_request_status_changed" && payload.requestId) {
-    const { data: request } = await admin
-      .from("borrow_requests")
-      .select("id, horse_id, borrower_id, start_date, end_date, status, horses(id, name, owner_id)")
-      .eq("id", payload.requestId)
-      .maybeSingle<BorrowRequestForRequestEvent>();
-
+    const request = await getRequestWithHorse(admin, payload.requestId);
     const horseName = request?.horses?.name?.trim() || "your horse";
     const status = (payload.status || request?.status || "pending").toLowerCase();
 
@@ -210,6 +231,70 @@ async function buildNotificationCopy(
       title: `Borrow request updated · ${horseName}`,
       body: `Status: ${status}`,
     };
+  }
+
+  if (
+    payload.requestId &&
+    [
+      "booking_starts_tomorrow",
+      "booking_starts_today",
+      "booking_ends_tomorrow",
+      "owner_booking_starts_tomorrow",
+      "owner_booking_starts_today",
+      "owner_booking_ends_tomorrow",
+    ].includes(payload.eventType ?? "")
+  ) {
+    const request = await getRequestWithHorse(admin, payload.requestId);
+    const horseName = request?.horses?.name?.trim() || "your horse";
+    const start = formatDateShort(request?.start_date);
+    const end = formatDateShort(request?.end_date);
+    const isOwnerEvent = String(payload.eventType).startsWith("owner_");
+
+    switch (payload.eventType) {
+      case "booking_starts_tomorrow":
+        return {
+          title: `Ride starts tomorrow · ${horseName}`,
+          body: `Your approved booking starts tomorrow (${start}).`,
+        };
+
+      case "booking_starts_today":
+        return {
+          title: `Ride starts today · ${horseName}`,
+          body: `Your approved booking starts today (${start}).`,
+        };
+
+      case "booking_ends_tomorrow":
+        return {
+          title: `Ride ends tomorrow · ${horseName}`,
+          body: `Your booking for ${horseName} ends tomorrow (${end}).`,
+        };
+
+      case "owner_booking_starts_tomorrow":
+        return {
+          title: `Booking starts tomorrow · ${horseName}`,
+          body: `An approved booking for ${horseName} starts tomorrow (${start}).`,
+        };
+
+      case "owner_booking_starts_today":
+        return {
+          title: `Booking starts today · ${horseName}`,
+          body: `An approved booking for ${horseName} starts today (${start}).`,
+        };
+
+      case "owner_booking_ends_tomorrow":
+        return {
+          title: `Booking ends tomorrow · ${horseName}`,
+          body: `An approved booking for ${horseName} ends tomorrow (${end}).`,
+        };
+
+      default:
+        return {
+          title: isOwnerEvent
+            ? `Booking update · ${horseName}`
+            : `Ride update · ${horseName}`,
+          body: "You have a booking update.",
+        };
+    }
   }
 
   return {
@@ -311,7 +396,10 @@ async function sendApnsNotification({
 }
 
 async function deleteBadSubscription(admin: SupabaseClient, endpoint: string) {
-  const { error } = await admin.from("push_subscriptions").delete().eq("endpoint", endpoint);
+  const { error } = await admin
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", endpoint);
 
   if (error) {
     console.warn("[push] failed deleting bad subscription:", endpoint, error);
@@ -354,6 +442,8 @@ export async function POST(req: Request) {
         ok: true,
         sent: 0,
         failed: 0,
+        title: copy.title,
+        body: copy.body,
         details: [],
       });
     }
