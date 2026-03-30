@@ -23,6 +23,48 @@ type HorseRow = {
   is_active: any;
 };
 
+const BREED_OPTIONS = [
+  "Arabian",
+  "Cob",
+  "Connemara",
+  "Clydesdale",
+  "Dutch Warmblood",
+  "Ex-Racehorse",
+  "Fell Pony",
+  "Friesian",
+  "Hackney",
+  "Highland Pony",
+  "Irish Draught",
+  "Irish Sport Horse",
+  "New Forest Pony",
+  "Shetland",
+  "Shire",
+  "Sports Horse",
+  "Thoroughbred",
+  "Warmblood",
+  "Welsh Pony",
+  "Welsh Section D",
+  "Other",
+] as const;
+
+const TEMPERAMENT_OPTIONS = [
+  "Calm",
+  "Friendly",
+  "Gentle",
+  "Safe",
+  "Confidence Giving",
+  "Forward Going",
+  "Energetic",
+  "Playful",
+  "Sensitive",
+  "Sharp",
+  "Needs Experienced Rider",
+  "Experienced Ride",
+  "Lazy",
+  "Strong",
+  "Other",
+] as const;
+
 function asString(v: unknown): string {
   return typeof v === "string" ? v : v == null ? "" : String(v);
 }
@@ -32,6 +74,60 @@ function asBool(v: unknown, fallback = true): boolean {
   if (v === 0) return false;
   if (v === 1) return true;
   return fallback;
+}
+
+function normalizeBreed(value: string) {
+  const raw = value.trim().toLowerCase();
+  if (!raw) return "";
+
+  const exact = BREED_OPTIONS.find((option) => option.toLowerCase() === raw);
+  if (exact) return exact;
+
+  if (raw.includes("irish") && raw.includes("sport")) return "Irish Sport Horse";
+  if (raw.includes("irish") && raw.includes("draught")) return "Irish Draught";
+  if (raw.includes("welsh") && raw.includes("section d")) return "Welsh Section D";
+  if (raw.includes("welsh")) return "Welsh Pony";
+  if (raw.includes("sport")) return "Sports Horse";
+  if (raw.includes("warmblood")) return "Warmblood";
+  if (raw.includes("thoroughbred") || raw.includes("racehorse")) return raw.includes("ex") ? "Ex-Racehorse" : "Thoroughbred";
+  if (raw.includes("new forest")) return "New Forest Pony";
+  if (raw.includes("highland")) return "Highland Pony";
+  if (raw.includes("shetland")) return "Shetland";
+  if (raw.includes("shire")) return "Shire";
+  if (raw.includes("connemara")) return "Connemara";
+  if (raw.includes("friesian")) return "Friesian";
+  if (raw.includes("arabian")) return "Arabian";
+  if (raw.includes("cob")) return "Cob";
+  if (raw.includes("clydesdale")) return "Clydesdale";
+  if (raw.includes("hackney")) return "Hackney";
+  if (raw.includes("fell")) return "Fell Pony";
+  if (raw.includes("dutch")) return "Dutch Warmblood";
+
+  return "Other";
+}
+
+function normalizeTemperament(value: string) {
+  const raw = value.trim().toLowerCase();
+  if (!raw) return "";
+
+  const exact = TEMPERAMENT_OPTIONS.find((option) => option.toLowerCase() === raw);
+  if (exact) return exact;
+
+  if (raw.includes("calm")) return "Calm";
+  if (raw.includes("friendly")) return "Friendly";
+  if (raw.includes("gentle")) return "Gentle";
+  if (raw.includes("safe")) return "Safe";
+  if (raw.includes("confidence")) return "Confidence Giving";
+  if (raw.includes("forward")) return "Forward Going";
+  if (raw.includes("energetic") || raw.includes("energy")) return "Energetic";
+  if (raw.includes("playful")) return "Playful";
+  if (raw.includes("sensitive")) return "Sensitive";
+  if (raw.includes("sharp")) return "Sharp";
+  if (raw.includes("experienced")) return "Needs Experienced Rider";
+  if (raw.includes("lazy")) return "Lazy";
+  if (raw.includes("strong")) return "Strong";
+
+  return "Other";
 }
 
 function input(): React.CSSProperties {
@@ -114,10 +210,10 @@ export default function EditHorsePage() {
         setLat(h.lat == null ? "" : String(h.lat));
         setLng(h.lng == null ? "" : String(h.lng));
         setImageUrl(asString(h.image_url));
-        setBreed(asString(h.breed));
+        setBreed(normalizeBreed(asString(h.breed)));
         setAge(asString(h.age));
         setHeight(asString(h.height_hh ?? h.height));
-        setTemperament(asString(h.temperament));
+        setTemperament(normalizeTemperament(asString(h.temperament)));
         setDescription(asString(h.description));
         setIsActive(asBool(h.is_active, true));
       } catch (e: any) {
@@ -321,7 +417,14 @@ export default function EditHorsePage() {
 
           <div className="pmp-editHorse-grid2">
             <Field label="Breed">
-              <input value={breed} onChange={(e) => setBreed(e.target.value)} placeholder="Breed" style={input()} />
+              <select value={breed} onChange={(e) => setBreed(e.target.value)} style={input()}>
+                <option value="">Select breed</option>
+                {BREED_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Age">
               <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} />
@@ -333,7 +436,14 @@ export default function EditHorsePage() {
               <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
             </Field>
             <Field label="Temperament">
-              <input value={temperament} onChange={(e) => setTemperament(e.target.value)} placeholder="Calm, forward…" style={input()} />
+              <select value={temperament} onChange={(e) => setTemperament(e.target.value)} style={input()}>
+                <option value="">Select temperament</option>
+                {TEMPERAMENT_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </Field>
           </div>
 

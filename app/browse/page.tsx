@@ -56,6 +56,48 @@ type NextRange = {
 
 type SortMode = "newest" | "rating" | "name";
 
+const BREED_OPTIONS = [
+  "Arabian",
+  "Cob",
+  "Connemara",
+  "Clydesdale",
+  "Dutch Warmblood",
+  "Ex-Racehorse",
+  "Fell Pony",
+  "Friesian",
+  "Hackney",
+  "Highland Pony",
+  "Irish Draught",
+  "Irish Sport Horse",
+  "New Forest Pony",
+  "Shetland",
+  "Shire",
+  "Sports Horse",
+  "Thoroughbred",
+  "Warmblood",
+  "Welsh Pony",
+  "Welsh Section D",
+  "Other",
+] as const;
+
+const TEMPERAMENT_OPTIONS = [
+  "Calm",
+  "Friendly",
+  "Gentle",
+  "Safe",
+  "Confidence Giving",
+  "Forward Going",
+  "Energetic",
+  "Playful",
+  "Sensitive",
+  "Sharp",
+  "Needs Experienced Rider",
+  "Experienced Ride",
+  "Lazy",
+  "Strong",
+  "Other",
+] as const;
+
 function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -68,6 +110,60 @@ function isHorseActive(h: HorseRow) {
 
 function safeText(v: unknown) {
   return typeof v === "string" ? v.trim() : "";
+}
+
+function normalizeBreed(value: unknown) {
+  const raw = safeText(value).toLowerCase();
+  if (!raw) return "";
+
+  const exact = BREED_OPTIONS.find((option) => option.toLowerCase() === raw);
+  if (exact) return exact;
+
+  if (raw.includes("irish") && raw.includes("sport")) return "Irish Sport Horse";
+  if (raw.includes("irish") && raw.includes("draught")) return "Irish Draught";
+  if (raw.includes("welsh") && raw.includes("section d")) return "Welsh Section D";
+  if (raw.includes("welsh")) return "Welsh Pony";
+  if (raw.includes("sport")) return "Sports Horse";
+  if (raw.includes("warmblood")) return "Warmblood";
+  if (raw.includes("thoroughbred") || raw.includes("racehorse")) return raw.includes("ex") ? "Ex-Racehorse" : "Thoroughbred";
+  if (raw.includes("new forest")) return "New Forest Pony";
+  if (raw.includes("highland")) return "Highland Pony";
+  if (raw.includes("shetland")) return "Shetland";
+  if (raw.includes("shire")) return "Shire";
+  if (raw.includes("connemara")) return "Connemara";
+  if (raw.includes("friesian")) return "Friesian";
+  if (raw.includes("arabian")) return "Arabian";
+  if (raw.includes("cob")) return "Cob";
+  if (raw.includes("clydesdale")) return "Clydesdale";
+  if (raw.includes("hackney")) return "Hackney";
+  if (raw.includes("fell")) return "Fell Pony";
+  if (raw.includes("dutch")) return "Dutch Warmblood";
+
+  return "Other";
+}
+
+function normalizeTemperament(value: unknown) {
+  const raw = safeText(value).toLowerCase();
+  if (!raw) return "";
+
+  const exact = TEMPERAMENT_OPTIONS.find((option) => option.toLowerCase() === raw);
+  if (exact) return exact;
+
+  if (raw.includes("calm")) return "Calm";
+  if (raw.includes("friendly")) return "Friendly";
+  if (raw.includes("gentle")) return "Gentle";
+  if (raw.includes("safe")) return "Safe";
+  if (raw.includes("confidence")) return "Confidence Giving";
+  if (raw.includes("forward")) return "Forward Going";
+  if (raw.includes("energetic") || raw.includes("energy")) return "Energetic";
+  if (raw.includes("playful")) return "Playful";
+  if (raw.includes("sensitive")) return "Sensitive";
+  if (raw.includes("sharp")) return "Sharp";
+  if (raw.includes("experienced")) return "Needs Experienced Rider";
+  if (raw.includes("lazy")) return "Lazy";
+  if (raw.includes("strong")) return "Strong";
+
+  return "Other";
 }
 
 export default function BrowsePage() {
@@ -255,33 +351,29 @@ export default function BrowsePage() {
     return safeText(p?.display_name) || safeText(p?.full_name) || "Owner";
   }
 
-  const breedOptions = useMemo(() => {
-    const vals = Array.from(new Set(horses.map((h) => safeText(h.breed)).filter(Boolean)));
-    return vals.sort((a, b) => a.localeCompare(b));
-  }, [horses]);
-
-  const temperamentOptions = useMemo(() => {
-    const vals = Array.from(new Set(horses.map((h) => safeText(h.temperament)).filter(Boolean)));
-    return vals.sort((a, b) => a.localeCompare(b));
-  }, [horses]);
+  const breedOptions = BREED_OPTIONS.slice();
+  const temperamentOptions = TEMPERAMENT_OPTIONS.slice();
 
   const filteredHorses = useMemo(() => {
     const q = search.trim().toLowerCase();
 
     const filtered = horses.filter((horse) => {
+      const normalizedBreed = normalizeBreed(horse.breed);
+      const normalizedTemperament = normalizeTemperament(horse.temperament);
+
       const haystack = [
         horse.name ?? "",
         horse.location ?? "",
-        horse.breed ?? "",
-        horse.temperament ?? "",
+        normalizedBreed,
+        normalizedTemperament,
         ownerLabel(horse.owner_id),
       ]
         .join(" ")
         .toLowerCase();
 
       if (q && !haystack.includes(q)) return false;
-      if (breedFilter !== "all" && safeText(horse.breed) !== breedFilter) return false;
-      if (temperamentFilter !== "all" && safeText(horse.temperament) !== temperamentFilter) return false;
+      if (breedFilter !== "all" && normalizedBreed !== breedFilter) return false;
+      if (temperamentFilter !== "all" && normalizedTemperament !== temperamentFilter) return false;
       return true;
     });
 
@@ -481,6 +573,8 @@ export default function BrowsePage() {
                 const rating = ratingByOwnerId[horse.owner_id] ?? { avg: 0, count: 0 };
                 const hasRating = rating.count > 0;
                 const isOwnHorse = !!viewerId && horse.owner_id === viewerId;
+                const normalizedBreed = normalizeBreed(horse.breed);
+                const normalizedTemperament = normalizeTemperament(horse.temperament);
 
                 return (
                   <article key={horse.id} className="pmp-marketplaceCard">
@@ -505,8 +599,8 @@ export default function BrowsePage() {
                       </div>
 
                       <div className="pmp-inlineMeta" style={{ marginTop: 10 }}>
-                        {horse.breed ? <span>{horse.breed}</span> : null}
-                        {horse.temperament ? <span>• {horse.temperament}</span> : null}
+                        {normalizedBreed ? <span>{normalizedBreed}</span> : null}
+                        {normalizedTemperament ? <span>• {normalizedTemperament}</span> : null}
                         {typeof horse.age === "number" ? <span>• {horse.age} yrs</span> : null}
                       </div>
 
@@ -519,7 +613,7 @@ export default function BrowsePage() {
 
                       <div className="pmp-ownerLine">
                         Owner:{" "}
-                        <Link href={`/profile/${horse.owner_id}`} className="pmp-inlineLink">
+                        <Link href={`/owner/${horse.owner_id}`} className="pmp-inlineLink">
                           {ownerLabel(horse.owner_id)}
                         </Link>
                       </div>

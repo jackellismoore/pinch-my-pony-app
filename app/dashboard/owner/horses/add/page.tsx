@@ -15,6 +15,48 @@ const palette = {
 
 const STORAGE_BUCKET = "horses";
 
+const BREED_OPTIONS = [
+  "Arabian",
+  "Cob",
+  "Connemara",
+  "Clydesdale",
+  "Dutch Warmblood",
+  "Ex-Racehorse",
+  "Fell Pony",
+  "Friesian",
+  "Hackney",
+  "Highland Pony",
+  "Irish Draught",
+  "Irish Sport Horse",
+  "New Forest Pony",
+  "Shetland",
+  "Shire",
+  "Sports Horse",
+  "Thoroughbred",
+  "Warmblood",
+  "Welsh Pony",
+  "Welsh Section D",
+  "Other",
+] as const;
+
+const TEMPERAMENT_OPTIONS = [
+  "Calm",
+  "Friendly",
+  "Gentle",
+  "Safe",
+  "Confidence Giving",
+  "Forward Going",
+  "Energetic",
+  "Playful",
+  "Sensitive",
+  "Sharp",
+  "Needs Experienced Rider",
+  "Experienced Ride",
+  "Lazy",
+  "Strong",
+  "Other",
+] as const;
+
 const card: React.CSSProperties = {
   borderRadius: 22,
   border: "1px solid rgba(31,42,68,0.12)",
@@ -216,12 +258,26 @@ export default function AddHorsePage() {
             <div className="pmp-addHorse-grid2">
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
                 Breed (optional)
-                <input value={breed} onChange={(e) => setBreed(e.target.value)} style={input} placeholder="e.g. Irish Sport Horse" />
+                <select value={breed} onChange={(e) => setBreed(e.target.value)} style={input}>
+                  <option value="">Select breed</option>
+                  {BREED_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
                 Temperament (optional)
-                <input value={temperament} onChange={(e) => setTemperament(e.target.value)} style={input} placeholder="e.g. Calm and experienced" />
+                <select value={temperament} onChange={(e) => setTemperament(e.target.value)} style={input}>
+                  <option value="">Select temperament</option>
+                  {TEMPERAMENT_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
 
