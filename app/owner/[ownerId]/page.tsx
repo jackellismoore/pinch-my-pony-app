@@ -294,8 +294,15 @@ export default function OwnerPublicProfilePage() {
   return (
     <div style={pageWrap()}>
       <div style={container}>
-        {/* Top Bar */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
           <button onClick={() => router.push("/browse")} style={btn("secondary")}>
             ← Browse
           </button>
@@ -308,7 +315,9 @@ export default function OwnerPublicProfilePage() {
         </div>
 
         {loading ? (
-          <div style={{ marginTop: 14, ...card(), fontSize: 13, color: "rgba(31,42,68,0.70)" }}>Loading…</div>
+          <div style={{ marginTop: 14, ...card(), fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+            Loading…
+          </div>
         ) : null}
 
         {error ? (
@@ -327,12 +336,13 @@ export default function OwnerPublicProfilePage() {
         ) : null}
 
         {!loading && !error && !profile ? (
-          <div style={{ marginTop: 14, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>Owner not found.</div>
+          <div style={{ marginTop: 14, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+            Owner not found.
+          </div>
         ) : null}
 
         {!loading && profile ? (
           <>
-            {/* Profile Card */}
             <div style={{ marginTop: 14, ...card() }}>
               <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
                 <div
@@ -351,27 +361,67 @@ export default function OwnerPublicProfilePage() {
                   }}
                 >
                   {profile.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={profile.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <img
+                      src={profile.avatar_url}
+                      alt=""
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
                   ) : (
-                    <span style={{ fontSize: 16, color: "rgba(31,42,68,0.75)" }}>{initials(displayName)}</span>
+                    <span style={{ fontSize: 16, color: "rgba(31,42,68,0.75)" }}>
+                      {initials(displayName)}
+                    </span>
                   )}
                 </div>
 
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <h1 style={{ margin: 0, fontSize: 22, color: palette.navy }}>{displayName}</h1>
-                  <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>{subtitle}</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+                    {subtitle}
+                  </div>
 
-                  <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      display: "flex",
+                      gap: 10,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
                     <VerificationBadge
                       status={profile.verification_status ?? "unverified"}
                       verifiedAt={profile.verified_at ?? null}
                       provider={profile.verification_provider ?? null}
                       compact
                     />
+
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 900,
+                        color: ratingCount > 0 ? "rgba(110,75,0,0.95)" : "rgba(31,42,68,0.70)",
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                        border: "1px solid rgba(200,162,77,0.28)",
+                        background: "rgba(255,255,255,0.76)",
+                        boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
+                      }}
+                    >
+                      {ratingCount > 0
+                        ? `⭐ ${ratingAvg.toFixed(1)}/5 · ${ratingCount} review${ratingCount === 1 ? "" : "s"}`
+                        : "⭐ No reviews yet"}
+                    </div>
                   </div>
 
-                  <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                    }}
+                  >
                     <StarsReadOnly value={ratingCount > 0 ? Number(ratingAvg.toFixed(1)) : 0} size={18} />
                     <div style={{ fontSize: 13, color: "rgba(31,42,68,0.72)", fontWeight: 900 }}>
                       {ratingCount > 0 ? `${ratingAvg.toFixed(1)} (${ratingCount})` : "No reviews yet"}
@@ -403,7 +453,6 @@ export default function OwnerPublicProfilePage() {
               </div>
             </div>
 
-            {/* Listings */}
             <div style={{ marginTop: 18 }}>
               <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Available horses</div>
               <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
@@ -419,10 +468,22 @@ export default function OwnerPublicProfilePage() {
               <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
                 {horses.map((h) => (
                   <div key={h.id} style={card()}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 950, fontSize: 15, color: palette.navy }}>{h.name ?? "Horse"}</div>
-                        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>Status: Active</div>
+                        <div style={{ fontWeight: 950, fontSize: 15, color: palette.navy }}>
+                          {h.name ?? "Horse"}
+                        </div>
+                        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+                          Status: Active
+                        </div>
                       </div>
 
                       <Link href={`/request?horseId=${h.id}`} style={btn("primary")}>
@@ -434,7 +495,6 @@ export default function OwnerPublicProfilePage() {
               </div>
             </div>
 
-            {/* Reviews */}
             <div style={{ marginTop: 18 }}>
               <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Reviews</div>
               <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
@@ -442,23 +502,42 @@ export default function OwnerPublicProfilePage() {
               </div>
 
               {reviews.length === 0 ? (
-                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>No reviews yet.</div>
+                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
+                  No reviews yet.
+                </div>
               ) : (
                 <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
                   {reviews.map((r) => (
                     <div key={r.id} style={card()}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          alignItems: "flex-start",
+                        }}
+                      >
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 13, color: "rgba(31,42,68,0.72)", fontWeight: 900 }}>
                             {reviewerLabel(r.borrower_id)} · {fmtDate(r.created_at)}
                           </div>
 
                           {r.comment?.trim() ? (
-                            <div style={{ marginTop: 8, fontSize: 13, color: "rgba(31,42,68,0.88)", whiteSpace: "pre-wrap", lineHeight: 1.65 }}>
+                            <div
+                              style={{
+                                marginTop: 8,
+                                fontSize: 13,
+                                color: "rgba(31,42,68,0.88)",
+                                whiteSpace: "pre-wrap",
+                                lineHeight: 1.65,
+                              }}
+                            >
                               {r.comment}
                             </div>
                           ) : (
-                            <div style={{ marginTop: 8, fontSize: 13, color: "rgba(31,42,68,0.55)" }}>No comment.</div>
+                            <div style={{ marginTop: 8, fontSize: 13, color: "rgba(31,42,68,0.55)" }}>
+                              No comment.
+                            </div>
                           )}
                         </div>
 
@@ -472,7 +551,9 @@ export default function OwnerPublicProfilePage() {
               )}
 
               {reviews.length >= 50 ? (
-                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(31,42,68,0.55)" }}>Showing latest 50 reviews.</div>
+                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(31,42,68,0.55)" }}>
+                  Showing latest 50 reviews.
+                </div>
               ) : null}
             </div>
           </>
