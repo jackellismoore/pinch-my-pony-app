@@ -13,8 +13,10 @@ type EventType =
   | "booking_starts_today"
   | "booking_ends_tomorrow"
   | "pending_request_owner_reminder"
+  | "pending_request_owner_reminder_48h"
   | "review_left_for_owner"
-  | "review_reminder_borrower";
+  | "review_reminder_borrower"
+  | "review_reminder_borrower_48h";
 
 type RecipientRole = "owner" | "borrower";
 
@@ -274,7 +276,9 @@ async function buildNotificationCopy(
       payload.eventType === "booking_starts_today" ||
       payload.eventType === "booking_ends_tomorrow" ||
       payload.eventType === "pending_request_owner_reminder" ||
-      payload.eventType === "review_reminder_borrower") &&
+      payload.eventType === "pending_request_owner_reminder_48h" ||
+      payload.eventType === "review_reminder_borrower" ||
+      payload.eventType === "review_reminder_borrower_48h") &&
     payload.requestId
   ) {
     const request = await getBorrowRequestExpanded(admin, payload.requestId);
@@ -336,10 +340,24 @@ async function buildNotificationCopy(
       };
     }
 
+    if (payload.eventType === "pending_request_owner_reminder_48h") {
+      return {
+        title: `Still pending · ${horseName}`,
+        body: `${borrowerName} is still waiting for your decision after 48 hours.`,
+      };
+    }
+
     if (payload.eventType === "review_reminder_borrower") {
       return {
         title: `How was ${horseName}?`,
         body: "Your booking has ended — leave a quick review.",
+      };
+    }
+
+    if (payload.eventType === "review_reminder_borrower_48h") {
+      return {
+        title: `Still want to review ${horseName}?`,
+        body: "You can still leave a quick review for your completed booking.",
       };
     }
   }
