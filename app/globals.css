@@ -904,3 +904,9 @@ main {
     padding-bottom: calc(80px + env(safe-area-inset-bottom));
   }
 }
+
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
