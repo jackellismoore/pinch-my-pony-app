@@ -7,15 +7,31 @@ export const runtime = "nodejs";
 
 type Payload = {
   userId: string;
-  title: string;
-  body: string;
   url: string;
+  title?: string;
+  body?: string;
+  senderId?: string;
+  requestId?: string;
+  messageText?: string;
 };
 
 type PushRow = {
   endpoint: string;
   p256dh: string | null;
   auth: string | null;
+};
+
+type ProfileMini = {
+  display_name: string | null;
+  full_name: string | null;
+};
+
+type BorrowRequestMini = {
+  id: string;
+  horse_id: string | null;
+  horses: {
+    name: string | null;
+  } | null;
 };
 
 function base64url(input: Buffer | string) {
@@ -63,6 +79,53 @@ function createAppleJwt() {
   return `${unsigned}.${base64url(signature)}`;
 }
 
+function cleanMessagePreview(input: string) {
+  const collapsed = input.replace(/\s+/g, " ").trim();
+  if (collapsed.length <= 140) return collapsed;
+  return `${collapsed.slice(0, 137).trim()}...`;
+}
+
+function displayName(profile: ProfileMini | null) {
+  const dn = profile?.display_name?.trim();
+  if (dn) return dn;
+  const fn = profile?.full_name?.trim();
+  if (fn) return fn;
+  return "New message";
+}
+
+async function buildNotificationCopy(
+  admin: SupabaseClient,
+  payload: Payload
+): Promise<{ title: string; body: string }> {
+  if (payload.senderId && payload.requestId && payload.messageText) {
+    const [{ data: sender }, { data: request }] = await Promise.all([
+      admin
+        .from("profiles")
+        .select("display_name, full_name")
+        .eq("id", payload.senderId)
+        .maybeSingle<ProfileMini>(),
+      admin
+        .from("borrow_requests")
+        .select("id, horse_id, horses(name)")
+        .eq("id", payload.requestId)
+        .maybeSingle<BorrowRequestMini>(),
+    ]);
+
+    const senderName = displayName(sender ?? null);
+    const horseName = request?.horses?.name?.trim() || "your horse";
+
+    return {
+      title: `${senderName} · ${horseName}`,
+      body: cleanMessagePreview(payload.messageText),
+    };
+  }
+
+  return {
+    title: payload.title?.trim() || "New notification",
+    body: payload.body?.trim() || "You have a new update.",
+  };
+}
+
 async function sendApnsNotification({
   token,
   title,
@@ -103,6 +166,8 @@ async function sendApnsNotification({
         badge: 1,
       },
       url,
+      title,
+      body,
     });
 
     const req = client.request({
@@ -163,9 +228,9 @@ async function deleteBadSubscription(admin: SupabaseClient, endpoint: string) {
 
 export async function POST(req: Request) {
   try {
-    const { userId, title, body, url } = (await req.json()) as Payload;
+    const payload = (await req.json()) as Payload;
 
-    if (!userId || !title || !body || !url) {
+    if (!payload.userId || !payload.url) {
       return new Response("Missing required fields", { status: 400 });
     }
 
@@ -180,10 +245,12 @@ export async function POST(req: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    const copy = await buildNotificationCopy(admin, payload);
+
     const { data: subs, error } = await admin
       .from("push_subscriptions")
       .select("endpoint, p256dh, auth")
-      .eq("user_id", userId);
+      .eq("user_id", payload.userId);
 
     if (error) {
       console.error("[push] push_subscriptions select error:", error);
@@ -191,7 +258,6 @@ export async function POST(req: Request) {
     }
 
     if (!subs || subs.length === 0) {
-      console.warn("[push] no subscriptions found for user:", userId);
       return Response.json({
         ok: true,
         sent: 0,
@@ -220,13 +286,13 @@ export async function POST(req: Request) {
 
             await sendApnsNotification({
               token,
-              title,
-              body,
-              url,
+              title: copy.title,
+              body: copy.body,
+              url: payload.url,
             });
 
             return {
-              endpoint: s.endpoint.slice(0, 28) + "...",
+              endpoint: `${s.endpoint.slice(0, 28)}...`,
               type: "ios",
               ok: true,
             };
@@ -236,18 +302,22 @@ export async function POST(req: Request) {
             throw new Error("Incomplete web push subscription");
           }
 
-          const payload = JSON.stringify({ title, body, url });
+          const webPayload = JSON.stringify({
+            title: copy.title,
+            body: copy.body,
+            url: payload.url,
+          });
 
           await webpush.sendNotification(
             {
               endpoint: s.endpoint,
               keys: { p256dh: s.p256dh, auth: s.auth },
             },
-            payload
+            webPayload
           );
 
           return {
-            endpoint: s.endpoint.slice(0, 60) + "...",
+            endpoint: `${s.endpoint.slice(0, 60)}...`,
             type: "web",
             ok: true,
           };
@@ -269,7 +339,7 @@ export async function POST(req: Request) {
           }
 
           return {
-            endpoint: s.endpoint.slice(0, 60) + "...",
+            endpoint: `${s.endpoint.slice(0, 60)}...`,
             type: s.endpoint.startsWith("ios:") ? "ios" : "web",
             ok: false,
             error: message,
@@ -281,17 +351,12 @@ export async function POST(req: Request) {
     const sent = details.filter((d) => d.ok).length;
     const failed = details.length - sent;
 
-    console.log("[push] send completed:", {
-      userId,
-      sent,
-      failed,
-      details,
-    });
-
     return Response.json({
       ok: true,
       sent,
       failed,
+      title: copy.title,
+      body: copy.body,
       details,
     });
   } catch (e: any) {
