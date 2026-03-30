@@ -591,15 +591,16 @@ export default function MessageThreadPage() {
 
       clearPicked();
 
-      if (otherUserId && !otherOnline) {
+            if (otherUserId && !otherOnline) {
         fetch("/api/push/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId: otherUserId,
-            title: "New message",
-            body: text ? text : "Sent a photo",
             url: `/messages/${requestId}`,
+            senderId: myUserId,
+            requestId,
+            messageText: text ? text : "Sent a photo",
           }),
         }).catch(() => {});
       }
@@ -621,9 +622,10 @@ export default function MessageThreadPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: otherUserId,
-          title: "New message",
-          body: text,
           url: `/messages/${requestId}`,
+          senderId: myUserId,
+          requestId,
+          messageText: text,
         }),
       }).catch(() => {});
     }
