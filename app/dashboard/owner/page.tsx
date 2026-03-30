@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { AvailabilityBadge } from '@/components/AvailabilityBadge';
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { AvailabilityBadge } from "@/components/AvailabilityBadge";
 
 const palette = {
-  forest: '#1F3D2B',
-  navy: '#1F2A44',
+  forest: "#1F3D2B",
+  navy: "#1F2A44",
 };
 
 type HorseRow = { id: string; name: string | null };
@@ -29,8 +29,14 @@ type BookingRow = {
   end_date: string;
 };
 
+type ReviewRow = {
+  id: string;
+  owner_id: string | null;
+  rating: number | null;
+};
+
 type UnifiedRange = {
-  kind: 'blocked' | 'booking';
+  kind: "blocked" | "booking";
   horseId: string;
   startDate: string;
   endDate: string;
@@ -49,22 +55,22 @@ function todayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-const btn = (kind: 'primary' | 'secondary') =>
+const btn = (kind: "primary" | "secondary") =>
   ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    padding: '10px 14px',
+    padding: "10px 14px",
     borderRadius: 14,
-    textDecoration: 'none',
+    textDecoration: "none",
     fontSize: 13,
     fontWeight: 950,
-    whiteSpace: 'nowrap',
-    border: '1px solid rgba(31,42,68,0.16)',
-    background: kind === 'primary' ? `linear-gradient(180deg, ${palette.forest}, #173223)` : 'rgba(255,255,255,0.72)',
-    color: kind === 'primary' ? 'white' : palette.navy,
-    boxShadow: kind === 'primary' ? '0 14px 34px rgba(31,61,43,0.18)' : '0 14px 34px rgba(31,42,68,0.08)',
+    whiteSpace: "nowrap",
+    border: "1px solid rgba(31,42,68,0.16)",
+    background: kind === "primary" ? `linear-gradient(180deg, ${palette.forest}, #173223)` : "rgba(255,255,255,0.72)",
+    color: kind === "primary" ? "white" : palette.navy,
+    boxShadow: kind === "primary" ? "0 14px 34px rgba(31,61,43,0.18)" : "0 14px 34px rgba(31,42,68,0.08)",
     minHeight: 44,
   }) as React.CSSProperties;
 
@@ -75,6 +81,7 @@ export default function OwnerDashboardOverview() {
   const [horses, setHorses] = useState<HorseRow[]>([]);
   const [ranges, setRanges] = useState<UnifiedRange[]>([]);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
+  const [reviews, setReviews] = useState<ReviewRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,26 +97,36 @@ export default function OwnerDashboardOverview() {
         } = await supabase.auth.getUser();
 
         if (userErr) throw userErr;
-        if (!user) throw new Error('Not authenticated');
+        if (!user) throw new Error("Not authenticated");
 
-        const [horsesRes, profileRes] = await Promise.all([
+        const [horsesRes, profileRes, reviewsRes] = await Promise.all([
           supabase
-            .from('horses')
-            .select('id,name')
-            .eq('owner_id', user.id)
-            .order('created_at', { ascending: false }),
+            .from("horses")
+            .select("id,name")
+            .eq("owner_id", user.id)
+            .order("created_at", { ascending: false }),
           supabase
-            .from('profiles')
-            .select('verification_status,avatar_url,bio,location')
-            .eq('id', user.id)
+            .from("profiles")
+            .select("verification_status,avatar_url,bio,location")
+            .eq("id", user.id)
             .maybeSingle(),
+          supabase
+            .from("reviews")
+            .select("id,owner_id,rating")
+            .eq("owner_id", user.id),
         ]);
 
         if (horsesRes.error) throw horsesRes.error;
+        if (reviewsRes.error) throw reviewsRes.error;
+
         const horseRows = (horsesRes.data ?? []) as HorseRow[];
+        const reviewRows = (reviewsRes.data ?? []) as ReviewRow[];
+
         if (cancelled) return;
+
         setHorses(horseRows);
         setProfile((profileRes.data ?? null) as ProfileMini | null);
+        setReviews(reviewRows);
 
         const horseIds = horseRows.map((h) => h.id);
         if (horseIds.length === 0) {
@@ -122,23 +139,23 @@ export default function OwnerDashboardOverview() {
 
         const [blocksRes, bookingsRes] = await Promise.all([
           supabase
-            .from('horse_unavailability')
-            .select('id,horse_id,start_date,end_date,reason')
-            .in('horse_id', horseIds)
-            .not('start_date', 'is', null)
-            .not('end_date', 'is', null)
-            .gte('end_date', today)
-            .order('start_date', { ascending: true }),
+            .from("horse_unavailability")
+            .select("id,horse_id,start_date,end_date,reason")
+            .in("horse_id", horseIds)
+            .not("start_date", "is", null)
+            .not("end_date", "is", null)
+            .gte("end_date", today)
+            .order("start_date", { ascending: true }),
 
           supabase
-            .from('borrow_requests')
-            .select('id,horse_id,start_date,end_date,status')
-            .in('horse_id', horseIds)
-            .eq('status', 'approved')
-            .not('start_date', 'is', null)
-            .not('end_date', 'is', null)
-            .gte('end_date', today)
-            .order('start_date', { ascending: true }),
+            .from("borrow_requests")
+            .select("id,horse_id,start_date,end_date,status")
+            .in("horse_id", horseIds)
+            .eq("status", "approved")
+            .not("start_date", "is", null)
+            .not("end_date", "is", null)
+            .gte("end_date", today)
+            .order("start_date", { ascending: true }),
         ]);
 
         if (cancelled) return;
@@ -151,19 +168,19 @@ export default function OwnerDashboardOverview() {
 
         const unified: UnifiedRange[] = [
           ...blocks.map((b) => ({
-            kind: 'blocked' as const,
+            kind: "blocked" as const,
             horseId: b.horse_id,
             startDate: b.start_date,
             endDate: b.end_date,
-            label: b.reason?.trim() ? b.reason.trim() : 'Blocked',
+            label: b.reason?.trim() ? b.reason.trim() : "Blocked",
             sourceId: b.id,
           })),
           ...bookings.map((br) => ({
-            kind: 'booking' as const,
+            kind: "booking" as const,
             horseId: br.horse_id,
             startDate: br.start_date,
             endDate: br.end_date,
-            label: 'Approved booking',
+            label: "Approved booking",
             sourceId: br.id,
           })),
         ].sort((a, b) => a.startDate.localeCompare(b.startDate));
@@ -171,8 +188,11 @@ export default function OwnerDashboardOverview() {
         setRanges(unified);
         setLoading(false);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? 'Failed to load overview.');
-        if (!cancelled) setRanges([]);
+        if (!cancelled) setError(e?.message ?? "Failed to load overview.");
+        if (!cancelled) {
+          setRanges([]);
+          setReviews([]);
+        }
         setLoading(false);
       }
     }
@@ -185,43 +205,57 @@ export default function OwnerDashboardOverview() {
 
   const horseNameById = useMemo(() => {
     const m = new Map<string, string>();
-    for (const h of horses) m.set(h.id, h.name ?? 'Horse');
+    for (const h of horses) m.set(h.id, h.name ?? "Horse");
     return m;
   }, [horses]);
 
   const upcoming = useMemo(() => ranges.slice(0, 8), [ranges]);
-  const bookingCount = useMemo(() => ranges.filter((r) => r.kind === 'booking').length, [ranges]);
-  const blockedCount = useMemo(() => ranges.filter((r) => r.kind === 'blocked').length, [ranges]);
+  const bookingCount = useMemo(() => ranges.filter((r) => r.kind === "booking").length, [ranges]);
+  const blockedCount = useMemo(() => ranges.filter((r) => r.kind === "blocked").length, [ranges]);
+  const reviewCount = useMemo(() => reviews.length, [reviews]);
+
+  const averageRating = useMemo(() => {
+    const valid = reviews
+      .map((r) => Number(r.rating))
+      .filter((n) => Number.isFinite(n) && n > 0);
+
+    if (valid.length === 0) return null;
+    const avg = valid.reduce((sum, n) => sum + n, 0) / valid.length;
+    return avg.toFixed(1);
+  }, [reviews]);
 
   const trustChecks = useMemo(() => {
-    const isVerified = String(profile?.verification_status ?? '').toLowerCase() === 'verified';
+    const isVerified = String(profile?.verification_status ?? "").toLowerCase() === "verified";
     return [
-      { label: 'Verification complete', done: isVerified },
-      { label: 'Profile photo added', done: Boolean(profile?.avatar_url) },
-      { label: 'Location added', done: Boolean(profile?.location) },
-      { label: 'Bio added', done: Boolean(profile?.bio) },
+      { label: "Verification complete", done: isVerified },
+      { label: "Profile photo added", done: Boolean(profile?.avatar_url) },
+      { label: "Location added", done: Boolean(profile?.location) },
+      { label: "Bio added", done: Boolean(profile?.bio) },
     ];
   }, [profile]);
 
   return (
     <div className="pmp-pageShell">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <div>
           <div className="pmp-kicker">Owner dashboard</div>
           <h1 className="pmp-pageTitle">Owner Overview</h1>
           <div className="pmp-mutedText" style={{ marginTop: 6 }}>
-            Upcoming blocks and approved bookings across your horses.
+            Upcoming blocks, approved bookings, and owner reviews.
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <Link href="/dashboard/owner/horses" style={btn('secondary')}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <Link href="/dashboard/owner/horses" style={btn("secondary")}>
             Horses
           </Link>
-          <Link href="/dashboard/owner/requests" style={btn('secondary')}>
+          <Link href="/dashboard/owner/requests" style={btn("secondary")}>
             Requests
           </Link>
-          <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
+          <Link href="/dashboard/owner/reviews" style={btn("secondary")}>
+            Reviews
+          </Link>
+          <Link href="/dashboard/owner/horses/add" style={btn("primary")}>
             Add a horse →
           </Link>
         </div>
@@ -244,9 +278,10 @@ export default function OwnerDashboardOverview() {
         </article>
 
         <article className="pmp-statCard">
-          <div className="pmp-statLabel">Trust readiness</div>
+          <div className="pmp-statLabel">Reviews</div>
+          <div className="pmp-statValue">{reviewCount}</div>
           <div className="pmp-mutedText" style={{ marginTop: 10 }}>
-            Keep your profile and listings complete to improve borrower confidence.
+            {averageRating ? `Average rating ${averageRating}/5` : "No reviews yet"}
           </div>
         </article>
       </section>
@@ -260,6 +295,14 @@ export default function OwnerDashboardOverview() {
           <div>
             <div className="pmp-actionTitle">Add another horse</div>
             <div className="pmp-actionText">Grow your marketplace presence with another listing.</div>
+          </div>
+        </Link>
+
+        <Link href="/dashboard/owner/reviews" className="pmp-actionCard">
+          <div className="pmp-actionIcon">⭐</div>
+          <div>
+            <div className="pmp-actionTitle">Reviews</div>
+            <div className="pmp-actionText">See what borrowers have said about their experience.</div>
           </div>
         </Link>
 
@@ -284,11 +327,11 @@ export default function OwnerDashboardOverview() {
           {trustChecks.map((item) => (
             <div key={item.label} className="pmp-horseRowCard">
               <div className="pmp-horseRowMain">
-                <div className="pmp-horseThumb">{item.done ? '✅' : '⬜'}</div>
+                <div className="pmp-horseThumb">{item.done ? "✅" : "⬜"}</div>
                 <div className="pmp-horseRowText">
                   <h4 className="pmp-horseName">{item.label}</h4>
                   <div className="pmp-mutedText">
-                    {item.done ? 'Completed' : 'Still worth adding to improve trust and conversion.'}
+                    {item.done ? "Completed" : "Still worth adding to improve trust and conversion."}
                   </div>
                 </div>
               </div>
@@ -311,7 +354,7 @@ export default function OwnerDashboardOverview() {
             <h3 className="pmp-sectionTitle">Your next dates</h3>
           </div>
           <div className="pmp-mutedText">
-            {ranges.length} upcoming range{ranges.length === 1 ? '' : 's'}
+            {ranges.length} upcoming range{ranges.length === 1 ? "" : "s"}
           </div>
         </div>
 
@@ -332,19 +375,22 @@ export default function OwnerDashboardOverview() {
               <div
                 key={`${r.kind}-${r.sourceId}`}
                 className="pmp-horseRowCard"
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}
               >
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <AvailabilityBadge label={r.kind === 'blocked' ? 'Blocked' : 'Booking'} tone={r.kind === 'blocked' ? 'warn' : 'info'} />
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <AvailabilityBadge
+                      label={r.kind === "blocked" ? "Blocked" : "Booking"}
+                      tone={r.kind === "blocked" ? "warn" : "info"}
+                    />
                     <div style={{ fontWeight: 950, color: palette.navy }}>
-                      {horseNameById.get(r.horseId) ?? 'Horse'}
+                      {horseNameById.get(r.horseId) ?? "Horse"}
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 8, fontSize: 13, color: 'rgba(0,0,0,0.70)' }}>
+                  <div style={{ marginTop: 8, fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
                     <span style={{ fontWeight: 900 }}>{r.startDate}</span> → <span style={{ fontWeight: 900 }}>{r.endDate}</span>
-                    {' — '}
+                    {" — "}
                     {r.label}
                   </div>
                 </div>

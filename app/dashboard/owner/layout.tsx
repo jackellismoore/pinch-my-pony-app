@@ -35,7 +35,11 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
         return;
       }
 
-      const { data, error } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
 
       if (cancelled) return;
 
@@ -65,7 +69,10 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
   if (!authorized) return null;
 
   function NavLink({ href, label }: { href: string; label: string }) {
-    const active = href === "/dashboard/owner" ? pathname === href : pathname === href || pathname.startsWith(href + "/");
+    const active =
+      href === "/dashboard/owner"
+        ? pathname === href
+        : pathname === href || pathname.startsWith(href + "/");
 
     return (
       <Link
@@ -110,7 +117,6 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
           alignItems: "start",
         }}
       >
-        {/* SIDEBAR */}
         <aside
           style={{
             position: "sticky",
@@ -128,7 +134,7 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
           <div style={{ padding: "6px 6px 2px" }}>
             <div style={{ fontSize: 16, fontWeight: 950, color: palette.navy }}>Owner Dashboard</div>
             <div style={{ marginTop: 6, fontSize: 13, opacity: 0.72, lineHeight: 1.5 }}>
-              Manage listings, requests, and availability.
+              Manage listings, requests, reviews, and availability.
             </div>
           </div>
 
@@ -136,7 +142,8 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
             <NavLink href="/dashboard/owner" label="Overview" />
             <NavLink href="/dashboard/owner/horses" label="Horses" />
             <NavLink href="/dashboard/owner/requests" label="Requests" />
-            <NavLink href="/dashboard/membership" label="Memberships" /> {/* ✅ NEW */}
+            <NavLink href="/dashboard/owner/reviews" label="Reviews" />
+            <NavLink href="/dashboard/membership" label="Memberships" />
           </div>
 
           <div style={{ height: 1, background: "rgba(31,42,68,0.10)", margin: "4px 0" }} />
@@ -200,7 +207,6 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
           </div>
         </aside>
 
-        {/* CONTENT */}
         <main
           style={{
             borderRadius: 22,
