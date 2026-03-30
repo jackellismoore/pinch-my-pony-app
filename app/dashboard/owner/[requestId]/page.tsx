@@ -147,14 +147,31 @@ export default function OwnerRequestDetailPage() {
   const canAct = status === "pending";
 
   const approve = async () => {
-    if (!requestId || !canAct) return;
+    if (!requestId || !canAct || !req?.borrower_id) return;
     setBusy(true);
     setError(null);
 
     try {
-      const { error: uErr } = await supabase.from("borrow_requests").update({ status: "approved" }).eq("id", requestId);
+      const { error: uErr } = await supabase
+        .from("borrow_requests")
+        .update({ status: "approved" })
+        .eq("id", requestId);
+
       if (uErr) throw uErr;
+
       setReq((prev) => (prev ? { ...prev, status: "approved" } : prev));
+
+      fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: req.borrower_id,
+          url: "/dashboard/borrower",
+          eventType: "borrow_request_status_changed",
+          requestId,
+          status: "approved",
+        }),
+      }).catch(() => {});
     } catch (e: any) {
       setError(e?.message ?? "Failed to approve request.");
     } finally {
@@ -163,14 +180,31 @@ export default function OwnerRequestDetailPage() {
   };
 
   const reject = async () => {
-    if (!requestId || !canAct) return;
+    if (!requestId || !canAct || !req?.borrower_id) return;
     setBusy(true);
     setError(null);
 
     try {
-      const { error: uErr } = await supabase.from("borrow_requests").update({ status: "rejected" }).eq("id", requestId);
+      const { error: uErr } = await supabase
+        .from("borrow_requests")
+        .update({ status: "rejected" })
+        .eq("id", requestId);
+
       if (uErr) throw uErr;
+
       setReq((prev) => (prev ? { ...prev, status: "rejected" } : prev));
+
+      fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: req.borrower_id,
+          url: "/dashboard/borrower",
+          eventType: "borrow_request_status_changed",
+          requestId,
+          status: "rejected",
+        }),
+      }).catch(() => {});
     } catch (e: any) {
       setError(e?.message ?? "Failed to reject request.");
     } finally {

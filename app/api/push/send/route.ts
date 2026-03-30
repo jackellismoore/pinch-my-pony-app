@@ -8,11 +8,16 @@ export const runtime = "nodejs";
 type Payload = {
   userId: string;
   url: string;
+
   title?: string;
   body?: string;
+
   senderId?: string;
   requestId?: string;
   messageText?: string;
+
+  eventType?: "message" | "borrow_request_created" | "borrow_request_status_changed";
+  status?: "pending" | "approved" | "rejected";
 };
 
 type PushRow = {
@@ -22,15 +27,30 @@ type PushRow = {
 };
 
 type ProfileMini = {
+  id?: string;
   display_name: string | null;
   full_name: string | null;
 };
 
-type BorrowRequestMini = {
+type BorrowRequestForMessage = {
   id: string;
   horse_id: string | null;
   horses: {
     name: string | null;
+  } | null;
+};
+
+type BorrowRequestForRequestEvent = {
+  id: string;
+  horse_id: string | null;
+  borrower_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: string | null;
+  horses: {
+    id?: string | null;
+    name: string | null;
+    owner_id?: string | null;
   } | null;
 };
 
@@ -79,36 +99,51 @@ function createAppleJwt() {
   return `${unsigned}.${base64url(signature)}`;
 }
 
-function cleanMessagePreview(input: string) {
+function cleanPreview(input: string) {
   const collapsed = input.replace(/\s+/g, " ").trim();
   if (collapsed.length <= 140) return collapsed;
   return `${collapsed.slice(0, 137).trim()}...`;
 }
 
-function displayName(profile: ProfileMini | null) {
+function displayName(profile: ProfileMini | null | undefined) {
   const dn = profile?.display_name?.trim();
   if (dn) return dn;
   const fn = profile?.full_name?.trim();
   if (fn) return fn;
-  return "New message";
+  return "Someone";
+}
+
+function formatDateShort(input: string | null | undefined) {
+  if (!input) return "Unknown date";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return String(input).slice(0, 10);
+  return d.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
 }
 
 async function buildNotificationCopy(
   admin: SupabaseClient,
   payload: Payload
 ): Promise<{ title: string; body: string }> {
-  if (payload.senderId && payload.requestId && payload.messageText) {
+  if (
+    (payload.eventType === "message" || (!payload.eventType && payload.senderId && payload.requestId && payload.messageText)) &&
+    payload.senderId &&
+    payload.requestId &&
+    payload.messageText
+  ) {
     const [{ data: sender }, { data: request }] = await Promise.all([
       admin
         .from("profiles")
-        .select("display_name, full_name")
+        .select("id, display_name, full_name")
         .eq("id", payload.senderId)
         .maybeSingle<ProfileMini>(),
       admin
         .from("borrow_requests")
         .select("id, horse_id, horses(name)")
         .eq("id", payload.requestId)
-        .maybeSingle<BorrowRequestMini>(),
+        .maybeSingle<BorrowRequestForMessage>(),
     ]);
 
     const senderName = displayName(sender ?? null);
@@ -116,7 +151,64 @@ async function buildNotificationCopy(
 
     return {
       title: `${senderName} · ${horseName}`,
-      body: cleanMessagePreview(payload.messageText),
+      body: cleanPreview(payload.messageText),
+    };
+  }
+
+  if (payload.eventType === "borrow_request_created" && payload.requestId) {
+    const { data: request } = await admin
+      .from("borrow_requests")
+      .select("id, horse_id, borrower_id, start_date, end_date, status, horses(id, name, owner_id)")
+      .eq("id", payload.requestId)
+      .maybeSingle<BorrowRequestForRequestEvent>();
+
+    let borrowerName = "Someone";
+    if (request?.borrower_id) {
+      const { data: borrower } = await admin
+        .from("profiles")
+        .select("id, display_name, full_name")
+        .eq("id", request.borrower_id)
+        .maybeSingle<ProfileMini>();
+      borrowerName = displayName(borrower ?? null);
+    }
+
+    const horseName = request?.horses?.name?.trim() || "your horse";
+    const start = formatDateShort(request?.start_date);
+    const end = formatDateShort(request?.end_date);
+
+    return {
+      title: `New borrow request · ${horseName}`,
+      body: `${borrowerName} requested ${start} to ${end}`,
+    };
+  }
+
+  if (payload.eventType === "borrow_request_status_changed" && payload.requestId) {
+    const { data: request } = await admin
+      .from("borrow_requests")
+      .select("id, horse_id, borrower_id, start_date, end_date, status, horses(id, name, owner_id)")
+      .eq("id", payload.requestId)
+      .maybeSingle<BorrowRequestForRequestEvent>();
+
+    const horseName = request?.horses?.name?.trim() || "your horse";
+    const status = (payload.status || request?.status || "pending").toLowerCase();
+
+    if (status === "approved") {
+      return {
+        title: `Borrow request accepted · ${horseName}`,
+        body: "Your request was approved.",
+      };
+    }
+
+    if (status === "rejected") {
+      return {
+        title: `Borrow request declined · ${horseName}`,
+        body: "Your request was declined.",
+      };
+    }
+
+    return {
+      title: `Borrow request updated · ${horseName}`,
+      body: `Status: ${status}`,
     };
   }
 

@@ -233,19 +233,36 @@ export default function RequestForm({
         return;
       }
 
-      const { error } = await supabase.from("borrow_requests").insert({
-        horse_id: horseId,
-        borrower_id: user.id,
-        status: "pending",
-        start_date: startDate,
-        end_date: endDate,
-        message: message?.trim() ? message.trim() : null,
-      });
+      const { data: inserted, error } = await supabase
+        .from("borrow_requests")
+        .insert({
+          horse_id: horseId,
+          borrower_id: user.id,
+          status: "pending",
+          start_date: startDate,
+          end_date: endDate,
+          message: message?.trim() ? message.trim() : null,
+        })
+        .select("id")
+        .single();
 
       if (error) {
         setSubmitError(error.message);
         setSubmitting(false);
         return;
+      }
+
+      if (horseOwnerId && inserted?.id) {
+        fetch("/api/push/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: horseOwnerId,
+            url: "/dashboard/owner/requests",
+            eventType: "borrow_request_created",
+            requestId: inserted.id,
+          }),
+        }).catch(() => {});
       }
 
       onSuccess?.();
