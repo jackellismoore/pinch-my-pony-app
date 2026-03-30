@@ -12,9 +12,11 @@ type EventType =
   | "booking_starts_tomorrow"
   | "booking_starts_today"
   | "booking_ends_tomorrow"
-  | "owner_booking_starts_tomorrow"
-  | "owner_booking_starts_today"
-  | "owner_booking_ends_tomorrow";
+  | "pending_request_owner_reminder"
+  | "review_left_for_owner"
+  | "review_reminder_borrower";
+
+type RecipientRole = "owner" | "borrower";
 
 type Payload = {
   userId: string;
@@ -29,6 +31,8 @@ type Payload = {
 
   eventType?: EventType;
   status?: "pending" | "approved" | "rejected";
+
+  recipientRole?: RecipientRole;
 };
 
 type PushRow = {
@@ -51,18 +55,30 @@ type BorrowRequestForMessage = {
   } | null;
 };
 
-type BorrowRequestForRequestEvent = {
+type BorrowRequestExpanded = {
   id: string;
   horse_id: string | null;
   borrower_id: string | null;
   start_date: string | null;
   end_date: string | null;
   status: string | null;
+  created_at?: string | null;
   horses: {
     id?: string | null;
     name: string | null;
     owner_id?: string | null;
   } | null;
+};
+
+type ReviewMini = {
+  id: string;
+  request_id?: string | null;
+  borrower_id: string | null;
+  owner_id: string | null;
+  horse_id: string | null;
+  rating: number | null;
+  comment: string | null;
+  created_at?: string | null;
 };
 
 function base64url(input: Buffer | string) {
@@ -134,19 +150,47 @@ function formatDateShort(input: string | null | undefined) {
   });
 }
 
-async function getRequestWithHorse(
+async function getProfile(
   admin: SupabaseClient,
-  requestId: string
-): Promise<BorrowRequestForRequestEvent | null> {
+  userId: string | null | undefined
+): Promise<ProfileMini | null> {
+  if (!userId) return null;
+
   const { data } = await admin
-    .from("borrow_requests")
-    .select(
-      "id, horse_id, borrower_id, start_date, end_date, status, horses(id, name, owner_id)"
-    )
-    .eq("id", requestId)
-    .maybeSingle<BorrowRequestForRequestEvent>();
+    .from("profiles")
+    .select("id, display_name, full_name")
+    .eq("id", userId)
+    .maybeSingle<ProfileMini>();
 
   return data ?? null;
+}
+
+async function getBorrowRequestExpanded(
+  admin: SupabaseClient,
+  requestId: string
+): Promise<BorrowRequestExpanded | null> {
+  const { data } = await admin
+    .from("borrow_requests")
+    .select("id, horse_id, borrower_id, start_date, end_date, status, created_at, horses(id, name, owner_id)")
+    .eq("id", requestId)
+    .maybeSingle<BorrowRequestExpanded>();
+
+  return data ?? null;
+}
+
+async function getLatestReviewForRequest(
+  admin: SupabaseClient,
+  requestId: string
+): Promise<ReviewMini | null> {
+  const { data } = await admin
+    .from("reviews")
+    .select("id, request_id, borrower_id, owner_id, horse_id, rating, comment, created_at")
+    .eq("request_id", requestId)
+    .order("id", { ascending: false })
+    .limit(1);
+
+  const rows = (data ?? []) as ReviewMini[];
+  return rows[0] ?? null;
 }
 
 async function buildNotificationCopy(
@@ -186,18 +230,10 @@ async function buildNotificationCopy(
   }
 
   if (payload.eventType === "borrow_request_created" && payload.requestId) {
-    const request = await getRequestWithHorse(admin, payload.requestId);
+    const request = await getBorrowRequestExpanded(admin, payload.requestId);
 
-    let borrowerName = "Someone";
-    if (request?.borrower_id) {
-      const { data: borrower } = await admin
-        .from("profiles")
-        .select("id, display_name, full_name")
-        .eq("id", request.borrower_id)
-        .maybeSingle<ProfileMini>();
-      borrowerName = displayName(borrower ?? null);
-    }
-
+    const borrower = await getProfile(admin, request?.borrower_id);
+    const borrowerName = displayName(borrower ?? null);
     const horseName = request?.horses?.name?.trim() || "your horse";
     const start = formatDateShort(request?.start_date);
     const end = formatDateShort(request?.end_date);
@@ -209,7 +245,7 @@ async function buildNotificationCopy(
   }
 
   if (payload.eventType === "borrow_request_status_changed" && payload.requestId) {
-    const request = await getRequestWithHorse(admin, payload.requestId);
+    const request = await getBorrowRequestExpanded(admin, payload.requestId);
     const horseName = request?.horses?.name?.trim() || "your horse";
     const status = (payload.status || request?.status || "pending").toLowerCase();
 
@@ -234,67 +270,102 @@ async function buildNotificationCopy(
   }
 
   if (
-    payload.requestId &&
-    [
-      "booking_starts_tomorrow",
-      "booking_starts_today",
-      "booking_ends_tomorrow",
-      "owner_booking_starts_tomorrow",
-      "owner_booking_starts_today",
-      "owner_booking_ends_tomorrow",
-    ].includes(payload.eventType ?? "")
+    (payload.eventType === "booking_starts_tomorrow" ||
+      payload.eventType === "booking_starts_today" ||
+      payload.eventType === "booking_ends_tomorrow" ||
+      payload.eventType === "pending_request_owner_reminder" ||
+      payload.eventType === "review_reminder_borrower") &&
+    payload.requestId
   ) {
-    const request = await getRequestWithHorse(admin, payload.requestId);
+    const request = await getBorrowRequestExpanded(admin, payload.requestId);
+
+    const borrower = await getProfile(admin, request?.borrower_id);
+    const borrowerName = displayName(borrower ?? null);
+
     const horseName = request?.horses?.name?.trim() || "your horse";
     const start = formatDateShort(request?.start_date);
     const end = formatDateShort(request?.end_date);
-    const isOwnerEvent = String(payload.eventType).startsWith("owner_");
+    const role = payload.recipientRole || "borrower";
 
-    switch (payload.eventType) {
-      case "booking_starts_tomorrow":
-        return {
-          title: `Ride starts tomorrow · ${horseName}`,
-          body: `Your approved booking starts tomorrow (${start}).`,
-        };
-
-      case "booking_starts_today":
-        return {
-          title: `Ride starts today · ${horseName}`,
-          body: `Your approved booking starts today (${start}).`,
-        };
-
-      case "booking_ends_tomorrow":
-        return {
-          title: `Ride ends tomorrow · ${horseName}`,
-          body: `Your booking for ${horseName} ends tomorrow (${end}).`,
-        };
-
-      case "owner_booking_starts_tomorrow":
+    if (payload.eventType === "booking_starts_tomorrow") {
+      if (role === "owner") {
         return {
           title: `Booking starts tomorrow · ${horseName}`,
-          body: `An approved booking for ${horseName} starts tomorrow (${start}).`,
+          body: `${borrowerName}'s approved booking starts tomorrow (${start} to ${end}).`,
         };
+      }
 
-      case "owner_booking_starts_today":
+      return {
+        title: `Ride starts tomorrow · ${horseName}`,
+        body: `Your approved booking starts tomorrow (${start} to ${end}).`,
+      };
+    }
+
+    if (payload.eventType === "booking_starts_today") {
+      if (role === "owner") {
         return {
           title: `Booking starts today · ${horseName}`,
-          body: `An approved booking for ${horseName} starts today (${start}).`,
+          body: `${borrowerName}'s approved booking starts today (${start} to ${end}).`,
         };
+      }
 
-      case "owner_booking_ends_tomorrow":
+      return {
+        title: `Ride starts today · ${horseName}`,
+        body: `Your approved booking starts today.`,
+      };
+    }
+
+    if (payload.eventType === "booking_ends_tomorrow") {
+      if (role === "owner") {
         return {
           title: `Booking ends tomorrow · ${horseName}`,
-          body: `An approved booking for ${horseName} ends tomorrow (${end}).`,
+          body: `${borrowerName}'s booking ends tomorrow.`,
         };
+      }
 
-      default:
-        return {
-          title: isOwnerEvent
-            ? `Booking update · ${horseName}`
-            : `Ride update · ${horseName}`,
-          body: "You have a booking update.",
-        };
+      return {
+        title: `Ride ends tomorrow · ${horseName}`,
+        body: `Your approved booking for ${horseName} ends tomorrow.`,
+      };
     }
+
+    if (payload.eventType === "pending_request_owner_reminder") {
+      return {
+        title: `Pending borrow request · ${horseName}`,
+        body: `${borrowerName} is still waiting for your decision (${start} to ${end}).`,
+      };
+    }
+
+    if (payload.eventType === "review_reminder_borrower") {
+      return {
+        title: `How was ${horseName}?`,
+        body: "Your booking has ended — leave a quick review.",
+      };
+    }
+  }
+
+  if (payload.eventType === "review_left_for_owner" && payload.requestId) {
+    const [request, review] = await Promise.all([
+      getBorrowRequestExpanded(admin, payload.requestId),
+      getLatestReviewForRequest(admin, payload.requestId),
+    ]);
+
+    const horseName = request?.horses?.name?.trim() || "your horse";
+    const borrower = await getProfile(admin, review?.borrower_id || request?.borrower_id);
+    const borrowerName = displayName(borrower ?? null);
+    const rating = Number(review?.rating ?? 0);
+
+    if (review?.comment?.trim()) {
+      return {
+        title: `New review · ${horseName}`,
+        body: `${borrowerName}: ${cleanPreview(review.comment.trim())}`,
+      };
+    }
+
+    return {
+      title: `New review · ${horseName}`,
+      body: `${borrowerName} left a ${rating || 5}/5 review.`,
+    };
   }
 
   return {
@@ -333,7 +404,7 @@ async function sendApnsNotification({
       reject(err);
     });
 
-    const payload = JSON.stringify({
+    const pushPayload = JSON.stringify({
       aps: {
         alert: {
           title,
@@ -390,9 +461,31 @@ async function sendApnsNotification({
       reject(err);
     });
 
-    req.write(payload);
+    req.write(pushPayload);
     req.end();
   });
+}
+
+function shouldDeleteSubscription(endpoint: string, message: string) {
+  if (!endpoint) return false;
+
+  const normalized = String(message || "");
+
+  if (!endpoint.startsWith("ios:")) {
+    return (
+      normalized.includes("410") ||
+      normalized.includes("Expiration") ||
+      normalized.includes("expired") ||
+      normalized.includes("unsubscribed")
+    );
+  }
+
+  return (
+    normalized.includes("BadDeviceToken") ||
+    normalized.includes("Unregistered") ||
+    normalized.includes("DeviceTokenNotForTopic") ||
+    normalized.includes("410")
+  );
 }
 
 async function deleteBadSubscription(admin: SupabaseClient, endpoint: string) {
@@ -505,18 +598,13 @@ export async function POST(req: Request) {
           };
         } catch (error: any) {
           const message = error?.message ?? "Unknown push error";
+
           console.error("[push] delivery failed:", {
             endpoint: s.endpoint,
             message,
           });
 
-          if (
-            typeof s.endpoint === "string" &&
-            (s.endpoint.startsWith("ios:") ||
-              message.includes("410") ||
-              message.includes("BadDeviceToken") ||
-              message.includes("Unregistered"))
-          ) {
+          if (shouldDeleteSubscription(s.endpoint, message)) {
             await deleteBadSubscription(admin, s.endpoint);
           }
 

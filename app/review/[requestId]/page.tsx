@@ -96,13 +96,11 @@ export default function ReviewPage() {
         if (!r) throw new Error("Request not found.");
         if (r.borrower_id !== uid) throw new Error("You can only review requests you borrowed.");
 
-        // Must be accepted/approved to review (UI check; RLS should also enforce)
         const s = String(r.status ?? "");
         if (s !== "accepted" && s !== "approved") {
           throw new Error("You can only review accepted/approved requests.");
         }
 
-        // If already reviewed, detect and short-circuit
         const { data: existing, error: exErr } = await supabase
           .from("reviews")
           .select("id")
@@ -111,7 +109,6 @@ export default function ReviewPage() {
           .maybeSingle();
 
         if (exErr) {
-          // Don’t block the UI; let insert/RLS/unique constraint handle duplicates
           console.warn("existing review check error:", exErr);
           if (!cancelled) setExistingReviewId(null);
         } else {
@@ -136,7 +133,6 @@ export default function ReviewPage() {
           .maybeSingle();
 
         if (ownerErr) {
-          // non-fatal
           console.warn("owner profile load error:", ownerErr);
         }
 
@@ -172,7 +168,6 @@ export default function ReviewPage() {
       return;
     }
 
-    // basic validation
     const cleanComment = comment.trim();
     if (cleanComment.length > 1200) {
       setError("Comment is too long (max 1200 characters).");
@@ -190,8 +185,8 @@ export default function ReviewPage() {
       const payload = {
         request_id: req.id,
         borrower_id: myUserId,
-        owner_id: horse.owner_id, // ✅ needed for owner profile aggregates
-        horse_id: horse.id, // ✅ useful for horse/browse linkage
+        owner_id: horse.owner_id,
+        horse_id: horse.id,
         rating,
         comment: cleanComment ? cleanComment : null,
       };
@@ -199,7 +194,17 @@ export default function ReviewPage() {
       const { error: insertErr } = await supabase.from("reviews").insert(payload);
       if (insertErr) throw insertErr;
 
-      // After success, go back to messages thread
+      fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: horse.owner_id,
+          url: "/dashboard/owner/reviews",
+          eventType: "review_left_for_owner",
+          requestId: req.id,
+        }),
+      }).catch(() => {});
+
       router.push(`/messages/${req.id}`);
       router.refresh();
     } catch (e: any) {
