@@ -78,8 +78,8 @@ export default function VerifyPage() {
 
       const returnUrl =
         typeof window !== "undefined"
-          ? `${window.location.origin}/verify`
-          : "/verify";
+          ? `${window.location.origin}/verify/return`
+          : "/verify/return";
 
       const res = await withTimeout(
         fetch("/api/identity/session", {

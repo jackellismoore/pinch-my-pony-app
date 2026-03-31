@@ -55,6 +55,7 @@ async function markVerified(params: {
       verification_status: "verified",
       verified_at: new Date().toISOString(),
       verification_provider: "stripe_identity",
+      updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
 
@@ -83,6 +84,7 @@ async function markFailed(params: {
     .update({
       verification_status: "failed",
       verification_provider: "stripe_identity",
+      updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
 
@@ -97,6 +99,24 @@ async function markFailed(params: {
     status: "failed",
     outcome: "failed",
   });
+}
+
+async function logStripeEventSafe(params: {
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
+  event: Stripe.Event;
+}) {
+  const { supabaseAdmin, event } = params;
+
+  try {
+    await supabaseAdmin.from("stripe_events").insert({
+      event_id: event.id,
+      type: event.type,
+      payload: event as any,
+      created_at: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    console.warn("stripe_events insert skipped:", err?.message ?? err);
+  }
 }
 
 export async function POST(req: Request) {
@@ -137,12 +157,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    await supabaseAdmin.from("stripe_events").insert({
-      event_id: event.id,
-      type: event.type,
-      payload: event as any,
-      created_at: new Date().toISOString(),
-    });
+    await logStripeEventSafe({ supabaseAdmin, event });
 
     const obj = event.data?.object as Record<string, any> | undefined;
     const userId = extractUserIdFromEvent(event);
@@ -151,25 +166,31 @@ export async function POST(req: Request) {
 
     switch (event.type) {
       case "identity.verification_session.verified": {
-        if (userId) {
-          await markVerified({
-            supabaseAdmin,
-            userId,
-            providerSessionId,
-          });
+        if (!userId) {
+          console.warn("identity.verification_session.verified missing user_id metadata");
+          break;
         }
+
+        await markVerified({
+          supabaseAdmin,
+          userId,
+          providerSessionId,
+        });
         break;
       }
 
       case "identity.verification_session.requires_input":
       case "identity.verification_session.canceled": {
-        if (userId) {
-          await markFailed({
-            supabaseAdmin,
-            userId,
-            providerSessionId,
-          });
+        if (!userId) {
+          console.warn(`${event.type} missing user_id metadata`);
+          break;
         }
+
+        await markFailed({
+          supabaseAdmin,
+          userId,
+          providerSessionId,
+        });
         break;
       }
 
@@ -179,6 +200,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ received: true });
   } catch (err: any) {
+    console.error("Webhook handler failed:", err);
     return NextResponse.json(
       { error: `Webhook handler failed: ${err?.message ?? "unknown"}` },
       { status: 500 }
