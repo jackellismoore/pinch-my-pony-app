@@ -49,18 +49,40 @@ async function markVerified(params: {
 }) {
   const { supabaseAdmin, userId, providerSessionId } = params;
 
-  const { error } = await supabaseAdmin
+  const updatePayload = {
+    verification_status: "verified",
+    verified_at: new Date().toISOString(),
+    verification_provider: "stripe_identity",
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: beforeRow, error: beforeErr } = await supabaseAdmin
     .from("profiles")
-    .update({
-      verification_status: "verified",
-      verified_at: new Date().toISOString(),
-      verification_provider: "stripe_identity",
-      updated_at: new Date().toISOString(),
-    })
+    .select("id, verification_status, verified_at, verification_provider")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (beforeErr) {
+    throw new Error(`Failed reading profile before update: ${beforeErr.message}`);
+  }
+
+  const { error: updateErr, count } = await supabaseAdmin
+    .from("profiles")
+    .update(updatePayload)
     .eq("id", userId);
 
-  if (error) {
-    throw new Error(`Failed to update verified profile: ${error.message}`);
+  if (updateErr) {
+    throw new Error(`Failed to update verified profile: ${updateErr.message}`);
+  }
+
+  const { data: afterRow, error: afterErr } = await supabaseAdmin
+    .from("profiles")
+    .select("id, verification_status, verified_at, verification_provider")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (afterErr) {
+    throw new Error(`Failed reading profile after update: ${afterErr.message}`);
   }
 
   await writeIdentityVerificationSafe({
@@ -70,6 +92,12 @@ async function markVerified(params: {
     status: "verified",
     outcome: "verified",
   });
+
+  return {
+    beforeRow,
+    afterRow,
+    count: count ?? null,
+  };
 }
 
 async function markFailed(params: {
@@ -167,23 +195,43 @@ export async function POST(req: Request) {
     switch (event.type) {
       case "identity.verification_session.verified": {
         if (!userId) {
-          console.warn("identity.verification_session.verified missing user_id metadata");
-          break;
+          return NextResponse.json(
+            {
+              received: true,
+              warning: "verified event missing user_id metadata",
+              eventType: event.type,
+            },
+            { status: 200 }
+          );
         }
 
-        await markVerified({
+        const result = await markVerified({
           supabaseAdmin,
           userId,
           providerSessionId,
         });
-        break;
+
+        return NextResponse.json({
+          received: true,
+          eventType: event.type,
+          userId,
+          providerSessionId,
+          result,
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? null,
+        });
       }
 
       case "identity.verification_session.requires_input":
       case "identity.verification_session.canceled": {
         if (!userId) {
-          console.warn(`${event.type} missing user_id metadata`);
-          break;
+          return NextResponse.json(
+            {
+              received: true,
+              warning: `${event.type} missing user_id metadata`,
+              eventType: event.type,
+            },
+            { status: 200 }
+          );
         }
 
         await markFailed({
@@ -191,18 +239,29 @@ export async function POST(req: Request) {
           userId,
           providerSessionId,
         });
-        break;
+
+        return NextResponse.json({
+          received: true,
+          eventType: event.type,
+          userId,
+          providerSessionId,
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? null,
+        });
       }
 
       default:
-        break;
+        return NextResponse.json({
+          received: true,
+          eventType: event.type,
+        });
     }
-
-    return NextResponse.json({ received: true });
   } catch (err: any) {
     console.error("Webhook handler failed:", err);
     return NextResponse.json(
-      { error: `Webhook handler failed: ${err?.message ?? "unknown"}` },
+      {
+        error: `Webhook handler failed: ${err?.message ?? "unknown"}`,
+        eventType: event.type,
+      },
       { status: 500 }
     );
   }
