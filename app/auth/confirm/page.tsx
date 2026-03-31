@@ -19,15 +19,24 @@ export default function AuthConfirmPage() {
 
     async function confirmEmail() {
       try {
-        const token = searchParams.get("token");
+        // 🔥 support BOTH formats
+        const token_hash =
+          searchParams.get("token_hash") || searchParams.get("token");
+
         const type = searchParams.get("type");
 
-        if (!token || !type) {
+        console.log("CONFIRM PARAMS:", {
+          token_hash,
+          type,
+          fullUrl: window.location.href,
+        });
+
+        if (!token_hash || !type) {
           throw new Error("Missing confirmation token.");
         }
 
         const { error } = await supabase.auth.verifyOtp({
-          token_hash: token,
+          token_hash,
           type: type as "signup" | "recovery" | "invite" | "email_change",
         });
 
@@ -35,9 +44,16 @@ export default function AuthConfirmPage() {
         if (cancelled) return;
 
         setMessage("Email confirmed. Redirecting…");
-        router.replace("/verify");
+
+        // give it a second so session settles
+        setTimeout(() => {
+          router.replace("/verify");
+        }, 1000);
       } catch (e: any) {
         if (cancelled) return;
+
+        console.error("CONFIRM ERROR:", e);
+
         setError(e?.message ?? "Could not confirm email.");
       }
     }
