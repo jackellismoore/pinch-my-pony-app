@@ -674,7 +674,7 @@ export default function MessageThreadPage() {
       <style>{`
         .pmp-threadViewport {
           position: fixed;
-          top: calc(var(--pmp-header-height);
+          top: calc(var(--pmp-header-height) + 4px);
           left: 0;
           right: 0;
           bottom: 0;
@@ -839,8 +839,7 @@ export default function MessageThreadPage() {
 
         @media (max-width: 767px) {
           .pmp-threadViewport {
-            position: fixed;
-            top: calc(var(--pmp-header-height);
+            top: calc(var(--pmp-header-height) + 4px);
             left: 0;
             right: 0;
             bottom: 0;
@@ -854,7 +853,7 @@ export default function MessageThreadPage() {
           }
 
           .pmp-threadHeader {
-            padding: 12px 10px 10px !important;
+            padding: 10px 10px 8px !important;
           }
 
           .pmp-threadTopRow {
@@ -885,18 +884,12 @@ export default function MessageThreadPage() {
           }
 
           .pmp-threadIdentityCard {
-            flex-direction: column !important;
-            align-items: stretch !important;
-            gap: 10px !important;
-          }
-
-          .pmp-threadIdentityLeft {
             gap: 10px !important;
             align-items: center !important;
           }
 
-          .pmp-threadIdentityText {
-            min-width: 0 !important;
+          .pmp-threadIdentityLeft {
+            gap: 10px !important;
           }
 
           .pmp-threadAvatar {
@@ -912,16 +905,11 @@ export default function MessageThreadPage() {
 
           .pmp-threadName {
             font-size: 14px !important;
-            white-space: normal !important;
-            overflow: visible !important;
-            text-overflow: unset !important;
-            line-height: 1.2 !important;
           }
 
           .pmp-threadHorseRow {
             gap: 6px !important;
-            align-items: flex-start !important;
-            flex-direction: column !important;
+            align-items: center !important;
           }
 
           .pmp-threadHorseLabel,
@@ -931,19 +919,7 @@ export default function MessageThreadPage() {
           }
 
           .pmp-threadHorseValue {
-            max-width: none !important;
-            white-space: normal !important;
-            overflow: visible !important;
-            text-overflow: unset !important;
-          }
-
-          .pmp-threadStatus {
-            white-space: normal !important;
-          }
-
-          .pmp-threadRightActions {
-            width: 100% !important;
-            justify-content: flex-start !important;
+            max-width: min(46vw, 180px);
           }
 
           .pmp-threadMessages {
@@ -1084,7 +1060,9 @@ export default function MessageThreadPage() {
                           flexShrink: 0,
                         }}
                       />
-                      <span style={{ minWidth: 0 }}>{statusText}</span>
+                      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {statusText}
+                      </span>
                     </div>
                   </div>
                 </div>
