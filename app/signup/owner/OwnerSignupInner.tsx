@@ -109,7 +109,7 @@ export default function OwnerSignupInner() {
         email: e,
         password,
         options: {
-          emailRedirectTo: `${origin}/auth/confirm`,
+          emailRedirectTo: `${origin}/verify`,
           data: {
             display_name: displayName.trim() || null,
             role: "owner",
