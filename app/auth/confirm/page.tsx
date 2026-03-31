@@ -19,41 +19,37 @@ export default function AuthConfirmPage() {
 
     async function confirmEmail() {
       try {
-        // 🔥 support BOTH formats
-        const token_hash =
-          searchParams.get("token_hash") || searchParams.get("token");
-
+        const code = searchParams.get("code");
+        const tokenHash = searchParams.get("token_hash");
         const type = searchParams.get("type");
 
-        console.log("CONFIRM PARAMS:", {
-          token_hash,
-          type,
-          fullUrl: window.location.href,
-        });
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
 
-        if (!token_hash || !type) {
-          throw new Error("Missing confirmation token.");
+          if (cancelled) return;
+          setMessage("Email confirmed. Redirecting…");
+          router.replace("/verify");
+          return;
         }
 
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash,
-          type: type as "signup" | "recovery" | "invite" | "email_change",
-        });
+        if (tokenHash && type) {
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: type as "signup" | "recovery" | "invite" | "email_change",
+          });
 
-        if (error) throw error;
-        if (cancelled) return;
+          if (error) throw error;
 
-        setMessage("Email confirmed. Redirecting…");
-
-        // give it a second so session settles
-        setTimeout(() => {
+          if (cancelled) return;
+          setMessage("Email confirmed. Redirecting…");
           router.replace("/verify");
-        }, 1000);
+          return;
+        }
+
+        throw new Error("Missing confirmation token.");
       } catch (e: any) {
         if (cancelled) return;
-
-        console.error("CONFIRM ERROR:", e);
-
         setError(e?.message ?? "Could not confirm email.");
       }
     }
