@@ -103,7 +103,7 @@ export default function BorrowerSignupInner() {
         email: e,
         password,
         options: {
-          emailRedirectTo: `${origin}/verify`,
+          emailRedirectTo: `${origin}/auth/confirm`,
           data: {
             display_name: displayName.trim() || null,
             role: "borrower",
