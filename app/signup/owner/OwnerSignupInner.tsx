@@ -23,7 +23,6 @@ function getErrorMessage(err: unknown): string {
   if (!err) return "We couldn't create your account. Please try again.";
 
   if (typeof err === "string" && err.trim()) return err;
-
   if (err instanceof Error && err.message?.trim()) return err.message;
 
   if (typeof err === "object") {
@@ -65,6 +64,7 @@ export default function OwnerSignupInner() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -83,13 +83,19 @@ export default function OwnerSignupInner() {
     }
 
     const e = email.trim();
-    if (!e || !password) {
-      setError("Enter email and password.");
+
+    if (!e || !password || !confirmPassword) {
+      setError("Enter email, password, and confirm password.");
       return;
     }
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
 
@@ -214,6 +220,17 @@ export default function OwnerSignupInner() {
               <input
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                autoComplete="new-password"
+                style={input}
+                placeholder="••••••••"
+              />
+            </Field>
+
+            <Field label="Confirm password">
+              <input
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 type="password"
                 autoComplete="new-password"
                 style={input}

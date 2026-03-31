@@ -32,7 +32,11 @@ function ForgotPasswordInner() {
   const [error, setError] = useState<string | null>(null);
 
   const emailTrim = email.trim();
-  const emailErr = !emailTrim ? "Email is required." : !isValidEmail(emailTrim) ? "Please enter a valid email." : null;
+  const emailErr = !emailTrim
+    ? "Email is required."
+    : !isValidEmail(emailTrim)
+    ? "Please enter a valid email."
+    : null;
 
   async function sendReset() {
     setError(null);
@@ -42,6 +46,7 @@ function ForgotPasswordInner() {
       setError("Missing Supabase environment variables.");
       return;
     }
+
     if (emailErr) {
       setError(emailErr);
       return;
@@ -52,7 +57,10 @@ function ForgotPasswordInner() {
 
       const redirectTo = `${window.location.origin}/reset-password`;
 
-      const res = await supabase.auth.resetPasswordForEmail(emailTrim, { redirectTo });
+      const res = await supabase.auth.resetPasswordForEmail(emailTrim, {
+        redirectTo,
+      });
+
       if (res.error) throw res.error;
 
       setDone(true);
@@ -75,7 +83,11 @@ function ForgotPasswordInner() {
             </div>
           </div>
 
-          <button onClick={() => router.push("/login")} style={btn("secondary")} aria-label="Back to login">
+          <button
+            onClick={() => router.push("/login")}
+            style={btn("secondary")}
+            aria-label="Back to login"
+          >
             ← Back to login
           </button>
         </div>
@@ -191,7 +203,14 @@ function pill(): React.CSSProperties {
 }
 
 function title(): React.CSSProperties {
-  return { margin: 0, marginTop: 10, fontSize: 26, fontWeight: 950, color: palette.navy, letterSpacing: -0.3 };
+  return {
+    margin: 0,
+    marginTop: 10,
+    fontSize: 26,
+    fontWeight: 950,
+    color: palette.navy,
+    letterSpacing: -0.3,
+  };
 }
 
 function sub(): React.CSSProperties {

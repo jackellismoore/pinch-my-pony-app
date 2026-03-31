@@ -15,6 +15,14 @@ const palette = {
   gold: "#C8A24D",
 };
 
+function getHashParams() {
+  if (typeof window === "undefined") return new URLSearchParams();
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : "";
+  return new URLSearchParams(hash);
+}
+
 export default function ResetPasswordPage() {
   const router = useRouter();
 
@@ -35,13 +43,40 @@ export default function ResetPasswordPage() {
       setChecking(true);
       setError(null);
 
-      // Supabase will hydrate session from URL when detectSessionInUrl=true
-      const { data } = await supabase.auth.getSession();
-      const user = data.session?.user ?? null;
+      try {
+        const hashParams = getHashParams();
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+        const type = hashParams.get("type");
 
-      if (!cancelled) {
-        setHasSession(!!user);
-        setChecking(false);
+        if (type === "recovery" && accessToken && refreshToken) {
+          const { error: sessionErr } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (sessionErr) throw sessionErr;
+
+          if (typeof window !== "undefined" && window.location.hash) {
+            window.history.replaceState(null, "", window.location.pathname);
+          }
+        }
+
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+
+        const user = data.session?.user ?? null;
+
+        if (!cancelled) {
+          setHasSession(!!user);
+          setChecking(false);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setHasSession(false);
+          setChecking(false);
+          setError(e?.message ?? "Your reset link is invalid or expired.");
+        }
       }
     }
 
@@ -78,6 +113,7 @@ export default function ResetPasswordPage() {
       setError("Your reset link is missing or expired. Please request a new one.");
       return;
     }
+
     if (!canSubmit) {
       setError(pwdErr || matchErr || "Please check your inputs.");
       return;
@@ -91,11 +127,10 @@ export default function ResetPasswordPage() {
 
       setDone(true);
 
-      // Optional: keep user signed-in and send them home/dashboard
       setTimeout(() => {
-        router.replace("/");
+        router.replace("/login");
         router.refresh();
-      }, 600);
+      }, 900);
     } catch (e: any) {
       setError(e?.message ?? "Failed to update password.");
     } finally {
@@ -120,12 +155,16 @@ export default function ResetPasswordPage() {
 
         <div style={{ marginTop: 14, ...card() }}>
           {checking ? (
-            <div style={{ fontSize: 13, color: "rgba(31,42,68,0.70)", fontWeight: 850 }}>Loading…</div>
+            <div style={{ fontSize: 13, color: "rgba(31,42,68,0.70)", fontWeight: 850 }}>
+              Loading…
+            </div>
           ) : null}
 
           {!checking && !hasSession ? (
             <div style={warnBand()}>
-              <div style={{ fontWeight: 950, color: palette.navy }}>This reset link isn’t active</div>
+              <div style={{ fontWeight: 950, color: palette.navy }}>
+                This reset link isn’t active
+              </div>
               <div style={{ marginTop: 6, opacity: 0.85, lineHeight: 1.7 }}>
                 It may have expired, already been used, or opened in a different browser.
                 <div style={{ marginTop: 10 }}>
@@ -143,7 +182,7 @@ export default function ResetPasswordPage() {
             <div style={successBand()}>
               <div style={{ fontWeight: 950, color: palette.navy }}>Password updated</div>
               <div style={{ marginTop: 6, opacity: 0.85, lineHeight: 1.7 }}>
-                You’re all set. Taking you back into the app…
+                You’re all set. Taking you back to login…
               </div>
             </div>
           ) : null}
@@ -179,7 +218,11 @@ export default function ResetPasswordPage() {
                 {matchErr ? <div style={fieldErr()}>{matchErr}</div> : null}
               </label>
 
-              <button onClick={saveNewPassword} disabled={!canSubmit} style={btnPrimaryDisabled(!canSubmit)}>
+              <button
+                onClick={saveNewPassword}
+                disabled={!canSubmit}
+                style={btnPrimaryDisabled(!canSubmit)}
+              >
                 {saving ? "Saving…" : "Save new password →"}
               </button>
             </div>
@@ -237,7 +280,14 @@ function pill(): React.CSSProperties {
 }
 
 function title(): React.CSSProperties {
-  return { margin: 0, marginTop: 10, fontSize: 26, fontWeight: 950, color: palette.navy, letterSpacing: -0.3 };
+  return {
+    margin: 0,
+    marginTop: 10,
+    fontSize: 26,
+    fontWeight: 950,
+    color: palette.navy,
+    letterSpacing: -0.3,
+  };
 }
 
 function sub(): React.CSSProperties {
