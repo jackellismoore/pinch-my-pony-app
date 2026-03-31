@@ -16,7 +16,11 @@ const PUBLIC_PATH_PREFIXES = [
   "/",
   "/login",
   "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/auth/confirm",
   "/verify",
+  "/verify/return",
   "/contact",
   "/faq",
 ];
