@@ -1,96 +1,67 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-type ProfileGate = {
-  id: string;
-  role: "owner" | "borrower" | null;
-  verification_status: string | null;
-};
+export const dynamic = "force-dynamic";
 
 export default function AuthConfirmPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [message, setMessage] = useState("Confirming your email…");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function run() {
+    async function confirmEmail() {
       try {
-        const hash = window.location.hash.startsWith("#")
-          ? window.location.hash.slice(1)
-          : "";
-        const hashParams = new URLSearchParams(hash);
+        const token = searchParams.get("token");
+        const type = searchParams.get("type");
 
-        const access_token = hashParams.get("access_token");
-        const refresh_token = hashParams.get("refresh_token");
-        const type = hashParams.get("type");
-
-        if (type === "signup" && access_token && refresh_token) {
-          const { error: sessionErr } = await supabase.auth.setSession({
-            access_token,
-            refresh_token,
-          });
-
-          if (sessionErr) throw sessionErr;
+        if (!token || !type) {
+          throw new Error("Missing confirmation token.");
         }
 
-        const {
-          data: { user },
-          error: userErr,
-        } = await supabase.auth.getUser();
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: token,
+          type: type as "signup" | "recovery" | "invite" | "email_change",
+        });
 
-        if (userErr) throw userErr;
-        if (!user) {
-          throw new Error("Email confirmed, but no user session was found.");
-        }
-
-        const { data, error: profileErr } = await supabase
-          .from("profiles")
-          .select("id, role, verification_status")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (profileErr) throw profileErr;
-
-        const profile = (data ?? null) as ProfileGate | null;
-        const status = profile?.verification_status ?? "unverified";
-
+        if (error) throw error;
         if (cancelled) return;
 
         setMessage("Email confirmed. Redirecting…");
-
-        if (status !== "verified") {
-          router.replace("/verify");
-          return;
-        }
-
-        router.replace(profile?.role === "owner" ? "/dashboard/owner" : "/dashboard/borrower");
+        router.replace("/verify");
       } catch (e: any) {
         if (cancelled) return;
         setError(e?.message ?? "Could not confirm email.");
-        setMessage("");
       }
     }
 
-    run();
+    confirmEmail();
+
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, searchParams]);
 
   return (
-    <div style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <div
+      style={{
+        minHeight: "70vh",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+      }}
+    >
       <div style={{ maxWidth: 560, width: "100%", textAlign: "center" }}>
-        {message ? (
+        {!error ? (
           <div style={{ fontWeight: 950, opacity: 0.85 }}>{message}</div>
-        ) : null}
-
-        {error ? (
+        ) : (
           <div>
             <div style={{ fontWeight: 950, color: "#991b1b" }}>{error}</div>
             <div style={{ marginTop: 12 }}>
@@ -99,7 +70,7 @@ export default function AuthConfirmPage() {
               </Link>
             </div>
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
