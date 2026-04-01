@@ -38,6 +38,7 @@ export default function AuthConfirmPage() {
 
     async function confirmFlow() {
       try {
+        const confirmationUrl = searchParams.get("confirmation_url");
         const code = searchParams.get("code");
         const tokenHash = searchParams.get("token_hash");
         const type = searchParams.get("type");
@@ -46,6 +47,15 @@ export default function AuthConfirmPage() {
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
         const hashType = hashParams.get("type");
+
+        if (confirmationUrl) {
+          setMessage("Opening secure link…");
+
+          if (typeof window !== "undefined") {
+            window.location.href = confirmationUrl;
+          }
+          return;
+        }
 
         if (code) {
           setMessage("Signing you in…");
