@@ -210,13 +210,21 @@ jobs:
           <dict>
             <key>aps-environment</key>
             <string>production</string>
+            <key>com.apple.developer.associated-domains</key>
+            <array>
+              <string>applinks:pinchmypony.com</string>
+            </array>
           </dict>
           </plist>
           EOF
           fi
 
           /usr/libexec/PlistBuddy -c "Delete :aps-environment" "$ENTITLEMENTS_FILE" || true
-          /usr/libexec/PlistBuddy -c "Add :aps-environment string production" "$ENTITLEMENTS_FILE"
+          /usr/libexec/PlistBuddy -c "Add :aps-environment string production" "$ENTITLEMENTS_FILE" || true
+
+          /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.associated-domains" "$ENTITLEMENTS_FILE" || true
+          /usr/libexec/PlistBuddy -c "Add :com.apple.developer.associated-domains array" "$ENTITLEMENTS_FILE"
+          /usr/libexec/PlistBuddy -c "Add :com.apple.developer.associated-domains:0 string applinks:pinchmypony.com" "$ENTITLEMENTS_FILE"
 
           echo "===== App.entitlements ====="
           cat "$ENTITLEMENTS_FILE"
@@ -249,14 +257,14 @@ jobs:
           security default-keychain -s "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH"
 
-      - name: Install signing assets with match
+      - name: Install signing assets with match (REFRESH PROFILE)
         shell: bash
         run: |
           set -euxo pipefail
           bundle exec fastlane run match \
             type:appstore \
-            readonly:true \
-            force:false \
+            readonly:false \
+            force:true \
             git_url:"$MATCH_GIT_URL" \
             keychain_name:"$CI_KEYCHAIN_NAME" \
             keychain_password:"$CI_KEYCHAIN_PASSWORD" \
