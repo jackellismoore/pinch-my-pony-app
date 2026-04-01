@@ -15,14 +15,16 @@ function getHashParams() {
   return new URLSearchParams(hash);
 }
 
-type OtpType = "signup" | "recovery" | "invite" | "email_change";
+type OtpType = "signup" | "recovery" | "invite" | "email_change" | "email" | "magiclink";
 
 function isOtpType(value: string | null): value is OtpType {
   return (
     value === "signup" ||
     value === "recovery" ||
     value === "invite" ||
-    value === "email_change"
+    value === "email_change" ||
+    value === "email" ||
+    value === "magiclink"
   );
 }
 
@@ -38,7 +40,6 @@ export default function AuthConfirmPage() {
 
     async function confirmFlow() {
       try {
-        const confirmationUrl = searchParams.get("confirmation_url");
         const code = searchParams.get("code");
         const tokenHash = searchParams.get("token_hash");
         const type = searchParams.get("type");
@@ -47,15 +48,6 @@ export default function AuthConfirmPage() {
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
         const hashType = hashParams.get("type");
-
-        if (confirmationUrl) {
-          setMessage("Opening secure link…");
-
-          if (typeof window !== "undefined") {
-            window.location.href = confirmationUrl;
-          }
-          return;
-        }
 
         if (code) {
           setMessage("Signing you in…");
@@ -82,7 +74,17 @@ export default function AuthConfirmPage() {
           if (error) throw error;
           if (cancelled) return;
 
-          router.replace(type === "recovery" ? "/reset-password" : "/verify");
+          if (type === "recovery") {
+            router.replace("/reset-password");
+            return;
+          }
+
+          if (type === "email" || type === "signup" || type === "magiclink") {
+            router.replace("/login?confirmed=1");
+            return;
+          }
+
+          router.replace("/verify");
           return;
         }
 
@@ -108,7 +110,12 @@ export default function AuthConfirmPage() {
           return;
         }
 
-        if (type === "signup" || type === "email_change" || type === "invite") {
+        if (
+          type === "signup" ||
+          type === "email_change" ||
+          type === "invite" ||
+          type === "email"
+        ) {
           if (cancelled) return;
           router.replace("/login?confirmed=1");
           return;
