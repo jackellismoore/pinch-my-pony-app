@@ -1,0 +1,36 @@
+Need to install the following packages:
+tree-cli@0.6.7
+Ok to proceed? (y) 
+
+/workspaces/pinch-my-pony-app
+├── Build
+├── GemFile
+├── Gemfile
+├── Gemfile.lock
+├── README.md
+├── app
+├── capacitor.config.ts
+├── eslint.config.mjs
+├── fastlane
+├── ios
+├── next
+├── next-env.d.ts
+├── next.config.ts
+├── node_modules
+├── out
+├── package-lock.json
+├── package.json
+├── pinch-my-pony-app@0.1.0
+├── public
+├── redeploy.txt
+├── repo-tree.txt
+├── tore auth flow to 401e865"
+├── tree.txt
+├── tsconfig.json
+└── vercel.json
+
+directory: 6 file: 19
+
+
+
+[2K[1G
