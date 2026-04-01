@@ -15,7 +15,13 @@ function getHashParams() {
   return new URLSearchParams(hash);
 }
 
-type OtpType = "signup" | "recovery" | "invite" | "email_change" | "email" | "magiclink";
+type OtpType =
+  | "signup"
+  | "recovery"
+  | "invite"
+  | "email_change"
+  | "email"
+  | "magiclink";
 
 function isOtpType(value: string | null): value is OtpType {
   return (
@@ -66,9 +72,11 @@ export default function AuthConfirmPage() {
             type === "recovery" ? "Preparing password reset…" : "Confirming your email…"
           );
 
+          const verifyType = type === "signup" ? "email" : type;
+
           const { error } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
-            type,
+            type: verifyType as "email" | "recovery" | "invite" | "email_change",
           });
 
           if (error) throw error;
