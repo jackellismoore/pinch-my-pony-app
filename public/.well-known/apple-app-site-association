@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["MBYRMXKNM4.com.pinchmypony.app"],
+        "components": [
+          { "/": "/auth/*" },
+          { "/": "/reset-password" },
+          { "/": "/verify" },
+          { "/": "/login" }
+        ]
+      }
+    ]
+  }
+}
