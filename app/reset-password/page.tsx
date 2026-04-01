@@ -62,13 +62,15 @@ export default function ResetPasswordPage() {
           }
         }
 
-        const { data, error: sessionError } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
         if (sessionError) throw sessionError;
 
-        const user = data.session?.user ?? null;
-
         if (!cancelled) {
-          setHasSession(!!user);
+          setHasSession(!!session?.user);
           setChecking(false);
         }
       } catch (e: any) {
@@ -80,15 +82,20 @@ export default function ResetPasswordPage() {
       }
     }
 
-    init();
+    void init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      init();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!cancelled) {
+        setHasSession(!!session?.user);
+        setChecking(false);
+      }
     });
 
     return () => {
       cancelled = true;
-      sub.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -122,8 +129,8 @@ export default function ResetPasswordPage() {
     try {
       setSaving(true);
 
-      const res = await supabase.auth.updateUser({ password });
-      if (res.error) throw res.error;
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) throw updateError;
 
       setDone(true);
 

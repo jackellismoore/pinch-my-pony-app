@@ -1,13 +1,11 @@
 "use client";
 
-
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-
-export const dynamic = "force-dynamic";
 
 function getHashParams() {
   if (typeof window === "undefined") return new URLSearchParams();
@@ -32,7 +30,7 @@ export default function AuthConfirmPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [message, setMessage] = useState("Confirming your email…");
+  const [message, setMessage] = useState("Checking your link…");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,20 +47,23 @@ export default function AuthConfirmPage() {
         const refreshToken = hashParams.get("refresh_token");
         const hashType = hashParams.get("type");
 
-        // 1) PKCE/code flow
         if (code) {
+          setMessage("Signing you in…");
+
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
 
           if (cancelled) return;
 
-          setMessage("Email confirmed. Redirecting…");
           router.replace("/verify");
           return;
         }
 
-        // 2) token_hash flow
         if (tokenHash && isOtpType(type)) {
+          setMessage(
+            type === "recovery" ? "Preparing password reset…" : "Confirming your email…"
+          );
+
           const { error } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
             type,
@@ -71,13 +72,15 @@ export default function AuthConfirmPage() {
           if (error) throw error;
           if (cancelled) return;
 
-          setMessage(type === "recovery" ? "Recovery link confirmed. Redirecting…" : "Email confirmed. Redirecting…");
           router.replace(type === "recovery" ? "/reset-password" : "/verify");
           return;
         }
 
-        // 4) hash/session flow
         if (accessToken && refreshToken) {
+          setMessage(
+            hashType === "recovery" ? "Preparing password reset…" : "Signing you in…"
+          );
+
           const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -91,16 +94,20 @@ export default function AuthConfirmPage() {
 
           if (cancelled) return;
 
-          const recovery = hashType === "recovery";
-          setMessage(recovery ? "Recovery link confirmed. Redirecting…" : "Email confirmed. Redirecting…");
-          router.replace(recovery ? "/reset-password" : "/verify");
+          router.replace(hashType === "recovery" ? "/reset-password" : "/verify");
           return;
         }
 
-        throw new Error("Missing confirmation token.");
+        if (type === "signup" || type === "email_change" || type === "invite") {
+          if (cancelled) return;
+          router.replace("/login?confirmed=1");
+          return;
+        }
+
+        router.replace("/login");
       } catch (e: any) {
         if (cancelled) return;
-        setError(e?.message ?? "Could not confirm email.");
+        setError(e?.message ?? "Could not process this link.");
       }
     }
 
@@ -150,7 +157,7 @@ export default function AuthConfirmPage() {
                 color: "#1F3D2B",
               }}
             >
-              Email confirmation
+              Secure link
             </div>
 
             <h1
@@ -163,7 +170,7 @@ export default function AuthConfirmPage() {
                 fontWeight: 950,
               }}
             >
-              Almost there
+              One moment
             </h1>
 
             <p
@@ -194,7 +201,7 @@ export default function AuthConfirmPage() {
                 color: "#991b1b",
               }}
             >
-              Confirmation failed
+              Link problem
             </div>
 
             <h1
@@ -207,7 +214,7 @@ export default function AuthConfirmPage() {
                 fontWeight: 950,
               }}
             >
-              We couldn’t confirm your email
+              We couldn’t complete that link
             </h1>
 
             <div
@@ -258,7 +265,7 @@ export default function AuthConfirmPage() {
               </Link>
 
               <Link
-                href="/signup"
+                href="/forgot-password"
                 style={{
                   color: "#1F3D2B",
                   fontWeight: 900,
@@ -267,7 +274,7 @@ export default function AuthConfirmPage() {
                   alignSelf: "center",
                 }}
               >
-                Back to sign up
+                Need a new reset link?
               </Link>
             </div>
           </>
@@ -276,4 +283,3 @@ export default function AuthConfirmPage() {
     </div>
   );
 }
-

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import AppResumeHandler from "@/components/AppResumeHandler";
+import AppUrlListener from "@/components/AppUrlListener";
 import PushBootstrap from "@/components/PushBootstrap";
 import VerificationGate from "@/components/VerificationGate";
 
@@ -26,6 +27,7 @@ export default function RootLayout({
       <body>
         <PushBootstrap />
         <AppResumeHandler />
+        <AppUrlListener />
         <VerificationGate>
           <Header />
           <main className="pmp-appMain">{children}</main>

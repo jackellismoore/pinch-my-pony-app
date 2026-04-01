@@ -62,12 +62,17 @@ export default function VerificationGate({
           return;
         }
 
-        setChecking(true);
+        if (!cancelled) {
+          setChecking(true);
+        }
 
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-        const session = data.session;
+        if (sessionError) throw sessionError;
+
         const user = session?.user ?? null;
 
         if (!user) {
@@ -87,8 +92,12 @@ export default function VerificationGate({
 
         if (profileError) throw profileError;
 
-        const status = ((profile as any)?.verification_status ?? "unverified") as VerificationStatus;
-        const verified = String(status).toLowerCase() === "verified";
+        const status = String(
+          ((profile as { verification_status?: VerificationStatus } | null)
+            ?.verification_status ?? "unverified")
+        ).toLowerCase();
+
+        const verified = status === "verified";
 
         if (!verified) {
           if (!cancelled) {
@@ -119,19 +128,19 @@ export default function VerificationGate({
       }
     }
 
-    run();
+    void run();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      run();
+      void run();
     });
 
     return () => {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [publicRoute, pathname, router]);
+  }, [publicRoute, router, pathname]);
 
   if (checking) {
     return null;
