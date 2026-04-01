@@ -15,22 +15,14 @@ function getHashParams() {
   return new URLSearchParams(hash);
 }
 
-type OtpType =
-  | "signup"
-  | "recovery"
-  | "invite"
-  | "email_change"
-  | "email"
-  | "magiclink";
+type OtpType = "email" | "recovery" | "invite" | "email_change";
 
 function isOtpType(value: string | null): value is OtpType {
   return (
-    value === "signup" ||
+    value === "email" ||
     value === "recovery" ||
     value === "invite" ||
-    value === "email_change" ||
-    value === "email" ||
-    value === "magiclink"
+    value === "email_change"
   );
 }
 
@@ -62,7 +54,6 @@ export default function AuthConfirmPage() {
           if (error) throw error;
 
           if (cancelled) return;
-
           router.replace("/verify");
           return;
         }
@@ -72,11 +63,9 @@ export default function AuthConfirmPage() {
             type === "recovery" ? "Preparing password reset…" : "Confirming your email…"
           );
 
-          const verifyType = type === "signup" ? "email" : type;
-
           const { error } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
-            type: verifyType as "email" | "recovery" | "invite" | "email_change",
+            type,
           });
 
           if (error) throw error;
@@ -87,7 +76,7 @@ export default function AuthConfirmPage() {
             return;
           }
 
-          if (type === "email" || type === "signup" || type === "magiclink") {
+          if (type === "email") {
             router.replace("/login?confirmed=1");
             return;
           }
@@ -115,17 +104,6 @@ export default function AuthConfirmPage() {
           if (cancelled) return;
 
           router.replace(hashType === "recovery" ? "/reset-password" : "/verify");
-          return;
-        }
-
-        if (
-          type === "signup" ||
-          type === "email_change" ||
-          type === "invite" ||
-          type === "email"
-        ) {
-          if (cancelled) return;
-          router.replace("/login?confirmed=1");
           return;
         }
 
