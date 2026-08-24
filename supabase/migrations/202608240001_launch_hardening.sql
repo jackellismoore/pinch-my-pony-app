@@ -18,7 +18,13 @@ alter table public.horse_unavailability enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.notification_preferences enable row level security;
 alter table public.identity_verifications enable row level security;
-alter table public.stripe_events enable row level security;
+do $migration$
+begin
+  if to_regclass('public.stripe_events') is not null then
+    alter table public.stripe_events enable row level security;
+  end if;
+end;
+$migration$;
 
 drop policy if exists "profiles_read_authenticated" on public.profiles;
 create policy "profiles_read_authenticated" on public.profiles
