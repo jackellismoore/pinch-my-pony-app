@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { bearerToken, safeInternalRedirect } from "../app/lib/security.ts";
 import { launchFeatureEnabled } from "../app/lib/launchFeatures.ts";
 import { userFacingError } from "../app/lib/userFacingError.ts";
+import { formatHorseHeight, parseHorseHeight } from "../app/lib/horseHeight.ts";
 
 test("bearerToken accepts a normal bearer token", () => {
   assert.equal(bearerToken("Bearer abc123"), "abc123");
@@ -88,4 +89,37 @@ test("normal message bubbles use the product palette without red styling", () =>
   const bubbles = readFileSync(resolve("app/components/MessageBubble.tsx"), "utf8");
   assert.match(bubbles, /#174b38/);
   assert.doesNotMatch(bubbles, /239,68,68|#b91c1c/i);
+});
+
+test("horse request CTAs use the live request route", () => {
+  const horse = readFileSync(resolve("app/horse/[id]/public-client.tsx"), "utf8");
+  const list = readFileSync(resolve("app/dashboard/borrower/horses/page.tsx"), "utf8");
+  const legacy = readFileSync(resolve("app/dashboard/borrower/horses/[horseId]/request/page.tsx"), "utf8");
+  assert.match(horse, /\/request\?horseId=/);
+  assert.match(list, /\/request\?horseId=/);
+  assert.match(legacy, /redirect\(`\/request\?horseId=/);
+});
+
+test("map ratings use the average with a star instead of Rated copy", () => {
+  const map = readFileSync(resolve("app/components/HorseMap.tsx"), "utf8");
+  const browse = readFileSync(resolve("app/browse/page.tsx"), "utf8");
+  assert.match(map, /name="star"/);
+  assert.match(map, /rating_avg/);
+  assert.doesNotMatch(map, /`Rated \$\{/);
+  assert.match(browse, /select\("horse_id,rating"\)/);
+  assert.match(browse, /ratingByHorseId\[horse\.id\]/);
+});
+
+test("message removal is built into the card without swipe UI", () => {
+  const inbox = readFileSync(resolve("app/messages/page.tsx"), "utf8");
+  assert.doesNotMatch(inbox, /SwipeRow|onPointerMove|translateX/);
+  assert.match(inbox, /setPendingDeleteId\(t\.request_id\)/);
+  assert.match(inbox, /Removing…/);
+});
+
+test("horse heights use valid hands notation", () => {
+  assert.equal(parseHorseHeight("15.2"), 15.2);
+  assert.equal(parseHorseHeight(""), null);
+  assert.equal(formatHorseHeight(16.1), "16.1 hh");
+  assert.throws(() => parseHorseHeight("18.4"), /final digit can only be 0–3/);
 });

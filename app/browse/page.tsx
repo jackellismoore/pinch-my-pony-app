@@ -175,7 +175,7 @@ export default function BrowsePage() {
   const [horses, setHorses] = useState<HorseRow[]>([]);
   const [profilesById, setProfilesById] = useState<Record<string, ProfileMini>>({});
   const [nextByHorseId, setNextByHorseId] = useState<Record<string, NextRange | null>>({});
-  const [ratingByOwnerId, setRatingByOwnerId] = useState<Record<string, { avg: number; count: number }>>({});
+  const [ratingByHorseId, setRatingByHorseId] = useState<Record<string, { avg: number; count: number }>>({});
 
   const [search, setSearch] = useState("");
   const [breedFilter, setBreedFilter] = useState("all");
@@ -223,22 +223,22 @@ export default function BrowsePage() {
           }
         }
 
-        if (ownerIds.length > 0) {
+        if (horseIds.length > 0) {
           const { data: reviewRows, error: reviewErr } = await supabase
             .from("reviews")
-            .select("owner_id,rating")
-            .in("owner_id", ownerIds);
+            .select("horse_id,rating")
+            .in("horse_id", horseIds);
 
           if (!cancelled && !reviewErr) {
             const map: Record<string, { avg: number; count: number }> = {};
 
-            for (const row of (reviewRows ?? []) as Array<{ owner_id: string; rating: number }>) {
-              const oid = row?.owner_id;
-              if (!oid) continue;
+            for (const row of (reviewRows ?? []) as Array<{ horse_id: string; rating: number }>) {
+              const horseId = row?.horse_id;
+              if (!horseId) continue;
 
-              if (!map[oid]) map[oid] = { avg: 0, count: 0 };
-              map[oid].avg += Number(row.rating ?? 0);
-              map[oid].count += 1;
+              if (!map[horseId]) map[horseId] = { avg: 0, count: 0 };
+              map[horseId].avg += Number(row.rating ?? 0);
+              map[horseId].count += 1;
             }
 
             for (const oid of Object.keys(map)) {
@@ -246,7 +246,7 @@ export default function BrowsePage() {
               entry.avg = entry.count > 0 ? entry.avg / entry.count : 0;
             }
 
-            setRatingByOwnerId(map);
+            setRatingByHorseId(map);
           }
         }
 
@@ -362,8 +362,8 @@ export default function BrowsePage() {
       }
 
       if (sortMode === "rating") {
-        const aRating = ratingByOwnerId[a.owner_id]?.avg ?? 0;
-        const bRating = ratingByOwnerId[b.owner_id]?.avg ?? 0;
+        const aRating = ratingByHorseId[a.id]?.avg ?? 0;
+        const bRating = ratingByHorseId[b.id]?.avg ?? 0;
         if (bRating !== aRating) return bRating - aRating;
         return safeText(a.name).localeCompare(safeText(b.name));
       }
@@ -372,12 +372,12 @@ export default function BrowsePage() {
       const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
       return bDate - aDate;
     });
-  }, [horses, search, breedFilter, temperamentFilter, sortMode, ratingByOwnerId]);
+  }, [horses, search, breedFilter, temperamentFilter, sortMode, ratingByHorseId]);
 
   const mapHorses = useMemo(
     () =>
       filteredHorses.map((h) => {
-        const rating = ratingByOwnerId[h.owner_id] ?? { avg: 0, count: 0 };
+        const rating = ratingByHorseId[h.id] ?? { avg: 0, count: 0 };
         const isOwn = !!viewerId && h.owner_id === viewerId;
 
         return {
@@ -394,7 +394,7 @@ export default function BrowsePage() {
           can_request: !isOwn,
         };
       }),
-    [filteredHorses, ratingByOwnerId, viewerId]
+    [filteredHorses, ratingByHorseId, viewerId]
   );
 
   return (
@@ -549,7 +549,7 @@ export default function BrowsePage() {
             <div className="pmp-horizontalCards">
               {filteredHorses.map((horse) => {
                 const next = nextByHorseId[horse.id] ?? null;
-                const rating = ratingByOwnerId[horse.owner_id] ?? { avg: 0, count: 0 };
+                const rating = ratingByHorseId[horse.id] ?? { avg: 0, count: 0 };
                 const hasRating = rating.count > 0;
                 const isOwnHorse = !!viewerId && horse.owner_id === viewerId;
                 const normalizedBreed = normalizeBreed(horse.breed);

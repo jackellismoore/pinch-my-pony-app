@@ -320,7 +320,7 @@ export default function BorrowerHorsesPage() {
               </div>
 
               <Link
-                href={`/dashboard/borrower/horses/${h.id}/request`}
+                href={`/request?horseId=${encodeURIComponent(h.id)}`}
                 style={{
                   border: '1px solid rgba(0,0,0,0.14)',
                   background: 'black',

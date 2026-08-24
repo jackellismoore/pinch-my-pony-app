@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { GoogleMap, InfoWindow, OverlayView, useLoadScript } from "@react-google-maps/api";
+import { Icon } from "@/components/Icon";
 
 export type MapHorse = {
   id: string;
@@ -23,13 +24,6 @@ type Props = {
   userLocation?: { lat: number; lng: number } | null;
   highlightedId?: string | null;
 };
-
-function badgeText(avg?: number | null, count?: number | null) {
-  const c = Number(count ?? 0);
-  if (!c || c <= 0) return "New";
-  const a = Number(avg ?? 0);
-  return `Rated ${a.toFixed(1)}`;
-}
 
 function badgeStyle(hasReviews: boolean): React.CSSProperties {
   return {
@@ -207,7 +201,14 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
                   <div style={pinPointerStyle(isHighlighted)} />
                 </div>
 
-                <div style={badgeStyle(hasReviews)}>{badgeText(h.rating_avg, h.rating_count)}</div>
+                <div style={badgeStyle(hasReviews)}>
+                  {hasReviews ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                      <Icon name="star" size={11} style={{ color: "#f4c95d" }} />
+                      {Number(h.rating_avg ?? 0).toFixed(1)}
+                    </span>
+                  ) : "New"}
+                </div>
               </div>
             </OverlayView>
           );
@@ -237,7 +238,12 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
 
               <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
                 {Number(selected.rating_count ?? 0) > 0
-                  ? `Rated ${Number(selected.rating_avg ?? 0).toFixed(1)} (${Number(selected.rating_count ?? 0)})`
+                  ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <Icon name="star" size={13} style={{ color: "#c99a2e" }} />
+                      {Number(selected.rating_avg ?? 0).toFixed(1)} ({Number(selected.rating_count ?? 0)} review{Number(selected.rating_count ?? 0) === 1 ? "" : "s"})
+                    </span>
+                  )
                   : "New • No reviews yet"}
               </div>
 
