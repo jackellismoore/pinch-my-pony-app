@@ -209,14 +209,16 @@ begin
     raise exception 'Unsupported request status';
   end if;
 
-  select br, h.owner_id
-  into target, listing_owner
+  select br.*
+  into target
   from public.borrow_requests br
-  join public.horses h on h.id = br.horse_id
   where br.id = p_request_id
-  for update of br;
+  for update;
 
   if target.id is null then raise exception 'Request not found'; end if;
+  select h.owner_id into listing_owner
+  from public.horses h
+  where h.id = target.horse_id;
   if listing_owner <> auth.uid() then raise exception 'Only the listing owner can decide this request'; end if;
   if lower(coalesce(target.status, '')) <> 'pending' then raise exception 'This request has already been decided'; end if;
 
