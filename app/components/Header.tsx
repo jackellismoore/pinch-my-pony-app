@@ -357,6 +357,10 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
           .pmp-hideOnSmall {
             display: none !important;
           }
+
+          .pmp-menuDesktopOnly {
+            display: none !important;
+          }
         }
       `}</style>
 
@@ -430,19 +434,8 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
                           Verify Identity
                         </Link>
 
-                        <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          FAQs
-                        </Link>
-
-                        <Link href="/safety" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          Safety
-                        </Link>
-
-                        <Link href="/terms" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Terms</Link>
-                        <Link href="/privacy" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Privacy</Link>
-
-                        <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          Contact Us
+                        <Link href="/help" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          Help &amp; information
                         </Link>
                       </>
                     ) : (
@@ -451,39 +444,20 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
                           Browse
                         </Link>
 
-                        <Link href="/messages" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                        <Link href="/messages" onClick={() => setMenuOpen(false)} className="pmp-menuItem pmp-menuDesktopOnly">
                           Messages
                         </Link>
 
-                        <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                        <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="pmp-menuItem pmp-menuDesktopOnly">
                           Dashboard
                         </Link>
 
-                        <Link href="/dashboard/borrower/horses" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          My activity
-                        </Link>
-
-                        <Link href="/dashboard/owner/horses" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          My horses
-                        </Link>
-
-                        <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                        <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem pmp-menuDesktopOnly">
                           Profile
                         </Link>
 
-                        <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          FAQs
-                        </Link>
-
-                        <Link href="/safety" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          Safety
-                        </Link>
-
-                        <Link href="/terms" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Terms</Link>
-                        <Link href="/privacy" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Privacy</Link>
-
-                        <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          Contact Us
+                        <Link href="/help" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          Help &amp; information
                         </Link>
                       </>
                     )}
@@ -502,19 +476,8 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
                       Sign Up
                     </Link>
 
-                    <Link href="/faq" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      FAQs
-                    </Link>
-
-                    <Link href="/safety" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Safety
-                    </Link>
-
-                    <Link href="/terms" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Terms</Link>
-                    <Link href="/privacy" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Privacy</Link>
-
-                    <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Contact Us
+                    <Link href="/help" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      Help &amp; information
                     </Link>
                   </>
                 )}
