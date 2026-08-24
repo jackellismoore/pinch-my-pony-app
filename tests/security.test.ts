@@ -68,3 +68,24 @@ test("all request status changes in the app use the protected RPC", () => {
   assert.match(detail, /rpc\("set_borrow_request_status"/);
   assert.doesNotMatch(detail, /\.update\(\{\s*status:/);
 });
+
+test("mobile navigation keeps horse discovery one tap away", () => {
+  const tabs = readFileSync(resolve("app/components/MobileTabBar.tsx"), "utf8");
+  const icons = readFileSync(resolve("app/components/Icon.tsx"), "utf8");
+  assert.match(tabs, /href:\s*["']\/browse["']/);
+  assert.match(tabs, /icon:\s*["']horseshoe["']/);
+  assert.match(icons, /horseshoe:/);
+});
+
+test("launch access copy has no fixed six-month deadline", () => {
+  const membership = readFileSync(resolve("app/dashboard/membership/page.tsx"), "utf8");
+  const faq = readFileSync(resolve("app/faq/page.tsx"), "utf8");
+  assert.doesNotMatch(`${membership}\n${faq}`, /six[- ]month/i);
+  assert.match(membership, /Free access continues until the community is ready/);
+});
+
+test("normal message bubbles use the product palette without red styling", () => {
+  const bubbles = readFileSync(resolve("app/components/MessageBubble.tsx"), "utf8");
+  assert.match(bubbles, /#174b38/);
+  assert.doesNotMatch(bubbles, /239,68,68|#b91c1c/i);
+});

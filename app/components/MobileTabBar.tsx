@@ -19,16 +19,22 @@ const items: Item[] = [
     match: (pathname) => pathname === "/",
   },
   {
-    href: "/messages",
-    label: "Messages",
-    icon: "messages",
-    match: (pathname) => pathname.startsWith("/messages"),
+    href: "/browse",
+    label: "Browse",
+    icon: "search",
+    match: (pathname) => pathname.startsWith("/browse") || pathname.startsWith("/horse/") || pathname.startsWith("/owner/"),
   },
   {
     href: "/dashboard",
     label: "Dashboard",
-    icon: "horse",
+    icon: "horseshoe",
     match: (pathname) => pathname.startsWith("/dashboard"),
+  },
+  {
+    href: "/messages",
+    label: "Messages",
+    icon: "messages",
+    match: (pathname) => pathname.startsWith("/messages"),
   },
   {
     href: "/profile",
@@ -41,8 +47,7 @@ const items: Item[] = [
 export default function MobileTabBar() {
   const pathname = usePathname() || "/";
 
-  const hideOnMessages =
-    pathname === "/messages" || pathname.startsWith("/messages/");
+  const hideOnMessages = pathname.startsWith("/messages/");
 
   if (hideOnMessages) return null;
 
@@ -58,7 +63,7 @@ export default function MobileTabBar() {
           display: flex;
           align-items: stretch;
           justify-content: space-between;
-          gap: 8px;
+          gap: 3px;
           padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
           background: rgba(255,255,255,0.95);
           backdrop-filter: blur(14px);
@@ -74,8 +79,8 @@ export default function MobileTabBar() {
           align-items: center;
           justify-content: center;
           gap: 4px;
-          padding: 8px 4px;
-          border-radius: 18px;
+          padding: 8px 2px;
+          border-radius: 15px;
           text-decoration: none;
           color: rgba(15,23,42,0.62);
           background: transparent;
@@ -84,7 +89,7 @@ export default function MobileTabBar() {
         .pmp-mobileTabIcon { display: grid; place-items: center; line-height: 1; }
 
         .pmp-mobileTabLabel {
-          font-size: 11px;
+          font-size: 10px;
           line-height: 1.1;
           font-weight: 850;
           color: inherit;

@@ -113,8 +113,9 @@ export default function FAQPage() {
         q: "Is borrowing really free during launch?",
         a: (
           <>
-            Yes. Borrowing is free during our initial six-month launch period. We do not collect a card and you will not be
-            moved onto a paid membership automatically. We may extend free launch access while the community grows.
+            Yes. Borrowing is free while Pinch My Pony is in launch mode. We do not collect a card and you will not be
+            moved onto a paid membership automatically. Free access continues until the community has proven itself and
+            we deliberately release memberships.
           </>
         ),
         keywords: ["payment", "pricing", "fees", "free", "trial", "launch"],
