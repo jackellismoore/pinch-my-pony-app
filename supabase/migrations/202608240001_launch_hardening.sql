@@ -27,6 +27,39 @@ drop policy if exists "profiles_write_self" on public.profiles;
 create policy "profiles_write_self" on public.profiles
   for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 
+-- RLS limits which profile row a member can update, but it cannot protect
+-- individual columns. Keep verification, membership, billing, and legacy
+-- authorization fields writable only by service-role server code.
+create or replace function public.protect_server_managed_profile_fields()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if current_user = 'authenticated' then
+    raise exception 'Server-managed profile fields cannot be changed by clients';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_server_managed_profile_fields on public.profiles;
+create trigger protect_server_managed_profile_fields
+before update of
+  role,
+  account_model,
+  beta_access,
+  membership_tier,
+  membership_status,
+  stripe_customer_id,
+  stripe_subscription_id,
+  verification_status,
+  verified_at,
+  verification_provider
+on public.profiles
+for each row
+execute function public.protect_server_managed_profile_fields();
+
 drop policy if exists "horses_read_authenticated" on public.horses;
 create policy "horses_read_authenticated" on public.horses
   for select to authenticated using (true);
