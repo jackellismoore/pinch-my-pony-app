@@ -438,6 +438,9 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
                           Safety
                         </Link>
 
+                        <Link href="/terms" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Terms</Link>
+                        <Link href="/privacy" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Privacy</Link>
+
                         <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                           Contact Us
                         </Link>
@@ -476,6 +479,9 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
                           Safety
                         </Link>
 
+                        <Link href="/terms" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Terms</Link>
+                        <Link href="/privacy" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Privacy</Link>
+
                         <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                           Contact Us
                         </Link>
@@ -503,6 +509,9 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
                     <Link href="/safety" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                       Safety
                     </Link>
+
+                    <Link href="/terms" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Terms</Link>
+                    <Link href="/privacy" onClick={() => setMenuOpen(false)} className="pmp-menuItem">Privacy</Link>
 
                     <Link href="/contact" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                       Contact Us

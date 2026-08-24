@@ -23,6 +23,9 @@ const PUBLIC_PATH_PREFIXES = [
   "/verify/return",
   "/contact",
   "/faq",
+  "/safety",
+  "/terms",
+  "/privacy",
 ];
 
 function isPublicPath(pathname: string) {

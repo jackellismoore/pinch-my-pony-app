@@ -243,6 +243,11 @@ export default function ContactPage() {
                 <span>Safety guidance</span>
               </Link>
 
+              <Link href="/privacy" style={sideLink}>
+                <span aria-hidden="true">🔐</span>
+                <span>Privacy & data</span>
+              </Link>
+
               <Link href="/browse" style={sideLink}>
                 <span aria-hidden="true">🧭</span>
                 <span>Browse horses</span>
