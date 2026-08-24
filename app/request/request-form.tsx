@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 import { AvailabilityConflictNotice } from "@/components/AvailabilityConflictNotice";
 import { sendPushNotification } from "@/lib/push/sendPushNotification";
 
@@ -74,6 +75,7 @@ export default function RequestForm({
   horseId: string;
   onSuccess?: () => void;
 }) {
+  const { identityEnabled } = useLaunchFeatures();
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [message, setMessage] = useState("");
@@ -120,6 +122,11 @@ export default function RequestForm({
           return;
         }
 
+        if (!identityEnabled) {
+          setIsVerified(true);
+          return;
+        }
+
         const { data: profileRow, error: profileErr } = await supabase
           .from("profiles")
           .select("verification_status")
@@ -146,7 +153,7 @@ export default function RequestForm({
     return () => {
       cancelled = true;
     };
-  }, [horseId]);
+  }, [horseId, identityEnabled]);
 
   const submitDisabled =
     submitting ||
@@ -175,7 +182,7 @@ export default function RequestForm({
       return;
     }
 
-    if (!isVerified) {
+    if (identityEnabled && !isVerified) {
       setSubmitError("You must verify your identity before sending requests.");
       return;
     }
@@ -191,19 +198,21 @@ export default function RequestForm({
       if (userErr) throw userErr;
       if (!user) throw new Error("Not authenticated");
 
-      const { data: profileRow, error: profileErr } = await supabase
-        .from("profiles")
-        .select("verification_status")
-        .eq("id", user.id)
-        .maybeSingle();
+      if (identityEnabled) {
+        const { data: profileRow, error: profileErr } = await supabase
+          .from("profiles")
+          .select("verification_status")
+          .eq("id", user.id)
+          .maybeSingle();
 
-      if (profileErr) throw profileErr;
+        if (profileErr) throw profileErr;
 
-      const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
-      if (String(verificationStatus).toLowerCase() !== "verified") {
-        setSubmitError("You must verify your identity before sending requests.");
-        setSubmitting(false);
-        return;
+        const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
+        if (String(verificationStatus).toLowerCase() !== "verified") {
+          setSubmitError("You must verify your identity before sending requests.");
+          setSubmitting(false);
+          return;
+        }
       }
 
       const { data: horseMini, error: horseErr } = await supabase
@@ -216,7 +225,7 @@ export default function RequestForm({
 
       const horseOwnerId = (horseMini as any)?.owner_id ?? null;
       if (horseOwnerId && horseOwnerId === user.id) {
-        setSubmitError("This is your listing — owners can’t request their own horses.");
+        setSubmitError("This is your listing, so it cannot be requested from your own account.");
         setSubmitting(false);
         return;
       }
@@ -295,7 +304,7 @@ export default function RequestForm({
           </div>
         ) : null}
 
-        {!checkingVerification && !isVerified ? (
+        {identityEnabled && !checkingVerification && !isVerified ? (
           <div
             style={{
               border: "1px solid rgba(180,0,0,0.18)",
@@ -323,7 +332,7 @@ export default function RequestForm({
               color: "rgba(31,61,43,0.92)",
             }}
           >
-            This is your listing. Owners can’t request their own horses.
+            This is your listing, so it cannot be requested from your own account.
           </div>
         ) : null}
 
@@ -365,7 +374,7 @@ export default function RequestForm({
             onChange={(e) => setMessage(e.target.value)}
             rows={4}
             style={{ ...inputStyle(), resize: "vertical", minHeight: 110 }}
-            placeholder="Anything the owner should know?"
+            placeholder="Anything the horse lister should know?"
           />
         </label>
 
@@ -376,7 +385,7 @@ export default function RequestForm({
         ) : null}
 
         <button type="submit" disabled={submitDisabled} style={btnPrimary(submitDisabled)}>
-          {!isVerified
+          {identityEnabled && !isVerified
             ? "Verification required"
             : isOwnHorse
             ? "Unavailable (your listing)"

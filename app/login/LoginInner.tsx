@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase, SUPABASE_ENV_OK } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 
 type ProfileGate = {
   id: string;
@@ -30,7 +31,12 @@ function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-async function routeAfterLogin(userId: string, fallbackRedirect: string) {
+async function routeAfterLogin(userId: string, fallbackRedirect: string, identityEnabled: boolean) {
+  if (!identityEnabled) {
+    window.location.replace(fallbackRedirect && fallbackRedirect !== "/" ? fallbackRedirect : "/dashboard");
+    return;
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .select("id, verification_status")
@@ -59,6 +65,7 @@ async function routeAfterLogin(userId: string, fallbackRedirect: string) {
 }
 
 export default function LoginInner() {
+  const { identityEnabled } = useLaunchFeatures();
   const searchParams = useSearchParams();
 
   const redirectTo = useMemo(
@@ -117,7 +124,7 @@ export default function LoginInner() {
       const userId = res.data.user?.id;
       if (!userId) throw new Error("Signed in, but no user was returned.");
 
-      await routeAfterLogin(userId, redirectTo);
+      await routeAfterLogin(userId, redirectTo, identityEnabled);
       return;
     } catch (err: any) {
       setError(err?.message ?? "Login failed.");

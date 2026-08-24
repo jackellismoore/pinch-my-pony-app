@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 
 function getHashParams() {
   if (typeof window === "undefined") return new URLSearchParams();
@@ -27,6 +28,7 @@ function isOtpType(value: string | null): value is OtpType {
 }
 
 export default function AuthConfirmPage() {
+  const { identityEnabled } = useLaunchFeatures();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -54,7 +56,7 @@ export default function AuthConfirmPage() {
           if (error) throw error;
 
           if (cancelled) return;
-          router.replace("/verify");
+          router.replace(identityEnabled ? "/verify" : "/dashboard");
           return;
         }
 
@@ -81,7 +83,7 @@ export default function AuthConfirmPage() {
             return;
           }
 
-          router.replace("/verify");
+          router.replace(identityEnabled ? "/verify" : "/dashboard");
           return;
         }
 
@@ -103,7 +105,13 @@ export default function AuthConfirmPage() {
 
           if (cancelled) return;
 
-          router.replace(hashType === "recovery" ? "/reset-password" : "/verify");
+          router.replace(
+            hashType === "recovery"
+              ? "/reset-password"
+              : identityEnabled
+              ? "/verify"
+              : "/dashboard"
+          );
           return;
         }
 
@@ -119,7 +127,7 @@ export default function AuthConfirmPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, searchParams]);
+  }, [identityEnabled, router, searchParams]);
 
   return (
     <div

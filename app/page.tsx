@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 
 type ProfileMini = {
   id: string;
@@ -33,6 +34,7 @@ function pickName(p: ProfileMini | null) {
 }
 
 export default function HomePage() {
+  const { identityEnabled } = useLaunchFeatures();
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
   const [stats, setStats] = useState<Stats>({
@@ -526,9 +528,11 @@ export default function HomePage() {
                   >
                     <div style={{ fontWeight: 950, color: palette.navy }}>Your trust status</div>
                     <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.55 }}>
-                      {isVerified
-                        ? "Your identity is verified. Keep your profile photo, bio, and location up to date to build even more trust."
-                        : "Verification is still pending. Completing it helps owners and riders feel more confident."}
+                      {identityEnabled
+                        ? isVerified
+                          ? "Your identity is verified. Keep your profile photo, bio, and location up to date to build even more trust."
+                          : "Verification is still pending. Complete it to unlock requests and help the community feel confident."
+                        : "Keep your profile photo, bio, and general location up to date to build trust during launch access."}
                     </div>
                   </div>
                 ) : (

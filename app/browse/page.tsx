@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import HorseMap from "@/components/HorseMap";
 import { supabase } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 import { AvailabilityBadge } from "@/components/AvailabilityBadge";
 import StarRating from "@/components/StarRating";
 
@@ -167,6 +168,7 @@ function normalizeTemperament(value: unknown) {
 }
 
 export default function BrowsePage() {
+  const { identityEnabled } = useLaunchFeatures();
   const router = useRouter();
 
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -199,18 +201,20 @@ export default function BrowsePage() {
           return;
         }
 
-        const { data: profileRow, error: profileErr } = await supabase
-          .from("profiles")
-          .select("verification_status")
-          .eq("id", viewer.id)
-          .maybeSingle();
+        if (identityEnabled) {
+          const { data: profileRow, error: profileErr } = await supabase
+            .from("profiles")
+            .select("verification_status")
+            .eq("id", viewer.id)
+            .maybeSingle();
 
-        if (profileErr) throw profileErr;
+          if (profileErr) throw profileErr;
 
-        const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
-        if (String(verificationStatus).toLowerCase() !== "verified") {
-          router.replace("/verify");
-          return;
+          const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
+          if (String(verificationStatus).toLowerCase() !== "verified") {
+            router.replace("/verify");
+            return;
+          }
         }
 
         if (!cancelled) setViewerId(viewer.id);
@@ -344,7 +348,7 @@ export default function BrowsePage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [identityEnabled, router]);
 
   function ownerLabel(ownerId: string) {
     const p = profilesById[ownerId];
