@@ -1,0 +1,49 @@
+name: Supabase production migration
+
+on:
+  push:
+    branches: [supabase-production-migration]
+    paths:
+      - ".github/workflows/supabase-production-migration.yml"
+      - "supabase/migrations/**"
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-production-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Initialize and link project
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$SUPABASE_DB_PASSWORD"
+          test -n "$SUPABASE_PROJECT_ID"
+          test -f supabase/migrations/202608240001_launch_hardening.sql
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+          supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Show pending migrations
+        run: supabase migration list --linked
+
+      - name: Apply production migrations
+        run: supabase db push --linked --include-all --yes
+
+      - name: Verify migration history
+        run: supabase migration list --linked
