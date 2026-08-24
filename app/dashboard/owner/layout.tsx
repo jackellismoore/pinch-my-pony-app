@@ -121,16 +121,16 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
           }}
         >
           <div style={{ padding: "6px 6px 2px" }}>
-            <div style={{ fontSize: 16, fontWeight: 950, color: palette.navy }}>Owner Dashboard</div>
+            <div style={{ fontSize: 16, fontWeight: 950, color: palette.navy }}>My horses</div>
             <div style={{ marginTop: 6, fontSize: 13, opacity: 0.72, lineHeight: 1.5 }}>
               Manage listings, requests, reviews, and availability.
             </div>
           </div>
 
           <div style={{ display: "grid", gap: 10 }}>
-            <NavLink href="/dashboard/owner" label="Overview" />
-            <NavLink href="/dashboard/owner/horses" label="Horses" />
-            <NavLink href="/dashboard/owner/requests" label="Requests" />
+            <NavLink href="/dashboard/owner" label="Horse overview" />
+            <NavLink href="/dashboard/owner/horses" label="My horses" />
+            <NavLink href="/dashboard/owner/requests" label="Listing requests" />
             <NavLink href="/dashboard/owner/reviews" label="Reviews" />
             <NavLink href="/dashboard/membership" label="Memberships" />
           </div>

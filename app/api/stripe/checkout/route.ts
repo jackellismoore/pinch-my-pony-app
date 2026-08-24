@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { requireApiUser, trustedAppOrigin } from "@/lib/serverAuth";
+import { launchFeatureEnabled } from "@/lib/launchFeatures";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,12 +16,13 @@ export async function POST(req: Request) {
     const body = (await req.json()) as Body;
 
     const user = await requireApiUser(req);
+    const checkoutEnabled = launchFeatureEnabled(process.env.STRIPE_MEMBERSHIP_CHECKOUT_ENABLED);
     const priceId = process.env.STRIPE_MEMBER_MONTHLY_PRICE_ID?.trim();
 
-    if (body.plan !== "member_monthly" || !priceId) {
+    if (!checkoutEnabled || body.plan !== "member_monthly" || !priceId) {
       return NextResponse.json(
-        { error: "Membership checkout is not configured" },
-        { status: 400 }
+        { error: "Paid memberships are not available during launch access" },
+        { status: 503 }
       );
     }
 

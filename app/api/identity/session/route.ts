@@ -1,14 +1,22 @@
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripeServer";
 import { requireApiUser, trustedAppOrigin } from "@/lib/serverAuth";
+import { launchFeatureEnabled } from "@/lib/launchFeatures";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const stripe = getStripe();
-
     const user = await requireApiUser(req);
+
+    if (!launchFeatureEnabled(process.env.STRIPE_IDENTITY_ENABLED)) {
+      return NextResponse.json(
+        { error: "Identity verification is not required during launch testing" },
+        { status: 503 }
+      );
+    }
+
+    const stripe = getStripe();
     const returnUrl = `${trustedAppOrigin(req)}/verify/return`;
 
     const session = await stripe.identity.verificationSessions.create({

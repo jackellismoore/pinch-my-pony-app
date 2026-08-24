@@ -5,6 +5,7 @@ import AppResumeHandler from "@/components/AppResumeHandler";
 import AppUrlListener from "@/components/AppUrlListener";
 import PushBootstrap from "@/components/PushBootstrap";
 import VerificationGate from "@/components/VerificationGate";
+import { launchFeatureEnabled } from "@/lib/launchFeatures";
 
 export const metadata: Metadata = {
   title: "Pinch My Pony",
@@ -22,14 +23,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const identityEnabled = launchFeatureEnabled(process.env.STRIPE_IDENTITY_ENABLED);
+
   return (
     <html lang="en">
       <body>
         <PushBootstrap />
         <AppResumeHandler />
         <AppUrlListener />
-        <VerificationGate>
-          <Header />
+        <VerificationGate identityEnabled={identityEnabled}>
+          <Header identityEnabled={identityEnabled} />
           <main className="pmp-appMain">{children}</main>
         </VerificationGate>
       </body>

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bearerToken, safeInternalRedirect } from "../app/lib/security.ts";
+import { launchFeatureEnabled } from "../app/lib/launchFeatures.ts";
 
 test("bearerToken accepts a normal bearer token", () => {
   assert.equal(bearerToken("Bearer abc123"), "abc123");
@@ -16,4 +17,11 @@ test("safeInternalRedirect permits local paths only", () => {
   assert.equal(safeInternalRedirect("/dashboard"), "/dashboard");
   assert.equal(safeInternalRedirect("https://evil.example"), "/");
   assert.equal(safeInternalRedirect("//evil.example"), "/");
+});
+
+test("launch features remain disabled unless explicitly enabled", () => {
+  assert.equal(launchFeatureEnabled(undefined), false);
+  assert.equal(launchFeatureEnabled("false"), false);
+  assert.equal(launchFeatureEnabled("TRUE"), false);
+  assert.equal(launchFeatureEnabled("true"), true);
 });

@@ -18,7 +18,13 @@ alter table public.horse_unavailability enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.notification_preferences enable row level security;
 alter table public.identity_verifications enable row level security;
-alter table public.stripe_events enable row level security;
+do $migration$
+begin
+  if to_regclass('public.stripe_events') is not null then
+    alter table public.stripe_events enable row level security;
+  end if;
+end;
+$migration$;
 
 drop policy if exists "profiles_read_authenticated" on public.profiles;
 create policy "profiles_read_authenticated" on public.profiles
@@ -100,16 +106,56 @@ create policy "requests_participant_delete" on public.borrow_requests
 
 drop policy if exists "messages_participant_read" on public.messages;
 create policy "messages_participant_read" on public.messages
-  for select to authenticated using (sender_id = auth.uid() or recipient_id = auth.uid());
+  for select to authenticated using (
+    exists (
+      select 1
+      from public.borrow_requests br
+      join public.horses h on h.id = br.horse_id
+      where br.id = messages.request_id
+        and (br.borrower_id = auth.uid() or h.owner_id = auth.uid())
+    )
+  );
 drop policy if exists "messages_sender_insert" on public.messages;
 create policy "messages_sender_insert" on public.messages
-  for insert to authenticated with check (sender_id = auth.uid());
+  for insert to authenticated with check (
+    sender_id = auth.uid() and exists (
+      select 1
+      from public.borrow_requests br
+      join public.horses h on h.id = br.horse_id
+      where br.id = messages.request_id
+        and (br.borrower_id = auth.uid() or h.owner_id = auth.uid())
+    )
+  );
 drop policy if exists "messages_sender_update" on public.messages;
 create policy "messages_sender_update" on public.messages
-  for update to authenticated using (sender_id = auth.uid()) with check (sender_id = auth.uid());
+  for update to authenticated using (
+    exists (
+      select 1
+      from public.borrow_requests br
+      join public.horses h on h.id = br.horse_id
+      where br.id = messages.request_id
+        and (br.borrower_id = auth.uid() or h.owner_id = auth.uid())
+    )
+  ) with check (
+    exists (
+      select 1
+      from public.borrow_requests br
+      join public.horses h on h.id = br.horse_id
+      where br.id = messages.request_id
+        and (br.borrower_id = auth.uid() or h.owner_id = auth.uid())
+    )
+  );
 drop policy if exists "messages_participant_delete" on public.messages;
 create policy "messages_participant_delete" on public.messages
-  for delete to authenticated using (sender_id = auth.uid() or recipient_id = auth.uid());
+  for delete to authenticated using (
+    exists (
+      select 1
+      from public.borrow_requests br
+      join public.horses h on h.id = br.horse_id
+      where br.id = messages.request_id
+        and (br.borrower_id = auth.uid() or h.owner_id = auth.uid())
+    )
+  );
 
 drop policy if exists "reviews_read_authenticated" on public.reviews;
 create policy "reviews_read_authenticated" on public.reviews

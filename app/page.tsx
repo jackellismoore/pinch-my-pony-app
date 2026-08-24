@@ -560,13 +560,13 @@ export default function HomePage() {
               <header style={{ display: "grid", gap: 8, margin: "0 0 16px" }}>
                 <h2 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy }}>How it works</h2>
                 <p style={{ margin: 0, opacity: 0.78, lineHeight: 1.65, maxWidth: 780 }}>
-                  Built for both borrowers and owners — clear steps, clear expectations.
+                  One account, whether you want to ride, share a horse, or do both.
                 </p>
               </header>
 
               <div className="pmp-home-two-col" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
                 <RoleCard
-                  pill="For Borrowers"
+                  pill="Looking to ride"
                   steps={[
                     ["1", "Browse active horses", "Explore listings and check details."],
                     ["2", "Request your dates", "Pick a date range. Conflicts are blocked."],
@@ -575,7 +575,7 @@ export default function HomePage() {
                   borrower
                 />
                 <RoleCard
-                  pill="For Owners"
+                  pill="Sharing a horse"
                   steps={[
                     ["1", "List your horse", "Create a listing with clear expectations."],
                     ["2", "Approve trusted riders", "Review requests and chat before approving."],

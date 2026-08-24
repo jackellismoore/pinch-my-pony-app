@@ -13,6 +13,12 @@ const palette = {
 };
 
 type HorseRow = { id: string; name: string | null };
+type ProfileSetup = {
+  display_name: string | null;
+  avatar_url: string | null;
+  location: string | null;
+  bio: string | null;
+};
 
 type BlockRow = {
   id: string;
@@ -67,6 +73,7 @@ export default function DashboardOverview() {
 
   const [horses, setHorses] = useState<HorseRow[]>([]);
   const [ranges, setRanges] = useState<UnifiedRange[]>([]);
+  const [profileSetup, setProfileSetup] = useState<ProfileSetup | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,16 +91,25 @@ export default function DashboardOverview() {
         if (userErr) throw userErr;
         if (!user) throw new Error('Not authenticated');
 
-        const horsesRes = await supabase
-          .from('horses')
-          .select('id,name')
-          .eq('owner_id', user.id)
-          .order('created_at', { ascending: false });
+        const [horsesRes, profileRes] = await Promise.all([
+          supabase
+            .from('horses')
+            .select('id,name')
+            .eq('owner_id', user.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('profiles')
+            .select('display_name,avatar_url,location,bio')
+            .eq('id', user.id)
+            .maybeSingle(),
+        ]);
 
         if (horsesRes.error) throw horsesRes.error;
+        if (profileRes.error) throw profileRes.error;
         const horseRows = (horsesRes.data ?? []) as HorseRow[];
         if (cancelled) return;
         setHorses(horseRows);
+        setProfileSetup((profileRes.data ?? null) as ProfileSetup | null);
 
         const horseIds = horseRows.map((h) => h.id);
         if (horseIds.length === 0) {
@@ -176,6 +192,13 @@ export default function DashboardOverview() {
   const upcoming = useMemo(() => ranges.slice(0, 8), [ranges]);
   const bookingCount = useMemo(() => ranges.filter((r) => r.kind === 'booking').length, [ranges]);
   const blockedCount = useMemo(() => ranges.filter((r) => r.kind === 'blocked').length, [ranges]);
+  const setupItems = useMemo(() => [
+    { label: 'Choose a display name', done: !!profileSetup?.display_name?.trim() },
+    { label: 'Add a profile photo', done: !!profileSetup?.avatar_url?.trim() },
+    { label: 'Add your general location', done: !!profileSetup?.location?.trim() },
+    { label: 'Tell the community about you', done: !!profileSetup?.bio?.trim() },
+  ], [profileSetup]);
+  const setupComplete = setupItems.every((item) => item.done);
 
   return (
     <div className="pmp-pageShell">
@@ -193,10 +216,10 @@ export default function DashboardOverview() {
             Browse horses
           </Link>
           <Link href="/dashboard/borrower/horses" style={btn('secondary')}>
-            My rides
+            My activity
           </Link>
           <Link href="/dashboard/owner/requests" style={btn('secondary')}>
-            Listing requests
+            Requests for my horses
           </Link>
           <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
             List a horse →
@@ -231,6 +254,29 @@ export default function DashboardOverview() {
       {loading ? <div style={{ marginTop: 16 }} className="pmp-mutedText">Loading…</div> : null}
       {error ? <div className="pmp-errorBanner" style={{ marginTop: 16 }}>{error}</div> : null}
 
+      {!loading && !error && !setupComplete ? (
+        <section className="pmp-sectionCard" style={{ marginTop: 12 }}>
+          <div className="pmp-sectionHeader">
+            <div>
+              <div className="pmp-kicker">Getting started</div>
+              <h3 className="pmp-sectionTitle">Complete your profile</h3>
+              <div className="pmp-mutedText" style={{ marginTop: 6 }}>
+                A complete profile helps people feel comfortable before arranging a ride.
+              </div>
+            </div>
+            <Link href="/profile" className="pmp-ctaPrimary">Update profile</Link>
+          </div>
+          <div className="pmp-listStack" style={{ marginTop: 12 }}>
+            {setupItems.map((item) => (
+              <div key={item.label} className="pmp-horseRowCard" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span aria-hidden="true">{item.done ? '✅' : '○'}</span>
+                <span style={{ fontWeight: item.done ? 800 : 950, opacity: item.done ? 0.66 : 1 }}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="pmp-sectionCard" style={{ marginTop: 12 }}>
         <div className="pmp-sectionHeader">
           <div>
@@ -247,11 +293,12 @@ export default function DashboardOverview() {
             <div className="pmp-emptyIcon">📅</div>
             <div className="pmp-emptyTitle">No upcoming activity</div>
             <div className="pmp-emptyText">
-              Add a horse or update availability to start receiving and managing requests.
+              Browse horses to plan a ride, or add a horse to start receiving requests.
             </div>
-            <Link href="/dashboard/owner/horses/add" className="pmp-ctaPrimary">
-              Add your next horse
-            </Link>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Link href="/browse" className="pmp-ctaSecondary">Browse horses</Link>
+              <Link href="/dashboard/owner/horses/add" className="pmp-ctaPrimary">List a horse</Link>
+            </div>
           </div>
         ) : (
           <div className="pmp-listStack">

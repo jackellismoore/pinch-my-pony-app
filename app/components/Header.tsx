@@ -52,7 +52,7 @@ function useOutsideClick<T extends HTMLElement>(
   }, [ref, onOutside]);
 }
 
-export default function Header() {
+export default function Header({ identityEnabled }: { identityEnabled: boolean }) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -135,6 +135,7 @@ export default function Header() {
   };
 
   const isVerified = (profile?.verification_status ?? "unverified") === "verified";
+  const hasAppAccess = !identityEnabled || isVerified;
 
   const signedInLabel = useMemo(() => {
     if (!user) return null;
@@ -375,7 +376,7 @@ export default function Header() {
           <div ref={menuWrapRef} className="pmp-headerActions">
             {user ? (
               <>
-                {!isVerified ? (
+                {identityEnabled && !isVerified ? (
                   <Link href="/verify" title="Verification required" className="pmp-hideOnSmall">
                     <VerificationBadge
                       status={profile?.verification_status ?? "unverified"}
@@ -384,7 +385,7 @@ export default function Header() {
                       compact
                     />
                   </Link>
-                ) : (
+                ) : identityEnabled ? (
                   <div title="Verified" className="pmp-hideOnSmall">
                     <VerificationBadge
                       status={profile?.verification_status ?? "verified"}
@@ -393,9 +394,9 @@ export default function Header() {
                       compact
                     />
                   </div>
-                )}
+                ) : null}
 
-                {isVerified && !menuOpen ? (
+                {hasAppAccess && !menuOpen ? (
                   <div className="pmp-headerNotifWrap">
                     <NotificationBell />
                   </div>
@@ -423,7 +424,7 @@ export default function Header() {
                       <div className="pmp-menuUserName">{signedInLabel}</div>
                     </div>
 
-                    {!isVerified ? (
+                    {!hasAppAccess ? (
                       <>
                         <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                           Verify Identity
@@ -452,11 +453,11 @@ export default function Header() {
                         </Link>
 
                         <Link href="/dashboard/borrower/horses" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          My rides
+                          My activity
                         </Link>
 
                         <Link href="/dashboard/owner/horses" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          My horse listings
+                          My horses
                         </Link>
 
                         <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
@@ -502,7 +503,7 @@ export default function Header() {
         </div>
       </header>
 
-      {user && isVerified ? <MobileTabBar /> : null}
+      {user && hasAppAccess ? <MobileTabBar /> : null}
     </>
   );
 }

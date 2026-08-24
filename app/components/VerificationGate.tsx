@@ -38,8 +38,10 @@ function isPublicPath(pathname: string) {
 
 export default function VerificationGate({
   children,
+  identityEnabled,
 }: {
   children: React.ReactNode;
+  identityEnabled: boolean;
 }) {
   const pathname = usePathname() || "/";
   const router = useRouter();
@@ -80,6 +82,14 @@ export default function VerificationGate({
             setAllowed(false);
             setChecking(false);
             router.replace("/login");
+          }
+          return;
+        }
+
+        if (!identityEnabled) {
+          if (!cancelled) {
+            setAllowed(true);
+            setChecking(false);
           }
           return;
         }
@@ -140,7 +150,7 @@ export default function VerificationGate({
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [publicRoute, router, pathname]);
+  }, [identityEnabled, publicRoute, router, pathname]);
 
   if (checking) {
     return null;
