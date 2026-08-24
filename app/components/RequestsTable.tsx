@@ -181,7 +181,7 @@ function RequestsTableImpl(props: Props) {
             <thead>
               <tr>
                 <th style={thStyle()}>Horse</th>
-                <th style={thStyle()}>{mode === 'borrower' ? 'Owner / Other' : 'Borrower'}</th>
+                <th style={thStyle()}>{mode === 'borrower' ? 'Horse / Member' : 'Requester'}</th>
                 <th style={thStyle()}>Dates</th>
                 <th style={thStyle()}>Status</th>
                 <th style={{ ...thStyle(), textAlign: 'right' }}>Actions</th>

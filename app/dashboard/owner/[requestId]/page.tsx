@@ -113,7 +113,7 @@ function pill(kind: string): React.CSSProperties {
 function pickBorrowerName(r: RequestDetail | null) {
   const dn = (r?.borrower?.display_name ?? "").trim();
   const fn = (r?.borrower?.full_name ?? "").trim();
-  return dn || fn || "Borrower";
+  return dn || fn || "Requester";
 }
 
 export default function OwnerRequestDetailPage() {
@@ -313,7 +313,7 @@ export default function OwnerRequestDetailPage() {
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>{horseName}</div>
                 <div style={{ marginTop: 8, fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
-                  Borrower:{" "}
+                  Requester:{" "}
                   <span style={{ fontWeight: 950, color: "rgba(0,0,0,0.85)" }}>{borrowerName}</span>
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)" }}>

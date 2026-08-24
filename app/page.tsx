@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 
 type ProfileMini = {
   id: string;
@@ -33,6 +34,7 @@ function pickName(p: ProfileMini | null) {
 }
 
 export default function HomePage() {
+  const { identityEnabled } = useLaunchFeatures();
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileMini | null>(null);
   const [stats, setStats] = useState<Stats>({
@@ -303,7 +305,7 @@ export default function HomePage() {
               <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7, opacity: 0.9, maxWidth: 680 }}>
                 {isAuthed
                   ? "Manage requests, browse horses, and connect with confidence — everything stays organised in one place."
-                  : "Pinch My Pony is a trusted horse-borrowing marketplace. Owners list horses, borrowers request dates, and everyone rides with clear rules and reviews."}
+                  : "Pinch My Pony is a trusted horse-sharing marketplace. Members list horses, request dates, and arrange rides with clear expectations and reviews."}
               </p>
 
               {isAuthed ? (
@@ -526,9 +528,11 @@ export default function HomePage() {
                   >
                     <div style={{ fontWeight: 950, color: palette.navy }}>Your trust status</div>
                     <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.55 }}>
-                      {isVerified
-                        ? "Your identity is verified. Keep your profile photo, bio, and location up to date to build even more trust."
-                        : "Verification is still pending. Completing it helps owners and riders feel more confident."}
+                      {identityEnabled
+                        ? isVerified
+                          ? "Your identity is verified. Keep your profile photo, bio, and location up to date to build even more trust."
+                          : "Verification is still pending. Complete it to unlock requests and help the community feel confident."
+                        : "Keep your profile photo, bio, and general location up to date to build trust during launch access."}
                     </div>
                   </div>
                 ) : (
@@ -543,7 +547,7 @@ export default function HomePage() {
                   >
                     <div style={{ fontWeight: 950, color: palette.navy }}>New here?</div>
                     <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.55 }}>
-                      Create an account to request dates, message owners, and access your dashboard.
+                      Create one account to request dates, message members, list horses, and access your dashboard.
                     </div>
                   </div>
                 )}
@@ -560,13 +564,13 @@ export default function HomePage() {
               <header style={{ display: "grid", gap: 8, margin: "0 0 16px" }}>
                 <h2 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy }}>How it works</h2>
                 <p style={{ margin: 0, opacity: 0.78, lineHeight: 1.65, maxWidth: 780 }}>
-                  Built for both borrowers and owners — clear steps, clear expectations.
+                  One account, whether you want to ride, share a horse, or do both.
                 </p>
               </header>
 
               <div className="pmp-home-two-col" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
                 <RoleCard
-                  pill="For Borrowers"
+                  pill="Looking to ride"
                   steps={[
                     ["1", "Browse active horses", "Explore listings and check details."],
                     ["2", "Request your dates", "Pick a date range. Conflicts are blocked."],
@@ -575,7 +579,7 @@ export default function HomePage() {
                   borrower
                 />
                 <RoleCard
-                  pill="For Owners"
+                  pill="Sharing a horse"
                   steps={[
                     ["1", "List your horse", "Create a listing with clear expectations."],
                     ["2", "Approve trusted riders", "Review requests and chat before approving."],

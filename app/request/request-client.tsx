@@ -8,6 +8,8 @@ import Link from "next/link";
 import HorseMap from "@/components/HorseMap";
 import AvailabilityRanges from "@/components/AvailabilityRanges";
 import { supabase } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { userFacingError } from "@/lib/userFacingError";
 import RequestForm from "./request-form";
 
 type HorseRow = {
@@ -35,7 +37,7 @@ const palette = {
 };
 
 function ownerLabel(p: ProfileMini | null) {
-  return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || "Owner";
+  return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || "Member";
 }
 
 function wrap(): React.CSSProperties {
@@ -148,6 +150,7 @@ function isHorseActive(h: HorseRow | null) {
 }
 
 export default function RequestClient() {
+  const { identityEnabled } = useLaunchFeatures();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -185,18 +188,20 @@ export default function RequestClient() {
 
         if (!cancelled) setViewerId(viewer.id);
 
-        const { data: profileRow, error: profileErr } = await supabase
-          .from("profiles")
-          .select("verification_status")
-          .eq("id", viewer.id)
-          .maybeSingle();
+        if (identityEnabled) {
+          const { data: profileRow, error: profileErr } = await supabase
+            .from("profiles")
+            .select("verification_status")
+            .eq("id", viewer.id)
+            .maybeSingle();
 
-        if (profileErr) throw profileErr;
+          if (profileErr) throw profileErr;
 
-        const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
-        if (String(verificationStatus).toLowerCase() !== "verified") {
-          router.replace("/verify");
-          return;
+          const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
+          if (String(verificationStatus).toLowerCase() !== "verified") {
+            router.replace("/verify");
+            return;
+          }
         }
 
         if (!cancelled) setAccessChecked(true);
@@ -236,7 +241,7 @@ export default function RequestClient() {
           if (!pRes.error) setOwnerProfile((pRes.data ?? null) as ProfileMini | null);
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load request details.");
+        if (!cancelled) setError(userFacingError(e, "We couldn’t load this request. Please try again."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -246,7 +251,7 @@ export default function RequestClient() {
     return () => {
       cancelled = true;
     };
-  }, [horseId, router]);
+  }, [horseId, identityEnabled, router]);
 
   const isOwnHorse = !!viewerId && !!horse?.owner_id && viewerId === horse.owner_id;
 
@@ -273,7 +278,7 @@ export default function RequestClient() {
       <div style={wrap()}>
         <div style={container()}>
           <div style={card()}>
-            <div style={hintPill()}>🔒 Verification required</div>
+            <div style={hintPill()}>{identityEnabled ? "🔒 Checking verification" : "📅 Opening request"}</div>
             <h1 style={{ ...pageTitle(), marginTop: 10 }}>Checking your access…</h1>
             <div style={{ marginTop: 10, fontSize: 13, color: "rgba(31,42,68,0.72)", lineHeight: 1.7 }}>
               We’re confirming your account status before opening requests.
@@ -377,7 +382,7 @@ export default function RequestClient() {
           <div style={{ marginTop: 14, ...card() }}>
             <div style={hintPill()}>✅ Your listing</div>
             <h2 style={{ marginTop: 10, marginBottom: 0, fontSize: 16, fontWeight: 950, color: palette.navy }}>
-              Owners can’t request their own horses
+              This is your own horse listing
             </h2>
             <div style={{ marginTop: 8, fontSize: 13, color: "rgba(31,42,68,0.72)", lineHeight: 1.7 }}>
               This is your listing. To avoid confusion, requesting your own horse is disabled.
@@ -414,13 +419,13 @@ export default function RequestClient() {
                     {horse.name ?? "Horse"}
                   </div>
                   <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.72)" }}>
-                    Owner: <span style={{ fontWeight: 950, color: palette.forest }}>{ownerLabel(ownerProfile)}</span>
+                    Listed by: <span style={{ fontWeight: 950, color: palette.forest }}>{ownerLabel(ownerProfile)}</span>
                   </div>
 
                   {horse.owner_id ? (
                     <div style={{ marginTop: 10 }}>
                       <Link href={`/owner/${horse.owner_id}`} style={inlineLink()}>
-                        View owner profile →
+                        View member profile →
                       </Link>
                     </div>
                   ) : null}

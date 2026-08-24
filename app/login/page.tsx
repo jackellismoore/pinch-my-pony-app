@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import LoginInner from "./LoginInner";
 import { supabase } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 
 type ProfileGate = {
   id: string;
@@ -39,6 +40,7 @@ function ConfirmedBanner() {
 }
 
 function SessionRedirector() {
+  const { identityEnabled } = useLaunchFeatures();
   const ranRef = useRef(false);
   const searchParams = useSearchParams();
   const [ready, setReady] = useState(false);
@@ -70,20 +72,22 @@ function SessionRedirector() {
           return;
         }
 
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, verification_status")
-          .eq("id", user.id)
-          .maybeSingle();
+        if (identityEnabled) {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("id, verification_status")
+            .eq("id", user.id)
+            .maybeSingle();
 
-        if (cancelled) return;
+          if (cancelled) return;
 
-        const profile = !error ? (data as ProfileGate | null) : null;
-        const status = String(profile?.verification_status ?? "unverified").toLowerCase();
+          const profile = !error ? (data as ProfileGate | null) : null;
+          const status = String(profile?.verification_status ?? "unverified").toLowerCase();
 
-        if (status !== "verified") {
-          window.location.replace("/verify");
-          return;
+          if (status !== "verified") {
+            window.location.replace("/verify");
+            return;
+          }
         }
 
         window.location.replace("/dashboard");
@@ -103,7 +107,7 @@ function SessionRedirector() {
     return () => {
       cancelled = true;
     };
-  }, [hasConfirmedParam]);
+  }, [hasConfirmedParam, identityEnabled]);
 
   if (!ready && !hasConfirmedParam) {
     return <LoadingFallback />;

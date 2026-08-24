@@ -252,7 +252,7 @@ export default function OwnerPublicProfilePage() {
           setRatingCount(0);
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load owner profile.");
+        if (!cancelled) setError(e?.message ?? "Failed to load member profile.");
         setProfile(null);
         setHorses([]);
         setRatingAvg(0);
@@ -273,7 +273,7 @@ export default function OwnerPublicProfilePage() {
   const displayName = useMemo(() => {
     const dn = profile?.display_name?.trim();
     const fn = profile?.full_name?.trim();
-    return dn || fn || "Owner";
+    return dn || fn || "Member";
   }, [profile]);
 
   const subtitle = useMemo(() => {
@@ -286,7 +286,7 @@ export default function OwnerPublicProfilePage() {
     const p = reviewersById[id];
     const dn = p?.display_name?.trim();
     const fn = p?.full_name?.trim();
-    return dn || fn || "Borrower";
+    return dn || fn || "Member";
   }
 
   return (
@@ -335,7 +335,7 @@ export default function OwnerPublicProfilePage() {
 
         {!loading && !error && !profile ? (
           <div style={{ marginTop: 14, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
-            Owner not found.
+            Member not found.
           </div>
         ) : null}
 
@@ -491,7 +491,7 @@ export default function OwnerPublicProfilePage() {
             <div style={{ marginTop: 18 }}>
               <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Reviews</div>
               <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.70)" }}>
-                Latest feedback from borrowers.
+                Latest feedback from completed horse-sharing arrangements.
               </div>
 
               {reviews.length === 0 ? (

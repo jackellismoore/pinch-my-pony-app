@@ -66,6 +66,7 @@ export default function UnifiedSignupInner() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +97,11 @@ export default function UnifiedSignupInner() {
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError("Please agree to the Terms of Use and Privacy Policy.");
       return;
     }
 
@@ -238,10 +244,22 @@ export default function UnifiedSignupInner() {
               />
             </Field>
 
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13, lineHeight: 1.55 }}>
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                style={{ marginTop: 3, width: 18, height: 18, flex: "0 0 auto" }}
+              />
+              <span>
+                I am 18 or over and agree to the <Link href="/terms" style={inlineLink}>Terms of Use</Link> and acknowledge the <Link href="/privacy" style={inlineLink}>Privacy Policy</Link>.
+              </span>
+            </label>
+
             <button
               onClick={signup}
-              disabled={loading}
-              style={{ ...primaryBtn, opacity: loading ? 0.75 : 1 }}
+              disabled={loading || !acceptedTerms}
+              style={{ ...primaryBtn, opacity: loading || !acceptedTerms ? 0.65 : 1 }}
               type="button"
             >
               {loading ? "Creating account…" : "Create account"}

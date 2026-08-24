@@ -15,8 +15,8 @@ const palette = {
 };
 
 const navItems = [
-  { href: "/dashboard/borrower", label: "Overview" },
-  { href: "/dashboard/borrower/horses", label: "Horses" },
+  { href: "/dashboard/borrower", label: "Activity overview" },
+  { href: "/dashboard/borrower/horses", label: "My rides" },
   { href: "/dashboard/membership", label: "Memberships" }, // ✅ NEW
 ];
 
@@ -98,7 +98,7 @@ export default function BorrowerDashboardLayout({ children }: { children: ReactN
         {/* Sidebar (desktop) */}
         <aside className="pmpBorrowerSidebar" style={sidebar}>
           <div style={sidebarCard}>
-            <div style={{ fontWeight: 950, color: palette.navy, fontSize: 14 }}>Borrower Dashboard</div>
+            <div style={{ fontWeight: 950, color: palette.navy, fontSize: 14 }}>My activity</div>
             <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75, lineHeight: 1.5 }}>
               Track your requests and manage your rides.
             </div>

@@ -7,6 +7,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import HorseMap from "@/components/HorseMap";
 import { supabase } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { userFacingError } from "@/lib/userFacingError";
 import { AvailabilityBadge } from "@/components/AvailabilityBadge";
 import StarRating from "@/components/StarRating";
 
@@ -167,6 +169,7 @@ function normalizeTemperament(value: unknown) {
 }
 
 export default function BrowsePage() {
+  const { identityEnabled } = useLaunchFeatures();
   const router = useRouter();
 
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -199,18 +202,20 @@ export default function BrowsePage() {
           return;
         }
 
-        const { data: profileRow, error: profileErr } = await supabase
-          .from("profiles")
-          .select("verification_status")
-          .eq("id", viewer.id)
-          .maybeSingle();
+        if (identityEnabled) {
+          const { data: profileRow, error: profileErr } = await supabase
+            .from("profiles")
+            .select("verification_status")
+            .eq("id", viewer.id)
+            .maybeSingle();
 
-        if (profileErr) throw profileErr;
+          if (profileErr) throw profileErr;
 
-        const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
-        if (String(verificationStatus).toLowerCase() !== "verified") {
-          router.replace("/verify");
-          return;
+          const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
+          if (String(verificationStatus).toLowerCase() !== "verified") {
+            router.replace("/verify");
+            return;
+          }
         }
 
         if (!cancelled) setViewerId(viewer.id);
@@ -334,7 +339,7 @@ export default function BrowsePage() {
           }
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load browse data.");
+        if (!cancelled) setError(userFacingError(e, "We couldn’t load the horses. Please try again."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -344,11 +349,11 @@ export default function BrowsePage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [identityEnabled, router]);
 
   function ownerLabel(ownerId: string) {
     const p = profilesById[ownerId];
-    return safeText(p?.display_name) || safeText(p?.full_name) || "Owner";
+    return safeText(p?.display_name) || safeText(p?.full_name) || "Member";
   }
 
   const breedOptions = BREED_OPTIONS.slice();
@@ -464,7 +469,7 @@ export default function BrowsePage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by horse, owner, breed, location…"
+              placeholder="Search by horse, member, breed, location…"
               style={{
                 border: "1px solid rgba(15,23,42,0.12)",
                 borderRadius: 14,
@@ -612,7 +617,7 @@ export default function BrowsePage() {
                       </div>
 
                       <div className="pmp-ownerLine">
-                        Owner:{" "}
+                        Listed by:{" "}
                         <Link href={`/owner/${horse.owner_id}`} className="pmp-inlineLink">
                           {ownerLabel(horse.owner_id)}
                         </Link>

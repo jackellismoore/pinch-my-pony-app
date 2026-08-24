@@ -60,7 +60,7 @@ function personName(profile: ProfileMini | null | undefined) {
   if (dn) return dn;
   const fn = profile?.full_name?.trim();
   if (fn) return fn;
-  return "Borrower";
+  return "Member";
 }
 
 function renderStars(rating: number | null | undefined) {
@@ -210,10 +210,10 @@ export default function OwnerReviewsPage() {
     <div className="pmp-pageShell">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <div>
-          <div className="pmp-kicker">Owner dashboard</div>
+          <div className="pmp-kicker">My horse feedback</div>
           <h1 className="pmp-pageTitle">Reviews</h1>
           <div className="pmp-mutedText" style={{ marginTop: 6 }}>
-            Feedback left by borrowers after approved bookings.
+            Feedback left by members after approved bookings.
           </div>
         </div>
 
@@ -255,7 +255,7 @@ export default function OwnerReviewsPage() {
       <section className="pmp-sectionCard" style={{ marginTop: 16 }}>
         <div className="pmp-sectionHeader">
           <div>
-            <div className="pmp-kicker">Borrower feedback</div>
+            <div className="pmp-kicker">Member feedback</div>
             <h3 className="pmp-sectionTitle">Recent reviews</h3>
           </div>
           <div className="pmp-mutedText">
@@ -268,7 +268,7 @@ export default function OwnerReviewsPage() {
             <div className="pmp-emptyIcon">⭐</div>
             <div className="pmp-emptyTitle">No reviews yet</div>
             <div className="pmp-emptyText">
-              Reviews will appear here once borrowers leave feedback after their booking.
+              Reviews will appear here once members leave feedback after their booking.
             </div>
             <Link href="/dashboard/owner/requests" className="pmp-ctaPrimary">
               View requests
@@ -322,7 +322,7 @@ export default function OwnerReviewsPage() {
                       </div>
 
                       <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.6 }}>
-                        Borrower: <span style={{ fontWeight: 950 }}>{personName(borrower)}</span>
+                        Member: <span style={{ fontWeight: 950 }}>{personName(borrower)}</span>
                       </div>
 
                       <div style={{ marginTop: 4, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.6 }}>

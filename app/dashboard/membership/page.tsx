@@ -213,7 +213,7 @@ export default function MembershipPage() {
                   lineHeight: 1.7,
                 }}
               >
-                Pinch My Pony will stay free until 2027 while we build our customer base.
+                One account for listing and borrowing, with six months of free launch access.
               </div>
             </div>
 
@@ -267,10 +267,10 @@ export default function MembershipPage() {
                 lineHeight: 1.6,
               }}
             >
-              <b>Membership checkout is turned off.</b>
+              <b>Six months free.</b>
               <div style={{ marginTop: 6, opacity: 0.92 }}>
-                Pinch My Pony will remain free until 2027 while we grow the platform and build our
-                customer base.
+                Launch access does not require checkout or payment details. Nobody will be charged
+                automatically when the six-month period ends.
               </div>
             </div>
 
@@ -295,7 +295,7 @@ export default function MembershipPage() {
                   Pinch My Pony Membership
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
-                  One membership for borrowing and listing.
+                  All launch testers can use listing and borrowing features during the free period.
                 </div>
 
                 <ul
@@ -308,14 +308,14 @@ export default function MembershipPage() {
                   }}
                 >
                   <li>Browse and request horses</li>
-                  <li>List and manage your own horses</li>
+                  <li>Six-month free trial for borrowing</li>
                   <li>Messaging, verification, and reviews</li>
                 </ul>
 
                 <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button disabled style={btn("primary", true)}>
-                    Coming in 2027
-                  </button>
+                  <Link href={authed ? "/dashboard" : "/signup"} style={btn("primary")}>
+                    {authed ? "Use launch access" : "Join free for 6 months"}
+                  </Link>
                 </div>
               </div>
 
@@ -324,7 +324,7 @@ export default function MembershipPage() {
                   Launch access
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
-                  The complete platform is currently free while the community grows.
+                  Create one account to browse and list horses without choosing an account type.
                 </div>
 
                 <ul
@@ -337,14 +337,14 @@ export default function MembershipPage() {
                   }}
                 >
                   <li>No separate account types</li>
-                  <li>No checkout required during launch</li>
-                  <li>Future membership managed securely by Stripe</li>
+                  <li>List and manage horses for free</li>
+                  <li>No payment method or automatic renewal</li>
                 </ul>
 
                 <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button disabled style={btn("primary", true)}>
-                    Coming in 2027
-                  </button>
+                  <Link href={authed ? "/dashboard" : "/signup"} style={btn("secondary")}>
+                    {authed ? "Go to dashboard" : "Create free account"}
+                  </Link>
                 </div>
               </div>
             </div>
@@ -357,7 +357,8 @@ export default function MembershipPage() {
                 lineHeight: 1.7,
               }}
             >
-              This page is informational only for now. No Stripe checkout starts from here.
+              If launch access is extended, existing testers can simply keep using the platform.
+              Paid membership will require a separate opt-in before anybody is charged.
             </div>
           </div>
         </div>

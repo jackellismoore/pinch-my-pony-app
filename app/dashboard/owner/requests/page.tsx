@@ -45,7 +45,7 @@ function fmt(d: string | null) {
 function nameFromProfile(p?: ProfileMini | null) {
   const dn = (p?.display_name ?? "").trim();
   const fn = (p?.full_name ?? "").trim();
-  return dn || fn || "Borrower";
+  return dn || fn || "Requester";
 }
 
 function pill(kind: string): React.CSSProperties {
@@ -212,8 +212,8 @@ export default function OwnerRequestsPage() {
     <div style={{ maxWidth: 1100, margin: "0 auto" }}>
       <div style={pageTitleRow}>
         <div>
-          <h1 style={h1}>Owner Requests</h1>
-          <div style={subtitle}>Approve/reject pending requests. View details to message the borrower.</div>
+          <h1 style={h1}>Requests for my horses</h1>
+          <div style={subtitle}>Review incoming requests, respond, and message the requester.</div>
         </div>
 
         <div style={topActions}>
@@ -259,7 +259,7 @@ export default function OwnerRequestsPage() {
           {requests.map((r) => {
             const status = String(r.status ?? "pending");
             const horseName = r.horse_id ? horseNameById.get(r.horse_id) ?? "Horse" : "Horse";
-            const borrowerName = r.borrower_id ? nameFromProfile(borrowersById[r.borrower_id]) : "Borrower";
+            const borrowerName = r.borrower_id ? nameFromProfile(borrowersById[r.borrower_id]) : "Requester";
 
             return (
               <div
@@ -282,7 +282,7 @@ export default function OwnerRequestsPage() {
                   </div>
 
                   <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
-                    Borrower: <span style={{ fontWeight: 900, color: "rgba(0,0,0,0.85)" }}>{borrowerName}</span>
+                    Requester: <span style={{ fontWeight: 900, color: "rgba(0,0,0,0.85)" }}>{borrowerName}</span>
                   </div>
 
                   <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
