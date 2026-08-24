@@ -4,13 +4,12 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import HorseMap from "@/components/HorseMap";
 import { supabase } from "@/lib/supabaseClient";
-import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 import { userFacingError } from "@/lib/userFacingError";
 import { AvailabilityBadge } from "@/components/AvailabilityBadge";
 import StarRating from "@/components/StarRating";
+import { Icon } from "@/components/Icon";
 
 type HorseRow = {
   id: string;
@@ -169,9 +168,6 @@ function normalizeTemperament(value: unknown) {
 }
 
 export default function BrowsePage() {
-  const { identityEnabled } = useLaunchFeatures();
-  const router = useRouter();
-
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -197,28 +193,7 @@ export default function BrowsePage() {
         const { data: sessData } = await supabase.auth.getSession();
         const viewer = sessData.session?.user ?? null;
 
-        if (!viewer) {
-          router.replace("/login");
-          return;
-        }
-
-        if (identityEnabled) {
-          const { data: profileRow, error: profileErr } = await supabase
-            .from("profiles")
-            .select("verification_status")
-            .eq("id", viewer.id)
-            .maybeSingle();
-
-          if (profileErr) throw profileErr;
-
-          const verificationStatus = (profileRow as any)?.verification_status ?? "unverified";
-          if (String(verificationStatus).toLowerCase() !== "verified") {
-            router.replace("/verify");
-            return;
-          }
-        }
-
-        if (!cancelled) setViewerId(viewer.id);
+        if (!cancelled) setViewerId(viewer?.id ?? null);
 
         const { data: horsesData, error: horsesErr } = await supabase
           .from("horses")
@@ -237,7 +212,7 @@ export default function BrowsePage() {
 
         if (ownerIds.length > 0) {
           const { data: profData, error: profErr } = await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select("id,display_name,full_name")
             .in("id", ownerIds);
 
@@ -287,10 +262,9 @@ export default function BrowsePage() {
               .order("start_date", { ascending: true }),
 
             supabase
-              .from("borrow_requests")
-              .select("id,horse_id,start_date,end_date,status")
+              .from("public_booked_ranges")
+              .select("id,horse_id,start_date,end_date")
               .in("horse_id", horseIds)
-              .eq("status", "approved")
               .not("start_date", "is", null)
               .not("end_date", "is", null)
               .gte("end_date", today)
@@ -349,7 +323,7 @@ export default function BrowsePage() {
     return () => {
       cancelled = true;
     };
-  }, [identityEnabled, router]);
+  }, []);
 
   function ownerLabel(ownerId: string) {
     const p = profilesById[ownerId];
@@ -565,7 +539,7 @@ export default function BrowsePage() {
             <div className="pmp-mutedText">Loading listings…</div>
           ) : filteredHorses.length === 0 ? (
             <div className="pmp-emptyState">
-              <div className="pmp-emptyIcon">🗺️</div>
+              <div className="pmp-emptyIcon"><Icon name="compass" size={31} /></div>
               <div className="pmp-emptyTitle">No horses match those filters</div>
               <div className="pmp-emptyText">
                 Try clearing a filter or changing your search to see more listings.
@@ -591,7 +565,7 @@ export default function BrowsePage() {
                           className="pmp-marketplaceImage"
                         />
                       ) : (
-                        <div className="pmp-marketplaceImageFallback">🐎</div>
+                        <div className="pmp-marketplaceImageFallback"><Icon name="horse" size={42} /></div>
                       )}
                     </div>
 

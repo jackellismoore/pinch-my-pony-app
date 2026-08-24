@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { bearerToken, safeInternalRedirect } from "../app/lib/security.ts";
 import { launchFeatureEnabled } from "../app/lib/launchFeatures.ts";
 import { userFacingError } from "../app/lib/userFacingError.ts";
@@ -37,4 +39,32 @@ test("user-facing errors do not expose backend details", () => {
     "We couldn’t connect. Check your internet connection and try again."
   );
   assert.equal(userFacingError(new Error("database internals"), "Try again."), "Try again.");
+});
+
+test("release migration keeps paid borrowing and identity off by default", () => {
+  const sql = readFileSync(resolve("supabase/migrations/202608240002_release_security_and_entitlements.sql"), "utf8");
+  assert.match(sql, /borrowing_membership_required boolean not null default false/i);
+  assert.match(sql, /borrowing_identity_required boolean not null default false/i);
+  assert.match(sql, /complimentary_access_until > now\(\)/i);
+});
+
+test("request decisions use an owner-only atomic RPC", () => {
+  const sql = readFileSync(resolve("supabase/migrations/202608240002_release_security_and_entitlements.sql"), "utf8");
+  assert.match(sql, /drop policy if exists "requests_participant_update"/i);
+  assert.match(sql, /Only the listing owner can decide this request/i);
+  assert.match(sql, /pg_advisory_xact_lock/i);
+  assert.match(sql, /Those dates are no longer available/i);
+});
+
+test("public profile directory excludes billing identifiers", () => {
+  const sql = readFileSync(resolve("supabase/migrations/202608240002_release_security_and_entitlements.sql"), "utf8");
+  const view = sql.match(/create or replace view public\.public_profiles[\s\S]*?from public\.profiles;/i)?.[0] ?? "";
+  assert.ok(view.length > 0);
+  assert.doesNotMatch(view, /stripe_customer_id|stripe_subscription_id|membership_status/i);
+});
+
+test("all request status changes in the app use the protected RPC", () => {
+  const detail = readFileSync(resolve("app/dashboard/owner/[requestId]/page.tsx"), "utf8");
+  assert.match(detail, /rpc\("set_borrow_request_status"/);
+  assert.doesNotMatch(detail, /\.update\(\{\s*status:/);
 });

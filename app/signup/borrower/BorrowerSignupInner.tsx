@@ -115,7 +115,7 @@ export default function UnifiedSignupInner() {
         email: e,
         password,
         options: {
-          emailRedirectTo: `${origin}/login?confirmed=1`,
+          emailRedirectTo: `${origin}/auth/confirm?next=${encodeURIComponent(redirectTo)}`,
           data: {
             display_name: displayName.trim() || null,
             account_model: "unified",

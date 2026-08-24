@@ -137,7 +137,7 @@ export default function BorrowerHorsesPage() {
         let ownersById: Record<string, ProfileMini> = {};
         if (ownerIds.length > 0) {
           const { data: owners, error: ownersErr } = await supabase
-            .from('profiles')
+            .from('public_profiles')
             .select('id,display_name,full_name')
             .in('id', ownerIds);
 

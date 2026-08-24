@@ -178,7 +178,7 @@ export default function OwnerRequestsPage() {
         // 3) borrower names
         const borrowerIds = Array.from(new Set(reqRows.map((r) => r.borrower_id).filter(Boolean))) as string[];
         if (borrowerIds.length > 0) {
-          const profRes = await supabase.from("profiles").select("id,display_name,full_name").in("id", borrowerIds);
+          const profRes = await supabase.from("public_profiles").select("id,display_name,full_name").in("id", borrowerIds);
           if (!cancelled && !profRes.error) {
             const map: Record<string, ProfileMini> = {};
             for (const p of (profRes.data ?? []) as ProfileMini[]) map[p.id] = p;

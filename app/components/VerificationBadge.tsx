@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Icon, type IconName } from "@/components/Icon";
 
 export type VerificationStatus = "unverified" | "pending" | "processing" | "verified" | "failed" | string | null;
 
@@ -19,12 +20,12 @@ export function VerificationBadge({
 
   const meta =
     s === "verified"
-      ? { label: "Verified", icon: "✅", bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.26)", fg: "rgba(6,95,70,1)" }
+      ? { label: "Verified", icon: "check" as IconName, bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.26)", fg: "rgba(6,95,70,1)" }
       : s === "pending" || s === "processing"
-      ? { label: "Verification processing", icon: "⏳", bg: "rgba(59,130,246,0.10)", border: "rgba(59,130,246,0.22)", fg: "rgba(30,64,175,1)" }
+      ? { label: "Verification processing", icon: "id-card" as IconName, bg: "rgba(59,130,246,0.10)", border: "rgba(59,130,246,0.22)", fg: "rgba(30,64,175,1)" }
       : s === "failed"
-      ? { label: "Verification needs attention", icon: "⚠️", bg: "rgba(239,68,68,0.10)", border: "rgba(239,68,68,0.22)", fg: "rgba(153,27,27,1)" }
-      : { label: "Verification required", icon: "🔒", bg: "rgba(234,179,8,0.12)", border: "rgba(234,179,8,0.26)", fg: "rgba(113,63,18,1)" };
+      ? { label: "Verification needs attention", icon: "warning" as IconName, bg: "rgba(239,68,68,0.10)", border: "rgba(239,68,68,0.22)", fg: "rgba(153,27,27,1)" }
+      : { label: "Verification required", icon: "lock" as IconName, bg: "rgba(234,179,8,0.12)", border: "rgba(234,179,8,0.26)", fg: "rgba(113,63,18,1)" };
 
   const sub =
     !compact && s === "verified" && verifiedAt
@@ -57,7 +58,7 @@ export function VerificationBadge({
       }}
       title={providerLabel ?? undefined}
     >
-      <span aria-hidden="true">{meta.icon}</span>
+      <Icon name={meta.icon} size={compact ? 15 : 17} />
       <span>{meta.label}</span>
       {sub ? (
         <span style={{ fontWeight: 800, opacity: 0.72, marginLeft: 6, fontSize: compact ? 11 : 12 }}>

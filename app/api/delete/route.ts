@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { getStripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,23 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = user.id;
+
+    const { data: billingProfile, error: billingLookupError } = await admin
+      .from("profiles")
+      .select("stripe_subscription_id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (billingLookupError) throw billingLookupError;
+
+    if (billingProfile?.stripe_subscription_id) {
+      try {
+        await getStripe().subscriptions.cancel(billingProfile.stripe_subscription_id);
+      } catch (stripeError: any) {
+        if (stripeError?.code !== "resource_missing") {
+          throw new Error("We couldn’t cancel the active membership. Please try again before deleting your account.");
+        }
+      }
+    }
 
     const { data: ownedHorses, error: horseLookupError } = await admin
       .from("horses")

@@ -4,14 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-type VerificationStatus =
-  | "verified"
-  | "processing"
-  | "failed"
-  | "unverified"
-  | string
-  | null;
-
 const PUBLIC_PATH_PREFIXES = [
   "/",
   "/login",
@@ -27,6 +19,11 @@ const PUBLIC_PATH_PREFIXES = [
   "/safety",
   "/terms",
   "/privacy",
+  "/report",
+  "/browse",
+  "/horse",
+  "/owner",
+  "/dashboard/membership",
 ];
 
 function isPublicPath(pathname: string) {
@@ -42,7 +39,6 @@ function isPublicPath(pathname: string) {
 
 export default function VerificationGate({
   children,
-  identityEnabled,
 }: {
   children: React.ReactNode;
   identityEnabled: boolean;
@@ -90,38 +86,6 @@ export default function VerificationGate({
           return;
         }
 
-        if (!identityEnabled) {
-          if (!cancelled) {
-            setAllowed(true);
-            setChecking(false);
-          }
-          return;
-        }
-
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("verification_status")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (profileError) throw profileError;
-
-        const status = String(
-          ((profile as { verification_status?: VerificationStatus } | null)
-            ?.verification_status ?? "unverified")
-        ).toLowerCase();
-
-        const verified = status === "verified";
-
-        if (!verified) {
-          if (!cancelled) {
-            setAllowed(false);
-            setChecking(false);
-            router.replace("/verify");
-          }
-          return;
-        }
-
         if (!cancelled) {
           setAllowed(true);
           setChecking(false);
@@ -154,7 +118,7 @@ export default function VerificationGate({
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [identityEnabled, publicRoute, router, pathname]);
+  }, [publicRoute, router, pathname]);
 
   if (checking) {
     return null;

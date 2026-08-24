@@ -8,6 +8,7 @@ import { registerPushForCurrentUser } from "@/lib/push/registerPush";
 import NotificationBell from "@/components/NotificationBell";
 import { VerificationBadge } from "@/components/VerificationBadge";
 import MobileTabBar from "@/components/MobileTabBar";
+import { Icon } from "@/components/Icon";
 
 type ProfileMini = {
   id: string;
@@ -135,7 +136,6 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
   };
 
   const isVerified = (profile?.verification_status ?? "unverified") === "verified";
-  const hasAppAccess = !identityEnabled || isVerified;
 
   const signedInLabel = useMemo(() => {
     if (!user) return null;
@@ -309,6 +309,7 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
           border: none;
           cursor: pointer;
           text-align: left;
+          gap: 10px;
         }
 
         .pmp-menuItem:hover,
@@ -400,7 +401,7 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
                   </div>
                 ) : null}
 
-                {hasAppAccess && !menuOpen ? (
+                {!menuOpen ? (
                   <div className="pmp-headerNotifWrap">
                     <NotificationBell />
                   </div>
@@ -416,7 +417,7 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
               title="Menu"
               type="button"
             >
-              ☰
+              <Icon name="menu" size={22} />
             </button>
 
             {menuOpen ? (
@@ -428,39 +429,23 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
                       <div className="pmp-menuUserName">{signedInLabel}</div>
                     </div>
 
-                    {!hasAppAccess ? (
-                      <>
-                        <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          Verify Identity
-                        </Link>
+                    <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      <Icon name="compass" size={19} /> Explore horses
+                    </Link>
 
-                        <Link href="/help" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          Help &amp; information
-                        </Link>
-                      </>
-                    ) : (
-                      <>
-                        <Link href="/browse" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          Browse
-                        </Link>
+                    <Link href="/dashboard/membership" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      <Icon name="credit-card" size={19} /> Membership
+                    </Link>
 
-                        <Link href="/messages" onClick={() => setMenuOpen(false)} className="pmp-menuItem pmp-menuDesktopOnly">
-                          Messages
-                        </Link>
+                    {identityEnabled && !isVerified ? (
+                      <Link href="/verify" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                        <Icon name="id-card" size={19} /> Verify identity
+                      </Link>
+                    ) : null}
 
-                        <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="pmp-menuItem pmp-menuDesktopOnly">
-                          Dashboard
-                        </Link>
-
-                        <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem pmp-menuDesktopOnly">
-                          Profile
-                        </Link>
-
-                        <Link href="/help" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                          Help &amp; information
-                        </Link>
-                      </>
-                    )}
+                    <Link href="/help" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                      <Icon name="shield" size={19} /> Help &amp; safety
+                    </Link>
 
                     <button onClick={logout} className="pmp-menuLogout" type="button">
                       Logout
@@ -469,15 +454,15 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
                 ) : (
                   <>
                     <Link href="/login" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Login
+                      <Icon name="user" size={19} /> Login
                     </Link>
 
                     <Link href="/signup" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Sign Up
+                      <Icon name="plus" size={19} /> Sign up
                     </Link>
 
                     <Link href="/help" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
-                      Help &amp; information
+                      <Icon name="shield" size={19} /> Help &amp; safety
                     </Link>
                   </>
                 )}
@@ -487,7 +472,7 @@ export default function Header({ identityEnabled }: { identityEnabled: boolean }
         </div>
       </header>
 
-      {user && hasAppAccess ? <MobileTabBar /> : null}
+      {user ? <MobileTabBar /> : null}
     </>
   );
 }

@@ -49,11 +49,11 @@ function radius(isMine: boolean, pos: GroupPos) {
 }
 
 function statusText(m: UIMessage) {
-  if (m.client_status === "pending") return "⏳"
-  if (m.client_status === "error") return "⚠"
-  if (m.read_at) return "✓✓"
-  if (m.delivered_at) return "✓✓"
-  return "✓"
+  if (m.client_status === "pending") return "Sending"
+  if (m.client_status === "error") return "Failed"
+  if (m.read_at) return "Read"
+  if (m.delivered_at) return "Delivered"
+  return "Sent"
 }
 
 function clamp(n: number, a: number, b: number) {

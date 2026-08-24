@@ -8,6 +8,7 @@ import { usePaginatedMessages, type UIMessage } from "@/lib/hooks/usePaginatedMe
 import MessageBubble from "@/components/MessageBubble";
 import TypingBubbleInline from "@/components/TypingBubbleInline";
 import { sendPushNotification } from "@/lib/push/sendPushNotification";
+import { Icon } from "@/components/Icon";
 
 type Profile = {
   id: string;
@@ -231,7 +232,7 @@ export default function MessageThreadPage() {
       const otherId: string = horseRow.owner_id === myUserId ? req.borrower_id : horseRow.owner_id;
 
       const { data: prof } = await supabase
-        .from("profiles")
+        .from("public_profiles")
         .select("id, display_name, full_name, avatar_url, last_seen_at")
         .eq("id", otherId)
         .maybeSingle();
@@ -578,7 +579,7 @@ export default function MessageThreadPage() {
 
     if (file) {
       setUploading(true);
-      const fallbackText = text || "📷 Photo";
+      const fallbackText = text || "Photo attachment";
 
       const result = await sendOptimisticWithImage(myUserId, fallbackText, file, {
         bucket: "message-attachments",
@@ -1077,7 +1078,7 @@ export default function MessageThreadPage() {
                         fontSize: 18,
                       }}
                     >
-                      🐴
+                      <Icon name="horse" size={26} />
                     </div>
                   )}
                 </div>
@@ -1342,9 +1343,7 @@ export default function MessageThreadPage() {
                 title="Attach image"
                 aria-label="Attach image"
               >
-                <span style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true">
-                  📷
-                </span>
+                <Icon name="camera" size={19} />
               </button>
 
               <textarea

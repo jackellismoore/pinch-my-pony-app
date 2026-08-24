@@ -3,8 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { Icon } from '@/components/Icon';
+import { useLaunchFeatures } from '@/components/LaunchFeaturesProvider';
 
 export default function BorrowerDashboardHome() {
+  const { identityEnabled } = useLaunchFeatures();
   const [pendingCount, setPendingCount] = useState(0);
   const [approvedCount, setApprovedCount] = useState(0);
 
@@ -46,8 +49,8 @@ export default function BorrowerDashboardHome() {
   return (
     <div className="pmp-pageShell">
       <div>
-        <div className="pmp-kicker">Borrower dashboard</div>
-        <h1 className="pmp-pageTitle">Borrower Overview</h1>
+        <div className="pmp-kicker">Borrowing activity</div>
+        <h1 className="pmp-pageTitle">My borrowing overview</h1>
         <div className="pmp-mutedText" style={{ marginTop: 6 }}>
           Browse active horses, request dates, and keep your riding plans organised.
         </div>
@@ -107,9 +110,9 @@ export default function BorrowerDashboardHome() {
         </div>
 
         <div className="pmp-listStack">
-          <div className="pmp-horseRowCard">
+          {identityEnabled ? <div className="pmp-horseRowCard">
             <div className="pmp-horseRowMain">
-              <div className="pmp-horseThumb">🪪</div>
+              <div className="pmp-horseThumb"><Icon name="id-card" size={23} /></div>
               <div className="pmp-horseRowText">
                 <h4 className="pmp-horseName">Complete verification</h4>
                 <div className="pmp-mutedText">A verified account builds more trust with owners.</div>
@@ -120,11 +123,11 @@ export default function BorrowerDashboardHome() {
                 Verify
               </Link>
             </div>
-          </div>
+          </div> : null}
 
           <div className="pmp-horseRowCard">
             <div className="pmp-horseRowMain">
-              <div className="pmp-horseThumb">👤</div>
+              <div className="pmp-horseThumb"><Icon name="user" size={23} /></div>
               <div className="pmp-horseRowText">
                 <h4 className="pmp-horseName">Add a photo and bio</h4>
                 <div className="pmp-mutedText">A complete profile helps owners feel more confident approving requests.</div>
@@ -139,7 +142,7 @@ export default function BorrowerDashboardHome() {
 
           <div className="pmp-horseRowCard">
             <div className="pmp-horseRowMain">
-              <div className="pmp-horseThumb">💬</div>
+              <div className="pmp-horseThumb"><Icon name="messages" size={23} /></div>
               <div className="pmp-horseRowText">
                 <h4 className="pmp-horseName">Stay on top of replies</h4>
                 <div className="pmp-mutedText">Messages help you confirm details quickly and keep everything organised.</div>

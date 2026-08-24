@@ -30,7 +30,7 @@ export default function VerifyReturnPage() {
       if (cancelled) return;
 
       if (status === "verified") {
-        setMsg("Verified ✅ Redirecting…");
+        setMsg("Verified. Redirecting…");
         router.replace("/dashboard");
         return;
       }

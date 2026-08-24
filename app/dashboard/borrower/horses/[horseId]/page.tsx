@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { AvailabilityConflictNotice } from "@/components/AvailabilityConflictNotice";
+import { Icon } from "@/components/Icon";
 
 type HorseRow = {
   id: string;
@@ -144,7 +145,7 @@ export default function BorrowerRequestHorsePage() {
       <div className="pmp-pageShell">
         <div className="pmp-sectionCard">
           <div className="pmp-emptyState" style={{ textAlign: "left", justifyItems: "start" }}>
-            <div className="pmp-emptyIcon">✅</div>
+            <div className="pmp-emptyIcon"><Icon name="check" size={31} /></div>
             <div className="pmp-emptyTitle">Request sent</div>
             <div className="pmp-emptyText" style={{ maxWidth: "100%" }}>
               Your request has been sent to the owner. You can check your dashboard or messages for updates.
@@ -198,7 +199,7 @@ export default function BorrowerRequestHorsePage() {
               {horse.image_url ? (
                 <img src={horse.image_url} alt={horse.name ?? "Horse"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
-                <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", fontSize: 30 }}>🐎</div>
+                <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center" }}><Icon name="horse" size={34} /></div>
               )}
             </div>
 

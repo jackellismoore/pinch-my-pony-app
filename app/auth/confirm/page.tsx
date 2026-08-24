@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { safeInternalRedirect } from "@/lib/security";
 
 function getHashParams() {
   if (typeof window === "undefined") return new URLSearchParams();
@@ -28,7 +28,6 @@ function isOtpType(value: string | null): value is OtpType {
 }
 
 export default function AuthConfirmPage() {
-  const { identityEnabled } = useLaunchFeatures();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -40,6 +39,7 @@ export default function AuthConfirmPage() {
 
     async function confirmFlow() {
       try {
+        const next = safeInternalRedirect(searchParams.get("next"));
         const code = searchParams.get("code");
         const tokenHash = searchParams.get("token_hash");
         const type = searchParams.get("type");
@@ -56,7 +56,7 @@ export default function AuthConfirmPage() {
           if (error) throw error;
 
           if (cancelled) return;
-          router.replace(identityEnabled ? "/verify" : "/dashboard");
+          router.replace(next === "/" ? "/dashboard" : next);
           return;
         }
 
@@ -79,11 +79,11 @@ export default function AuthConfirmPage() {
           }
 
           if (type === "email") {
-            router.replace("/login?confirmed=1");
+            router.replace(`/login?confirmed=1&redirectTo=${encodeURIComponent(next)}`);
             return;
           }
 
-          router.replace(identityEnabled ? "/verify" : "/dashboard");
+          router.replace(next === "/" ? "/dashboard" : next);
           return;
         }
 
@@ -108,9 +108,7 @@ export default function AuthConfirmPage() {
           router.replace(
             hashType === "recovery"
               ? "/reset-password"
-              : identityEnabled
-              ? "/verify"
-              : "/dashboard"
+              : next === "/" ? "/dashboard" : next
           );
           return;
         }
@@ -127,7 +125,7 @@ export default function AuthConfirmPage() {
     return () => {
       cancelled = true;
     };
-  }, [identityEnabled, router, searchParams]);
+  }, [router, searchParams]);
 
   return (
     <div

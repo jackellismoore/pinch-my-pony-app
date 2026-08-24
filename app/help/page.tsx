@@ -1,33 +1,34 @@
 import Link from "next/link";
+import { Icon, type IconName } from "@/components/Icon";
 
 const helpLinks = [
   {
     href: "/faq",
-    icon: "🧾",
+    icon: "receipt" as IconName,
     title: "Frequently asked questions",
     description: "Quick answers about accounts, listings, requests and using Pinch My Pony.",
   },
   {
     href: "/safety",
-    icon: "🛡️",
+    icon: "shield" as IconName,
     title: "Safety guidance",
     description: "Practical guidance for safer introductions and horse-sharing arrangements.",
   },
   {
     href: "/contact",
-    icon: "✉️",
+    icon: "mail" as IconName,
     title: "Contact support",
     description: "Send us a message if you need help or want to report a concern.",
   },
   {
     href: "/terms",
-    icon: "📄",
+    icon: "document" as IconName,
     title: "Terms of Use",
     description: "The rules and responsibilities that apply when using the platform.",
   },
   {
     href: "/privacy",
-    icon: "🔐",
+    icon: "lock" as IconName,
     title: "Privacy Policy",
     description: "How Pinch My Pony collects, uses and protects your information.",
   },
@@ -47,12 +48,12 @@ export default function HelpPage() {
       <nav className="pmp-helpGrid" aria-label="Help and information" style={{ marginTop: 12 }}>
         {helpLinks.map((item) => (
           <Link key={item.href} href={item.href} className="pmp-helpCard pmp-hoverLift">
-            <span className="pmp-helpIcon" aria-hidden="true">{item.icon}</span>
+            <span className="pmp-helpIcon" aria-hidden="true"><Icon name={item.icon} size={25} /></span>
             <span>
               <span className="pmp-helpTitle">{item.title}</span>
               <span className="pmp-helpDescription">{item.description}</span>
             </span>
-            <span className="pmp-helpArrow" aria-hidden="true">→</span>
+            <span className="pmp-helpArrow" aria-hidden="true"><Icon name="arrow-right" size={18} /></span>
           </Link>
         ))}
       </nav>

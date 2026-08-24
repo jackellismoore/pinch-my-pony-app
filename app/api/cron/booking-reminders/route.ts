@@ -359,13 +359,9 @@ export async function GET(req: Request) {
 
     const authHeader = req.headers.get("authorization");
     const xCronSecret = req.headers.get("x-cron-secret");
-    const url = new URL(req.url);
-    const querySecret = url.searchParams.get("secret");
-
     const authorized =
       authHeader === `Bearer ${cronSecret}` ||
-      xCronSecret === cronSecret ||
-      querySecret === cronSecret;
+      xCronSecret === cronSecret;
 
     if (!authorized) {
       return new Response("Unauthorized", { status: 401 });

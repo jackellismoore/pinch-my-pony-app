@@ -6,6 +6,7 @@ import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase, SUPABASE_ENV_OK } from "@/lib/supabaseClient";
+import { Icon } from "@/components/Icon";
 
 const palette = {
   forest: "#1F3D2B",
@@ -76,7 +77,7 @@ function ForgotPasswordInner() {
       <div style={container()}>
         <div style={topRow()}>
           <div>
-            <div style={pill()}>🔐 Password reset</div>
+            <div style={pill()}><Icon name="lock" size={17} /> Password reset</div>
             <h1 style={title()}>Forgot your password?</h1>
             <div style={sub()}>
               Enter your email and we’ll send you a secure link to set a new password.

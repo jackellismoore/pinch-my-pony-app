@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { Icon } from "@/components/Icon";
 
 const palette = {
   forest: "#1F3D2B",
@@ -150,7 +151,7 @@ export default function ResetPasswordPage() {
       <div style={container()}>
         <div style={topRow()}>
           <div>
-            <div style={pill()}>🔑 Set new password</div>
+            <div style={pill()}><Icon name="lock" size={17} /> Set new password</div>
             <h1 style={title()}>Reset password</h1>
             <div style={sub()}>Choose a new password for your Pinch My Pony account.</div>
           </div>

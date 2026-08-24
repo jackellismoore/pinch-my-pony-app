@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { Icon } from "@/components/Icon";
 
 type HorseRow = {
   id: string;
@@ -127,7 +128,7 @@ export default function HorsePublicClient() {
 
         if (horseRow?.owner_id) {
           const { data: p, error: pErr } = await supabase
-            .from("profiles")
+            .from("public_profiles")
             .select("id,display_name,full_name,avatar_url,verification_status")
             .eq("id", horseRow.owner_id)
             .maybeSingle();
@@ -300,7 +301,7 @@ export default function HorsePublicClient() {
                   fontSize: 56,
                 }}
               >
-                🐎
+                <Icon name="horse" size={56} />
               </div>
             )}
 
@@ -441,7 +442,7 @@ export default function HorsePublicClient() {
                 </div>
               </Link>
 
-              <Link href="/contact" className="pmp-inlineLink" style={{ justifySelf: "start" }}>
+              <Link href={`/report?horseId=${encodeURIComponent(horse.id)}&userId=${encodeURIComponent(horse.owner_id)}`} className="pmp-inlineLink" style={{ justifySelf: "start" }}>
                 Report a listing or safety concern
               </Link>
 

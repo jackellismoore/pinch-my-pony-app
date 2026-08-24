@@ -28,7 +28,7 @@ function badgeText(avg?: number | null, count?: number | null) {
   const c = Number(count ?? 0);
   if (!c || c <= 0) return "New";
   const a = Number(avg ?? 0);
-  return `★ ${a.toFixed(1)}`;
+  return `Rated ${a.toFixed(1)}`;
 }
 
 function badgeStyle(hasReviews: boolean): React.CSSProperties {
@@ -237,7 +237,7 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
 
               <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
                 {Number(selected.rating_count ?? 0) > 0
-                  ? `★ ${Number(selected.rating_avg ?? 0).toFixed(1)} (${Number(selected.rating_count ?? 0)})`
+                  ? `Rated ${Number(selected.rating_avg ?? 0).toFixed(1)} (${Number(selected.rating_count ?? 0)})`
                   : "New • No reviews yet"}
               </div>
 

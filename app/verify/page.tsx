@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { Icon } from "@/components/Icon";
 
 const palette = {
   forest: "#1F3D2B",
@@ -154,16 +155,16 @@ export default function VerifyPage() {
               maxWidth: "100%",
             }}
           >
-            🪪 Identity verification
+            <Icon name="id-card" size={19} /> Identity verification
           </div>
 
           <h1 className="pmp-pageTitle" style={{ marginTop: 12 }}>
-            Verification required to continue
+            Verify before your first borrowing request
           </h1>
 
           <p style={{ margin: 0, opacity: 0.8, lineHeight: 1.65 }}>
-            To keep Pinch My Pony safe and trustworthy, we ask all users to verify a valid ID before unlocking the app.
-            This is automated and typically takes just a few minutes.
+            To help keep horse sharing safe and trustworthy, we ask members to verify a valid ID before sending borrowing requests.
+            You can still browse, list horses and manage your account before completing this step.
           </p>
 
           <div style={{ height: 14 }} />
@@ -178,13 +179,10 @@ export default function VerifyPage() {
           >
             <div style={{ fontWeight: 950, color: palette.navy }}>Current status</div>
             <div style={{ marginTop: 6, opacity: 0.8 }}>
-              {isVerified
-                ? "✅ Verified"
-                : status === "processing"
-                ? "⏳ Processing"
-                : status === "failed"
-                ? "⚠️ Action needed"
-                : "🔒 Not verified yet"}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                <Icon name={isVerified ? "check" : status === "failed" ? "warning" : status === "processing" ? "id-card" : "lock"} size={18} />
+                {isVerified ? "Verified" : status === "processing" ? "Processing" : status === "failed" ? "Action needed" : "Not verified yet"}
+              </span>
             </div>
           </div>
 
