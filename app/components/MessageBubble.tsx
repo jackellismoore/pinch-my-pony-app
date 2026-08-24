@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { Icon } from "@/components/Icon"
 
 type UIMessage = {
   id: string
@@ -95,22 +96,22 @@ export default function MessageBubble({
 
   const imageSrc = message.attachment_url || message.attachment_preview_url || null
   const hasImage = message.attachment_type === "image"
+  const content = message.content?.trim() ?? ""
+  const isPhotoLabel = hasImage && /^(?:📷\s*)?(?:photo|photo attachment)$/i.test(content)
 
   const bg =
-    message.client_status === "error"
-      ? "linear-gradient(180deg, rgba(239,68,68,0.14), rgba(239,68,68,0.08))"
-      : mine
-        ? "linear-gradient(180deg, rgba(11,59,46,0.96), rgba(15,23,42,0.92))"
-        : "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,241,232,0.82))"
+    mine
+      ? "linear-gradient(145deg, #174b38, #17233d)"
+      : "rgba(255,253,249,0.98)"
 
   const fg = mine ? "white" : "#0f172a"
 
   const bubbleBorder =
     message.client_status === "error"
-      ? "1px solid rgba(239,68,68,0.22)"
+      ? "1px solid rgba(199,160,84,0.72)"
       : mine
-        ? "1px solid rgba(255,255,255,0.16)"
-        : "1px solid rgba(15,23,42,0.10)"
+        ? "1px solid rgba(255,255,255,0.12)"
+        : "1px solid rgba(23,35,61,0.09)"
 
   // ✅ preserve aspect ratio using metadata (if available)
   const ratio = useMemo(() => {
@@ -127,7 +128,7 @@ export default function MessageBubble({
       overflow: "hidden",
       border: mine ? "1px solid rgba(255,255,255,0.22)" : "1px solid rgba(15,23,42,0.10)",
       background: mine ? "rgba(255,255,255,0.10)" : "rgba(15,23,42,0.04)",
-      boxShadow: "0 14px 28px rgba(0,0,0,0.12)",
+      boxShadow: "0 8px 20px rgba(23,35,61,0.10)",
       cursor: imageSrc ? "pointer" : "default",
       maxWidth: 360,
       transition: "transform 140ms ease, box-shadow 140ms ease",
@@ -197,19 +198,23 @@ export default function MessageBubble({
         <div
           className="pmp-msgIn"
           style={{
-            maxWidth: 580,
-            padding: "10px 12px",
+            maxWidth: "min(580px, 82vw)",
+            padding: hasImage ? "9px" : "10px 13px",
             ...radius(mine, groupPos),
             background: bg,
             color: fg,
             border: bubbleBorder,
-            boxShadow: "0 14px 30px rgba(0,0,0,0.10)",
+            boxShadow: mine
+              ? "0 7px 18px rgba(23,35,61,0.15)"
+              : "0 5px 16px rgba(23,35,61,0.08)",
             wordBreak: "break-word",
             opacity: message.client_status === "pending" ? 0.86 : 1,
           }}
         >
-          {message.content?.trim() ? (
-            <div style={{ fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{message.content}</div>
+          {content ? (
+            <div style={{ fontSize: 14, lineHeight: 1.45, whiteSpace: "pre-wrap", display: "flex", alignItems: "center", gap: 7 }}>
+              {isPhotoLabel ? <><Icon name="camera" size={16} /><span>Photo</span></> : content}
+            </div>
           ) : null}
 
           {hasImage ? (
@@ -265,12 +270,12 @@ export default function MessageBubble({
 
           <div
             style={{
-              marginTop: 7,
+              marginTop: hasImage ? 6 : 5,
               display: "flex",
               justifyContent: "flex-end",
               gap: 8,
               fontSize: 11,
-              opacity: mine ? 0.70 : 0.62,
+              opacity: mine ? 0.72 : 0.58,
               alignItems: "center",
             }}
           >

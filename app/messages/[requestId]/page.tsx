@@ -668,7 +668,7 @@ export default function MessageThreadPage() {
       <style>{`
         .pmp-threadViewport {
           position: fixed;
-          top: calc(var(--pmp-header-height) + 4px);
+          top: calc(var(--pmp-header-height) + var(--pmp-safe-top) + 4px);
           left: 0;
           right: 0;
           bottom: 0;
@@ -722,6 +722,13 @@ export default function MessageThreadPage() {
           align-items: center;
           justify-content: center;
           white-space: nowrap;
+        }
+
+        .pmp-threadBackBtn {
+          width: 40px;
+          min-width: 40px;
+          padding: 0;
+          border-radius: 13px;
         }
 
         .pmp-threadTopRow {
@@ -833,7 +840,7 @@ export default function MessageThreadPage() {
 
         @media (max-width: 767px) {
           .pmp-threadViewport {
-            top: calc(var(--pmp-header-height) + 4px);
+            top: calc(var(--pmp-header-height) + var(--pmp-safe-top) + 4px);
             left: 0;
             right: 0;
             bottom: 0;
@@ -847,7 +854,7 @@ export default function MessageThreadPage() {
           }
 
           .pmp-threadHeader {
-            padding: 10px 10px 8px !important;
+            padding: 8px 10px !important;
           }
 
           .pmp-threadTopRow {
@@ -875,6 +882,12 @@ export default function MessageThreadPage() {
             font-size: 11px !important;
             padding: 6px 10px !important;
             border-radius: 12px !important;
+          }
+
+          .pmp-threadBackBtn {
+            width: 38px !important;
+            min-width: 38px !important;
+            padding: 0 !important;
           }
 
           .pmp-threadIdentityCard {
@@ -951,22 +964,17 @@ export default function MessageThreadPage() {
               color: "#0f172a",
             }}
           >
-            <div className="pmp-threadTopRow">
-              <div className="pmp-threadTopRowLeft">
-                {showReviewCTA ? (
-                  <Link
-                    href={`/review/${requestId}`}
-                    className="pmp-ctaSecondary pmp-threadReviewBtn pmp-threadActionBtn"
-                  >
-                    Leave a review
-                  </Link>
-                ) : null}
-              </div>
-
-              <div className="pmp-threadTopRowRight" />
-            </div>
-
             <div className="pmp-threadIdentityCard">
+              <button
+                onClick={() => router.push("/messages")}
+                className="pmp-ctaSecondary pmp-threadBackBtn"
+                type="button"
+                aria-label="Back to messages"
+                title="Back to messages"
+              >
+                <Icon name="arrow-left" size={20} />
+              </button>
+
               <div className="pmp-threadIdentityLeft">
                 <div
                   className="pmp-threadAvatar"
@@ -1085,13 +1093,14 @@ export default function MessageThreadPage() {
               </div>
 
               <div className="pmp-threadRightActions">
-                <button
-                  onClick={() => router.push("/messages")}
-                  className="pmp-ctaSecondary pmp-threadBackBtn pmp-threadActionBtn"
-                  type="button"
-                >
-                  ← Back to messages
-                </button>
+                {showReviewCTA ? (
+                  <Link
+                    href={`/review/${requestId}`}
+                    className="pmp-ctaSecondary pmp-threadReviewBtn pmp-threadActionBtn"
+                  >
+                    Review
+                  </Link>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1106,7 +1115,7 @@ export default function MessageThreadPage() {
               gap: 8,
               position: "relative",
               background:
-                "radial-gradient(1000px 680px at 12% 6%, rgba(202,162,77,0.14), transparent 60%), radial-gradient(1000px 680px at 92% 10%, rgba(11,59,46,0.10), transparent 60%), linear-gradient(180deg, rgba(245,241,232,0.88), rgba(250,250,250,0.96))",
+                "linear-gradient(180deg, #f4f1e9 0%, #f8f7f3 52%, #f3f5f2 100%)",
             }}
           >
             <div
@@ -1116,8 +1125,7 @@ export default function MessageThreadPage() {
                 inset: 0,
                 pointerEvents: "none",
                 background:
-                  "linear-gradient(180deg, rgba(255,255,255,0.18), transparent 25%, rgba(255,255,255,0.14)), radial-gradient(1200px 600px at 50% 0%, rgba(15,23,42,0.04), transparent 60%)",
-                mixBlendMode: "soft-light",
+                  "radial-gradient(900px 420px at 12% 0%, rgba(199,160,84,0.08), transparent 65%), radial-gradient(900px 420px at 90% 20%, rgba(23,61,44,0.05), transparent 68%)",
               }}
             />
 
@@ -1172,7 +1180,7 @@ export default function MessageThreadPage() {
                             borderRadius: 999,
                             border: "1px solid rgba(15,23,42,0.10)",
                             background: "rgba(255,255,255,0.66)",
-                            boxShadow: "0 10px 18px rgba(15,23,42,0.06)",
+                            boxShadow: "0 3px 10px rgba(15,23,42,0.04)",
                             backdropFilter: "blur(8px)",
                           }}
                         >
@@ -1297,9 +1305,9 @@ export default function MessageThreadPage() {
                   disabled={uploading}
                   type="button"
                   style={{
-                    border: "1px solid rgba(239,68,68,0.25)",
-                    background: uploading ? "rgba(239,68,68,0.18)" : "rgba(239,68,68,0.10)",
-                    color: "#b91c1c",
+                    border: "1px solid rgba(23,35,61,0.14)",
+                    background: uploading ? "rgba(23,35,61,0.08)" : "rgba(255,255,255,0.76)",
+                    color: "#17233d",
                     cursor: uploading ? "not-allowed" : "pointer",
                     fontWeight: 950,
                     fontSize: 12,

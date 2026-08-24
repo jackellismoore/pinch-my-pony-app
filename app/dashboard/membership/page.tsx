@@ -110,7 +110,7 @@ export default function MembershipPage() {
       <section className="pmp-membershipHero">
         <div className="pmp-eyebrow"><Icon name="credit-card" size={17} /> Membership</div>
         <h1>Simple access. No surprise charges.</h1>
-        <p>Your Pinch My Pony account is always free for listing horses. Borrowing is free throughout our initial six-month launch period, then available through one straightforward membership when we release it.</p>
+        <p>Your Pinch My Pony account is always free for listing horses. Borrowing remains free while the community proves itself, then becomes available through one straightforward membership only when we deliberately release it.</p>
       </section>
 
       {notice ? <div className="pmp-noticeBanner" role="status"><Icon name="check" size={20} />{notice}</div> : null}
@@ -124,7 +124,7 @@ export default function MembershipPage() {
           </div>
 
           {!membershipCheckoutEnabled && !active && !hasComplimentaryAccess ? (
-            <div className="pmp-launchPrice"><strong>Free</strong><span>for the six-month launch period</span></div>
+            <div className="pmp-launchPrice"><strong>Free</strong><span>throughout launch mode</span></div>
           ) : active ? (
             <div className="pmp-launchPrice"><strong>Active</strong><span>{renewalDate ? `${profile?.membership_cancel_at_period_end ? "Access until" : "Renews"} ${renewalDate}` : "Billing managed securely by Stripe"}</span></div>
           ) : hasComplimentaryAccess ? (
@@ -151,7 +151,7 @@ export default function MembershipPage() {
         <aside className="pmp-membershipAssurance">
           <div className="pmp-assuranceIcon"><Icon name="shield" size={25} /></div>
           <h2>How launch access works</h2>
-          <p>No payment details are required during the six-month free period, and you will never be moved onto a paid membership automatically. We can extend launch access if the community needs more time to grow.</p>
+          <p>No payment details are required while launch mode is active, and you will never be moved onto a paid membership automatically. Free access continues until the community is ready.</p>
           <div className="pmp-assuranceRule" />
           <h3>Listing stays free</h3>
           <p>You can add and manage horses without purchasing a borrowing membership.</p>
