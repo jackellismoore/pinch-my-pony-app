@@ -90,34 +90,6 @@ function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
 }
 
-function RolePill({ role }: { role: "Owner" | "Borrower" | null | undefined }) {
-  if (!role) return null;
-  const isOwner = role === "Owner";
-
-  return (
-    <span
-      title={isOwner ? "Horse lister in this request" : "Horse requester in this request"}
-      style={{
-        height: 22,
-        borderRadius: 999,
-        padding: "0 8px",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 12,
-        fontWeight: 950,
-        border: isOwner ? "1px solid rgba(11,59,46,0.20)" : "1px solid rgba(15,23,42,0.14)",
-        background: isOwner ? "rgba(11,59,46,0.10)" : "rgba(15,23,42,0.06)",
-        color: isOwner ? "rgba(11,59,46,0.92)" : "rgba(15,23,42,0.78)",
-        boxShadow: "0 10px 22px rgba(15,23,42,0.06)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {isOwner ? "Lister" : "Requester"}
-    </span>
-  );
-}
-
 function PhotoPill() {
   return (
     <span
@@ -360,7 +332,7 @@ function SwipeRow({
           display: "flex",
           justifyContent: "flex-end",
           alignItems: "stretch",
-          background: "linear-gradient(180deg, rgba(239,68,68,0.16), rgba(239,68,68,0.10))",
+          background: "#17243d",
         }}
         aria-hidden="true"
       >
@@ -375,14 +347,14 @@ function SwipeRow({
           style={{
             width: 96,
             border: "none",
-            background: "rgba(239,68,68,0.14)",
-            color: "#b91c1c",
+            background: "transparent",
+            color: "#ffffff",
             fontWeight: 950,
             cursor: disabled ? "not-allowed" : "pointer",
           }}
           title="Delete chat for you"
         >
-          Delete
+          Remove
         </button>
       </div>
 
@@ -701,14 +673,23 @@ export default function MessagesPage() {
           }
 
           .pmp-msg-controls {
-            flex-direction: column;
-            align-items: stretch !important;
+            flex-direction: row;
+            align-items: center !important;
+            gap: 8px !important;
           }
 
-          .pmp-msg-controls > div,
-          .pmp-msg-controls input,
-          .pmp-msg-controls button {
+          .pmp-msg-controls > div {
+            min-width: 0 !important;
+          }
+
+          .pmp-msg-controls input {
             width: 100% !important;
+          }
+
+          .pmp-msg-controls button {
+            width: auto !important;
+            flex: 0 0 auto;
+            padding-inline: 14px !important;
           }
 
           .pmp-msg-cardBody {
@@ -716,7 +697,11 @@ export default function MessagesPage() {
           }
 
           .pmp-msg-mediaStack {
-            gap: 8px !important;
+            gap: 0 !important;
+          }
+
+          .pmp-msg-mediaStack > * + * {
+            margin-left: -14px;
           }
 
           .pmp-msg-cardMain {
@@ -819,7 +804,7 @@ export default function MessagesPage() {
           }}
           title="Show only chats with unread messages"
         >
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{showUnreadOnly ? <Icon name="check" size={15} /> : null} Unread only</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{showUnreadOnly ? <Icon name="check" size={15} /> : null} Unread</span>
         </button>
       </div>
 
@@ -862,6 +847,7 @@ export default function MessagesPage() {
                     style={{
                       padding: 0,
                       overflow: "hidden",
+                      background: "#ffffff",
                       borderColor: hasUnread ? "rgba(202,162,77,0.35)" : undefined,
                     }}
                   >
@@ -967,7 +953,6 @@ export default function MessagesPage() {
                                     flexWrap: "wrap",
                                   }}
                                 >
-                                  <RolePill role={t.other_role ?? null} />
                                   <StatusPill status={t.request_status ?? null} />
                                   {t.last_is_photo ? <PhotoPill /> : null}
                                 </div>
@@ -1076,36 +1061,6 @@ export default function MessagesPage() {
                       </div>
                     </Link>
 
-                    <div
-                      style={{
-                        borderTop: "1px solid rgba(15,23,42,0.06)",
-                        padding: "10px 14px",
-                        display: "flex",
-                        justifyContent: "flex-end",
-                        background: "rgba(255,255,255,0.55)",
-                      }}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          deleteChatForMe(t.request_id);
-                        }}
-                        disabled={deleting}
-                        style={{
-                          border: "1px solid rgba(239,68,68,0.25)",
-                          background: deleting ? "rgba(239,68,68,0.22)" : "rgba(239,68,68,0.10)",
-                          color: "#b91c1c",
-                          cursor: deleting ? "not-allowed" : "pointer",
-                          fontWeight: 950,
-                          fontSize: 12,
-                          padding: "7px 10px",
-                          borderRadius: 12,
-                        }}
-                      >
-                        {deleting ? "Deleting…" : "Delete"}
-                      </button>
-                    </div>
                   </div>
                 )}
               </SwipeRow>

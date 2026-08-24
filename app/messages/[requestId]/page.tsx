@@ -668,7 +668,7 @@ export default function MessageThreadPage() {
       <style>{`
         .pmp-threadViewport {
           position: fixed;
-          top: calc(var(--pmp-header-height) + var(--pmp-safe-top) + 4px);
+          top: calc(var(--pmp-safe-top) + 56px);
           left: 0;
           right: 0;
           bottom: 0;
@@ -840,7 +840,7 @@ export default function MessageThreadPage() {
 
         @media (max-width: 767px) {
           .pmp-threadViewport {
-            top: calc(var(--pmp-header-height) + var(--pmp-safe-top) + 4px);
+            top: calc(var(--pmp-safe-top) + 52px);
             left: 0;
             right: 0;
             bottom: 0;
