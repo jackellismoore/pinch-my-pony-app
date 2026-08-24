@@ -7,6 +7,9 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { VerificationBadge } from "../components/VerificationBadge";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
+import { Icon } from "@/components/Icon";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 type ProfileAny = Record<string, any>;
 
@@ -32,7 +35,8 @@ const DEFAULT_AVATAR_DATA_URI =
       </defs>
       <rect width="160" height="160" rx="80" fill="url(#bg)"/>
       <circle cx="80" cy="80" r="72" fill="none" stroke="#d8c4a0" stroke-width="2"/>
-      <text x="80" y="96" text-anchor="middle" font-size="64">🐴</text>
+      <circle cx="80" cy="64" r="24" fill="none" stroke="#1f3d2b" stroke-width="7"/>
+      <path d="M36 132c6-27 23-40 44-40s38 13 44 40" fill="none" stroke="#1f3d2b" stroke-width="7" stroke-linecap="round"/>
     </svg>
   `);
 
@@ -61,11 +65,13 @@ function isAllowedAvatarType(file: File) {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { identityEnabled } = useLaunchFeatures();
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -195,10 +201,10 @@ export default function ProfilePage() {
       { key: "location", label: "Location added", done: !!location.trim() },
       { key: "bio", label: "Bio added", done: !!bio.trim() },
       { key: "age", label: "Age added", done: !!age.trim() },
-      { key: "verification", label: "Identity verified", done: isVerified },
+      ...(identityEnabled ? [{ key: "verification", label: "Identity verified", done: isVerified }] : []),
     ];
     return items;
-  }, [avatarUrl, location, bio, age, isVerified]);
+  }, [avatarUrl, location, bio, age, identityEnabled, isVerified]);
 
   const profileComplete = useMemo(() => {
     const done = checklist.filter((item) => item.done).length;
@@ -366,11 +372,6 @@ export default function ProfilePage() {
   }
 
   async function deleteAccount() {
-    const confirmed = window.confirm(
-      "Are you sure you want to permanently delete your account? This cannot be undone."
-    );
-    if (!confirmed) return;
-
     try {
       setDeleting(true);
       setError(null);
@@ -419,6 +420,7 @@ export default function ProfilePage() {
 
   return (
     <>
+      <ConfirmDialog open={confirmingDelete} title="Permanently delete your account?" description="Your profile, listings, requests and messages will be removed. Any active borrowing membership will be cancelled. This cannot be undone." confirmLabel="Delete account" danger busy={deleting} onCancel={() => setConfirmingDelete(false)} onConfirm={() => void deleteAccount()} />
       <style>{`
         .pmp-profileGrid2 {
           display: grid;
@@ -611,13 +613,9 @@ export default function ProfilePage() {
                       {profileComplete}% complete
                     </div>
 
-                    <VerificationBadge
-                      status={verificationStatus}
-                      verifiedAt={verifiedAt}
-                      provider={verificationProvider}
-                    />
+                    {identityEnabled ? <VerificationBadge status={verificationStatus} verifiedAt={verifiedAt} provider={verificationProvider} /> : null}
 
-                    {verificationProvider ? (
+                    {identityEnabled && verificationProvider ? (
                       <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
                     ) : null}
 
@@ -634,12 +632,12 @@ export default function ProfilePage() {
                       }}
                     >
                       {ownerAverageRating
-                        ? `⭐ ${ownerAverageRating}/5 · ${ownerReviewCount} review${ownerReviewCount === 1 ? "" : "s"}`
-                        : "⭐ No listing reviews yet"}
+                        ? `Rated ${ownerAverageRating}/5 · ${ownerReviewCount} review${ownerReviewCount === 1 ? "" : "s"}`
+                        : "No listing reviews yet"}
                     </div>
                   </div>
 
-                  {!isVerified ? (
+                  {identityEnabled && !isVerified ? (
                     <div>
                       <button
                         onClick={() => router.push("/verify")}
@@ -705,7 +703,7 @@ export default function ProfilePage() {
                     fontWeight: item.done ? 900 : 700,
                   }}
                 >
-                  <span aria-hidden="true">{item.done ? "✅" : "⬜"}</span>
+                  <span aria-hidden="true">{item.done ? <Icon name="check" size={17} /> : <span className="pmp-progressDot" />}</span>
                   <span>{item.label}</span>
                 </div>
               ))}
@@ -842,17 +840,13 @@ export default function ProfilePage() {
             >
               <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontSize: 13, fontWeight: 900 }}>Trust & identity</div>
-                <VerificationBadge
-                  status={verificationStatus}
-                  verifiedAt={verifiedAt}
-                  provider={verificationProvider}
-                />
-                {verificationProvider ? (
+                {identityEnabled ? <VerificationBadge status={verificationStatus} verifiedAt={verifiedAt} provider={verificationProvider} /> : <div className="pmp-mutedText">ID verification will open when paid borrowing is released. It is not required during launch access.</div>}
+                {identityEnabled && verificationProvider ? (
                   <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
                 ) : null}
               </div>
 
-              {!isVerified ? (
+              {identityEnabled && !isVerified ? (
                 <button
                   onClick={() => router.push("/verify")}
                   className="pmp-ctaPrimary"
@@ -1114,7 +1108,7 @@ export default function ProfilePage() {
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button
               type="button"
-              onClick={deleteAccount}
+              onClick={() => setConfirmingDelete(true)}
               disabled={deleting || savingProfile || savingPrefs}
               style={{
                 border: "1px solid rgba(185,28,28,0.22)",

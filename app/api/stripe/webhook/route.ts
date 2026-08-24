@@ -135,8 +135,10 @@ async function updateMembership(params: {
   status: string;
   customerId?: string | null;
   subscriptionId?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
 }) {
-  const { supabaseAdmin, userId, status, customerId, subscriptionId } = params;
+  const { supabaseAdmin, userId, status, customerId, subscriptionId, currentPeriodEnd, cancelAtPeriodEnd } = params;
   const activeStatuses = new Set(["active", "trialing"]);
 
   const { error } = await supabaseAdmin
@@ -146,6 +148,8 @@ async function updateMembership(params: {
       membership_status: status,
       ...(customerId ? { stripe_customer_id: customerId } : {}),
       ...(subscriptionId ? { stripe_subscription_id: subscriptionId } : {}),
+      membership_current_period_end: currentPeriodEnd ?? null,
+      membership_cancel_at_period_end: cancelAtPeriodEnd ?? false,
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
@@ -224,13 +228,20 @@ export async function POST(req: Request) {
 
         const customerId = typeof obj?.customer === "string" ? obj.customer : null;
         const subscriptionId = typeof obj?.subscription === "string" ? obj.subscription : null;
-        await updateMembership({
-          supabaseAdmin,
-          userId,
-          status: "active",
-          customerId,
-          subscriptionId,
-        });
+        if (subscriptionId) {
+          const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
+          await updateMembership({
+            supabaseAdmin,
+            userId,
+            status: subscription.status,
+            customerId,
+            subscriptionId,
+            currentPeriodEnd: subscription.items.data[0]?.current_period_end
+              ? new Date(subscription.items.data[0].current_period_end * 1000).toISOString()
+              : null,
+            cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          });
+        }
         return NextResponse.json({ received: true, eventType: event.type });
       }
 
@@ -247,7 +258,23 @@ export async function POST(req: Request) {
           status: event.type === "customer.subscription.deleted" ? "cancelled" : String(obj?.status ?? "inactive"),
           customerId: typeof obj?.customer === "string" ? obj.customer : null,
           subscriptionId: providerSessionId,
+          currentPeriodEnd: obj?.items?.data?.[0]?.current_period_end
+            ? new Date(Number(obj.items.data[0].current_period_end) * 1000).toISOString()
+            : null,
+          cancelAtPeriodEnd: Boolean(obj?.cancel_at_period_end),
         });
+        return NextResponse.json({ received: true, eventType: event.type });
+      }
+
+      case "invoice.payment_failed": {
+        const customerId = typeof obj?.customer === "string" ? obj.customer : null;
+        if (customerId) {
+          const { error } = await supabaseAdmin
+            .from("profiles")
+            .update({ membership_status: "past_due", membership_tier: "free", updated_at: new Date().toISOString() })
+            .eq("stripe_customer_id", customerId);
+          if (error) throw error;
+        }
         return NextResponse.json({ received: true, eventType: event.type });
       }
 

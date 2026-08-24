@@ -199,6 +199,14 @@ export default function RequestForm({
       if (userErr) throw userErr;
       if (!user) throw new Error("Not authenticated");
 
+      const { data: canRequest, error: accessError } = await supabase.rpc("can_current_user_request");
+      if (accessError) throw accessError;
+      if (!canRequest) {
+        setSubmitError("An active borrowing membership is required to send a request.");
+        setSubmitting(false);
+        return;
+      }
+
       if (identityEnabled) {
         const { data: profileRow, error: profileErr } = await supabase
           .from("profiles")

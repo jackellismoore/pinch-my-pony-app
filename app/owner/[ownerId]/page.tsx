@@ -15,8 +15,6 @@ type ProfileRow = {
   avatar_url: string | null;
   last_seen_at: string | null;
   created_at: string | null;
-  role: "owner" | "borrower" | null;
-
   verification_status: string | null;
   verified_at: string | null;
   verification_provider: string | null;
@@ -187,9 +185,9 @@ export default function OwnerPublicProfilePage() {
       try {
         const [profRes, horsesRes, reviewsRes] = await Promise.all([
           supabase
-            .from("profiles")
+            .from("public_profiles")
             .select(
-              "id,display_name,full_name,avatar_url,last_seen_at,created_at,role,verification_status,verified_at,verification_provider"
+              "id,display_name,full_name,avatar_url,last_seen_at,created_at,verification_status,verified_at,verification_provider"
             )
             .eq("id", ownerId)
             .single(),
@@ -231,7 +229,7 @@ export default function OwnerPublicProfilePage() {
           const borrowerIds = Array.from(new Set(list.map((r) => r.borrower_id).filter(Boolean)));
           if (borrowerIds.length > 0) {
             const { data: reviewerData, error: reviewerErr } = await supabase
-              .from("profiles")
+              .from("public_profiles")
               .select("id,display_name,full_name")
               .in("id", borrowerIds);
 
@@ -406,8 +404,8 @@ export default function OwnerPublicProfilePage() {
                       }}
                     >
                       {ratingCount > 0
-                        ? `⭐ ${ratingAvg.toFixed(1)}/5 · ${ratingCount} review${ratingCount === 1 ? "" : "s"}`
-                        : "⭐ No reviews yet"}
+                        ? `Rated ${ratingAvg.toFixed(1)}/5 · ${ratingCount} review${ratingCount === 1 ? "" : "s"}`
+                        : "No reviews yet"}
                     </div>
                   </div>
 

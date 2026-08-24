@@ -1,5 +1,7 @@
 'use client';
 
+import { Icon } from '@/components/Icon';
+
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -174,7 +176,7 @@ export function AvailabilityConflictNotice({
           color: 'rgba(0,0,0,0.75)',
         }}
       >
-        ✅ Dates look available.
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Icon name="check" size={18} /> Dates look available.</span>
       </div>
     );
   }

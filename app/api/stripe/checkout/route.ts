@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { requireApiUser, trustedAppOrigin } from "@/lib/serverAuth";
 import { launchFeatureEnabled } from "@/lib/launchFeatures";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -28,13 +29,28 @@ export async function POST(req: Request) {
 
     const stripe = getStripe();
     const appOrigin = trustedAppOrigin(req);
+    const admin = getSupabaseAdmin();
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("stripe_customer_id,membership_status")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (["active", "trialing"].includes(String(profile?.membership_status ?? "").toLowerCase())) {
+      return NextResponse.json(
+        { error: "Your borrowing membership is already active" },
+        { status: 409 }
+      );
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appOrigin}/dashboard/membership?checkout=success`,
       cancel_url: `${appOrigin}/dashboard/membership?checkout=cancelled`,
-      customer_email: user.email,
+      ...(profile?.stripe_customer_id
+        ? { customer: profile.stripe_customer_id }
+        : { customer_email: user.email }),
       client_reference_id: user.id,
       metadata: { user_id: user.id, plan: body.plan },
       subscription_data: { metadata: { user_id: user.id, plan: body.plan } },

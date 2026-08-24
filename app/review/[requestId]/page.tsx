@@ -101,6 +101,9 @@ export default function ReviewPage() {
         if (s !== "accepted" && s !== "approved") {
           throw new Error("You can only review accepted/approved requests.");
         }
+        if (!r.end_date || new Date(r.end_date) >= new Date(new Date().toISOString().slice(0, 10))) {
+          throw new Error("Reviews become available after the booking has finished.");
+        }
 
         const { data: existing, error: exErr } = await supabase
           .from("reviews")
@@ -128,7 +131,7 @@ export default function ReviewPage() {
         if (!h) throw new Error("Horse not found for this request.");
 
         const { data: ownerData, error: ownerErr } = await supabase
-          .from("profiles")
+          .from("public_profiles")
           .select("id,display_name,full_name")
           .eq("id", h.owner_id)
           .maybeSingle();
@@ -166,6 +169,10 @@ export default function ReviewPage() {
     const s = String(req.status ?? "");
     if (s !== "accepted" && s !== "approved") {
       setError("You can only review accepted/approved requests.");
+      return;
+    }
+    if (!req.end_date || new Date(req.end_date) >= new Date(new Date().toISOString().slice(0, 10))) {
+      setError("Reviews become available after the booking has finished.");
       return;
     }
 

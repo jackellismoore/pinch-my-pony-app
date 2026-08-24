@@ -142,15 +142,25 @@ export default function OwnerRequestDetailPage() {
           .select(
             `
             id,status,start_date,end_date,message,horse_id,borrower_id,
-            horse:horses(id,name,owner_id),
-            borrower:profiles(id,display_name,full_name)
+            horse:horses(id,name,owner_id)
           `
           )
           .eq("id", requestId)
           .single();
 
         if (qErr) throw qErr;
-        if (!cancelled) setReq((data ?? null) as RequestDetail | null);
+
+        let borrower: RequestDetail["borrower"] = null;
+        if ((data as any)?.borrower_id) {
+          const { data: profileRow } = await supabase
+            .from("public_profiles")
+            .select("id,display_name,full_name")
+            .eq("id", (data as any).borrower_id)
+            .maybeSingle();
+          borrower = profileRow;
+        }
+
+        if (!cancelled) setReq(data ? ({ ...data, borrower } as RequestDetail) : null);
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load request.");
         if (!cancelled) setReq(null);
@@ -174,10 +184,10 @@ export default function OwnerRequestDetailPage() {
     setError(null);
 
     try {
-      const { error: uErr } = await supabase
-        .from("borrow_requests")
-        .update({ status: "approved" })
-        .eq("id", requestId);
+      const { error: uErr } = await supabase.rpc("set_borrow_request_status", {
+        p_request_id: requestId,
+        p_status: "approved",
+      });
 
       if (uErr) throw uErr;
 
@@ -203,10 +213,10 @@ export default function OwnerRequestDetailPage() {
     setError(null);
 
     try {
-      const { error: uErr } = await supabase
-        .from("borrow_requests")
-        .update({ status: "rejected" })
-        .eq("id", requestId);
+      const { error: uErr } = await supabase.rpc("set_borrow_request_status", {
+        p_request_id: requestId,
+        p_status: "rejected",
+      });
 
       if (uErr) throw uErr;
 

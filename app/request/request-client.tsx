@@ -9,6 +9,7 @@ import HorseMap from "@/components/HorseMap";
 import AvailabilityRanges from "@/components/AvailabilityRanges";
 import { supabase } from "@/lib/supabaseClient";
 import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { Icon } from "@/components/Icon";
 import { userFacingError } from "@/lib/userFacingError";
 import RequestForm from "./request-form";
 
@@ -232,7 +233,7 @@ export default function RequestClient() {
         }
 
         const pRes = await supabase
-          .from("profiles")
+          .from("public_profiles")
           .select("id,display_name,full_name")
           .eq("id", h.owner_id)
           .single();
@@ -278,7 +279,7 @@ export default function RequestClient() {
       <div style={wrap()}>
         <div style={container()}>
           <div style={card()}>
-            <div style={hintPill()}>{identityEnabled ? "🔒 Checking verification" : "📅 Opening request"}</div>
+            <div style={hintPill()}><Icon name={identityEnabled ? "lock" : "calendar"} size={17} />{identityEnabled ? "Checking verification" : "Opening request"}</div>
             <h1 style={{ ...pageTitle(), marginTop: 10 }}>Checking your access…</h1>
             <div style={{ marginTop: 10, fontSize: 13, color: "rgba(31,42,68,0.72)", lineHeight: 1.7 }}>
               We’re confirming your account status before opening requests.
@@ -294,7 +295,7 @@ export default function RequestClient() {
       <div style={wrap()}>
         <div style={container()}>
           <div style={card()}>
-            <div style={hintPill()}>📌 Request</div>
+            <div style={hintPill()}><Icon name="pin" size={17} /> Request</div>
             <h1 style={{ ...pageTitle(), marginTop: 10 }}>Missing horseId</h1>
             <div style={{ marginTop: 10, fontSize: 13, color: "rgba(31,42,68,0.72)", lineHeight: 1.7 }}>
               This page needs a horse to request. Go back to{" "}
@@ -328,7 +329,7 @@ export default function RequestClient() {
           }}
         >
           <div>
-            <div style={hintPill()}>📅 Request dates</div>
+            <div style={hintPill()}><Icon name="calendar" size={17} /> Request dates</div>
             <h1 style={{ ...pageTitle(), marginTop: 10 }}>Request</h1>
             <div style={pageSub()}>Pick dates. Availability is enforced.</div>
           </div>
@@ -380,7 +381,7 @@ export default function RequestClient() {
 
         {horse && isHorseActive(horse) && isOwnHorse ? (
           <div style={{ marginTop: 14, ...card() }}>
-            <div style={hintPill()}>✅ Your listing</div>
+            <div style={hintPill()}><Icon name="check" size={17} /> Your listing</div>
             <h2 style={{ marginTop: 10, marginBottom: 0, fontSize: 16, fontWeight: 950, color: palette.navy }}>
               This is your own horse listing
             </h2>

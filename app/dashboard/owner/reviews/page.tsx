@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { Icon } from "@/components/Icon";
 
 const palette = {
   forest: "#1F3D2B",
@@ -140,7 +141,7 @@ export default function OwnerReviewsPage() {
             ? supabase.from("horses").select("id,name").in("id", horseIds)
             : Promise.resolve({ data: [], error: null } as any),
           borrowerIds.length
-            ? supabase.from("profiles").select("id,display_name,full_name").in("id", borrowerIds)
+            ? supabase.from("public_profiles").select("id,display_name,full_name").in("id", borrowerIds)
             : Promise.resolve({ data: [], error: null } as any),
           requestIds.length
             ? supabase.from("borrow_requests").select("id,start_date,end_date").in("id", requestIds)
@@ -265,7 +266,7 @@ export default function OwnerReviewsPage() {
 
         {!loading && !error && reviews.length === 0 ? (
           <div className="pmp-emptyState">
-            <div className="pmp-emptyIcon">⭐</div>
+            <div className="pmp-emptyIcon"><Icon name="heart" size={31} /></div>
             <div className="pmp-emptyTitle">No reviews yet</div>
             <div className="pmp-emptyText">
               Reviews will appear here once members leave feedback after their booking.

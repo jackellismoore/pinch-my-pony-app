@@ -5,6 +5,9 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { Icon } from "@/components/Icon";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { userFacingError } from "@/lib/userFacingError";
 
 type ThreadRow = {
   request_id: string;
@@ -400,6 +403,8 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [q, setQ] = useState("");
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -508,7 +513,7 @@ export default function MessagesPage() {
       let profs: ProfileMini[] = [];
       if (uniqOtherIds.length) {
         const { data: ps, error: profErr } = await supabase
-          .from("profiles")
+          .from("public_profiles")
           .select("id, display_name, full_name, avatar_url")
           .in("id", uniqOtherIds);
 
@@ -605,12 +610,9 @@ export default function MessagesPage() {
 
   const deleteChatForMe = async (requestId: string) => {
     if (!myUserId) {
-      alert("Please log in again.");
+      setActionError("Your session has ended. Please sign in again.");
       return;
     }
-
-    const ok = window.confirm("Delete this chat for you? It will reappear if a new message is sent.");
-    if (!ok) return;
 
     setDeletingId(requestId);
     setThreads((prev) => prev.filter((t) => t.request_id !== requestId));
@@ -623,10 +625,11 @@ export default function MessagesPage() {
       );
 
     setDeletingId(null);
+    setPendingDeleteId(null);
 
     if (error) {
       console.error("deleteChatForMe error:", error);
-      alert("Could not delete chat: " + error.message);
+      setActionError(userFacingError(error, "We couldn’t remove this chat. Please try again."));
       load();
     }
   };
@@ -672,7 +675,7 @@ export default function MessagesPage() {
 
       if (error) {
         console.error("markAllRead error:", error);
-        alert("Could not mark all read: " + error.message);
+        setActionError(userFacingError(error, "We couldn’t mark these messages as read."));
         return;
       }
 
@@ -686,6 +689,7 @@ export default function MessagesPage() {
 
   return (
     <div className="pmp-pageShell">
+      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Remove this chat?" description="This removes the conversation from your inbox. It will reappear if a new message is sent." confirmLabel="Remove chat" danger busy={Boolean(deletingId)} onCancel={() => setPendingDeleteId(null)} onConfirm={() => pendingDeleteId && void deleteChatForMe(pendingDeleteId)} />
       <style>{`
         @media (max-width: 767px) {
           .pmp-msg-topRow {
@@ -751,7 +755,7 @@ export default function MessagesPage() {
                 boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
               }}
             >
-              🔒 Verified & private chat
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><Icon name="lock" size={15} /> Private chat</span>
             </div>
 
             <div className="pmp-mutedText">
@@ -815,9 +819,11 @@ export default function MessagesPage() {
           }}
           title="Show only chats with unread messages"
         >
-          {showUnreadOnly ? "Unread only ✓" : "Unread only"}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{showUnreadOnly ? <Icon name="check" size={15} /> : null} Unread only</span>
         </button>
       </div>
+
+      {actionError ? <div className="pmp-errorBanner" role="alert"><Icon name="warning" size={19} /><span style={{ flex: 1 }}>{actionError}</span><button type="button" onClick={() => setActionError(null)} aria-label="Dismiss"><Icon name="close" size={17} /></button></div> : null}
 
       {loading ? (
         <div className="pmp-sectionCard">
@@ -826,7 +832,7 @@ export default function MessagesPage() {
       ) : filtered.length === 0 ? (
         <div className="pmp-sectionCard">
           <div className="pmp-emptyState">
-            <div className="pmp-emptyIcon">💬</div>
+            <div className="pmp-emptyIcon"><Icon name="messages" size={31} /></div>
             <div className="pmp-emptyTitle">{threads.length === 0 ? "No conversations yet" : "No matches"}</div>
             <div className="pmp-emptyText">
               {threads.length === 0
@@ -847,7 +853,7 @@ export default function MessagesPage() {
               <SwipeRow
                 key={t.request_id}
                 requestId={t.request_id}
-                onDelete={() => deleteChatForMe(t.request_id)}
+                onDelete={() => setPendingDeleteId(t.request_id)}
                 disabled={deleting}
               >
                 {({ clickShouldOpen }) => (
@@ -923,7 +929,7 @@ export default function MessagesPage() {
                                     fontSize: 18,
                                   }}
                                 >
-                                  🐴
+                                  <Icon name="horse" size={26} />
                                 </div>
                               }
                             />

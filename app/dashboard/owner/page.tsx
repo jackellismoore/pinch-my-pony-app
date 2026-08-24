@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { AvailabilityBadge } from "@/components/AvailabilityBadge";
+import { Icon } from "@/components/Icon";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 
 const palette = {
   forest: "#1F3D2B",
@@ -75,6 +77,7 @@ const btn = (kind: "primary" | "secondary") =>
   }) as React.CSSProperties;
 
 export default function OwnerDashboardOverview() {
+  const { identityEnabled } = useLaunchFeatures();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -227,21 +230,21 @@ export default function OwnerDashboardOverview() {
   const trustChecks = useMemo(() => {
     const isVerified = String(profile?.verification_status ?? "").toLowerCase() === "verified";
     return [
-      { label: "Verification complete", done: isVerified },
+      ...(identityEnabled ? [{ label: "Verification complete", done: isVerified }] : []),
       { label: "Profile photo added", done: Boolean(profile?.avatar_url) },
       { label: "Location added", done: Boolean(profile?.location) },
       { label: "Bio added", done: Boolean(profile?.bio) },
     ];
-  }, [profile]);
+  }, [identityEnabled, profile]);
 
   return (
     <div className="pmp-pageShell">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <div>
-          <div className="pmp-kicker">Owner dashboard</div>
-          <h1 className="pmp-pageTitle">Owner Overview</h1>
+          <div className="pmp-kicker">Horse sharing</div>
+          <h1 className="pmp-pageTitle">My horses &amp; requests</h1>
           <div className="pmp-mutedText" style={{ marginTop: 6 }}>
-            Upcoming blocks, approved bookings, and owner reviews.
+            Upcoming blocks, approved bookings, and listing reviews.
           </div>
         </div>
 
@@ -291,7 +294,7 @@ export default function OwnerDashboardOverview() {
 
       <section className="pmp-actionGrid" style={{ marginTop: 16 }}>
         <Link href="/dashboard/owner/horses/add" className="pmp-actionCard">
-          <div className="pmp-actionIcon">🐎</div>
+          <div className="pmp-actionIcon"><Icon name="horse" size={25} /></div>
           <div>
             <div className="pmp-actionTitle">Add another horse</div>
             <div className="pmp-actionText">Grow your marketplace presence with another listing.</div>
@@ -299,7 +302,7 @@ export default function OwnerDashboardOverview() {
         </Link>
 
         <Link href="/dashboard/owner/reviews" className="pmp-actionCard">
-          <div className="pmp-actionIcon">⭐</div>
+          <div className="pmp-actionIcon"><Icon name="heart" size={25} /></div>
           <div>
             <div className="pmp-actionTitle">Reviews</div>
             <div className="pmp-actionText">See what borrowers have said about their experience.</div>
@@ -307,7 +310,7 @@ export default function OwnerDashboardOverview() {
         </Link>
 
         <Link href="/profile" className="pmp-actionCard">
-          <div className="pmp-actionIcon">👤</div>
+          <div className="pmp-actionIcon"><Icon name="user" size={25} /></div>
           <div>
             <div className="pmp-actionTitle">Improve trust profile</div>
             <div className="pmp-actionText">Add photo, bio, location, and verification details.</div>
@@ -327,7 +330,7 @@ export default function OwnerDashboardOverview() {
           {trustChecks.map((item) => (
             <div key={item.label} className="pmp-horseRowCard">
               <div className="pmp-horseRowMain">
-                <div className="pmp-horseThumb">{item.done ? "✅" : "⬜"}</div>
+                <div className="pmp-horseThumb">{item.done ? <Icon name="check" size={22} /> : <span className="pmp-progressDot" />}</div>
                 <div className="pmp-horseRowText">
                   <h4 className="pmp-horseName">{item.label}</h4>
                   <div className="pmp-mutedText">
@@ -360,7 +363,7 @@ export default function OwnerDashboardOverview() {
 
         {!loading && !error && upcoming.length === 0 ? (
           <div className="pmp-emptyState">
-            <div className="pmp-emptyIcon">📅</div>
+            <div className="pmp-emptyIcon"><Icon name="calendar" size={31} /></div>
             <div className="pmp-emptyTitle">No upcoming activity</div>
             <div className="pmp-emptyText">
               Add a horse or update availability to start receiving and managing requests.

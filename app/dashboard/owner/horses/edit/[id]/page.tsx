@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 import { supabase } from "@/lib/supabaseClient";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 type HorseRow = {
   id: string;
@@ -165,6 +166,7 @@ export default function EditHorsePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -309,9 +311,6 @@ export default function EditHorsePage() {
 
   async function removeHorse() {
     if (!id) return;
-    const ok = window.confirm("Delete this horse listing? This cannot be undone.");
-    if (!ok) return;
-
     setError(null);
 
     try {
@@ -338,6 +337,7 @@ export default function EditHorsePage() {
 
   return (
     <DashboardShell>
+      <ConfirmDialog open={confirmingDelete} title="Delete this horse listing?" description="The listing will be permanently removed. Existing booking records may prevent deletion until they are resolved." confirmLabel="Delete horse" danger busy={deleting} onCancel={() => setConfirmingDelete(false)} onConfirm={() => void removeHorse()} />
       <div style={{ padding: 16, maxWidth: 900, margin: "0 auto", paddingBottom: 110 }}>
         <style>{`
           .pmp-editHorse-grid2 {
@@ -543,7 +543,7 @@ export default function EditHorsePage() {
 
             <button
               type="button"
-              onClick={removeHorse}
+              onClick={() => setConfirmingDelete(true)}
               disabled={deleting || saving}
               style={{
                 border: "1px solid rgba(185,28,28,0.22)",

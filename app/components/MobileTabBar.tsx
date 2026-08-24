@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Icon, type IconName } from "@/components/Icon";
 
 type Item = {
   href: string;
   label: string;
-  icon: string;
+  icon: IconName;
   match: (pathname: string) => boolean;
 };
 
@@ -14,25 +15,25 @@ const items: Item[] = [
   {
     href: "/",
     label: "Home",
-    icon: "🏠",
+    icon: "home",
     match: (pathname) => pathname === "/",
   },
   {
     href: "/messages",
     label: "Messages",
-    icon: "💬",
+    icon: "messages",
     match: (pathname) => pathname.startsWith("/messages"),
   },
   {
     href: "/dashboard",
     label: "Dashboard",
-    icon: "🐎",
+    icon: "horse",
     match: (pathname) => pathname.startsWith("/dashboard"),
   },
   {
     href: "/profile",
     label: "Profile",
-    icon: "👤",
+    icon: "user",
     match: (pathname) => pathname.startsWith("/profile"),
   },
 ];
@@ -80,10 +81,7 @@ export default function MobileTabBar() {
           background: transparent;
         }
 
-        .pmp-mobileTabIcon {
-          font-size: 20px;
-          line-height: 1;
-        }
+        .pmp-mobileTabIcon { display: grid; place-items: center; line-height: 1; }
 
         .pmp-mobileTabLabel {
           font-size: 11px;
@@ -121,7 +119,7 @@ export default function MobileTabBar() {
               aria-current={active ? "page" : undefined}
             >
               <span className="pmp-mobileTabIcon" aria-hidden="true">
-                {item.icon}
+                <Icon name={item.icon} size={22} />
               </span>
               <span className="pmp-mobileTabLabel">{item.label}</span>
             </Link>

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { AvailabilityBadge } from '@/components/AvailabilityBadge';
 import { userFacingError } from '@/lib/userFacingError';
+import { Icon } from '@/components/Icon';
 
 const palette = {
   forest: '#1F3D2B',
@@ -270,7 +271,7 @@ export default function DashboardOverview() {
           <div className="pmp-listStack" style={{ marginTop: 12 }}>
             {setupItems.map((item) => (
               <div key={item.label} className="pmp-horseRowCard" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span aria-hidden="true">{item.done ? '✅' : '○'}</span>
+                <span aria-hidden="true">{item.done ? <Icon name="check" size={17} /> : <span className="pmp-progressDot" />}</span>
                 <span style={{ fontWeight: item.done ? 800 : 950, opacity: item.done ? 0.66 : 1 }}>{item.label}</span>
               </div>
             ))}
@@ -291,7 +292,7 @@ export default function DashboardOverview() {
 
         {!loading && !error && upcoming.length === 0 ? (
           <div className="pmp-emptyState">
-            <div className="pmp-emptyIcon">📅</div>
+            <div className="pmp-emptyIcon"><Icon name="calendar" size={31} /></div>
             <div className="pmp-emptyTitle">No upcoming activity</div>
             <div className="pmp-emptyText">
               Browse horses to plan a ride, or add a horse to start receiving requests.

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { Icon } from "@/components/Icon";
 
 const palette = {
   forest: "#1F3D2B",
@@ -133,7 +134,7 @@ export default function ContactPage() {
       <div style={container}>
         <header className="pmpContactHeader" style={header}>
           <div style={eyebrowPill}>
-            <span aria-hidden="true">📨</span>
+            <Icon name="mail" size={18} />
             <span>Support</span>
           </div>
           <h1 className="pmpContactTitle" style={title}>Contact Us</h1>
@@ -251,27 +252,27 @@ export default function ContactPage() {
 
             <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
               <Link href="/faq" style={sideLink}>
-                <span aria-hidden="true">🧾</span>
+                <Icon name="receipt" size={19} />
                 <span>Read FAQs</span>
               </Link>
 
               <Link href="/safety" style={sideLink}>
-                <span aria-hidden="true">🛡️</span>
+                <Icon name="shield" size={19} />
                 <span>Safety guidance</span>
               </Link>
 
               <Link href="/privacy" style={sideLink}>
-                <span aria-hidden="true">🔐</span>
+                <Icon name="lock" size={19} />
                 <span>Privacy & data</span>
               </Link>
 
               <Link href="/browse" style={sideLink}>
-                <span aria-hidden="true">🧭</span>
+                <Icon name="compass" size={19} />
                 <span>Browse horses</span>
               </Link>
 
               <Link href="/" style={sideLink}>
-                <span aria-hidden="true">🏡</span>
+                <Icon name="home" size={19} />
                 <span>Back to home</span>
               </Link>
             </div>
@@ -296,7 +297,7 @@ function SuccessPanel() {
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <div style={successBadge}>
-        <span aria-hidden="true">✅</span>
+        <Icon name="check" size={19} />
         <span>We received your message</span>
       </div>
 

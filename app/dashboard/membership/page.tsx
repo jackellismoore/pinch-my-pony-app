@@ -1,368 +1,166 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { Icon } from "@/components/Icon";
 import { supabase } from "@/lib/supabaseClient";
-
-const palette = {
-  forest: "#1F3D2B",
-  cream: "#F5F1E8",
-  navy: "#1F2A44",
-  gold: "#C8A24D",
-};
+import { userFacingError } from "@/lib/userFacingError";
 
 type Profile = {
-  id: string;
-  beta_access: boolean | null;
   membership_tier: string | null;
   membership_status: string | null;
+  complimentary_access_until: string | null;
+  membership_current_period_end: string | null;
+  membership_cancel_at_period_end: boolean | null;
 };
 
-function wrap(): React.CSSProperties {
-  return {
-    width: "100%",
-    minHeight: "calc(100vh - 64px)",
-    background:
-      "radial-gradient(900px 420px at 20% 10%, rgba(200,162,77,0.18), transparent 55%), radial-gradient(900px 420px at 90% 30%, rgba(31,61,43,0.14), transparent 58%), linear-gradient(180deg, rgba(245,241,232,1) 0%, rgba(250,250,250,1) 65%)",
-    padding: "18px 0 calc(28px + env(safe-area-inset-bottom) + 76px)",
-  };
-}
+const activeStatuses = new Set(["active", "trialing"]);
 
-function container(): React.CSSProperties {
-  return { padding: 16, maxWidth: 980, margin: "0 auto" };
-}
-
-function card(): React.CSSProperties {
-  return {
-    border: "1px solid rgba(31,42,68,0.12)",
-    borderRadius: 22,
-    padding: 18,
-    background: "rgba(255,255,255,0.80)",
-    boxShadow: "0 16px 44px rgba(31,42,68,0.08)",
-    backdropFilter: "blur(6px)",
-  };
-}
-
-function softCard(): React.CSSProperties {
-  return {
-    border: "1px solid rgba(31,42,68,0.10)",
-    borderRadius: 22,
-    padding: 16,
-    background: "rgba(255,255,255,0.72)",
-    boxShadow: "0 12px 34px rgba(31,42,68,0.06)",
-  };
-}
-
-function pill(): React.CSSProperties {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(31,61,43,0.16)",
-    background: "rgba(31,61,43,0.08)",
-    color: palette.forest,
-    fontWeight: 900,
-    fontSize: 12,
-    width: "fit-content",
-  };
-}
-
-function btn(kind: "primary" | "secondary", disabled?: boolean): React.CSSProperties {
-  const base: React.CSSProperties = {
-    borderRadius: 14,
-    padding: "11px 14px",
-    fontSize: 13,
-    fontWeight: 950,
-    textDecoration: "none",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    whiteSpace: "nowrap",
-    border: "1px solid rgba(0,0,0,0.10)",
-  };
-
-  if (kind === "primary") {
-    return {
-      ...base,
-      cursor: "not-allowed",
-      background: "rgba(31,42,68,0.06)",
-      color: "rgba(31,42,68,0.45)",
-      boxShadow: "none",
-    };
-  }
-
-  return {
-    ...base,
-    cursor: disabled ? "not-allowed" : "pointer",
-    background: "rgba(255,255,255,0.78)",
-    color: palette.navy,
-    border: "1px solid rgba(31,42,68,0.18)",
-    boxShadow: "0 12px 30px rgba(31,42,68,0.06)",
-    opacity: disabled ? 0.6 : 1,
-  };
+function dateLabel(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? null
+    : new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(date);
 }
 
 export default function MembershipPage() {
+  const { membershipCheckoutEnabled } = useLaunchFeatures();
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<"checkout" | "portal" | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authed, setAuthed] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  async function load() {
+    setLoading(true);
+    setError(null);
+    const { data } = await supabase.auth.getSession();
+    const user = data.session?.user ?? null;
+    setAuthed(Boolean(user));
+    if (!user) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    const { data: row, error: profileError } = await supabase
+      .from("profiles")
+      .select("membership_tier,membership_status,complimentary_access_until,membership_current_period_end,membership_cancel_at_period_end")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError) setError(userFacingError(profileError, "We couldn’t load your membership."));
+    setProfile((row ?? null) as Profile | null);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    let cancelled = false;
+    void load();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") setNotice("Membership started successfully. Your account may take a moment to update.");
+    if (params.get("checkout") === "cancelled") setNotice("Checkout was cancelled. Nothing has been charged.");
+  }, []);
 
-    async function load() {
-      setLoading(true);
-      setError(null);
+  const status = String(profile?.membership_status ?? "inactive").toLowerCase();
+  const active = activeStatuses.has(status);
+  const complimentaryUntil = dateLabel(profile?.complimentary_access_until ?? null);
+  const renewalDate = dateLabel(profile?.membership_current_period_end ?? null);
+  const hasComplimentaryAccess = Boolean(
+    profile?.complimentary_access_until && new Date(profile.complimentary_access_until) > new Date()
+  );
 
+  const headline = useMemo(() => {
+    if (active) return profile?.membership_cancel_at_period_end ? "Membership ending" : "Membership active";
+    if (hasComplimentaryAccess) return "Complimentary borrowing access";
+    if (!membershipCheckoutEnabled) return "Borrow free during launch";
+    if (status === "past_due" || status === "unpaid") return "Payment needs attention";
+    return "Borrowing membership";
+  }, [active, hasComplimentaryAccess, membershipCheckoutEnabled, profile?.membership_cancel_at_period_end, status]);
+
+  async function openStripe(kind: "checkout" | "portal") {
+    setBusy(kind);
+    setError(null);
+    try {
       const { data } = await supabase.auth.getSession();
-      const user = data.session?.user ?? null;
-
-      if (cancelled) return;
-
-      setAuthed(!!user);
-
-      if (!user) {
-        setProfile(null);
-        setLoading(false);
+      const token = data.session?.access_token;
+      if (!token) {
+        window.location.href = `/login?redirectTo=${encodeURIComponent("/dashboard/membership")}`;
         return;
       }
 
-      const { data: p, error: pErr } = await supabase
-        .from("profiles")
-        .select("id,beta_access,membership_tier,membership_status")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!cancelled) {
-        if (pErr) setError(pErr.message);
-        setProfile((p ?? null) as Profile | null);
-        setLoading(false);
-      }
+      const response = await fetch(`/api/stripe/${kind}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: kind === "checkout" ? JSON.stringify({ plan: "member_monthly" }) : undefined,
+      });
+      const body = await response.json();
+      if (!response.ok || !body?.url) throw new Error(body?.error ?? "Unable to continue");
+      window.location.href = body.url;
+    } catch (reason) {
+      setError(userFacingError(reason, "We couldn’t open the secure Stripe page. Please try again."));
+      setBusy(null);
     }
-
-    load();
-
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      load();
-    });
-
-    return () => {
-      cancelled = true;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
-  const statusLine = useMemo(() => {
-    if (!authed) return "Log in to view plans.";
-    if (!profile) return "You’re currently on the free plan.";
-    const tier = (profile.membership_tier ?? "free").toUpperCase();
-    const status = profile.membership_status ?? "inactive";
-    return `Plan: ${tier} • Status: ${status}`;
-  }, [authed, profile]);
+  }
 
   return (
-    <>
-      <style>{`
-        .pmp-membershipGrid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-        }
+    <div className="pmp-membershipPage">
+      <section className="pmp-membershipHero">
+        <div className="pmp-eyebrow"><Icon name="credit-card" size={17} /> Membership</div>
+        <h1>Simple access. No surprise charges.</h1>
+        <p>Your Pinch My Pony account is always free for listing horses. Borrowing is free throughout our initial six-month launch period, then available through one straightforward membership when we release it.</p>
+      </section>
 
-        @media (max-width: 767px) {
-          .pmp-membershipGrid {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
+      {notice ? <div className="pmp-noticeBanner" role="status"><Icon name="check" size={20} />{notice}</div> : null}
+      {error ? <div className="pmp-errorBanner" role="alert"><Icon name="warning" size={20} />{error}</div> : null}
 
-      <div style={wrap()}>
-        <div style={container()}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              alignItems: "flex-end",
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <div style={pill()}>💳 Memberships</div>
-              <h1
-                style={{
-                  margin: 0,
-                  marginTop: 10,
-                  fontSize: 24,
-                  fontWeight: 950,
-                  color: palette.navy,
-                  letterSpacing: -0.3,
-                }}
-              >
-                Memberships
-              </h1>
-              <div
-                style={{
-                  marginTop: 6,
-                  fontSize: 13,
-                  color: "rgba(31,42,68,0.72)",
-                  lineHeight: 1.7,
-                }}
-              >
-                One account for listing and borrowing, with six months of free launch access.
-              </div>
-            </div>
-
-            <Link href="/" style={btn("secondary")}>
-              ← Home
-            </Link>
+      <section className="pmp-membershipLayout" aria-busy={loading}>
+        <article className="pmp-membershipPlan">
+          <div className="pmp-planTopline">
+            <div><span className="pmp-statusBadge">{loading ? "Checking account" : headline}</span><h2>Borrowing membership</h2></div>
+            <Icon name="horse" size={36} />
           </div>
 
-          <div style={{ marginTop: 14, ...card() }}>
-            {loading ? (
-              <div style={{ fontSize: 13, color: "rgba(31,42,68,0.70)", fontWeight: 850 }}>
-                Loading…
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: "rgba(31,42,68,0.78)", fontWeight: 900 }}>
-                {statusLine}
-              </div>
-            )}
+          {!membershipCheckoutEnabled && !active && !hasComplimentaryAccess ? (
+            <div className="pmp-launchPrice"><strong>Free</strong><span>for the six-month launch period</span></div>
+          ) : active ? (
+            <div className="pmp-launchPrice"><strong>Active</strong><span>{renewalDate ? `${profile?.membership_cancel_at_period_end ? "Access until" : "Renews"} ${renewalDate}` : "Billing managed securely by Stripe"}</span></div>
+          ) : hasComplimentaryAccess ? (
+            <div className="pmp-launchPrice"><strong>Complimentary</strong><span>{complimentaryUntil ? `Access until ${complimentaryUntil}` : "Borrowing access included"}</span></div>
+          ) : (
+            <div className="pmp-launchPrice"><strong>Monthly</strong><span>Final price shown securely before payment</span></div>
+          )}
 
-            {!authed ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  ...softCard(),
-                  fontSize: 13,
-                  color: "rgba(31,42,68,0.75)",
-                  lineHeight: 1.7,
-                }}
-              >
-                You’re not logged in.{" "}
-                <Link
-                  href="/login"
-                  style={{ color: palette.forest, fontWeight: 950, textDecoration: "none" }}
-                >
-                  Login
-                </Link>{" "}
-                to view your account details.
-              </div>
-            ) : null}
+          <ul className="pmp-benefitList">
+            {["Browse and request horses", "Message and coordinate in one place", "Booking protection and availability checks", "Cancel through secure Stripe billing settings"].map((benefit) => <li key={benefit}><Icon name="check" size={18} />{benefit}</li>)}
+          </ul>
 
-            <div
-              style={{
-                marginTop: 12,
-                borderRadius: 18,
-                border: "1px solid rgba(200,162,77,0.22)",
-                background: "rgba(200,162,77,0.10)",
-                padding: 12,
-                fontSize: 13,
-                fontWeight: 850,
-                color: "rgba(31,42,68,0.82)",
-                lineHeight: 1.6,
-              }}
-            >
-              <b>Six months free.</b>
-              <div style={{ marginTop: 6, opacity: 0.92 }}>
-                Launch access does not require checkout or payment details. Nobody will be charged
-                automatically when the six-month period ends.
-              </div>
-            </div>
+          {!authed ? (
+            <Link className="pmp-primaryAction" href={`/signup?redirectTo=${encodeURIComponent("/dashboard/membership")}`}>Create a free account <Icon name="arrow-right" size={18} /></Link>
+          ) : active || status === "past_due" || status === "unpaid" ? (
+            <button className="pmp-primaryAction" onClick={() => void openStripe("portal")} disabled={Boolean(busy)}>{busy === "portal" ? "Opening Stripe…" : "Manage membership"}<Icon name="settings" size={18} /></button>
+          ) : membershipCheckoutEnabled && !hasComplimentaryAccess ? (
+            <button className="pmp-primaryAction" onClick={() => void openStripe("checkout")} disabled={Boolean(busy)}>{busy === "checkout" ? "Opening secure checkout…" : "Start membership"}<Icon name="arrow-right" size={18} /></button>
+          ) : (
+            <Link className="pmp-primaryAction" href="/browse">Browse horses <Icon name="arrow-right" size={18} /></Link>
+          )}
+        </article>
 
-            {error ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  border: "1px solid rgba(255,0,0,0.25)",
-                  background: "rgba(255,0,0,0.06)",
-                  padding: 12,
-                  borderRadius: 14,
-                  fontSize: 13,
-                }}
-              >
-                {error}
-              </div>
-            ) : null}
-
-            <div className="pmp-membershipGrid" style={{ marginTop: 14 }}>
-              <div style={softCard()}>
-                <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>
-                  Pinch My Pony Membership
-                </div>
-                <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
-                  All launch testers can use listing and borrowing features during the free period.
-                </div>
-
-                <ul
-                  style={{
-                    margin: "10px 0 0",
-                    paddingLeft: 18,
-                    fontSize: 13,
-                    opacity: 0.82,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  <li>Browse and request horses</li>
-                  <li>Six-month free trial for borrowing</li>
-                  <li>Messaging, verification, and reviews</li>
-                </ul>
-
-                <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <Link href={authed ? "/dashboard" : "/signup"} style={btn("primary")}>
-                    {authed ? "Use launch access" : "Join free for 6 months"}
-                  </Link>
-                </div>
-              </div>
-
-              <div style={softCard()}>
-                <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>
-                  Launch access
-                </div>
-                <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
-                  Create one account to browse and list horses without choosing an account type.
-                </div>
-
-                <ul
-                  style={{
-                    margin: "10px 0 0",
-                    paddingLeft: 18,
-                    fontSize: 13,
-                    opacity: 0.82,
-                    lineHeight: 1.7,
-                  }}
-                >
-                  <li>No separate account types</li>
-                  <li>List and manage horses for free</li>
-                  <li>No payment method or automatic renewal</li>
-                </ul>
-
-                <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <Link href={authed ? "/dashboard" : "/signup"} style={btn("secondary")}>
-                    {authed ? "Go to dashboard" : "Create free account"}
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: 14,
-                fontSize: 12,
-                color: "rgba(31,42,68,0.70)",
-                lineHeight: 1.7,
-              }}
-            >
-              If launch access is extended, existing testers can simply keep using the platform.
-              Paid membership will require a separate opt-in before anybody is charged.
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
+        <aside className="pmp-membershipAssurance">
+          <div className="pmp-assuranceIcon"><Icon name="shield" size={25} /></div>
+          <h2>How launch access works</h2>
+          <p>No payment details are required during the six-month free period, and you will never be moved onto a paid membership automatically. We can extend launch access if the community needs more time to grow.</p>
+          <div className="pmp-assuranceRule" />
+          <h3>Listing stays free</h3>
+          <p>You can add and manage horses without purchasing a borrowing membership.</p>
+          <div className="pmp-assuranceRule" />
+          <h3>You stay in control</h3>
+          <p>When paid borrowing is released, joining requires a separate, deliberate checkout.</p>
+          <Link href="/faq" className="pmp-textAction">Read membership FAQs <Icon name="arrow-right" size={16} /></Link>
+        </aside>
+      </section>
+    </div>
   );
 }

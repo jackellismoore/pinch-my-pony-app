@@ -132,7 +132,7 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
             <NavLink href="/dashboard/owner/horses" label="My horses" />
             <NavLink href="/dashboard/owner/requests" label="Listing requests" />
             <NavLink href="/dashboard/owner/reviews" label="Reviews" />
-            <NavLink href="/dashboard/membership" label="Memberships" />
+            <NavLink href="/dashboard/membership" label="Membership" />
           </div>
 
           <div style={{ height: 1, background: "rgba(31,42,68,0.10)", margin: "4px 0" }} />

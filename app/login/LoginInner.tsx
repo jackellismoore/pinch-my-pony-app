@@ -4,12 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { supabase, SUPABASE_ENV_OK } from "@/lib/supabaseClient";
-import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
-
-type ProfileGate = {
-  id: string;
-  verification_status: string | null;
-};
+import { Icon } from "@/components/Icon";
 
 function sanitizeRedirectTo(v: string | null) {
   if (!v) return "/";
@@ -31,26 +26,7 @@ function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-async function routeAfterLogin(userId: string, fallbackRedirect: string, identityEnabled: boolean) {
-  if (!identityEnabled) {
-    window.location.replace(fallbackRedirect && fallbackRedirect !== "/" ? fallbackRedirect : "/dashboard");
-    return;
-  }
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, verification_status")
-    .eq("id", userId)
-    .maybeSingle();
-
-  const profile = !error ? (data as ProfileGate | null) : null;
-  const status = profile?.verification_status ?? "unverified";
-
-  if (status !== "verified") {
-    window.location.replace("/verify");
-    return;
-  }
-
+async function routeAfterLogin(fallbackRedirect: string) {
   if (
     fallbackRedirect &&
     fallbackRedirect !== "/" &&
@@ -65,7 +41,6 @@ async function routeAfterLogin(userId: string, fallbackRedirect: string, identit
 }
 
 export default function LoginInner() {
-  const { identityEnabled } = useLaunchFeatures();
   const searchParams = useSearchParams();
 
   const redirectTo = useMemo(
@@ -124,7 +99,7 @@ export default function LoginInner() {
       const userId = res.data.user?.id;
       if (!userId) throw new Error("Signed in, but no user was returned.");
 
-      await routeAfterLogin(userId, redirectTo, identityEnabled);
+      await routeAfterLogin(redirectTo);
       return;
     } catch (err: any) {
       setError(err?.message ?? "Login failed.");
@@ -147,7 +122,7 @@ export default function LoginInner() {
           <div className="pmp-authGrid">
             <div style={leftCol}>
               <div style={eyebrowPill}>
-                <span aria-hidden="true">🐴</span>
+                <Icon name="horse" size={18} />
                 <span>Welcome back</span>
               </div>
 
@@ -206,7 +181,7 @@ export default function LoginInner() {
                   </div>
 
                   <span style={pill}>
-                    <span aria-hidden="true">🔐</span>
+                    <Icon name="lock" size={18} />
                     <span>Protected</span>
                   </span>
                 </div>

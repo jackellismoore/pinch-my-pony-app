@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import React, { useMemo, useState } from "react";
+import { Icon } from "@/components/Icon";
 
 type FaqItem = {
   id: string;
@@ -52,8 +53,8 @@ export default function FAQPage() {
         q: "Can I browse without being verified?",
         a: (
           <>
-            In most cases, yes. Verification is typically required before you can access the full marketplace experience (like
-            completing certain actions). If you’re prompted, you’ll be guided to the verification step.
+            Yes. You can browse listings, create your profile and list horses without verification. When Identity is enabled,
+            verification is required before sending your first borrowing request.
           </>
         ),
         keywords: ["browse", "verified", "unverified"],
@@ -109,14 +110,38 @@ export default function FAQPage() {
       {
         id: "pay-1",
         category: "Payments",
-        q: "How do payments work?",
+        q: "Is borrowing really free during launch?",
         a: (
           <>
-            Payment flow depends on how your marketplace is configured. If you see a payment step, you’ll always be shown the
-            details before confirming. If something looks off, reach out — we’ll help.
+            Yes. Borrowing is free during our initial six-month launch period. We do not collect a card and you will not be
+            moved onto a paid membership automatically. We may extend free launch access while the community grows.
           </>
         ),
-        keywords: ["payment", "pricing", "fees"],
+        keywords: ["payment", "pricing", "fees", "free", "trial", "launch"],
+      },
+      {
+        id: "pay-2",
+        category: "Payments",
+        q: "What happens when paid borrowing is released?",
+        a: (
+          <>
+            Listing horses stays free. To send new borrowing requests, you can deliberately start one borrowing membership
+            through Stripe. The price and billing period are shown before you pay, and billing can be managed or cancelled from
+            your membership page.
+          </>
+        ),
+        keywords: ["membership", "stripe", "cancel", "listing", "borrow"],
+      },
+      {
+        id: "pay-3",
+        category: "Payments",
+        q: "Do I need separate owner and borrower accounts?",
+        a: (
+          <>
+            No. Everyone has one Pinch My Pony account. The same account can list horses for free and browse or request horses.
+          </>
+        ),
+        keywords: ["account", "owner", "borrower", "member"],
       },
       {
         id: "msg-1",
@@ -207,7 +232,7 @@ export default function FAQPage() {
       <div style={container}>
         <header style={header}>
           <div style={eyebrowPill}>
-            <span aria-hidden="true">🧾</span>
+            <Icon name="receipt" size={18} />
             <span>Help Center</span>
           </div>
 
@@ -218,7 +243,7 @@ export default function FAQPage() {
 
           <div style={searchRow}>
             <div style={searchBox}>
-              <div aria-hidden="true" style={{ opacity: 0.7 }}>🔎</div>
+              <div aria-hidden="true" style={{ opacity: 0.7 }}><Icon name="search" size={19} /></div>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}

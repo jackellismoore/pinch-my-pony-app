@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { Icon, type IconName } from "@/components/Icon";
 
 type ProfileMini = {
   id: string;
@@ -240,7 +241,7 @@ export default function HomePage() {
                   fontSize: 13,
                 }}
               >
-                <span aria-hidden="true">🐴</span>
+                <Icon name="horse" size={18} />
                 <span>
                   {isAuthed ? "Signed in • Your account is ready" : "Borrow • Share • Ride — with trust built in"}
                 </span>
@@ -511,9 +512,9 @@ export default function HomePage() {
                 <div style={{ height: 1, background: "rgba(31,42,68,0.10)", margin: "4px 0" }} />
 
                 <div style={{ display: "grid", gap: 10 }}>
-                  <MiniCard icon="🧭" title="Browse listings" copy="Explore horses, read profiles, and compare listings quickly." />
-                  <MiniCard icon="📅" title="Request dates" copy="Send a request with date conflict protection built in." />
-                  <MiniCard icon="💬" title="Coordinate & ride" copy="Keep communication organised in one place." />
+                  <MiniCard icon="compass" title="Browse listings" copy="Explore horses, read profiles, and compare listings quickly." />
+                  <MiniCard icon="calendar" title="Request dates" copy="Send a request with date conflict protection built in." />
+                  <MiniCard icon="messages" title="Coordinate & ride" copy="Keep communication organised in one place." />
                 </div>
 
                 {isAuthed ? (
@@ -582,7 +583,7 @@ export default function HomePage() {
                   pill="Sharing a horse"
                   steps={[
                     ["1", "List your horse", "Create a listing with clear expectations."],
-                    ["2", "Approve trusted riders", "Review requests and chat before approving."],
+                    ["2", "Choose the right match", "Review requests and chat before approving."],
                     ["3", "Manage availability", "Block dates and avoid overlaps automatically."],
                   ]}
                 />
@@ -600,10 +601,10 @@ export default function HomePage() {
               </header>
 
               <div className="pmp-home-feature-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 10 }}>
-                <FeatureCard icon="⭐" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
-                <FeatureCard icon="🗓️" title="Date conflict enforcement" copy="Overlaps are blocked to keep schedules reliable." />
-                <FeatureCard icon="💬" title="Messaging built-in" copy="Coordinate details without switching apps." />
-                <FeatureCard icon="🪪" title="Profiles that matter" copy="See who you’re riding with before confirming." />
+                <FeatureCard icon="heart" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
+                <FeatureCard icon="calendar" title="Date conflict enforcement" copy="Overlaps are blocked to keep schedules reliable." />
+                <FeatureCard icon="messages" title="Messaging built-in" copy="Coordinate details without switching apps." />
+                <FeatureCard icon="id-card" title="Profiles that matter" copy="See who you’re riding with before confirming." />
               </div>
             </div>
           </section>
@@ -631,11 +632,11 @@ function StatChip({ title, value }: { title: string; value: number }) {
   );
 }
 
-function MiniCard({ icon, title, copy }: { icon: string; title: string; copy: string }) {
+function MiniCard({ icon, title, copy }: { icon: IconName; title: string; copy: string }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: 10, padding: "12px 12px", borderRadius: 18, border: "1px solid rgba(31,42,68,0.10)", background: "rgba(255,255,255,0.70)" }}>
       <div style={{ width: 44, height: 44, borderRadius: 14, background: "rgba(200,162,77,0.20)", border: "1px solid rgba(200,162,77,0.28)", display: "grid", placeItems: "center", fontSize: 18 }}>
-        {icon}
+        <Icon name={icon} size={21} />
       </div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 950, color: palette.navy }}>{title}</div>
@@ -645,11 +646,11 @@ function MiniCard({ icon, title, copy }: { icon: string; title: string; copy: st
   );
 }
 
-function FeatureCard({ icon, title, copy }: { icon: string; title: string; copy: string }) {
+function FeatureCard({ icon, title, copy }: { icon: IconName; title: string; copy: string }) {
   return (
     <div style={{ borderRadius: 22, border: "1px solid rgba(31,42,68,0.12)", background: "rgba(255,255,255,0.82)", boxShadow: "0 18px 50px rgba(31,42,68,0.08)", padding: 16 }}>
       <div style={{ width: 44, height: 44, borderRadius: 16, background: "rgba(31,61,43,0.10)", border: "1px solid rgba(31,61,43,0.14)", display: "grid", placeItems: "center", fontSize: 18, marginBottom: 10 }}>
-        {icon}
+        <Icon name={icon} size={22} />
       </div>
       <div style={{ fontWeight: 950, color: palette.navy }}>{title}</div>
       <div style={{ opacity: 0.78, marginTop: 6, lineHeight: 1.6 }}>{copy}</div>
