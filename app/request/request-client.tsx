@@ -36,7 +36,7 @@ const palette = {
 };
 
 function ownerLabel(p: ProfileMini | null) {
-  return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || "Owner";
+  return (p?.display_name && p.display_name.trim()) || (p?.full_name && p.full_name.trim()) || "Member";
 }
 
 function wrap(): React.CSSProperties {
@@ -381,7 +381,7 @@ export default function RequestClient() {
           <div style={{ marginTop: 14, ...card() }}>
             <div style={hintPill()}>✅ Your listing</div>
             <h2 style={{ marginTop: 10, marginBottom: 0, fontSize: 16, fontWeight: 950, color: palette.navy }}>
-              Owners can’t request their own horses
+              This is your own horse listing
             </h2>
             <div style={{ marginTop: 8, fontSize: 13, color: "rgba(31,42,68,0.72)", lineHeight: 1.7 }}>
               This is your listing. To avoid confusion, requesting your own horse is disabled.
@@ -418,13 +418,13 @@ export default function RequestClient() {
                     {horse.name ?? "Horse"}
                   </div>
                   <div style={{ marginTop: 6, fontSize: 13, color: "rgba(31,42,68,0.72)" }}>
-                    Owner: <span style={{ fontWeight: 950, color: palette.forest }}>{ownerLabel(ownerProfile)}</span>
+                    Listed by: <span style={{ fontWeight: 950, color: palette.forest }}>{ownerLabel(ownerProfile)}</span>
                   </div>
 
                   {horse.owner_id ? (
                     <div style={{ marginTop: 10 }}>
                       <Link href={`/owner/${horse.owner_id}`} style={inlineLink()}>
-                        View owner profile →
+                        View member profile →
                       </Link>
                     </div>
                   ) : null}

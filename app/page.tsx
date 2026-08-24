@@ -305,7 +305,7 @@ export default function HomePage() {
               <p style={{ margin: 0, fontSize: 16, lineHeight: 1.7, opacity: 0.9, maxWidth: 680 }}>
                 {isAuthed
                   ? "Manage requests, browse horses, and connect with confidence — everything stays organised in one place."
-                  : "Pinch My Pony is a trusted horse-borrowing marketplace. Owners list horses, borrowers request dates, and everyone rides with clear rules and reviews."}
+                  : "Pinch My Pony is a trusted horse-sharing marketplace. Members list horses, request dates, and arrange rides with clear expectations and reviews."}
               </p>
 
               {isAuthed ? (
@@ -547,7 +547,7 @@ export default function HomePage() {
                   >
                     <div style={{ fontWeight: 950, color: palette.navy }}>New here?</div>
                     <div style={{ opacity: 0.78, marginTop: 4, lineHeight: 1.55 }}>
-                      Create an account to request dates, message owners, and access your dashboard.
+                      Create one account to request dates, message members, list horses, and access your dashboard.
                     </div>
                   </div>
                 )}

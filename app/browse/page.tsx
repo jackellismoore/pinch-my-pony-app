@@ -352,7 +352,7 @@ export default function BrowsePage() {
 
   function ownerLabel(ownerId: string) {
     const p = profilesById[ownerId];
-    return safeText(p?.display_name) || safeText(p?.full_name) || "Owner";
+    return safeText(p?.display_name) || safeText(p?.full_name) || "Member";
   }
 
   const breedOptions = BREED_OPTIONS.slice();
@@ -468,7 +468,7 @@ export default function BrowsePage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by horse, owner, breed, location…"
+              placeholder="Search by horse, member, breed, location…"
               style={{
                 border: "1px solid rgba(15,23,42,0.12)",
                 borderRadius: 14,
@@ -616,7 +616,7 @@ export default function BrowsePage() {
                       </div>
 
                       <div className="pmp-ownerLine">
-                        Owner:{" "}
+                        Listed by:{" "}
                         <Link href={`/owner/${horse.owner_id}`} className="pmp-inlineLink">
                           {ownerLabel(horse.owner_id)}
                         </Link>

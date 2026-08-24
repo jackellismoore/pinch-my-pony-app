@@ -45,7 +45,7 @@ function fmt(d: string | null) {
 function nameFromProfile(p?: ProfileMini | null) {
   const dn = (p?.display_name ?? "").trim();
   const fn = (p?.full_name ?? "").trim();
-  return dn || fn || "Borrower";
+  return dn || fn || "Requester";
 }
 
 function pill(kind: string): React.CSSProperties {
@@ -259,7 +259,7 @@ export default function OwnerRequestsPage() {
           {requests.map((r) => {
             const status = String(r.status ?? "pending");
             const horseName = r.horse_id ? horseNameById.get(r.horse_id) ?? "Horse" : "Horse";
-            const borrowerName = r.borrower_id ? nameFromProfile(borrowersById[r.borrower_id]) : "Borrower";
+            const borrowerName = r.borrower_id ? nameFromProfile(borrowersById[r.borrower_id]) : "Requester";
 
             return (
               <div

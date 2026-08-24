@@ -391,7 +391,7 @@ export default function RequestForm({
             ? "Unavailable (your listing)"
             : submitting
             ? "Submitting…"
-            : "Submit Borrow Request →"}
+            : "Send Request →"}
         </button>
 
         <div style={{ fontSize: 12, color: "rgba(31,42,68,0.62)", lineHeight: 1.6 }}>

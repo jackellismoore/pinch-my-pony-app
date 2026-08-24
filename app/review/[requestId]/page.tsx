@@ -62,7 +62,7 @@ export default function ReviewPage() {
   const ownerLabel = useMemo(() => {
     const dn = owner?.display_name?.trim();
     const fn = owner?.full_name?.trim();
-    return dn || fn || "Owner";
+    return dn || fn || "Member";
   }, [owner]);
 
   useEffect(() => {
@@ -304,7 +304,7 @@ export default function ReviewPage() {
       >
         <div style={{ fontWeight: 950, fontSize: 15 }}>{horse?.name ?? "Horse"}</div>
         <div style={{ marginTop: 6, fontSize: 13, color: "rgba(15,23,42,0.70)" }}>
-          Owner: <span style={{ fontWeight: 950 }}>{ownerLabel}</span>
+          Horse listed by: <span style={{ fontWeight: 950 }}>{ownerLabel}</span>
         </div>
         <div style={{ marginTop: 6, fontSize: 13, color: "rgba(15,23,42,0.70)" }}>
           Dates:{" "}
@@ -392,7 +392,7 @@ export default function ReviewPage() {
                 whiteSpace: "nowrap",
               }}
             >
-              View owner
+              View profile
             </Link>
           ) : null}
 
