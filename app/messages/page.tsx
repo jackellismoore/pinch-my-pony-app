@@ -93,7 +93,7 @@ function RolePill({ role }: { role: "Owner" | "Borrower" | null | undefined }) {
 
   return (
     <span
-      title={role}
+      title={isOwner ? "Horse lister in this request" : "Horse requester in this request"}
       style={{
         height: 22,
         borderRadius: 999,
@@ -110,7 +110,7 @@ function RolePill({ role }: { role: "Owner" | "Borrower" | null | undefined }) {
         whiteSpace: "nowrap",
       }}
     >
-      {role}
+      {isOwner ? "Lister" : "Requester"}
     </span>
   );
 }

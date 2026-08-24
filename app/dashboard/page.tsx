@@ -61,7 +61,7 @@ const btn = (kind: 'primary' | 'secondary') =>
     minHeight: 44,
   }) as React.CSSProperties;
 
-export default function OwnerDashboardOverview() {
+export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -181,22 +181,25 @@ export default function OwnerDashboardOverview() {
     <div className="pmp-pageShell">
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <div>
-          <div className="pmp-kicker">Owner dashboard</div>
-          <h1 className="pmp-pageTitle">Owner Overview</h1>
+          <div className="pmp-kicker">Your account</div>
+          <h1 className="pmp-pageTitle">Dashboard</h1>
           <div className="pmp-mutedText" style={{ marginTop: 6 }}>
-            Upcoming blocks and approved bookings across your horses.
+            Borrow a horse, manage your listings, and keep track of upcoming activity from one account.
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <Link href="/dashboard/owner/horses" style={btn('secondary')}>
-            Horses
+          <Link href="/browse" style={btn('secondary')}>
+            Browse horses
+          </Link>
+          <Link href="/dashboard/borrower/horses" style={btn('secondary')}>
+            My rides
           </Link>
           <Link href="/dashboard/owner/requests" style={btn('secondary')}>
-            Requests
+            Listing requests
           </Link>
           <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
-            Add a horse →
+            List a horse →
           </Link>
         </div>
       </div>

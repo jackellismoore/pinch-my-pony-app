@@ -96,7 +96,6 @@ export default function ProfilePage() {
   const verifiedAt = (profile?.verified_at ?? null) as string | null;
   const verificationProvider = (profile?.verification_provider ?? null) as string | null;
   const isVerified = String(verificationStatus).toLowerCase() === "verified";
-  const role = String(profile?.role ?? "").toLowerCase();
 
   useEffect(() => {
     let cancelled = false;
@@ -622,24 +621,22 @@ export default function ProfilePage() {
                       <div style={{ fontSize: 12, opacity: 0.65 }}>Provider: {verificationProvider}</div>
                     ) : null}
 
-                    {role === "owner" ? (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 900,
-                          color: ownerAverageRating ? "rgba(110,75,0,0.95)" : "rgba(15,23,42,0.72)",
-                          padding: "6px 10px",
-                          borderRadius: 999,
-                          border: "1px solid rgba(200,162,77,0.28)",
-                          background: "rgba(255,255,255,0.76)",
-                          boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
-                        }}
-                      >
-                        {ownerAverageRating
-                          ? `⭐ ${ownerAverageRating}/5 · ${ownerReviewCount} review${ownerReviewCount === 1 ? "" : "s"}`
-                          : "⭐ No reviews yet"}
-                      </div>
-                    ) : null}
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 900,
+                        color: ownerAverageRating ? "rgba(110,75,0,0.95)" : "rgba(15,23,42,0.72)",
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                        border: "1px solid rgba(200,162,77,0.28)",
+                        background: "rgba(255,255,255,0.76)",
+                        boxShadow: "0 12px 28px rgba(15,23,42,0.06)",
+                      }}
+                    >
+                      {ownerAverageRating
+                        ? `⭐ ${ownerAverageRating}/5 · ${ownerReviewCount} review${ownerReviewCount === 1 ? "" : "s"}`
+                        : "⭐ No listing reviews yet"}
+                    </div>
                   </div>
 
                   {!isVerified ? (

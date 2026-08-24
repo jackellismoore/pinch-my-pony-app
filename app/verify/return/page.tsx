@@ -24,16 +24,14 @@ export default function VerifyReturnPage() {
         return;
       }
 
-      const { data: p } = await supabase.from("profiles").select("role, verification_status").eq("id", uid).maybeSingle();
+      const { data: p } = await supabase.from("profiles").select("verification_status").eq("id", uid).maybeSingle();
       const status = (p as any)?.verification_status ?? "unverified";
 
       if (cancelled) return;
 
       if (status === "verified") {
-        const role = (p as any)?.role;
-        const dash = role === "owner" ? "/dashboard/owner" : "/dashboard/borrower";
         setMsg("Verified ✅ Redirecting…");
-        router.replace(dash);
+        router.replace("/dashboard");
         return;
       }
 

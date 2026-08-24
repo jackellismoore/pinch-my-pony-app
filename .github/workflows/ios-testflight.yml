@@ -33,21 +33,7 @@ jobs:
 
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
-      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-      STRIPE_IDENTITY_WEBHOOK_SECRET: ${{ secrets.STRIPE_IDENTITY_WEBHOOK_SECRET }}
-
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-      CONTACT_TO_EMAIL: ${{ secrets.CONTACT_TO_EMAIL }}
-      CONTACT_FROM_EMAIL: ${{ secrets.CONTACT_FROM_EMAIL }}
-
-      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
-      VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
-      VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-
-      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+      CAPACITOR_SERVER_URL: https://pinchmypony.com
 
     steps:
       - name: Checkout
@@ -372,20 +358,7 @@ jobs:
           set -euxo pipefail
 
           PBXPROJ="ios/App/App.xcodeproj/project.pbxproj"
-
-          CURRENT_BUILD=$(python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          text = Path("ios/App/App.xcodeproj/project.pbxproj").read_text()
-          matches = re.findall(r'CURRENT_PROJECT_VERSION = (\d+);', text)
-          if not matches:
-              raise SystemExit("Could not find CURRENT_PROJECT_VERSION in project.pbxproj")
-          print(max(int(x) for x in matches))
-          PY
-          )
-
-          NEXT_BUILD=$((CURRENT_BUILD + 1))
+          NEXT_BUILD=$((1000 + GITHUB_RUN_NUMBER))
 
           python3 <<PY
           from pathlib import Path

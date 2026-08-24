@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import StarRating from "@/components/StarRating";
+import { sendPushNotification } from "@/lib/push/sendPushNotification";
 
 type BorrowRequestRow = {
   id: string;
@@ -194,15 +195,11 @@ export default function ReviewPage() {
       const { error: insertErr } = await supabase.from("reviews").insert(payload);
       if (insertErr) throw insertErr;
 
-      fetch("/api/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      sendPushNotification({
           userId: horse.owner_id,
           url: "/dashboard/owner/reviews",
           eventType: "review_left_for_owner",
           requestId: req.id,
-        }),
       }).catch(() => {});
 
       router.push(`/messages/${req.id}`);

@@ -25,13 +25,35 @@ export async function POST(req: NextRequest) {
 
     const userId = user.id;
 
-    await admin.from("profiles").delete().eq("id", userId);
-    await admin.from("borrow_requests").delete().eq("borrower_id", userId);
-    await admin.from("horses").delete().eq("owner_id", userId);
-    await admin
-      .from("messages")
-      .delete()
-      .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`);
+    const { data: ownedHorses, error: horseLookupError } = await admin
+      .from("horses")
+      .select("id")
+      .eq("owner_id", userId);
+    if (horseLookupError) throw horseLookupError;
+
+    const horseIds = (ownedHorses ?? []).map((horse) => horse.id);
+
+    const deletions = [
+      admin.from("messages").delete().or(`sender_id.eq.${userId},recipient_id.eq.${userId}`),
+      admin.from("reviews").delete().or(`borrower_id.eq.${userId},owner_id.eq.${userId}`),
+      admin.from("push_subscriptions").delete().eq("user_id", userId),
+      admin.from("notification_preferences").delete().eq("user_id", userId),
+      admin.from("identity_verifications").delete().eq("user_id", userId),
+      admin.from("borrow_requests").delete().eq("borrower_id", userId),
+      ...(horseIds.length
+        ? [
+            admin.from("horse_unavailability").delete().in("horse_id", horseIds),
+            admin.from("borrow_requests").delete().in("horse_id", horseIds),
+          ]
+        : []),
+      admin.from("horses").delete().eq("owner_id", userId),
+      admin.from("profiles").delete().eq("id", userId),
+    ];
+
+    for (const operation of deletions) {
+      const { error } = await operation;
+      if (error) throw error;
+    }
 
     const { error: deleteErr } = await admin.auth.admin.deleteUser(userId);
 

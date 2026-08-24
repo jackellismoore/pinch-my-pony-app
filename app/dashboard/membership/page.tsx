@@ -13,7 +13,6 @@ const palette = {
 
 type Profile = {
   id: string;
-  role: "owner" | "borrower" | null;
   beta_access: boolean | null;
   membership_tier: string | null;
   membership_status: string | null;
@@ -134,7 +133,7 @@ export default function MembershipPage() {
 
       const { data: p, error: pErr } = await supabase
         .from("profiles")
-        .select("id,role,beta_access,membership_tier,membership_status")
+        .select("id,beta_access,membership_tier,membership_status")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -293,10 +292,10 @@ export default function MembershipPage() {
             <div className="pmp-membershipGrid" style={{ marginTop: 14 }}>
               <div style={softCard()}>
                 <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>
-                  Borrower Membership
+                  Pinch My Pony Membership
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
-                  £5 / month later. Free until 2027.
+                  One membership for borrowing and listing.
                 </div>
 
                 <ul
@@ -308,9 +307,9 @@ export default function MembershipPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  <li>Priority features and perks</li>
-                  <li>Member-only improvements</li>
-                  <li>Support the marketplace</li>
+                  <li>Browse and request horses</li>
+                  <li>List and manage your own horses</li>
+                  <li>Messaging, verification, and reviews</li>
                 </ul>
 
                 <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -322,10 +321,10 @@ export default function MembershipPage() {
 
               <div style={softCard()}>
                 <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>
-                  Owner Membership
+                  Launch access
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, opacity: 0.8, lineHeight: 1.65 }}>
-                  £10 / month later. Free until 2027.
+                  The complete platform is currently free while the community grows.
                 </div>
 
                 <ul
@@ -337,9 +336,9 @@ export default function MembershipPage() {
                     lineHeight: 1.7,
                   }}
                 >
-                  <li>Enhanced listing tools</li>
-                  <li>Better visibility and controls</li>
-                  <li>Owner analytics</li>
+                  <li>No separate account types</li>
+                  <li>No checkout required during launch</li>
+                  <li>Future membership managed securely by Stripe</li>
                 </ul>
 
                 <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>

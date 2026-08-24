@@ -24,7 +24,7 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
   useEffect(() => {
     let cancelled = false;
 
-    async function checkRole() {
+    async function checkAccess() {
       const {
         data: { user },
         error: userErr,
@@ -35,24 +35,13 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
         return;
       }
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
       if (cancelled) return;
-
-      if (error || !data || data.role !== "owner") {
-        router.replace("/dashboard");
-        return;
-      }
 
       setAuthorized(true);
       setLoading(false);
     }
 
-    checkRole();
+    checkAccess();
     return () => {
       cancelled = true;
     };

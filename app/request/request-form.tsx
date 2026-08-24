@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { AvailabilityConflictNotice } from "@/components/AvailabilityConflictNotice";
+import { sendPushNotification } from "@/lib/push/sendPushNotification";
 
 const palette = {
   forest: "#1F3D2B",
@@ -253,15 +254,11 @@ export default function RequestForm({
       }
 
       if (horseOwnerId && inserted?.id) {
-        fetch("/api/push/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        sendPushNotification({
             userId: horseOwnerId,
             url: `/dashboard/owner/${inserted.id}`,
             eventType: "borrow_request_created",
             requestId: inserted.id,
-          }),
         }).catch(() => {});
       }
 

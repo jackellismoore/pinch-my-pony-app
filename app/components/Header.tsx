@@ -11,7 +11,6 @@ import MobileTabBar from "@/components/MobileTabBar";
 
 type ProfileMini = {
   id: string;
-  role: "owner" | "borrower" | null;
   display_name: string | null;
   full_name: string | null;
   avatar_url: string | null;
@@ -71,7 +70,7 @@ export default function Header() {
         const { data: p, error } = await supabase
           .from("profiles")
           .select(
-            "id,role,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
+            "id,display_name,full_name,avatar_url,verification_status,verified_at,verification_provider"
           )
           .eq("id", uid)
           .maybeSingle();
@@ -135,7 +134,6 @@ export default function Header() {
     window.location.href = "/login";
   };
 
-  const isOwner = profile?.role === "owner";
   const isVerified = (profile?.verification_status ?? "unverified") === "verified";
 
   const signedInLabel = useMemo(() => {
@@ -449,23 +447,17 @@ export default function Header() {
                           Messages
                         </Link>
 
-                        {isOwner ? (
-                          <Link
-                            href="/dashboard/owner"
-                            onClick={() => setMenuOpen(false)}
-                            className="pmp-menuItem"
-                          >
-                            Owner Dashboard
-                          </Link>
-                        ) : (
-                          <Link
-                            href="/dashboard/borrower"
-                            onClick={() => setMenuOpen(false)}
-                            className="pmp-menuItem"
-                          >
-                            Rider Dashboard
-                          </Link>
-                        )}
+                        <Link href="/dashboard" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          Dashboard
+                        </Link>
+
+                        <Link href="/dashboard/borrower/horses" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          My rides
+                        </Link>
+
+                        <Link href="/dashboard/owner/horses" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
+                          My horse listings
+                        </Link>
 
                         <Link href="/profile" onClick={() => setMenuOpen(false)} className="pmp-menuItem">
                           Profile

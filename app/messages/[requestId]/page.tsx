@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { usePaginatedMessages, type UIMessage } from "@/lib/hooks/usePaginatedMessages";
 import MessageBubble from "@/components/MessageBubble";
 import TypingBubbleInline from "@/components/TypingBubbleInline";
+import { sendPushNotification } from "@/lib/push/sendPushNotification";
 
 type Profile = {
   id: string;
@@ -592,16 +593,12 @@ export default function MessageThreadPage() {
       clearPicked();
 
       if (otherUserId && !otherOnline) {
-        fetch("/api/push/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        sendPushNotification({
             userId: otherUserId,
             url: `/messages/${requestId}`,
             senderId: myUserId,
             requestId,
             messageText: text ? text : "Sent a photo",
-          }),
         }).catch(() => {});
       }
 
@@ -617,16 +614,12 @@ export default function MessageThreadPage() {
     }
 
     if (otherUserId && !otherOnline) {
-      fetch("/api/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      sendPushNotification({
           userId: otherUserId,
           url: `/messages/${requestId}`,
           senderId: myUserId,
           requestId,
           messageText: text,
-        }),
       }).catch(() => {});
     }
 
