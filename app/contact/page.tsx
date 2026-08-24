@@ -238,6 +238,11 @@ export default function ContactPage() {
                 <span>Read FAQs</span>
               </Link>
 
+              <Link href="/safety" style={sideLink}>
+                <span aria-hidden="true">🛡️</span>
+                <span>Safety guidance</span>
+              </Link>
+
               <Link href="/browse" style={sideLink}>
                 <span aria-hidden="true">🧭</span>
                 <span>Browse horses</span>

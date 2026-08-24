@@ -9,6 +9,7 @@ import HorseMap from "@/components/HorseMap";
 import AvailabilityRanges from "@/components/AvailabilityRanges";
 import { supabase } from "@/lib/supabaseClient";
 import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { userFacingError } from "@/lib/userFacingError";
 import RequestForm from "./request-form";
 
 type HorseRow = {
@@ -240,7 +241,7 @@ export default function RequestClient() {
           if (!pRes.error) setOwnerProfile((pRes.data ?? null) as ProfileMini | null);
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load request details.");
+        if (!cancelled) setError(userFacingError(e, "We couldn’t load this request. Please try again."));
       } finally {
         if (!cancelled) setLoading(false);
       }

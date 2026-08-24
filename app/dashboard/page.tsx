@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { AvailabilityBadge } from '@/components/AvailabilityBadge';
+import { userFacingError } from '@/lib/userFacingError';
 
 const palette = {
   forest: '#1F3D2B',
@@ -171,7 +172,7 @@ export default function DashboardOverview() {
         setRanges(unified);
         setLoading(false);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? 'Failed to load overview.');
+        if (!cancelled) setError(userFacingError(e, 'We couldn’t load your dashboard. Please try again.'));
         if (!cancelled) setRanges([]);
         setLoading(false);
       }

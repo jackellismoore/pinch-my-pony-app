@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 
 type HorseRow = {
   id: string;
@@ -68,6 +69,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function HorsePublicClient() {
+  const { identityEnabled } = useLaunchFeatures();
   const params = useParams<{ id: string }>();
   const horseId = params?.id;
 
@@ -326,8 +328,8 @@ export default function HorsePublicClient() {
                   </h1>
 
                   <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.6 }}>
-                    Owner: <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
-                    {ownerVerified ? <span> • Verified</span> : null}
+                    Listed by: <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
+                    {identityEnabled && ownerVerified ? <span> • ID verified</span> : null}
                     {safeText(horse.location).trim() ? <span> • {fmt(horse.location)}</span> : null}
                   </div>
                 </div>
@@ -362,7 +364,13 @@ export default function HorsePublicClient() {
                   <DetailRow label="Location" value={fmt(horse.location)} />
                   <DetailRow
                     label="Trust"
-                    value={ownerVerified ? "Verified owner profile" : "Owner not yet verified"}
+                    value={
+                      identityEnabled
+                        ? ownerVerified
+                          ? "ID-verified member"
+                          : "Identity check pending"
+                        : "Member profile and reviews"
+                    }
                   />
                 </div>
               </div>
@@ -421,6 +429,20 @@ export default function HorsePublicClient() {
                   <span>Read FAQs</span>
                   <span>→</span>
                 </div>
+              </Link>
+
+              <Link href="/safety" style={{ textDecoration: "none" }}>
+                <div
+                  className="pmp-ctaSecondary"
+                  style={{ width: "100%", display: "flex", justifyContent: "space-between" }}
+                >
+                  <span>Safety guidance</span>
+                  <span>→</span>
+                </div>
+              </Link>
+
+              <Link href="/contact" className="pmp-inlineLink" style={{ justifySelf: "start" }}>
+                Report a listing or safety concern
               </Link>
 
               <div

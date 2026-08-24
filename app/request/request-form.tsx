@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { userFacingError } from "@/lib/userFacingError";
 import { AvailabilityConflictNotice } from "@/components/AvailabilityConflictNotice";
 import { sendPushNotification } from "@/lib/push/sendPushNotification";
 
@@ -139,7 +140,7 @@ export default function RequestForm({
         setIsVerified(String(verificationStatus).toLowerCase() === "verified");
       } catch (e: any) {
         if (!cancelled) {
-          setSubmitError(e?.message ?? "Could not verify request permissions.");
+          setSubmitError(userFacingError(e, "We couldn’t check this request. Please try again."));
         }
       } finally {
         if (!cancelled) {
@@ -257,7 +258,7 @@ export default function RequestForm({
         .single();
 
       if (error) {
-        setSubmitError(error.message);
+        setSubmitError(userFacingError(error, "We couldn’t send your request. Please try again."));
         setSubmitting(false);
         return;
       }
@@ -273,7 +274,7 @@ export default function RequestForm({
 
       onSuccess?.();
     } catch (err: any) {
-      setSubmitError(err?.message ?? "Failed to submit request.");
+      setSubmitError(userFacingError(err, "We couldn’t send your request. Please try again."));
     } finally {
       setSubmitting(false);
     }

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import HorseMap from "@/components/HorseMap";
 import { supabase } from "@/lib/supabaseClient";
 import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
+import { userFacingError } from "@/lib/userFacingError";
 import { AvailabilityBadge } from "@/components/AvailabilityBadge";
 import StarRating from "@/components/StarRating";
 
@@ -338,7 +339,7 @@ export default function BrowsePage() {
           }
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load browse data.");
+        if (!cancelled) setError(userFacingError(e, "We couldn’t load the horses. Please try again."));
       } finally {
         if (!cancelled) setLoading(false);
       }
