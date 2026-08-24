@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 import { Icon } from "@/components/Icon";
+import { formatHorseHeight } from "@/lib/horseHeight";
 
 type HorseRow = {
   id: string;
@@ -160,7 +161,7 @@ export default function HorsePublicClient() {
   const ctaHref = useMemo(() => {
     if (!horseId) return "/browse";
     if (!sessionUserId) return `/login?redirectTo=${encodeURIComponent(`/horse/${horseId}`)}`;
-    return `/dashboard/borrower/horses/${horseId}/request`;
+    return `/request?horseId=${encodeURIComponent(horseId)}`;
   }, [horseId, sessionUserId]);
 
   const ctaLabel = sessionUserId ? "Request dates →" : "Log in to request →";
@@ -360,7 +361,7 @@ export default function HorsePublicClient() {
                 >
                   <DetailRow label="Breed" value={fmt(horse.breed)} />
                   <DetailRow label="Age" value={fmt(horse.age)} />
-                  <DetailRow label="Height" value={fmt(horse.height_hh ?? horse.height)} />
+                  <DetailRow label="Height" value={formatHorseHeight(horse.height_hh ?? horse.height)} />
                   <DetailRow label="Temperament" value={fmt(horse.temperament)} />
                   <DetailRow label="Location" value={fmt(horse.location)} />
                   <DetailRow

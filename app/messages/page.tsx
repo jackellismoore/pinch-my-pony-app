@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Icon } from "@/components/Icon";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -84,10 +84,6 @@ function horseImageFromRow(h: HorseMini | null): string | null {
 
 function norm(s: string) {
   return (s || "").toLowerCase().trim();
-}
-
-function clamp(n: number, a: number, b: number) {
-  return Math.max(a, Math.min(b, n));
 }
 
 function PhotoPill() {
@@ -213,159 +209,6 @@ function MediaThumb({
           {fallback}
         </div>
       )}
-    </div>
-  );
-}
-
-function SwipeRow({
-  requestId,
-  onDelete,
-  children,
-  disabled,
-}: {
-  requestId: string;
-  onDelete: () => void;
-  children: (opts: { clickShouldOpen: () => boolean }) => React.ReactNode;
-  disabled?: boolean;
-}) {
-  const MAX = 86;
-  const SWIPE_START_PX = 14;
-  const SWIPE_LOCK_PX = 18;
-
-  const [tx, setTx] = useState(0);
-  const [open, setOpen] = useState(false);
-
-  const startRef = useRef<{ x: number; y: number; tx: number; active: boolean }>({
-    x: 0,
-    y: 0,
-    tx: 0,
-    active: false,
-  });
-  const didSwipeRef = useRef(false);
-  const swipingRef = useRef(false);
-
-  const close = () => {
-    setOpen(false);
-    setTx(0);
-  };
-
-  const clickShouldOpen = () => !didSwipeRef.current;
-
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!open) return;
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      const el = document.getElementById(`swipe-row-${requestId}`);
-      if (el && el.contains(target)) return;
-      close();
-    };
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
-  }, [open, requestId]);
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (disabled) return;
-    didSwipeRef.current = false;
-    swipingRef.current = false;
-    startRef.current = { x: e.clientX, y: e.clientY, tx, active: true };
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!startRef.current.active || disabled) return;
-
-    const dx = e.clientX - startRef.current.x;
-    const dy = e.clientY - startRef.current.y;
-
-    if (!swipingRef.current && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
-      startRef.current.active = false;
-      return;
-    }
-
-    if (!swipingRef.current) {
-      if (Math.abs(dx) < SWIPE_START_PX) return;
-      if (Math.abs(dx) <= Math.abs(dy)) return;
-      swipingRef.current = true;
-    }
-
-    if (Math.abs(dx) > SWIPE_LOCK_PX) didSwipeRef.current = true;
-
-    let next = startRef.current.tx + dx;
-    next = clamp(next, -MAX, 0);
-    setTx(next);
-  };
-
-  const onPointerUp = () => {
-    if (disabled) return;
-    if (!startRef.current.active) return;
-    startRef.current.active = false;
-
-    if (!swipingRef.current) return;
-
-    const shouldOpen = tx <= -MAX * 0.55;
-    if (shouldOpen) {
-      setOpen(true);
-      setTx(-MAX);
-    } else {
-      close();
-    }
-
-    window.setTimeout(() => {
-      swipingRef.current = false;
-      didSwipeRef.current = false;
-    }, 0);
-  };
-
-  return (
-    <div
-      id={`swipe-row-${requestId}`}
-      style={{ position: "relative", borderRadius: 18, overflow: "hidden" }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "stretch",
-          background: "#17243d",
-        }}
-        aria-hidden="true"
-      >
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDelete();
-            close();
-          }}
-          disabled={disabled}
-          style={{
-            width: 96,
-            border: "none",
-            background: "transparent",
-            color: "#ffffff",
-            fontWeight: 950,
-            cursor: disabled ? "not-allowed" : "pointer",
-          }}
-          title="Delete chat for you"
-        >
-          Remove
-        </button>
-      </div>
-
-      <div
-        style={{
-          transform: `translateX(${tx}px)`,
-          transition: swipingRef.current ? "none" : "transform 160ms ease",
-        }}
-      >
-        {children({ clickShouldOpen })}
-      </div>
     </div>
   );
 }
@@ -835,14 +678,8 @@ export default function MessagesPage() {
             const initial = t.other_display_name?.slice(0, 1)?.toUpperCase() ?? "U";
 
             return (
-              <SwipeRow
-                key={t.request_id}
-                requestId={t.request_id}
-                onDelete={() => setPendingDeleteId(t.request_id)}
-                disabled={deleting}
-              >
-                {({ clickShouldOpen }) => (
                   <div
+                    key={t.request_id}
                     className="pmp-sectionCard"
                     style={{
                       padding: 0,
@@ -855,12 +692,6 @@ export default function MessagesPage() {
                       href={`/messages/${t.request_id}`}
                       prefetch={false}
                       style={{ textDecoration: "none", display: "block" }}
-                      onClick={(e) => {
-                        if (!clickShouldOpen()) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }
-                      }}
                     >
                       <div className="pmp-msg-cardBody" style={{ padding: 14, cursor: "pointer" }}>
                         <div className="pmp-msg-cardMain" style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -1061,9 +892,27 @@ export default function MessagesPage() {
                       </div>
                     </Link>
 
+                    <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 14px 12px" }}>
+                      <button
+                        type="button"
+                        onClick={() => setPendingDeleteId(t.request_id)}
+                        disabled={deleting}
+                        style={{
+                          border: "1px solid rgba(31,42,68,0.14)",
+                          background: "rgba(31,42,68,0.045)",
+                          color: "rgba(31,42,68,0.78)",
+                          borderRadius: 10,
+                          padding: "6px 10px",
+                          fontSize: 12,
+                          fontWeight: 900,
+                          cursor: deleting ? "not-allowed" : "pointer",
+                          opacity: deleting ? 0.6 : 1,
+                        }}
+                      >
+                        {deleting ? "Removing…" : "Remove"}
+                      </button>
+                    </div>
                   </div>
-                )}
-              </SwipeRow>
             );
           })}
         </div>

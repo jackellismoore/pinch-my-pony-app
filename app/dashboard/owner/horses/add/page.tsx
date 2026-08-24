@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { parseHorseHeight } from "@/lib/horseHeight";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 
 const palette = {
@@ -168,8 +169,7 @@ export default function AddHorsePage() {
       const ageNum = age.trim() ? Number(age) : null;
       if (age.trim() && Number.isNaN(ageNum)) throw new Error("Age must be a number.");
 
-      const heightNum = heightHh.trim() ? Number(heightHh) : null;
-      if (heightHh.trim() && Number.isNaN(heightNum)) throw new Error("Height (hh) must be a number.");
+      const heightNum = parseHorseHeight(heightHh);
 
       const priceNum = pricePerDay.trim() ? Number(pricePerDay) : null;
       if (pricePerDay.trim() && Number.isNaN(priceNum)) throw new Error("Price per day must be a number.");

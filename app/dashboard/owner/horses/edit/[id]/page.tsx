@@ -6,6 +6,7 @@ import DashboardShell from "@/components/DashboardShell";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 import { supabase } from "@/lib/supabaseClient";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { parseHorseHeight } from "@/lib/horseHeight";
 
 type HorseRow = {
   id: string;
@@ -282,6 +283,7 @@ export default function EditHorsePage() {
 
       if (latNum != null && !Number.isFinite(latNum)) throw new Error("Latitude must be a number");
       if (lngNum != null && !Number.isFinite(lngNum)) throw new Error("Longitude must be a number");
+      const heightNum = parseHorseHeight(height);
 
       const payload: any = {
         name: name.trim() || null,
@@ -291,7 +293,7 @@ export default function EditHorsePage() {
         image_url: imageUrl.trim() || null,
         breed: breed.trim() || null,
         age: age.trim() || null,
-        height_hh: height.trim() || null,
+        height_hh: heightNum,
         temperament: temperament.trim() || null,
         description: description.trim() || null,
         is_active: isActive,

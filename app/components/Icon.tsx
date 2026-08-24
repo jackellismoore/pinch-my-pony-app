@@ -5,7 +5,7 @@ export type IconName =
   | "compass" | "shield" | "lock" | "mail" | "document" | "receipt"
   | "search" | "check" | "warning" | "credit-card" | "camera" | "pin"
   | "id-card" | "sparkles" | "arrow-left" | "arrow-right" | "close"
-  | "heart" | "settings" | "bell" | "plus" | "horseshoe";
+  | "heart" | "settings" | "bell" | "plus" | "horseshoe" | "star";
 
 type Props = Omit<SVGProps<SVGSVGElement>, "name"> & {
   name: IconName;
@@ -18,6 +18,7 @@ const paths: Record<IconName, ReactNode> = {
   messages: <><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></>,
   horse: <><path d="M6 20v-5l2-3-1-5 4-4 5 2 3 4-2 3v8"/><path d="M8 12h8M9 20v-4m6 4v-4M13 6l3-1"/><circle cx="15.5" cy="8" r=".5" fill="currentColor" stroke="none"/></>,
   horseshoe: <><path d="M6.2 4.2v8.1a5.8 5.8 0 0 0 11.6 0V4.2"/><path d="M6.2 7h3V4.2h-3M17.8 7h-3V4.2h3M6.5 11h3M14.5 11h3M8.2 17.2l-2.3 2.3M15.8 17.2l2.3 2.3"/></>,
+  star: <path d="m12 2.8 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3-5.6-3-5.6 3 1.1-6.3-4.6-4.4 6.3-.9Z" fill="currentColor" stroke="currentColor"/>,
   user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
   menu: <><path d="M4 7h16M4 12h16M4 17h16"/></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
