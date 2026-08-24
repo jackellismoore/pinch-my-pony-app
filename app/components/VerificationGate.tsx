@@ -22,6 +22,7 @@ const PUBLIC_PATH_PREFIXES = [
   "/verify",
   "/verify/return",
   "/contact",
+  "/help",
   "/faq",
   "/safety",
   "/terms",

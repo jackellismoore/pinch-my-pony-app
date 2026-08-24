@@ -852,6 +852,61 @@ main {
   word-break: break-word;
 }
 
+/* ---------- Help & information ---------- */
+
+.pmp-helpGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pmp-helpCard {
+  min-width: 0;
+  min-height: 126px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(31, 42, 68, 0.12);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 14px 40px rgba(31, 42, 68, 0.07);
+  color: #1f2a44;
+  text-decoration: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.pmp-helpIcon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.pmp-helpTitle,
+.pmp-helpDescription {
+  display: block;
+}
+
+.pmp-helpTitle {
+  font-size: 17px;
+  line-height: 1.25;
+  font-weight: 950;
+}
+
+.pmp-helpDescription {
+  margin-top: 6px;
+  color: rgba(31, 42, 68, 0.7);
+  font-size: 14px;
+  line-height: 1.55;
+  font-weight: 650;
+}
+
+.pmp-helpArrow {
+  font-size: 20px;
+  line-height: 1;
+  color: #1f3d2b;
+  font-weight: 900;
+}
+
 @media (max-width: 767px) {
   .pmp-pageShell {
     padding-top: 16px;
@@ -870,6 +925,15 @@ main {
 
   .pmp-mapCard {
     min-height: 300px;
+  }
+
+  .pmp-helpGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .pmp-helpCard {
+    min-height: 0;
+    padding: 16px;
   }
 }
 
