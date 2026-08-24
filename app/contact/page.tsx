@@ -11,9 +11,22 @@ const palette = {
   gold: "#C8A24D",
 };
 
-type Topic = "General" | "Account & Verification" | "Borrowing" | "Owners" | "Payments" | "Safety";
+type Topic =
+  | "General"
+  | "Account & verification"
+  | "Finding a horse"
+  | "Listing a horse"
+  | "Payments & membership"
+  | "Safety";
 
-const TOPICS: Topic[] = ["General", "Account & Verification", "Borrowing", "Owners", "Payments", "Safety"];
+const TOPICS: Topic[] = [
+  "General",
+  "Account & verification",
+  "Finding a horse",
+  "Listing a horse",
+  "Payments & membership",
+  "Safety",
+];
 
 function isValidEmail(v: string) {
   const s = v.trim();
@@ -28,6 +41,7 @@ export default function ContactPage() {
   const [email, setEmail] = useState("");
   const [topic, setTopic] = useState<Topic>("General");
   const [message, setMessage] = useState("");
+  const [touched, setTouched] = useState({ name: false, email: false, message: false });
 
   // anti-abuse fields (client-side)
   const [honeypot, setHoneypot] = useState("");
@@ -117,24 +131,24 @@ export default function ContactPage() {
       <style>{css}</style>
 
       <div style={container}>
-        <header style={header}>
+        <header className="pmpContactHeader" style={header}>
           <div style={eyebrowPill}>
             <span aria-hidden="true">📨</span>
             <span>Support</span>
           </div>
-          <h1 style={title}>Contact Us</h1>
+          <h1 className="pmpContactTitle" style={title}>Contact Us</h1>
           <p style={subtitle}>
             Send us a note and we’ll get back to you. For urgent safety issues, include as much detail as you comfortably can.
           </p>
         </header>
 
-        <div style={grid}>
+        <div className="pmpContactGrid" style={grid}>
           <section className="pmp-hoverLift" style={card}>
             {done?.ok ? (
               <SuccessPanel />
             ) : (
               <>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div className="pmpContactCardHeader" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                   <div style={{ fontWeight: 950, fontSize: 16, color: palette.navy }}>Message support</div>
                   {userId ? <span style={miniPill}>Signed in</span> : <span style={miniPillMuted}>Public</span>}
                 </div>
@@ -146,22 +160,24 @@ export default function ContactPage() {
                     <input value={honeypot} onChange={(e) => setHoneypot(e.target.value)} style={input} tabIndex={-1} autoComplete="off" />
                   </div>
 
-                  <Field label="Name" hint="So we know what to call you." error={errors.name}>
+                  <Field label="Name" hint="So we know what to call you." error={touched.name ? errors.name : undefined}>
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      onBlur={() => setTouched((current) => ({ ...current, name: true }))}
                       placeholder="Your name"
-                      style={inputError(!!errors.name)}
+                      style={inputError(touched.name && !!errors.name)}
                       autoComplete="name"
                     />
                   </Field>
 
-                  <Field label="Email" hint="We’ll reply here." error={errors.email}>
+                  <Field label="Email" hint="We’ll reply here." error={touched.email ? errors.email : undefined}>
                     <input
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      onBlur={() => setTouched((current) => ({ ...current, email: true }))}
                       placeholder="you@example.com"
-                      style={inputError(!!errors.email)}
+                      style={inputError(touched.email && !!errors.email)}
                       inputMode="email"
                       autoComplete="email"
                     />
@@ -180,13 +196,14 @@ export default function ContactPage() {
                   <Field
                     label="Message"
                     hint="What’s going on? Include details like listing/request IDs if you have them."
-                    error={errors.message}
+                    error={touched.message ? errors.message : undefined}
                   >
                     <textarea
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
+                      onBlur={() => setTouched((current) => ({ ...current, message: true }))}
                       placeholder="Write your message…"
-                      style={textareaError(!!errors.message)}
+                      style={textareaError(touched.message && !!errors.message)}
                       rows={7}
                     />
                     <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
@@ -313,7 +330,7 @@ function Field({
 }) {
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+      <div className="pmpContactFieldHeader" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
         <label style={{ fontWeight: 950, color: palette.navy }}>{label}</label>
         {hint ? <span style={{ fontSize: 12, opacity: 0.7 }}>{hint}</span> : null}
       </div>
@@ -340,6 +357,17 @@ const css = `
   }
   @media (max-width: 980px) {
     .pmpContactGrid { grid-template-columns: 1fr !important; }
+  }
+  @media (max-width: 600px) {
+    .pmpContactHeader { padding: 16px !important; border-radius: 18px !important; }
+    .pmpContactTitle { font-size: 36px !important; }
+    .pmpContactCardHeader { align-items: flex-start !important; }
+    .pmpContactFieldHeader {
+      display: grid !important;
+      justify-content: stretch !important;
+      gap: 2px !important;
+    }
+    .pmpContactFieldHeader > span { line-height: 1.45; }
   }
 `;
 
@@ -399,8 +427,6 @@ const grid: React.CSSProperties = {
   gridTemplateColumns: "1.25fr 0.75fr",
   gap: 14,
 } as React.CSSProperties;
-
-(grid as any).className = "pmpContactGrid";
 
 const card: React.CSSProperties = {
   borderRadius: 22,
