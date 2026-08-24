@@ -35,7 +35,7 @@ export default function BorrowerDashboardLayout({ children }: { children: ReactN
   useEffect(() => {
     let cancelled = false;
 
-    async function checkRole() {
+    async function checkAccess() {
       const {
         data: { user },
         error: userErr,
@@ -46,20 +46,13 @@ export default function BorrowerDashboardLayout({ children }: { children: ReactN
         return;
       }
 
-      const { data, error } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-
       if (cancelled) return;
-
-      if (error || !data || data.role !== "borrower") {
-        router.replace("/dashboard");
-        return;
-      }
 
       setAuthorized(true);
       setLoading(false);
     }
 
-    checkRole();
+    checkAccess();
     return () => {
       cancelled = true;
     };

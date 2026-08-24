@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { sendPushNotification } from "@/lib/push/sendPushNotification";
 
 const palette = {
   forest: "#1F3D2B",
@@ -182,16 +183,12 @@ export default function OwnerRequestDetailPage() {
 
       setReq((prev) => (prev ? { ...prev, status: "approved" } : prev));
 
-      fetch("/api/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      sendPushNotification({
           userId: req.borrower_id,
           url: `/messages/${requestId}`,
           eventType: "borrow_request_status_changed",
           requestId,
           status: "approved",
-        }),
       }).catch(() => {});
     } catch (e: any) {
       setError(e?.message ?? "Failed to approve request.");
@@ -215,16 +212,12 @@ export default function OwnerRequestDetailPage() {
 
       setReq((prev) => (prev ? { ...prev, status: "rejected" } : prev));
 
-      fetch("/api/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      sendPushNotification({
           userId: req.borrower_id,
           url: `/messages/${requestId}`,
           eventType: "borrow_request_status_changed",
           requestId,
           status: "rejected",
-        }),
       }).catch(() => {});
     } catch (e: any) {
       setError(e?.message ?? "Failed to reject request.");

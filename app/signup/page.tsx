@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
-import SignupInner from "./SignupInner";
+import UnifiedSignupInner from "./borrower/BorrowerSignupInner";
 import AuthPostAuthRedirect from "../components/AuthPostAuthRedirect";
 
 function LoadingFallback() {
@@ -20,7 +20,7 @@ export default function SignupPage() {
   return (
     <Suspense fallback={<LoadingFallback />}>
       <AuthPostAuthRedirect mode="signup" />
-      <SignupInner />
+      <UnifiedSignupInner />
     </Suspense>
   );
 }

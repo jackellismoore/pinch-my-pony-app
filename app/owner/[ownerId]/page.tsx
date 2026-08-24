@@ -282,8 +282,6 @@ export default function OwnerPublicProfilePage() {
     return lastSeen ? `Member since ${created} · Last seen ${lastSeen}` : `Member since ${created}`;
   }, [profile]);
 
-  const isOwner = profile?.role === "owner";
-
   function reviewerLabel(id: string) {
     const p = reviewersById[id];
     const dn = p?.display_name?.trim();
@@ -428,11 +426,6 @@ export default function OwnerPublicProfilePage() {
                     </div>
                   </div>
 
-                  {!isOwner ? (
-                    <div style={{ marginTop: 10, fontSize: 13, color: "rgba(180,0,0,0.9)", fontWeight: 850 }}>
-                      This user is not listed as an owner.
-                    </div>
-                  ) : null}
                 </div>
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>

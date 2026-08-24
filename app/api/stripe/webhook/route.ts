@@ -129,6 +129,30 @@ async function markFailed(params: {
   });
 }
 
+async function updateMembership(params: {
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
+  userId: string;
+  status: string;
+  customerId?: string | null;
+  subscriptionId?: string | null;
+}) {
+  const { supabaseAdmin, userId, status, customerId, subscriptionId } = params;
+  const activeStatuses = new Set(["active", "trialing"]);
+
+  const { error } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      membership_tier: activeStatuses.has(status) ? "member" : "free",
+      membership_status: status,
+      ...(customerId ? { stripe_customer_id: customerId } : {}),
+      ...(subscriptionId ? { stripe_subscription_id: subscriptionId } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  if (error) throw new Error(`Failed to update membership: ${error.message}`);
+}
+
 async function logStripeEventSafe(params: {
   supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
   event: Stripe.Event;
@@ -193,6 +217,40 @@ export async function POST(req: Request) {
       typeof obj?.id === "string" && obj.id.trim() ? obj.id.trim() : null;
 
     switch (event.type) {
+      case "checkout.session.completed": {
+        if (!userId) {
+          return NextResponse.json({ received: true, warning: "checkout missing user_id metadata" });
+        }
+
+        const customerId = typeof obj?.customer === "string" ? obj.customer : null;
+        const subscriptionId = typeof obj?.subscription === "string" ? obj.subscription : null;
+        await updateMembership({
+          supabaseAdmin,
+          userId,
+          status: "active",
+          customerId,
+          subscriptionId,
+        });
+        return NextResponse.json({ received: true, eventType: event.type });
+      }
+
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        if (!userId) {
+          return NextResponse.json({ received: true, warning: "subscription missing user_id metadata" });
+        }
+
+        await updateMembership({
+          supabaseAdmin,
+          userId,
+          status: event.type === "customer.subscription.deleted" ? "cancelled" : String(obj?.status ?? "inactive"),
+          customerId: typeof obj?.customer === "string" ? obj.customer : null,
+          subscriptionId: providerSessionId,
+        });
+        return NextResponse.json({ received: true, eventType: event.type });
+      }
+
       case "identity.verification_session.verified": {
         if (!userId) {
           return NextResponse.json(

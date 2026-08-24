@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import webpush from "web-push";
-import { createPrivateKey, sign as cryptoSign } from "crypto";
+import { createPrivateKey, sign as cryptoSign, timingSafeEqual } from "crypto";
 import { connect } from "http2";
+import { readBearerToken, requireApiUser } from "@/lib/serverAuth";
 
 export const runtime = "nodejs";
 
@@ -90,6 +91,39 @@ type ReviewMini = {
   comment: string | null;
   created_at?: string | null;
 };
+
+function secretsMatch(received: string | null, expected: string | undefined) {
+  if (!received || !expected) return false;
+  const left = Buffer.from(received);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+async function authorizeUserNotification(
+  admin: SupabaseClient,
+  actorId: string,
+  payload: Payload
+) {
+  if (payload.senderId && payload.senderId !== actorId) return false;
+  if (!payload.requestId || payload.userId === actorId) return false;
+
+  const { data, error } = await admin
+    .from("borrow_requests")
+    .select("borrower_id,horses(owner_id)")
+    .eq("id", payload.requestId)
+    .maybeSingle();
+
+  if (error || !data) return false;
+
+  const row = data as unknown as {
+    borrower_id: string | null;
+    horses: { owner_id: string | null } | Array<{ owner_id: string | null }> | null;
+  };
+  const horse = Array.isArray(row.horses) ? row.horses[0] : row.horses;
+  const participants = new Set([row.borrower_id, horse?.owner_id].filter(Boolean));
+
+  return participants.has(actorId) && participants.has(payload.userId);
+}
 
 function base64url(input: Buffer | string) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
@@ -611,6 +645,22 @@ export async function POST(req: Request) {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    const bearer = readBearerToken(req);
+    const fromCron = secretsMatch(bearer, process.env.CRON_SECRET);
+
+    if (!fromCron) {
+      let actorId: string;
+      try {
+        actorId = (await requireApiUser(req)).id;
+      } catch {
+        return new Response("Not authenticated", { status: 401 });
+      }
+
+      if (!(await authorizeUserNotification(admin, actorId, payload))) {
+        return new Response("Not authorized to notify this user", { status: 403 });
+      }
+    }
 
     const effectiveEventType = resolveEffectiveEventType(payload);
     const prefs = await getNotificationPreferences(admin, payload.userId);

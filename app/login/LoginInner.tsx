@@ -7,7 +7,6 @@ import { supabase, SUPABASE_ENV_OK } from "@/lib/supabaseClient";
 
 type ProfileGate = {
   id: string;
-  role: "owner" | "borrower" | null;
   verification_status: string | null;
 };
 
@@ -34,12 +33,11 @@ function isValidEmail(v: string) {
 async function routeAfterLogin(userId: string, fallbackRedirect: string) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, role, verification_status")
+    .select("id, verification_status")
     .eq("id", userId)
     .maybeSingle();
 
   const profile = !error ? (data as ProfileGate | null) : null;
-  const role = profile?.role ?? null;
   const status = profile?.verification_status ?? "unverified";
 
   if (status !== "verified") {
@@ -57,7 +55,7 @@ async function routeAfterLogin(userId: string, fallbackRedirect: string) {
     return;
   }
 
-  window.location.replace(role === "owner" ? "/dashboard/owner" : "/dashboard/borrower");
+  window.location.replace("/dashboard");
 }
 
 export default function LoginInner() {

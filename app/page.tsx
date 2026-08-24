@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabaseClient";
 
 type ProfileMini = {
   id: string;
-  role: "owner" | "borrower" | null;
   display_name: string | null;
   full_name: string | null;
   avatar_url?: string | null;
@@ -72,7 +71,7 @@ export default function HomePage() {
         try {
           const { data, error: profileError } = await supabase
             .from("profiles")
-            .select("id,role,display_name,full_name,avatar_url,verification_status")
+            .select("id,display_name,full_name,avatar_url,verification_status")
             .eq("id", user.id)
             .maybeSingle();
 
@@ -85,36 +84,21 @@ export default function HomePage() {
 
         setProfile(nextProfile);
 
-        const role = nextProfile?.role ?? null;
-
         const unreadPromise = supabase
           .from("message_threads")
           .select("request_id,unread_count")
           .gt("unread_count", 0);
 
-        const pendingPromise =
-          role === "owner"
-            ? supabase
-                .from("borrow_requests")
-                .select("*", { count: "exact", head: true })
-                .eq("status", "pending")
-            : supabase
-                .from("borrow_requests")
-                .select("*", { count: "exact", head: true })
-                .eq("status", "pending")
-                .eq("borrower_id", user.id);
+        const pendingPromise = supabase
+          .from("borrow_requests")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "pending")
+          .eq("borrower_id", user.id);
 
-        const activePromise =
-          role === "owner"
-            ? supabase
-                .from("horses")
-                .select("*", { count: "exact", head: true })
-                .eq("owner_id", user.id)
-                .or("active.eq.true,is_active.eq.true")
-            : supabase
-                .from("horses")
-                .select("*", { count: "exact", head: true })
-                .or("active.eq.true,is_active.eq.true");
+        const activePromise = supabase
+          .from("horses")
+          .select("*", { count: "exact", head: true })
+          .or("active.eq.true,is_active.eq.true");
 
         const [activeRes, pendingRes, unreadRes] = await Promise.allSettled([
           activePromise,
@@ -172,8 +156,7 @@ export default function HomePage() {
   }, []);
 
   const isAuthed = !!sessionUserId;
-  const isOwner = profile?.role === "owner";
-  const dashboardHref = isOwner ? "/dashboard/owner" : "/dashboard/borrower";
+  const dashboardHref = "/dashboard";
   const isVerified = String(profile?.verification_status ?? "").toLowerCase() === "verified";
 
   const welcomeLine = useMemo(() => `Welcome back, ${pickName(profile)}.`, [profile]);
@@ -396,7 +379,7 @@ export default function HomePage() {
                       marginTop: 14,
                     }}
                   >
-                    <StatChip title={isOwner ? "My active horses" : "Active horses"} value={stats.activeHorses} />
+                    <StatChip title="Active horses" value={stats.activeHorses} />
                     <StatChip title="Pending requests" value={stats.myPendingRequests} />
                     <StatChip title="Unread messages" value={stats.unreadMessages} />
                   </div>
@@ -404,7 +387,7 @@ export default function HomePage() {
               ) : (
                 <>
                   <div className="pmp-home-cta-row" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                    <Link href="/signup/borrower" style={{ textDecoration: "none" }}>
+                    <Link href="/signup" style={{ textDecoration: "none" }}>
                       <span
                         style={{
                           display: "inline-flex",
@@ -424,7 +407,7 @@ export default function HomePage() {
                       </span>
                     </Link>
 
-                    <Link href="/signup/owner" style={{ textDecoration: "none" }}>
+                    <Link href="/signup" style={{ textDecoration: "none" }}>
                       <span
                         style={{
                           display: "inline-flex",

@@ -69,17 +69,11 @@ export default function VerifyPage() {
 
     try {
       const { data: sess } = await supabase.auth.getSession();
-      const user = sess.session?.user;
       const token = sess.session?.access_token;
 
-      if (!user?.id || !token) {
+      if (!token) {
         throw new Error("Not signed in");
       }
-
-      const returnUrl =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/verify/return`
-          : "/verify/return";
 
       const res = await withTimeout(
         fetch("/api/identity/session", {
@@ -88,10 +82,7 @@ export default function VerifyPage() {
             "content-type": "application/json",
             authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            userId: user.id,
-            returnUrl,
-          }),
+          body: JSON.stringify({}),
         }),
         20000,
         "Verification start request"

@@ -9,7 +9,6 @@ import { supabase } from "@/lib/supabaseClient";
 
 type ProfileGate = {
   id: string;
-  role: "owner" | "borrower" | null;
   verification_status: string | null;
 };
 
@@ -73,14 +72,13 @@ function SessionRedirector() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("id, role, verification_status")
+          .select("id, verification_status")
           .eq("id", user.id)
           .maybeSingle();
 
         if (cancelled) return;
 
         const profile = !error ? (data as ProfileGate | null) : null;
-        const role = profile?.role ?? null;
         const status = String(profile?.verification_status ?? "unverified").toLowerCase();
 
         if (status !== "verified") {
@@ -88,9 +86,7 @@ function SessionRedirector() {
           return;
         }
 
-        window.location.replace(
-          role === "owner" ? "/dashboard/owner" : "/dashboard/borrower"
-        );
+        window.location.replace("/dashboard");
       } finally {
         if (!cancelled) {
           setReady(true);

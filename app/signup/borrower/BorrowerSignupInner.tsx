@@ -53,7 +53,7 @@ function getErrorMessage(err: unknown): string {
   return "We couldn't create your account. Please try again or use a different email address.";
 }
 
-export default function BorrowerSignupInner() {
+export default function UnifiedSignupInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -71,7 +71,7 @@ export default function BorrowerSignupInner() {
   const [error, setError] = useState<string | null>(null);
   const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
 
-  async function signupBorrower() {
+  async function signup() {
     setError(null);
     setEmailSentTo(null);
 
@@ -112,12 +112,13 @@ export default function BorrowerSignupInner() {
           emailRedirectTo: `${origin}/login?confirmed=1`,
           data: {
             display_name: displayName.trim() || null,
+            account_model: "unified",
+            // Temporary compatibility value for existing profile triggers.
+            // Application access no longer depends on this legacy role.
             role: "borrower",
           },
         },
       });
-
-      console.log("borrower signup response:", res);
 
       if (res.error) {
         throw res.error;
@@ -135,7 +136,7 @@ export default function BorrowerSignupInner() {
       router.replace(redirectTo);
       router.refresh();
     } catch (err: unknown) {
-      console.error("borrower signup error:", err);
+      console.error("signup error:", err);
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
@@ -143,7 +144,6 @@ export default function BorrowerSignupInner() {
   }
 
   const loginHref = `/login?redirectTo=${encodeURIComponent(redirectTo)}`;
-  const ownerHref = `/signup/owner?redirectTo=${encodeURIComponent(redirectTo)}`;
 
   if (emailSentTo) {
     return (
@@ -152,7 +152,7 @@ export default function BorrowerSignupInner() {
 
         <div style={container}>
           <div style={card}>
-            <div style={eyebrow}>Pinch My Pony · Borrower</div>
+            <div style={eyebrow}>Pinch My Pony</div>
 
             <h1 style={title}>Check your email</h1>
 
@@ -185,12 +185,12 @@ export default function BorrowerSignupInner() {
 
       <div style={container}>
         <div style={card}>
-          <div style={eyebrow}>Pinch My Pony · Borrower</div>
+          <div style={eyebrow}>One account for everything</div>
 
-          <h1 style={title}>Create your borrower account</h1>
+          <h1 style={title}>Create your Pinch My Pony account</h1>
 
           <p style={subtitle}>
-            Request horses, message owners, and manage your rides from one place.
+            Browse and request horses, list your own, manage availability, and message other members from one account.
           </p>
 
           {error ? <div style={errorBox}>{error}</div> : null}
@@ -239,20 +239,17 @@ export default function BorrowerSignupInner() {
             </Field>
 
             <button
-              onClick={signupBorrower}
+              onClick={signup}
               disabled={loading}
               style={{ ...primaryBtn, opacity: loading ? 0.75 : 1 }}
               type="button"
             >
-              {loading ? "Creating account…" : "Create borrower account"}
+              {loading ? "Creating account…" : "Create account"}
             </button>
 
             <div style={footerLinks}>
               <Link href={loginHref} style={inlineLink}>
                 Already have an account?
-              </Link>
-              <Link href={ownerHref} style={inlineLink}>
-                I want to list my horse instead
               </Link>
             </div>
           </div>
