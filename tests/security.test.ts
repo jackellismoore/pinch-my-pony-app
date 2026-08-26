@@ -186,3 +186,10 @@ test("missing horse photos and the dashboard share the branded horseshoe", () =>
   assert.match(fallback, /name="horseshoe"/);
   assert.match(tabs, /icon:\s*["']horseshoe["']/);
 });
+
+test("unused legacy tables are protected by RLS", () => {
+  const migration = readFileSync(resolve("supabase/migrations/202608260002_legacy_table_rls.sql"), "utf8");
+  assert.match(migration, /alter table public\.bookings enable row level security/);
+  assert.match(migration, /alter table public\.conversations enable row level security/);
+  assert.doesNotMatch(migration, /create policy/);
+});
