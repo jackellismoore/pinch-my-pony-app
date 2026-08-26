@@ -241,7 +241,7 @@ export default function HomePage() {
                   fontSize: 13,
                 }}
               >
-                <Icon name="horse" size={18} />
+                <Icon name={isAuthed ? "check" : "horse"} size={18} />
                 <span>
                   {isAuthed ? "Signed in • Your account is ready" : "Borrow • Share • Ride — with trust built in"}
                 </span>
@@ -382,7 +382,7 @@ export default function HomePage() {
                       marginTop: 14,
                     }}
                   >
-                    <StatChip title="Active horses" value={stats.activeHorses} />
+                    <StatChip title="Horses available" value={stats.activeHorses} />
                     <StatChip title="Pending requests" value={stats.myPendingRequests} />
                     <StatChip title="Unread messages" value={stats.unreadMessages} />
                   </div>

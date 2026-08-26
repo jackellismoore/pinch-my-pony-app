@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { brandedEmail, escapeEmailHtml } from "@/lib/emailTemplate";
 
 export const runtime = "nodejs";
 
@@ -107,33 +108,29 @@ export async function POST(req: Request) {
     const subject = `Pinch My Pony Support — ${topic}`;
     const safeUserLine = userId ? `User ID: ${userId}` : "User ID: (not signed in)";
 
-    // Simple, premium-ish HTML email (no extra deps)
-    const html = `
-      <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #f7f7f7; padding: 24px;">
-        <div style="max-width: 720px; margin: 0 auto; background: white; border: 1px solid rgba(15,23,42,0.12); border-radius: 16px; overflow: hidden;">
-          <div style="padding: 16px 18px; background: linear-gradient(90deg, rgba(31,61,43,0.08), rgba(200,162,77,0.10), rgba(31,42,68,0.07));">
-            <div style="font-weight: 900; color: #1F2A44; font-size: 16px;">Pinch My Pony — Contact Form</div>
-            <div style="opacity: 0.75; margin-top: 4;">Topic: ${escapeHtml(topic)}</div>
-          </div>
+    const detailRows = [
+      ["From", `${name} <${email}>`],
+      ["Topic", topic],
+      ["Account", safeUserLine],
+      ["IP", ip],
+    ]
+      .map(
+        ([label, value]) =>
+          `<tr><td style="padding:9px 14px 9px 0;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#17213A;vertical-align:top">${escapeEmailHtml(label)}</td><td style="padding:9px 0;font-family:Arial,sans-serif;font-size:13px;line-height:20px;color:#596173">${escapeEmailHtml(value)}</td></tr>`
+      )
+      .join("");
 
-          <div style="padding: 18px;">
-            <div style="display: grid; gap: 10px;">
-              <div><span style="font-weight: 900; color:#1F2A44;">From:</span> ${escapeHtml(name)} &lt;${escapeHtml(email)}&gt;</div>
-              <div style="opacity: 0.8;"><span style="font-weight: 900; color:#1F2A44;">${escapeHtml(safeUserLine)}</span></div>
-              <div style="opacity: 0.8;"><span style="font-weight: 900; color:#1F2A44;">IP:</span> ${escapeHtml(ip)}</div>
-            </div>
-
-            <div style="height: 1px; background: rgba(15,23,42,0.10); margin: 14px 0;"></div>
-
-            <div style="white-space: pre-wrap; line-height: 1.65; color: #0f172a;">${escapeHtml(message)}</div>
-          </div>
-        </div>
-
-        <div style="max-width: 720px; margin: 10px auto 0; font-size: 12px; opacity: 0.7;">
-          Sent from the Pinch My Pony Contact Us page.
-        </div>
-      </div>
-    `;
+    const html = brandedEmail({
+      preheader: `New ${topic} support message from ${name}`,
+      eyebrow: "Support request",
+      title: `New ${topic} enquiry`,
+      intro: "A member has contacted Pinch My Pony support.",
+      contentHtml: `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:24px;border-top:1px solid #E7E3DA;border-bottom:1px solid #E7E3DA">${detailRows}</table>
+        <div style="margin-top:24px;padding:18px;border-radius:14px;background:#F7F6F2;font-family:Arial,sans-serif;font-size:15px;line-height:24px;color:#2D3548;white-space:pre-wrap">${escapeEmailHtml(message)}</div>`,
+      action: { label: "Reply to member", href: `mailto:${email}` },
+      footerNote: "Submitted through the Pinch My Pony support form.",
+    });
 
     const sendRes = await resend.emails.send({
       from: CONTACT_FROM_EMAIL,
@@ -148,18 +145,31 @@ export async function POST(req: Request) {
       return new Response("Failed to send email. Please try again.", { status: 500 });
     }
 
+    const acknowledgement = await resend.emails.send({
+      from: CONTACT_FROM_EMAIL,
+      to: email,
+      subject: "We’ve received your Pinch My Pony message",
+      replyTo: CONTACT_TO_EMAIL,
+      html: brandedEmail({
+        preheader: "Your Pinch My Pony support request is safely with us.",
+        eyebrow: "Message received",
+        title: `Thanks, ${name}`,
+        intro:
+          "Your message is safely with the Pinch My Pony support team. We’ll reply to the email address you provided as soon as we can.",
+        contentHtml: `<div style="margin-top:24px;padding:16px 18px;border-radius:14px;background:#F3F7F4;border:1px solid #D9E5DC;font-family:Arial,sans-serif;font-size:14px;line-height:22px;color:#3E4B43"><strong style="color:#1F4B36">Topic:</strong> ${escapeEmailHtml(topic)}<br><span style="color:#687168">For urgent safety concerns, do not rely on email alone—contact the appropriate emergency or professional service.</span></div>`,
+        action: { label: "Return to Pinch My Pony", href: "https://pinchmypony.com" },
+        footerNote: "Keep this email for your records. Reply here if you need to add anything.",
+      }),
+    });
+
+    if ((acknowledgement as any)?.error) {
+      // The support request has already arrived, so do not make the user submit again.
+      console.error("Resend acknowledgement error:", (acknowledgement as any).error);
+    }
+
     return Response.json({ ok: true });
   } catch (e: any) {
     console.error("contact route error:", e);
     return new Response(e?.message ?? "Error", { status: 500 });
   }
-}
-
-function escapeHtml(s: string) {
-  return s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }

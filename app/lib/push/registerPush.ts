@@ -39,17 +39,13 @@ async function saveSubscriptionRow(row: {
   const userId = await getCurrentUserId();
   if (!userId) return;
 
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
-      user_id: userId,
-      endpoint: row.endpoint,
-      p256dh: row.p256dh,
-      auth: row.auth,
-    },
-    {
-      onConflict: "user_id,endpoint",
-    }
-  );
+  // A physical device/browser endpoint must belong to exactly one account.
+  // This RPC atomically removes a stale association from a previous sign-in.
+  const { error } = await supabase.rpc("claim_push_subscription", {
+    p_endpoint: row.endpoint,
+    p_p256dh: row.p256dh,
+    p_auth: row.auth,
+  });
 
   if (error) {
     console.warn("[push] failed to save subscription row", error);

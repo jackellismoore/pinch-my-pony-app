@@ -51,8 +51,31 @@ export async function POST(req: NextRequest) {
 
     const horseIds = (ownedHorses ?? []).map((horse) => horse.id);
 
+    const { data: borrowedRequests, error: borrowedRequestLookupError } = await admin
+      .from("borrow_requests")
+      .select("id")
+      .eq("borrower_id", userId);
+    if (borrowedRequestLookupError) throw borrowedRequestLookupError;
+
+    let ownedHorseRequests: { id: string }[] = [];
+    if (horseIds.length) {
+      const { data, error } = await admin
+        .from("borrow_requests")
+        .select("id")
+        .in("horse_id", horseIds);
+      if (error) throw error;
+      ownedHorseRequests = data ?? [];
+    }
+
+    const affectedRequestIds = Array.from(
+      new Set([...(borrowedRequests ?? []), ...ownedHorseRequests].map((request) => request.id))
+    );
+
     const deletions = [
-      admin.from("messages").delete().or(`sender_id.eq.${userId},recipient_id.eq.${userId}`),
+      admin.from("messages").delete().eq("sender_id", userId),
+      ...(affectedRequestIds.length
+        ? [admin.from("messages").delete().in("request_id", affectedRequestIds)]
+        : []),
       admin.from("reviews").delete().or(`borrower_id.eq.${userId},owner_id.eq.${userId}`),
       admin.from("push_subscriptions").delete().eq("user_id", userId),
       admin.from("notification_preferences").delete().eq("user_id", userId),
