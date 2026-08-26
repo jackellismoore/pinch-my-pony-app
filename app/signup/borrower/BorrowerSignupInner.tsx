@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase, SUPABASE_ENV_OK } from "@/lib/supabaseClient";
+import { isExistingSignupEmail } from "@/lib/authSignup";
 
 const palette = {
   forest: "#1F3D2B",
@@ -71,10 +72,15 @@ export default function UnifiedSignupInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
+  const [existingEmail, setExistingEmail] = useState<string | null>(null);
+  const [resetSending, setResetSending] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   async function signup() {
     setError(null);
     setEmailSentTo(null);
+    setExistingEmail(null);
+    setResetSent(false);
 
     if (!SUPABASE_ENV_OK) {
       setError(
@@ -134,6 +140,11 @@ export default function UnifiedSignupInner() {
         throw new Error("No user was returned from sign up.");
       }
 
+      if (isExistingSignupEmail(res.data.user)) {
+        setExistingEmail(e);
+        return;
+      }
+
       if (!res.data.session) {
         setEmailSentTo(e);
         return;
@@ -150,6 +161,84 @@ export default function UnifiedSignupInner() {
   }
 
   const loginHref = `/login?redirectTo=${encodeURIComponent(redirectTo)}`;
+
+  async function sendExistingAccountReset() {
+    if (!existingEmail || resetSending || resetSent) return;
+
+    setError(null);
+    try {
+      setResetSending(true);
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "https://pinchmypony.com";
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(existingEmail, {
+        redirectTo: `${origin}/reset-password`,
+      });
+      if (resetError) throw resetError;
+      setResetSent(true);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+    } finally {
+      setResetSending(false);
+    }
+  }
+
+  if (existingEmail) {
+    return (
+      <div style={wrap}>
+        <div style={bg} aria-hidden="true" />
+
+        <div style={container}>
+          <div style={card}>
+            <div style={eyebrow}>Account found</div>
+
+            <h1 style={title}>This email is already in use</h1>
+
+            <p style={subtitle}>
+              An account already exists for <strong>{existingEmail}</strong>. Sign in with your
+              existing password, or send yourself a secure reset link.
+            </p>
+
+            {error ? <div style={errorBox}>{error}</div> : null}
+            {resetSent ? (
+              <div style={successBox} role="status">
+                Password reset email sent. Check your inbox and spam folder.
+              </div>
+            ) : null}
+
+            <div style={formGrid}>
+              <button
+                onClick={sendExistingAccountReset}
+                disabled={resetSending || resetSent}
+                style={{ ...primaryBtn, opacity: resetSending || resetSent ? 0.68 : 1 }}
+                type="button"
+              >
+                {resetSending ? "Sending reset email…" : resetSent ? "Reset email sent ✓" : "Send password reset →"}
+              </button>
+
+              <Link href={loginHref} style={secondaryBtnLink}>
+                Go to login
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setExistingEmail(null);
+                  setPassword("");
+                  setConfirmPassword("");
+                  setAcceptedTerms(false);
+                  setResetSent(false);
+                  setError(null);
+                }}
+                style={quietBtn}
+              >
+                Use a different email
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (emailSentTo) {
     return (
@@ -408,6 +497,31 @@ const primaryBtn: React.CSSProperties = {
 const primaryBtnLink: React.CSSProperties = {
   ...primaryBtn,
   textDecoration: "none",
+};
+
+const secondaryBtnLink: React.CSSProperties = {
+  minHeight: 48,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "11px 16px",
+  borderRadius: 14,
+  border: "1px solid rgba(31,42,68,0.16)",
+  background: "rgba(255,255,255,0.9)",
+  color: palette.navy,
+  fontSize: 15,
+  fontWeight: 900,
+  textDecoration: "none",
+};
+
+const quietBtn: React.CSSProperties = {
+  border: 0,
+  background: "transparent",
+  color: palette.forest,
+  fontSize: 14,
+  fontWeight: 900,
+  cursor: "pointer",
+  padding: 8,
 };
 
 const footerLinks: React.CSSProperties = {

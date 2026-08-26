@@ -49,6 +49,9 @@ function inputStyle(): React.CSSProperties {
     background: "rgba(255,255,255,0.78)",
     outline: "none",
     width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
   };
 }
 
@@ -295,6 +298,15 @@ export default function RequestForm({
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 10px;
+          min-width: 0;
+          width: 100%;
+        }
+
+        .pmp-request-date-grid > label,
+        .pmp-request-date-grid input {
+          min-width: 0;
+          max-width: 100%;
+          box-sizing: border-box;
         }
 
         @media (max-width: 767px) {

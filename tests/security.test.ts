@@ -6,6 +6,8 @@ import { bearerToken, safeInternalRedirect } from "../app/lib/security.ts";
 import { launchFeatureEnabled } from "../app/lib/launchFeatures.ts";
 import { userFacingError } from "../app/lib/userFacingError.ts";
 import { formatHorseHeight, parseHorseHeight } from "../app/lib/horseHeight.ts";
+import { isExistingSignupEmail } from "../app/lib/authSignup.ts";
+import { brandedEmail, escapeEmailHtml } from "../app/lib/emailTemplate.ts";
 
 test("bearerToken accepts a normal bearer token", () => {
   assert.equal(bearerToken("Bearer abc123"), "abc123");
@@ -122,4 +124,65 @@ test("horse heights use valid hands notation", () => {
   assert.equal(parseHorseHeight(""), null);
   assert.equal(formatHorseHeight(16.1), "16.1 hh");
   assert.throws(() => parseHorseHeight("18.4"), /final digit can only be 0–3/);
+});
+
+test("duplicate signups use Supabase's empty identity signal", () => {
+  assert.equal(isExistingSignupEmail({ identities: [] }), true);
+  assert.equal(isExistingSignupEmail({ identities: [{ id: "new-identity" }] }), false);
+  assert.equal(isExistingSignupEmail({ identities: null }), false);
+  assert.equal(isExistingSignupEmail(null), false);
+});
+
+test("duplicate signup screen offers an immediate password reset", () => {
+  const signup = readFileSync(resolve("app/signup/borrower/BorrowerSignupInner.tsx"), "utf8");
+  assert.match(signup, /This email is already in use/);
+  assert.match(signup, /resetPasswordForEmail\(existingEmail/);
+  assert.match(signup, /Send password reset/);
+});
+
+test("branded emails escape user content and include support identity", () => {
+  const html = brandedEmail({
+    preheader: "Test",
+    eyebrow: "Support",
+    title: "Hello <member>",
+    intro: "Safe & secure",
+  });
+  assert.match(html, /Hello &lt;member&gt;/);
+  assert.match(html, /Safe &amp; secure/);
+  assert.match(html, /support@pinchmypony\.com/);
+  assert.equal(
+    escapeEmailHtml('<script>alert("x")</script>'),
+    "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;"
+  );
+});
+
+test("contact form sends a branded acknowledgement without hiding support delivery failures", () => {
+  const contact = readFileSync(resolve("app/api/contact/route.ts"), "utf8");
+  assert.match(contact, /We’ve received your Pinch My Pony message/);
+  assert.match(contact, /Resend acknowledgement error/);
+  assert.match(contact, /do not make the user submit again/);
+});
+
+test("account deletion removes request conversations without a nonexistent recipient column", () => {
+  const deletion = readFileSync(resolve("app/api/delete/route.ts"), "utf8");
+  assert.doesNotMatch(deletion, /recipient_id/);
+  assert.match(deletion, /affectedRequestIds/);
+  assert.match(deletion, /\.in\("request_id", affectedRequestIds\)/);
+});
+
+test("push registration atomically reassigns a device endpoint to the signed-in account", () => {
+  const registration = readFileSync(resolve("app/lib/push/registerPush.ts"), "utf8");
+  const migration = readFileSync(resolve("supabase/migrations/202608260001_push_subscription_isolation.sql"), "utf8");
+  assert.match(registration, /claim_push_subscription/);
+  assert.doesNotMatch(registration, /onConflict:\s*["']user_id,endpoint/);
+  assert.match(migration, /unique index if not exists push_subscriptions_endpoint_unique/);
+  assert.match(migration, /delete from public\.push_subscriptions where endpoint = p_endpoint/);
+  assert.match(migration, /values \(auth\.uid\(\), p_endpoint/);
+});
+
+test("missing horse photos and the dashboard share the branded horseshoe", () => {
+  const fallback = readFileSync(resolve("app/components/HorseImage.tsx"), "utf8");
+  const tabs = readFileSync(resolve("app/components/MobileTabBar.tsx"), "utf8");
+  assert.match(fallback, /name="horseshoe"/);
+  assert.match(tabs, /icon:\s*["']horseshoe["']/);
 });
