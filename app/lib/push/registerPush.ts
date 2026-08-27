@@ -9,6 +9,18 @@ import {
   PermissionStatus,
 } from "@capacitor/push-notifications";
 
+const PUSH_ENDPOINT_STORAGE_KEY = "pmp-push-endpoint";
+
+function rememberPushEndpoint(endpoint: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(PUSH_ENDPOINT_STORAGE_KEY, endpoint);
+  } catch {
+    // Storage may be unavailable in restricted browser modes.
+  }
+}
+
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -40,7 +52,7 @@ async function saveSubscriptionRow(row: {
   if (!userId) return;
 
   // A physical device/browser endpoint must belong to exactly one account.
-  // This RPC atomically removes a stale association from a previous sign-in.
+  // The RPC atomically moves this exact endpoint from any previous account.
   const { error } = await supabase.rpc("claim_push_subscription", {
     p_endpoint: row.endpoint,
     p_p256dh: row.p256dh,
@@ -49,22 +61,12 @@ async function saveSubscriptionRow(row: {
 
   if (error) {
     console.warn("[push] failed to save subscription row", error);
+    return;
   }
-}
 
-async function deleteExistingNativeRowsForUser(platformPrefix: "ios:" | "android:") {
-  const userId = await getCurrentUserId();
-  if (!userId) return;
-
-  const { error } = await supabase
-    .from("push_subscriptions")
-    .delete()
-    .eq("user_id", userId)
-    .like("endpoint", `${platformPrefix}%`);
-
-  if (error) {
-    console.warn("[push] failed clearing native push rows", error);
-  }
+  // Remember this device's exact endpoint so logout can remove only this
+  // device without disabling notifications on the member's other devices.
+  rememberPushEndpoint(row.endpoint);
 }
 
 async function bindNativeListenersOnce() {
@@ -77,8 +79,6 @@ async function bindNativeListenersOnce() {
 
       const platform = Capacitor.getPlatform();
       const prefix = platform === "android" ? "android:" : "ios:";
-
-      await deleteExistingNativeRowsForUser(prefix as "ios:" | "android:");
 
       await saveSubscriptionRow({
         endpoint: `${prefix}${token.value}`,
