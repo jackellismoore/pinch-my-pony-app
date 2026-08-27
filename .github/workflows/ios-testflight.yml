@@ -413,7 +413,7 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
             CODE_SIGN_ENTITLEMENTS="App/App.entitlements" \
             CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
-            MARKETING_VERSION="1.1" \
+            MARKETING_VERSION="2.1" \
             archive | tee xcodebuild-archive.log
           XCODE_EXIT=${PIPESTATUS[0]}
           set -e
