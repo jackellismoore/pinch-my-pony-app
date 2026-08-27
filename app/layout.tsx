@@ -53,7 +53,7 @@ export default function RootLayout({
           <AppUrlListener />
           <VerificationGate identityEnabled={identityEnabled}>
             <Header identityEnabled={identityEnabled} />
-            <style>{`.pmp-appMain > div > section:first-child img[src="/pmp-logo-web.png"]{width:84%!important;height:84%!important}`}</style>
+            <style>{`.pmp-appMain > div > section:first-child img[src="/pmp-logo-web.png"]{width:96%!important;height:96%!important}`}</style>
             <main className="pmp-appMain">{children}</main>
             <SiteFooter />
           </VerificationGate>
