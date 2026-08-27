@@ -146,47 +146,54 @@ export default function OwnerHorseAvailabilityPage() {
   return (
     <div className="pmp-availabilityPage">
       <style>{`
-        .pmp-availabilityPage{padding:18px 16px 120px;max-width:900px;margin:0 auto;color:#17213a}
-        .pmp-availabilityCard{background:rgba(255,255,255,.96);border:1px solid rgba(23,33,58,.10);border-radius:22px;box-shadow:0 18px 44px rgba(23,33,58,.08);padding:18px}
+        .pmp-availabilityPage{width:100%;max-width:900px;margin:0 auto;padding:18px 16px 120px;box-sizing:border-box;color:#17213a;overflow-x:hidden}
+        .pmp-availabilityCard{width:100%;max-width:100%;box-sizing:border-box;overflow:hidden;background:rgba(255,255,255,.96);border:1px solid rgba(23,33,58,.10);border-radius:22px;box-shadow:0 18px 44px rgba(23,33,58,.08);padding:18px}
         .pmp-availabilityTitle{margin:0;font-size:24px;line-height:1.1;font-weight:950;color:#17213a}
-        .pmp-calendarHeader{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:10px;margin-top:22px}
-        .pmp-calendarNav{width:44px;height:40px;border-radius:14px;border:1px solid rgba(23,33,58,.12);background:white;font-size:22px;line-height:1;color:#2388e8;display:grid;place-items:center}
-        .pmp-calendarMonth{text-align:center;font-size:18px;font-weight:950;color:#17213a}
-        .pmp-calendarGrid{margin-top:14px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}
-        .pmp-weekday{text-align:center;font-size:12px;font-weight:900;color:#17213a;padding-bottom:2px}
-        .pmp-day{aspect-ratio:1.18/1;border:1px solid rgba(23,33,58,.10);border-radius:10px;background:white;font-size:14px;color:#17213a;display:grid;place-items:center;min-width:0}
+        .pmp-calendarHeader{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:10px;margin-top:22px;width:100%}
+        .pmp-calendarNav{width:44px;height:40px;border-radius:14px;border:1px solid rgba(23,33,58,.12);background:white;font-size:22px;line-height:1;color:#2388e8;display:grid;place-items:center;padding:0}
+        .pmp-calendarMonth{text-align:center;font-size:18px;font-weight:950;color:#17213a;min-width:0}
+        .pmp-calendarGrid{width:100%;margin-top:14px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}
+        .pmp-weekday{text-align:center;font-size:12px;font-weight:900;color:#17213a;padding-bottom:2px;min-width:0}
+        .pmp-day{width:100%;aspect-ratio:1/1;border:1px solid rgba(23,33,58,.10);border-radius:10px;background:white;font-size:14px;color:#17213a;display:grid;place-items:center;min-width:0;box-sizing:border-box}
         .pmp-dayBlocked{background:#fff4d7;border-color:#e8c979}
         .pmp-dayBooked{background:#e7f3ff;border-color:#9bc9f1}
-        .pmp-section{margin-top:28px}
+        .pmp-section{margin-top:28px;min-width:0}
         .pmp-sectionTitle{margin:0 0 12px;font-size:19px;font-weight:950;color:#17213a}
-        .pmp-blockForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-        .pmp-field{display:grid;gap:6px;min-width:0}
+        .pmp-blockForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%;min-width:0}
+        .pmp-field{display:grid;gap:6px;min-width:0;width:100%;overflow:hidden}
         .pmp-fieldFull{grid-column:1/-1}
         .pmp-field label{font-size:12px;font-weight:900;color:rgba(23,33,58,.68)}
-        .pmp-input{width:100%;min-width:0;box-sizing:border-box;min-height:46px;border-radius:14px;border:1px solid rgba(23,33,58,.12);background:#fff;padding:0 12px;font:inherit;font-size:15px;color:#17213a;outline:none}
+        .pmp-input{display:block;width:100%;max-width:100%;min-width:0;min-inline-size:0;box-sizing:border-box;min-height:46px;border-radius:14px;border:1px solid rgba(23,33,58,.12);background:#fff;padding:0 12px;font:inherit;font-size:16px;color:#17213a;outline:none}
+        .pmp-input[type='date']{-webkit-appearance:none;appearance:none;text-align:center}
         .pmp-input:focus{border-color:#7aa98e;box-shadow:0 0 0 3px rgba(65,117,88,.10)}
-        .pmp-addButton{grid-column:1/-1;min-height:48px;border:0;border-radius:14px;background:#173d2c;color:#fff;font-size:15px;font-weight:950;padding:0 18px}
+        .pmp-addButton{grid-column:1/-1;width:100%;max-width:100%;box-sizing:border-box;min-height:48px;border:0;border-radius:14px;background:#173d2c;color:#fff;font-size:15px;font-weight:950;padding:0 18px}
         .pmp-addButton:disabled{opacity:.55}
         .pmp-inlineError{margin-top:10px;border-radius:12px;background:#fff1f1;color:#a33;padding:10px 12px;font-size:13px;font-weight:750}
-        .pmp-rangeList{display:grid;gap:10px}
-        .pmp-rangeCard{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(23,33,58,.10);border-radius:16px;background:#fff;padding:13px 14px}
+        .pmp-rangeList{display:grid;gap:10px;min-width:0}
+        .pmp-rangeCard{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(23,33,58,.10);border-radius:16px;background:#fff;padding:13px 14px;min-width:0}
         .pmp-rangeMain{min-width:0}
-        .pmp-rangeDates{font-size:14px;font-weight:950;color:#17213a;line-height:1.35}
+        .pmp-rangeDates{font-size:14px;font-weight:950;color:#17213a;line-height:1.35;overflow-wrap:anywhere}
         .pmp-rangeReason{margin-top:3px;font-size:13px;color:rgba(23,33,58,.68);line-height:1.35;overflow-wrap:anywhere}
         .pmp-deleteButton{flex:0 0 auto;border:1px solid rgba(176,49,49,.18);border-radius:12px;background:#fff5f5;color:#a52d2d;font-size:13px;font-weight:900;padding:9px 11px}
-        .pmp-emptyState{border:1px dashed rgba(23,33,58,.16);border-radius:16px;padding:15px;color:rgba(23,33,58,.62);font-size:14px;background:rgba(248,249,247,.7)}
-        .pmp-bookingCard{border:1px solid #c7e1f7;background:#f4faff;border-radius:16px;padding:13px 14px}
+        .pmp-emptyState{border:1px dashed rgba(23,33,58,.16);border-radius:16px;padding:15px;color:rgba(23,33,58,.62);font-size:14px;background:rgba(248,249,247,.7);box-sizing:border-box;max-width:100%}
+        .pmp-bookingCard{border:1px solid #c7e1f7;background:#f4faff;border-radius:16px;padding:13px 14px;box-sizing:border-box;max-width:100%}
         .pmp-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;font-size:12px;font-weight:800;color:rgba(23,33,58,.65)}
         .pmp-legendItem{display:flex;align-items:center;gap:6px}.pmp-dot{width:10px;height:10px;border-radius:999px;display:inline-block}.pmp-dotBlocked{background:#e8c979}.pmp-dotBooked{background:#9bc9f1}
         @media(max-width:520px){
-          .pmp-availabilityPage{padding:12px 12px 118px}
-          .pmp-availabilityCard{padding:16px 14px;border-radius:20px}
-          .pmp-availabilityTitle{font-size:22px}
-          .pmp-calendarGrid{gap:5px}
-          .pmp-day{font-size:13px;border-radius:9px;aspect-ratio:1/1}
-          .pmp-blockForm{grid-template-columns:1fr}
+          .pmp-availabilityPage{padding:10px 8px 118px}
+          .pmp-availabilityCard{padding:14px 12px;border-radius:18px}
+          .pmp-availabilityTitle{font-size:21px}
+          .pmp-calendarHeader{grid-template-columns:40px minmax(0,1fr) 40px;gap:8px}
+          .pmp-calendarNav{width:40px;height:38px;border-radius:12px}
+          .pmp-calendarMonth{font-size:17px}
+          .pmp-calendarGrid{gap:4px}
+          .pmp-weekday{font-size:11px}
+          .pmp-day{font-size:13px;border-radius:8px}
+          .pmp-section{margin-top:24px}
+          .pmp-blockForm{grid-template-columns:1fr;gap:12px}
           .pmp-fieldFull,.pmp-addButton{grid-column:auto}
-          .pmp-rangeCard{align-items:flex-start}
+          .pmp-rangeCard{align-items:flex-start;flex-direction:column}
+          .pmp-deleteButton{width:100%}
           .pmp-rangeDates{font-size:13px}
         }
       `}</style>
