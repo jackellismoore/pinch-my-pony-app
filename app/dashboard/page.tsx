@@ -213,7 +213,10 @@ export default function DashboardOverview() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div className="pmp-dashboardActions" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Link href="/dashboard/owner/horses" style={btn('secondary')}>
+            My horses
+          </Link>
           <Link href="/browse" style={btn('secondary')}>
             Browse horses
           </Link>
