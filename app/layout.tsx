@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./mobile-fixes.css";
 import Header from "@/components/Header";
 import AppResumeHandler from "@/components/AppResumeHandler";
 import AppUrlListener from "@/components/AppUrlListener";
