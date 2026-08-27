@@ -122,7 +122,7 @@ export default function LoginInner() {
           <div className="pmp-authGrid">
             <div style={leftCol}>
               <div style={eyebrowPill}>
-                <Icon name="horse" size={18} />
+                <Icon name="horseshoe" size={18} />
                 <span>Welcome back</span>
               </div>
 
