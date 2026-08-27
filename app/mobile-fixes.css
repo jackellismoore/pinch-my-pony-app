@@ -72,8 +72,8 @@ textarea::placeholder {
   white-space: normal;
 }
 
-/* The PNG contains generous built-in whitespace. Fill the UI badge and crop
-   that unused padding instead of shrinking the artwork inside the badge. */
+/* Keep the full PMP mark visible with a modest enlargement to compensate for
+   whitespace in the PNG. Avoid the aggressive crop used previously. */
 .pmp-headerBrandBadge {
   padding: 0 !important;
   overflow: hidden !important;
@@ -86,7 +86,7 @@ textarea::placeholder {
   max-height: none !important;
   object-fit: contain !important;
   object-position: center !important;
-  transform: scale(1.48);
+  transform: scale(1.18);
   transform-origin: center;
   display: block !important;
 }
@@ -99,7 +99,7 @@ img[alt="Pinch My Pony logo"] {
   max-height: none !important;
   object-fit: contain !important;
   object-position: center !important;
-  transform: scale(1.48);
+  transform: scale(1.18);
   transform-origin: center;
   margin: auto !important;
   display: block !important;
@@ -116,11 +116,11 @@ img[alt="Pinch My Pony logo"] {
   box-sizing: border-box !important;
 }
 
-/* Missing-horse artwork: use the horse head from the centre of the PMP logo.
-   The logo is intentionally zoomed/cropped so the fallback reads as a horse,
-   not as a generic U-shaped horseshoe. */
+/* Missing-horse artwork: use the exact horseshoe geometry used by the
+   Dashboard tab icon so the visual language is consistent across the app. */
 .pmp-marketplaceImageFallback {
   overflow: hidden !important;
+  color: #1F2A44 !important;
 }
 
 .pmp-marketplaceImageFallback svg {
@@ -130,13 +130,17 @@ img[alt="Pinch My Pony logo"] {
 .pmp-marketplaceImageFallback::before {
   content: "";
   display: block;
-  width: 92px;
-  height: 92px;
-  background-image: url("/pmp-logo-web.png");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 285%;
-  border-radius: 50%;
+  width: 58px;
+  height: 58px;
+  background: currentColor;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 4.5v7.25a6.5 6.5 0 0 0 13 0V4.5h-4v7.25a2.5 2.5 0 0 1-5 0V4.5Z'/%3E%3Ccircle cx='7.5' cy='7' r='.65' fill='black' stroke='none'/%3E%3Ccircle cx='16.5' cy='7' r='.65' fill='black' stroke='none'/%3E%3Ccircle cx='7.8' cy='11' r='.65' fill='black' stroke='none'/%3E%3Ccircle cx='16.2' cy='11' r='.65' fill='black' stroke='none'/%3E%3Cpath d='M7.4 17.1 5 19.5M16.6 17.1l2.4 2.4'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 4.5v7.25a6.5 6.5 0 0 0 13 0V4.5h-4v7.25a2.5 2.5 0 0 1-5 0V4.5Z'/%3E%3Ccircle cx='7.5' cy='7' r='.65' fill='black' stroke='none'/%3E%3Ccircle cx='16.5' cy='7' r='.65' fill='black' stroke='none'/%3E%3Ccircle cx='7.8' cy='11' r='.65' fill='black' stroke='none'/%3E%3Ccircle cx='16.2' cy='11' r='.65' fill='black' stroke='none'/%3E%3Cpath d='M7.4 17.1 5 19.5M16.6 17.1l2.4 2.4'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 @media (max-width: 767px) {
@@ -148,7 +152,7 @@ img[alt="Pinch My Pony logo"] {
 
   .pmp-headerBrandBadge img,
   img[alt="Pinch My Pony logo"] {
-    transform: scale(1.52);
+    transform: scale(1.18);
   }
 
   .pmp-siteFooterInner,
