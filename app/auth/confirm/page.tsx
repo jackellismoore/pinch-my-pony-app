@@ -16,14 +16,15 @@ function getHashParams() {
   return new URLSearchParams(hash);
 }
 
-type OtpType = "email" | "recovery" | "invite" | "email_change";
+type OtpType = "email" | "recovery" | "invite" | "email_change" | "magiclink";
 
 function isOtpType(value: string | null): value is OtpType {
   return (
     value === "email" ||
     value === "recovery" ||
     value === "invite" ||
-    value === "email_change"
+    value === "email_change" ||
+    value === "magiclink"
   );
 }
 
