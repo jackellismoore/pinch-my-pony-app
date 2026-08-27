@@ -1,0 +1,83 @@
+/* Mobile layout guardrails for iOS/Safari and compact screens. */
+
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.pmp-appMain,
+main,
+form,
+fieldset {
+  min-width: 0;
+  max-width: 100%;
+}
+
+input,
+select,
+textarea {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* iOS date controls can keep an intrinsic width wider than their card. */
+input[type="date"] {
+  display: block;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  inline-size: 100% !important;
+}
+
+.pmp-request-date-grid,
+.pmp-request-date-grid > label {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.pmp-request-date-grid > label {
+  overflow: hidden;
+}
+
+/* Keep the supplied square logo comfortably inside the rounded UI badge. */
+.pmp-headerBrandBadge {
+  padding: 7px !important;
+}
+
+.pmp-headerBrandBadge img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  border-radius: 9px;
+}
+
+.pmp-siteFooterBrand img {
+  width: 42px !important;
+  height: 42px !important;
+  max-width: 42px !important;
+  max-height: 42px !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  padding: 6px !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 767px) {
+  .pmp-headerBrandBadge {
+    padding: 6px !important;
+  }
+
+  .pmp-siteFooterInner,
+  .pmp-siteFooterNav,
+  .pmp-siteFooterBottom {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
