@@ -20,7 +20,8 @@ fieldset,
   box-sizing: border-box;
 }
 
-/* Never solve mobile overflow by clipping form controls: keep the control inside its card instead. */
+/* Never solve mobile overflow by clipping whole cards. Keep controls within
+   their available content width instead. */
 input,
 select,
 textarea,
@@ -30,8 +31,9 @@ button {
   box-sizing: border-box !important;
 }
 
-/* iOS date controls can retain a large intrinsic inline size. Give the grid and
-   every date field a real constrained width so the right edge remains visible. */
+/* iOS date inputs keep an intrinsic width even inside a one-column grid.
+   Constrain the actual control slightly inside the card so its right border
+   remains visible rather than being pushed beyond the rounded container. */
 .pmp-request-date-grid {
   width: 100% !important;
   max-width: 100% !important;
@@ -44,46 +46,63 @@ button {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
-  overflow: visible !important;
   box-sizing: border-box !important;
 }
 
 input[type="date"] {
-  display: block;
+  display: block !important;
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0 !important;
   inline-size: 100% !important;
-  -webkit-min-logical-width: 0 !important;
   box-sizing: border-box !important;
 }
 
-/* The source PNG already contains its own cream square/whitespace. Scale the
-   artwork inside each UI badge rather than letting that internal square touch
-   the badge edges. */
+textarea {
+  width: 100% !important;
+  max-width: 100% !important;
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+}
+
+textarea::placeholder {
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+  font-weight: 700 !important;
+  white-space: normal;
+}
+
+/* The PNG contains generous built-in whitespace. Fill the UI badge and crop
+   that unused padding instead of shrinking the artwork inside the badge. */
 .pmp-headerBrandBadge {
   padding: 0 !important;
+  overflow: hidden !important;
 }
 
 .pmp-headerBrandBadge img {
-  width: 72% !important;
-  height: 72% !important;
-  max-width: 72% !important;
-  max-height: 72% !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   object-fit: contain !important;
   object-position: center !important;
-  border-radius: 8px;
+  transform: scale(1.48);
+  transform-origin: center;
+  display: block !important;
 }
 
 /* Home-page brand card uses a plain img rather than the header component. */
 img[alt="Pinch My Pony logo"] {
-  width: 72% !important;
-  height: 72% !important;
-  max-width: 72% !important;
-  max-height: 72% !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   object-fit: contain !important;
   object-position: center !important;
+  transform: scale(1.48);
+  transform-origin: center;
   margin: auto !important;
+  display: block !important;
 }
 
 .pmp-siteFooterBrand img {
@@ -97,8 +116,13 @@ img[alt="Pinch My Pony logo"] {
   box-sizing: border-box !important;
 }
 
-/* Missing horse artwork: replace the old angular horse glyph with the same
-   horseshoe visual language used by the rest of the app. */
+/* Missing-horse artwork: use the horse head from the centre of the PMP logo.
+   The logo is intentionally zoomed/cropped so the fallback reads as a horse,
+   not as a generic U-shaped horseshoe. */
+.pmp-marketplaceImageFallback {
+  overflow: hidden !important;
+}
+
 .pmp-marketplaceImageFallback svg {
   display: none !important;
 }
@@ -106,33 +130,25 @@ img[alt="Pinch My Pony logo"] {
 .pmp-marketplaceImageFallback::before {
   content: "";
   display: block;
-  width: 58px;
-  height: 58px;
-  background: currentColor;
-  opacity: 0.92;
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='black' d='M10 7h13v24c0 7 3 11 9 11s9-4 9-11V7h13v24c0 16-9 27-22 27S10 47 10 31V7zm5 7h5v6h-5v-6zm29 0h5v6h-5v-6zM15 27h5v6h-5v-6zm29 0h5v6h-5v-6z'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='black' d='M10 7h13v24c0 7 3 11 9 11s9-4 9-11V7h13v24c0 16-9 27-22 27S10 47 10 31V7zm5 7h5v6h-5v-6zm29 0h5v6h-5v-6zM15 27h5v6h-5v-6zm29 0h5v6h-5v-6z'/%3E%3C/svg%3E");
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-size: contain;
-  mask-size: contain;
+  width: 92px;
+  height: 92px;
+  background-image: url("/pmp-logo-web.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 285%;
+  border-radius: 50%;
 }
 
 @media (max-width: 767px) {
-  .pmp-headerBrandBadge img {
-    width: 68% !important;
-    height: 68% !important;
-    max-width: 68% !important;
-    max-height: 68% !important;
+  .pmp-request-date-grid input[type="date"] {
+    width: calc(100% - 14px) !important;
+    max-width: calc(100% - 14px) !important;
+    inline-size: calc(100% - 14px) !important;
   }
 
+  .pmp-headerBrandBadge img,
   img[alt="Pinch My Pony logo"] {
-    width: 68% !important;
-    height: 68% !important;
-    max-width: 68% !important;
-    max-height: 68% !important;
+    transform: scale(1.52);
   }
 
   .pmp-siteFooterInner,
