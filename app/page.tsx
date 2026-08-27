@@ -241,7 +241,7 @@ export default function HomePage() {
                   fontSize: 13,
                 }}
               >
-                <Icon name={isAuthed ? "check" : "horse"} size={18} />
+                <Icon name={isAuthed ? "check" : "horseshoe"} size={18} />
                 <span>
                   {isAuthed ? "Signed in • Your account is ready" : "Borrow • Share • Ride — with trust built in"}
                 </span>

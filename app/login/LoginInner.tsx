@@ -47,6 +47,7 @@ export default function LoginInner() {
     () => sanitizeRedirectTo(searchParams.get("redirectTo")),
     [searchParams]
   );
+  const confirmationComplete = searchParams.get("confirmed") === "1";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -122,7 +123,7 @@ export default function LoginInner() {
           <div className="pmp-authGrid">
             <div style={leftCol}>
               <div style={eyebrowPill}>
-                <Icon name="horse" size={18} />
+                <Icon name="horseshoe" size={18} />
                 <span>Welcome back</span>
               </div>
 
@@ -185,6 +186,17 @@ export default function LoginInner() {
                     <span>Protected</span>
                   </span>
                 </div>
+
+                {confirmationComplete && !error ? (
+                  <div style={successBand} role="status" aria-live="polite">
+                    <div style={{ fontWeight: 950, color: palette.forest }}>
+                      Email confirmed
+                    </div>
+                    <div style={{ marginTop: 4, opacity: 0.82, lineHeight: 1.6 }}>
+                      Your account is ready. Sign in below to continue.
+                    </div>
+                  </div>
+                ) : null}
 
                 {error ? (
                   <div style={errorBand} role="alert" aria-live="polite">
@@ -462,6 +474,13 @@ const pill: React.CSSProperties = {
   fontWeight: 950,
   fontSize: 12,
   maxWidth: "100%",
+};
+const successBand: React.CSSProperties = {
+  borderRadius: 16,
+  border: "1px solid rgba(31,75,54,0.20)",
+  background: "linear-gradient(180deg, rgba(31,75,54,0.10), rgba(255,255,255,0.88))",
+  padding: 12,
+  marginBottom: 12,
 };
 const errorBand: React.CSSProperties = {
   borderRadius: 16,
