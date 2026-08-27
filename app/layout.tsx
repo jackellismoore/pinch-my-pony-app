@@ -54,8 +54,7 @@ export default function RootLayout({
           <VerificationGate identityEnabled={identityEnabled}>
             <Header identityEnabled={identityEnabled} />
             <style>{`
-              /* Header logo is confirmed correct. Leave its badge sizing alone and
-                 only crop the whitespace baked into the source PNG. */
+              /* Header logo is confirmed correct. Leave it unchanged. */
               .pmp-headerBrandBadge {
                 padding: 0 !important;
               }
@@ -68,14 +67,14 @@ export default function RootLayout({
                 transform-origin: center !important;
               }
 
-              /* Target the homepage brand artwork directly by its unique alt text.
-                 The previous structural selector was not matching the rendered mobile DOM. */
+              /* Homepage brand artwork: directly targeted and calibrated to sit
+                 between the previous too-small and too-large renders. */
               .pmp-appMain img[alt="Pinch My Pony logo"] {
                 width: 100% !important;
                 height: 100% !important;
                 max-width: none !important;
                 object-fit: contain !important;
-                transform: scale(1.72) !important;
+                transform: scale(1.52) !important;
                 transform-origin: center !important;
               }
             `}</style>
