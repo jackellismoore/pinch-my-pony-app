@@ -54,20 +54,25 @@ export default function RootLayout({
           <VerificationGate identityEnabled={identityEnabled}>
             <Header identityEnabled={identityEnabled} />
             <style>{`
-              /* The PNG itself contains internal cream margin, so scale the artwork
-                 inside the existing clipped badges instead of resizing the badges. */
+              /* Crop the transparent/cream margin baked into the source PNG.
+                 Badge dimensions stay unchanged; only the artwork inside is enlarged. */
+              .pmp-headerBrandBadge {
+                padding: 0 !important;
+              }
               .pmp-headerBrandBadge img[src="/pmp-logo-web.png"] {
                 width: 100% !important;
                 height: 100% !important;
                 max-width: none !important;
-                transform: scale(1.45) !important;
+                object-fit: contain !important;
+                transform: scale(1.72) !important;
                 transform-origin: center !important;
               }
               .pmp-appMain > div > section:first-child .pmp-home-hero-grid > div:nth-child(2) img[src="/pmp-logo-web.png"] {
                 width: 100% !important;
                 height: 100% !important;
                 max-width: none !important;
-                transform: scale(1.38) !important;
+                object-fit: contain !important;
+                transform: scale(1.62) !important;
                 transform-origin: center !important;
               }
             `}</style>
