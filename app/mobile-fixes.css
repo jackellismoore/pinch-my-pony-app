@@ -31,9 +31,6 @@ button {
   box-sizing: border-box !important;
 }
 
-/* iOS date inputs keep an intrinsic width even inside a one-column grid.
-   Constrain the actual control slightly inside the card so its right border
-   remains visible rather than being pushed beyond the rounded container. */
 .pmp-request-date-grid {
   width: 100% !important;
   max-width: 100% !important;
@@ -72,37 +69,51 @@ textarea::placeholder {
   white-space: normal;
 }
 
-/* Keep the full PMP mark visible with a modest enlargement to compensate for
-   whitespace in the PNG. Avoid the aggressive crop used previously. */
+/* The PNG itself contains cream background right to its edges. Do not zoom it:
+   keep a clear inset so the artwork visibly fits inside the rounded badge. */
 .pmp-headerBrandBadge {
-  padding: 0 !important;
+  padding: 7px !important;
   overflow: hidden !important;
 }
 
 .pmp-headerBrandBadge img {
   width: 100% !important;
   height: 100% !important;
-  max-width: none !important;
-  max-height: none !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
   object-fit: contain !important;
   object-position: center !important;
-  transform: scale(1.18);
-  transform-origin: center;
+  transform: none !important;
   display: block !important;
+  border-radius: 8px;
 }
 
-/* Home-page brand card uses a plain img rather than the header component. */
+/* Home-page brand card: give the mark a deliberate inset instead of scaling
+   it beyond the rounded container. */
 img[alt="Pinch My Pony logo"] {
-  width: 100% !important;
-  height: 100% !important;
-  max-width: none !important;
-  max-height: none !important;
+  width: 78% !important;
+  height: 78% !important;
+  max-width: 78% !important;
+  max-height: 78% !important;
   object-fit: contain !important;
   object-position: center !important;
-  transform: scale(1.18);
-  transform-origin: center;
+  transform: none !important;
   margin: auto !important;
   display: block !important;
+  border-radius: 14px;
+}
+
+/* Signed-out home page now uses one account for borrowing and listing.
+   Keep one clear account CTA plus Browse Horses. */
+.pmp-home-cta-row > a[href="/signup"]:first-child > span {
+  font-size: 0 !important;
+}
+.pmp-home-cta-row > a[href="/signup"]:first-child > span::after {
+  content: "Create your account";
+  font-size: 16px;
+}
+.pmp-home-cta-row > a[href="/signup"]:nth-child(2) {
+  display: none !important;
 }
 
 .pmp-siteFooterBrand img {
@@ -116,8 +127,6 @@ img[alt="Pinch My Pony logo"] {
   box-sizing: border-box !important;
 }
 
-/* Missing-horse artwork: use the exact horseshoe geometry used by the
-   Dashboard tab icon so the visual language is consistent across the app. */
 .pmp-marketplaceImageFallback {
   overflow: hidden !important;
   color: #1F2A44 !important;
@@ -150,9 +159,20 @@ img[alt="Pinch My Pony logo"] {
     inline-size: calc(100% - 14px) !important;
   }
 
-  .pmp-headerBrandBadge img,
+  .pmp-headerBrandBadge {
+    padding: 7px !important;
+  }
+
+  .pmp-headerBrandBadge img {
+    transform: none !important;
+  }
+
   img[alt="Pinch My Pony logo"] {
-    transform: scale(1.18);
+    width: 76% !important;
+    height: 76% !important;
+    max-width: 76% !important;
+    max-height: 76% !important;
+    transform: none !important;
   }
 
   .pmp-siteFooterInner,
