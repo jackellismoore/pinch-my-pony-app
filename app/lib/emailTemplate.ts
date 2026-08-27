@@ -51,7 +51,7 @@ export function brandedEmail({
             <tr>
               <td style="padding:0 4px 16px">
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
-                  <td width="52" height="52" align="center" style="width:52px;height:52px;vertical-align:middle;border-radius:13px;background:#F7F4EC;border:1px solid #DDD7CA"><img src="https://pinchmypony.com/pmp-logo-email.png" width="46" height="46" alt="Pinch My Pony" style="display:block;width:46px;height:46px;object-fit:contain;border:0"></td>
+                  <td width="52" height="52" align="center" style="width:52px;height:52px;vertical-align:middle;border-radius:13px;background:#F7F4EC;border:1px solid #DDD7CA"><img src="https://pinchmypony.com/pmp-logo-email.png?v=20260827" width="46" height="46" alt="Pinch My Pony" style="display:block;width:46px;height:46px;object-fit:contain;border:0"></td>
                   <td style="vertical-align:middle;padding-left:12px;font-family:Arial,sans-serif;font-size:18px;line-height:24px;font-weight:700;color:#17213A">Pinch My Pony</td>
                 </tr></table>
               </td>
