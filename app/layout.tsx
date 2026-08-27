@@ -72,7 +72,7 @@ export default function RootLayout({
                 height: 100% !important;
                 max-width: none !important;
                 object-fit: contain !important;
-                transform: scale(1.62) !important;
+                transform: scale(1.95) !important;
                 transform-origin: center !important;
               }
             `}</style>
