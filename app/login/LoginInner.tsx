@@ -167,6 +167,8 @@ export default function LoginInner() {
                           objectFit: "contain",
                           objectPosition: "center",
                           display: "block",
+                          transform: "scale(1.08)",
+                          transformOrigin: "center",
                         }}
                       />
                     </div>
@@ -460,7 +462,7 @@ const logoBadge: React.CSSProperties = {
   placeItems: "center",
   overflow: "hidden",
   flexShrink: 0,
-  padding: 6,
+  padding: 2,
 };
 const pill: React.CSSProperties = {
   display: "inline-flex",
