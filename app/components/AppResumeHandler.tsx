@@ -6,7 +6,7 @@ import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function AppResumeHandler() {
+// Keeps the hosted Capacitor shell healthy across iOS background/foreground transitions.\nexport default function AppResumeHandler() {
   const router = useRouter();
 
   useEffect(() => {
