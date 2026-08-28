@@ -128,6 +128,9 @@ test("message inbox is paged and iOS resume cannot deadlock the auth gate", () =
   assert.doesNotMatch(gate, /onAuthStateChange\(\(\) =>[\s\S]*?getSession/);
   assert.match(resume, /appStateChange/);
   assert.match(resume, /startAutoRefresh/);
+  assert.match(resume, /realtime\.connect/);
+  assert.match(resume, /realtime\.disconnect/);
+  assert.doesNotMatch(resume, /router\.refresh/);
 });
 
 test("horse heights use valid hands notation", () => {

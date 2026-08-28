@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/lib/supabaseClient";
 
-// Keeps the hosted Capacitor shell healthy across iOS background/foreground transitions.
 export default function AppResumeHandler() {
-  const router = useRouter();
-
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
@@ -18,12 +14,13 @@ export default function AppResumeHandler() {
     const resume = () => {
       if (!active) return;
       supabase.auth.startAutoRefresh();
+      supabase.realtime.connect();
       window.dispatchEvent(new Event("pmp:app-resume"));
-      router.refresh();
     };
 
     const pause = () => {
       supabase.auth.stopAutoRefresh();
+      supabase.realtime.disconnect();
     };
 
     const listener = App.addListener("appStateChange", ({ isActive }) => {
@@ -43,7 +40,7 @@ export default function AppResumeHandler() {
       document.removeEventListener("visibilitychange", onVisibility);
       void listener.then((handle) => handle.remove());
     };
-  }, [router]);
+  }, []);
 
   return null;
 }
