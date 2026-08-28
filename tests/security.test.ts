@@ -95,7 +95,7 @@ test("normal message bubbles use the product palette without red styling", () =>
 
 test("horse request CTAs use the live request route", () => {
   const horse = readFileSync(resolve("app/horse/[id]/public-client.tsx"), "utf8");
-  const list = readFileSync(resolve("app/dashboard/borrower/horses/page.tsx"), "utf8");
+  const list = readFileSync(resolve("app/browse/page.tsx"), "utf8");
   const legacy = readFileSync(resolve("app/dashboard/borrower/horses/[horseId]/request/page.tsx"), "utf8");
   assert.match(horse, /\/request\?horseId=/);
   assert.match(list, /\/request\?horseId=/);
