@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient'; // <-- use the exported instance you have
+import { supabase } from '@/lib/supabaseClient';
 
 type UnavailabilityRow = {
   id: string;
@@ -17,7 +17,7 @@ type ApprovedBookingRow = {
   id: string;
   horse_id: string;
   borrower_id: string;
-  status: 'approved';
+  status: 'approved' | 'accepted';
   start_date: string;
   end_date: string;
   created_at: string;
@@ -32,7 +32,6 @@ export type DateRange = {
 };
 
 export function rangesOverlapInclusive(aStart: string, aEnd: string, bStart: string, bEnd: string) {
-  // ISO date-only strings compare lexicographically correctly (YYYY-MM-DD).
   return aStart <= bEnd && bStart <= aEnd;
 }
 
@@ -45,8 +44,6 @@ export function hasOverlapInclusive(
 }
 
 export function useHorseAvailability(horseId: string | null) {
-  // use the single shared supabase instance exported from app/lib/supabaseClient.ts
-  // No need for createClient() here — reusing the same instance is correct for client components.
   const [blocked, setBlocked] = useState<UnavailabilityRow[]>([]);
   const [bookings, setBookings] = useState<ApprovedBookingRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,13 +60,15 @@ export function useHorseAvailability(horseId: string | null) {
         .from('horse_unavailability')
         .select('id,horse_id,owner_id,start_date,end_date,reason,created_at')
         .eq('horse_id', horseId)
+        .not('start_date', 'is', null)
+        .not('end_date', 'is', null)
         .order('start_date', { ascending: true }),
 
       supabase
         .from('borrow_requests')
         .select('id,horse_id,borrower_id,status,start_date,end_date,created_at')
         .eq('horse_id', horseId)
-        .eq('status', 'approved')
+        .in('status', ['approved', 'accepted'])
         .not('start_date', 'is', null)
         .not('end_date', 'is', null)
         .order('start_date', { ascending: true }),
@@ -94,6 +93,22 @@ export function useHorseAvailability(horseId: string | null) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!horseId) return;
+    const blocksChannel = supabase
+      .channel(`availability-blocks:${horseId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'horse_unavailability', filter: `horse_id=eq.${horseId}` }, () => void refresh())
+      .subscribe();
+    const bookingsChannel = supabase
+      .channel(`availability-bookings:${horseId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'borrow_requests', filter: `horse_id=eq.${horseId}` }, () => void refresh())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(blocksChannel);
+      supabase.removeChannel(bookingsChannel);
+    };
+  }, [horseId, refresh]);
 
   const unavailableRanges: DateRange[] = useMemo(() => {
     const blockedRanges: DateRange[] = blocked.map((b) => ({
@@ -120,16 +135,10 @@ export function useHorseAvailability(horseId: string | null) {
       if (!horseId) throw new Error('horseId missing');
 
       const { startDate, endDate, reason } = input;
-
       if (!startDate || !endDate) throw new Error('Start and end dates required');
       if (startDate > endDate) throw new Error('Start date must be <= end date');
 
-      // supabase.auth.getUser() returns { data: { user }, error } in v2
-      const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser();
-
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
       if (userErr) throw userErr;
       if (!user) throw new Error('Not authenticated');
 
@@ -142,7 +151,6 @@ export function useHorseAvailability(horseId: string | null) {
       });
 
       if (insertErr) throw insertErr;
-
       await refresh();
     },
     [horseId, refresh]
