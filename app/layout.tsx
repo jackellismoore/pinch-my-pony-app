@@ -9,6 +9,7 @@ import VerificationGate from "@/components/VerificationGate";
 import { launchFeatureEnabled } from "@/lib/launchFeatures";
 import { LaunchFeaturesProvider } from "@/components/LaunchFeaturesProvider";
 import SiteFooter from "@/components/SiteFooter";
+import PhotoUploadNormalizer from "@/components/PhotoUploadNormalizer";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://pinchmypony.com"),
@@ -34,20 +35,15 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const identityEnabled = launchFeatureEnabled(process.env.STRIPE_IDENTITY_ENABLED);
-  const membershipCheckoutEnabled = launchFeatureEnabled(
-    process.env.STRIPE_MEMBERSHIP_CHECKOUT_ENABLED
-  );
+  const membershipCheckoutEnabled = launchFeatureEnabled(process.env.STRIPE_MEMBERSHIP_CHECKOUT_ENABLED);
 
   return (
     <html lang="en">
       <body>
         <LaunchFeaturesProvider features={{ identityEnabled, membershipCheckoutEnabled }}>
+          <PhotoUploadNormalizer />
           <PushBootstrap />
           <AppResumeHandler />
           <AppUrlListener />
@@ -55,9 +51,7 @@ export default function RootLayout({
             <Header identityEnabled={identityEnabled} />
             <style>{`
               /* Header logo is confirmed correct. Leave it unchanged. */
-              .pmp-headerBrandBadge {
-                padding: 0 !important;
-              }
+              .pmp-headerBrandBadge { padding: 0 !important; }
               .pmp-headerBrandBadge img[src="/pmp-logo-web.png"] {
                 width: 100% !important;
                 height: 100% !important;
@@ -67,8 +61,6 @@ export default function RootLayout({
                 transform-origin: center !important;
               }
 
-              /* Homepage brand artwork: directly targeted and calibrated to sit
-                 between the previous too-small and too-large renders. */
               .pmp-appMain img[alt="Pinch My Pony logo"] {
                 width: 100% !important;
                 height: 100% !important;
