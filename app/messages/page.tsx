@@ -214,6 +214,7 @@ function MediaThumb({
 }
 
 export default function MessagesPage() {
+  const THREAD_PAGE_SIZE = 10;
   const [threads, setThreads] = useState<ThreadUI[]>([]);
   const [loading, setLoading] = useState(true);
   const [myUserId, setMyUserId] = useState<string | null>(null);
@@ -224,6 +225,7 @@ export default function MessagesPage() {
   const [q, setQ] = useState("");
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [markingAllRead, setMarkingAllRead] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(THREAD_PAGE_SIZE);
 
   const load = async () => {
     setLoading(true);
@@ -461,6 +463,15 @@ export default function MessagesPage() {
     });
   }, [threads, q, showUnreadOnly]);
 
+  useEffect(() => {
+    setVisibleCount(THREAD_PAGE_SIZE);
+  }, [q, showUnreadOnly]);
+
+  const visibleThreads = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount]
+  );
+
   const counts = useMemo(() => {
     const total = threads.length;
     const unread = threads.reduce((acc, t) => acc + ((t.unread_count ?? 0) > 0 ? 1 : 0), 0);
@@ -671,7 +682,7 @@ export default function MessagesPage() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {filtered.map((t) => {
+          {visibleThreads.map((t) => {
             const time = timeLabel(t.last_message_at);
             const hasUnread = (t.unread_count ?? 0) > 0;
             const deleting = deletingId === t.request_id;
@@ -915,6 +926,16 @@ export default function MessagesPage() {
                   </div>
             );
           })}
+          {visibleThreads.length < filtered.length ? (
+            <button
+              type="button"
+              className="pmp-ctaSecondary"
+              onClick={() => setVisibleCount((count) => count + THREAD_PAGE_SIZE)}
+              style={{ alignSelf: "center", marginTop: 4 }}
+            >
+              Load more chats ({filtered.length - visibleThreads.length} remaining)
+            </button>
+          ) : null}
         </div>
       )}
     </div>
