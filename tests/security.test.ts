@@ -119,6 +119,17 @@ test("message removal is built into the card without swipe UI", () => {
   assert.match(inbox, /Removing…/);
 });
 
+test("message inbox is paged and iOS resume cannot deadlock the auth gate", () => {
+  const inbox = readFileSync(resolve("app/messages/page.tsx"), "utf8");
+  const gate = readFileSync(resolve("app/components/VerificationGate.tsx"), "utf8");
+  const resume = readFileSync(resolve("app/components/AppResumeHandler.tsx"), "utf8");
+  assert.match(inbox, /THREAD_PAGE_SIZE = 10/);
+  assert.match(inbox, /Load more chats/);
+  assert.doesNotMatch(gate, /onAuthStateChange\(\(\) =>[\s\S]*?getSession/);
+  assert.match(resume, /appStateChange/);
+  assert.match(resume, /startAutoRefresh/);
+});
+
 test("horse heights use valid hands notation", () => {
   assert.equal(parseHorseHeight("15.2"), 15.2);
   assert.equal(parseHorseHeight(""), null);
