@@ -54,7 +54,7 @@ export default function VerificationGate({
   useEffect(() => {
     let cancelled = false;
 
-    async function run() {
+    async function checkInitialSession() {
       try {
         if (publicRoute) {
           if (!cancelled) {
@@ -62,10 +62,6 @@ export default function VerificationGate({
             setChecking(false);
           }
           return;
-        }
-
-        if (!cancelled) {
-          setChecking(true);
         }
 
         const {
@@ -106,12 +102,25 @@ export default function VerificationGate({
       }
     }
 
-    void run();
+    void checkInitialSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void run();
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled || publicRoute) return;
+
+      // Supabase invokes this callback while it owns the auth lock. Calling
+      // getSession() from inside it can wait on the same lock after an iOS
+      // foreground refresh, leaving the gate blank indefinitely.
+      if (session?.user) {
+        setAllowed(true);
+        setChecking(false);
+        return;
+      }
+
+      setAllowed(false);
+      setChecking(false);
+      router.replace("/login");
     });
 
     return () => {
