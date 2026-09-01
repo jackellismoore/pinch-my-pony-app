@@ -25,7 +25,14 @@ export const metadata: Metadata = {
     images: [{ url: "/pmp-logo-web.png", width: 512, height: 512, alt: "Pinch My Pony" }],
   },
   twitter: { card: "summary", title: "Pinch My Pony", description: "Borrow, share and connect with the equestrian community.", images: ["/pmp-logo-web.png"] },
-  icons: { icon: "/favicon.ico", apple: "/pmp-logo-web.png" },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/pmp-icon-192.png", type: "image/png", sizes: "192x192" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
+  },
   manifest: "/manifest.webmanifest",
 };
 
