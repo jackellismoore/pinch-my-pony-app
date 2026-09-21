@@ -116,9 +116,9 @@ export default function AddHorsePage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);\n  const [showValidation, setShowValidation] = useState(false);
 
-  const canSubmit = useMemo(() => {
+  const missingFields = useMemo(() => {\n    const missing: string[] = [];\n    if (!name.trim()) missing.push("Horse name");\n    if (!breed.trim()) missing.push("Breed");\n    if (!age.trim()) missing.push("Age");\n    if (!heightHh.trim()) missing.push("Height");\n    if (!temperament.trim()) missing.push("Temperament");\n    if (!description.trim()) missing.push("Description");\n    if (!location.trim() || lat == null || lng == null) missing.push("Location");\n    if (!imageFile) missing.push("Photo");\n    return missing;\n  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFile]);\n\n  const canSubmit = useMemo(() => {
     return Boolean(
       name.trim() &&
       breed.trim() &&
@@ -268,13 +268,13 @@ export default function AddHorsePage() {
           <div style={{ display: "grid", gap: 12 }}>
             <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
               Horse name *
-              <input value={name} onChange={(e) => setName(e.target.value)} style={input} placeholder="e.g. Apollo" />
+              <input value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle(!name.trim())} placeholder="e.g. Apollo" />
             </label>
 
             <div className="pmp-addHorse-grid2">
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
                 Breed *
-                <select value={breed} onChange={(e) => setBreed(e.target.value)} style={input}>
+                <select value={breed} onChange={(e) => setBreed(e.target.value)} style={fieldStyle(!breed.trim())}>
                   <option value="">Select breed</option>
                   {BREED_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -286,7 +286,7 @@ export default function AddHorsePage() {
 
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
                 Temperament *
-                <select value={temperament} onChange={(e) => setTemperament(e.target.value)} style={input}>
+                <select value={temperament} onChange={(e) => setTemperament(e.target.value)} style={fieldStyle(!temperament.trim())}>
                   <option value="">Select temperament</option>
                   {TEMPERAMENT_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -300,12 +300,12 @@ export default function AddHorsePage() {
             <div className="pmp-addHorse-grid3">
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
                 Age *
-                <input value={age} onChange={(e) => setAge(e.target.value)} style={input} placeholder="9" inputMode="numeric" />
+                <input value={age} onChange={(e) => setAge(e.target.value)} style={fieldStyle(!age.trim())} placeholder="9" inputMode="numeric" />
               </label>
 
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
                 Height (hh) *
-                <input value={heightHh} onChange={(e) => setHeightHh(e.target.value)} style={input} placeholder="16.2" inputMode="decimal" />
+                <input value={heightHh} onChange={(e) => setHeightHh(e.target.value)} style={fieldStyle(!heightHh.trim())} placeholder="16.2" inputMode="decimal" />
               </label>
 
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
@@ -320,7 +320,7 @@ export default function AddHorsePage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={5}
-                style={{ ...input, resize: "vertical" }}
+                style={{ ...fieldStyle(!description.trim()), resize: "vertical" }}
                 placeholder="Tell borrowers about schooling, rider suitability, rules, etc."
               />
             </label>
@@ -342,7 +342,7 @@ export default function AddHorsePage() {
                   setLng(lng);
                 }}
               />
-              <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>
+              {showValidation && (!location.trim() || lat == null || lng == null) ? <div style={{ fontSize: 12, color: "#b42318", fontWeight: 800 }}>Please select a location suggestion so the map coordinates are set.</div> : null}\n              <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>
                 {lat && lng ? `Coordinates set: ${lat.toFixed(5)}, ${lng.toFixed(5)}` : "Pick a suggestion to set coordinates automatically."}
               </div>
             </label>
@@ -378,7 +378,7 @@ export default function AddHorsePage() {
 
             {error ? <div className="pmp-errorBanner">{error}</div> : null}
 
-            <button type="submit" disabled={!canSubmit} style={{ ...btn("primary"), opacity: canSubmit ? 1 : 0.6 }}>
+            <button type="submit" disabled={!canSubmit} style={{ ...btn("primary"), opacity: submitting ? 0.6 : 1 }}>
               {submitting ? "Saving…" : "Create Listing"}
             </button>
           </div>
