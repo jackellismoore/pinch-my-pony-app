@@ -119,8 +119,20 @@ export default function AddHorsePage() {
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = useMemo(() => {
-    return name.trim().length > 0 && !submitting;
-  }, [name, submitting]);
+    return Boolean(
+      name.trim() &&
+      breed.trim() &&
+      age.trim() &&
+      heightHh.trim() &&
+      temperament.trim() &&
+      description.trim() &&
+      location.trim() &&
+      lat != null &&
+      lng != null &&
+      imageFile &&
+      !submitting
+    );
+  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFile, submitting]);
 
   useEffect(() => {
     if (!imageFile) {
@@ -153,7 +165,10 @@ export default function AddHorsePage() {
     e.preventDefault();
     setError(null);
 
-    if (!name.trim()) return;
+    if (!name.trim() || !breed.trim() || !age.trim() || !heightHh.trim() || !temperament.trim() || !description.trim() || !location.trim() || lat == null || lng == null || !imageFile) {
+      setError("Please complete all required fields, including a photo and map location.");
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -166,10 +181,11 @@ export default function AddHorsePage() {
       if (userErr) throw userErr;
       if (!user) throw new Error("Not authenticated");
 
-      const ageNum = age.trim() ? Number(age) : null;
-      if (age.trim() && Number.isNaN(ageNum)) throw new Error("Age must be a number.");
+      const ageNum = Number(age);
+      if (!Number.isInteger(ageNum) || ageNum < 0 || ageNum > 100) throw new Error("Age must be a whole number between 0 and 100.");
 
       const heightNum = parseHorseHeight(heightHh);
+      if (heightNum == null) throw new Error("Please enter a valid horse height.");
 
       const priceNum = pricePerDay.trim() ? Number(pricePerDay) : null;
       if (pricePerDay.trim() && Number.isNaN(priceNum)) throw new Error("Price per day must be a number.");
@@ -257,7 +273,7 @@ export default function AddHorsePage() {
 
             <div className="pmp-addHorse-grid2">
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
-                Breed (optional)
+                Breed *
                 <select value={breed} onChange={(e) => setBreed(e.target.value)} style={input}>
                   <option value="">Select breed</option>
                   {BREED_OPTIONS.map((option) => (
@@ -269,7 +285,7 @@ export default function AddHorsePage() {
               </label>
 
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
-                Temperament (optional)
+                Temperament *
                 <select value={temperament} onChange={(e) => setTemperament(e.target.value)} style={input}>
                   <option value="">Select temperament</option>
                   {TEMPERAMENT_OPTIONS.map((option) => (
@@ -283,12 +299,12 @@ export default function AddHorsePage() {
 
             <div className="pmp-addHorse-grid3">
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
-                Age (optional)
+                Age *
                 <input value={age} onChange={(e) => setAge(e.target.value)} style={input} placeholder="9" inputMode="numeric" />
               </label>
 
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
-                Height (hh) (optional)
+                Height (hh) *
                 <input value={heightHh} onChange={(e) => setHeightHh(e.target.value)} style={input} placeholder="16.2" inputMode="decimal" />
               </label>
 
@@ -299,7 +315,7 @@ export default function AddHorsePage() {
             </div>
 
             <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
-              Description (optional)
+              Description *
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -310,7 +326,7 @@ export default function AddHorsePage() {
             </label>
 
             <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
-              Location (search) (optional)
+              Location (search) *
               <LocationAutocomplete
                 value={location}
                 onChange={(v) => {
@@ -332,7 +348,7 @@ export default function AddHorsePage() {
             </label>
 
             <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
-              Image upload (optional)
+              Image upload *
               <input
                 type="file"
                 accept="image/*"
