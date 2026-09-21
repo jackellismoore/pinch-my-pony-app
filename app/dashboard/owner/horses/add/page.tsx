@@ -116,9 +116,29 @@ export default function AddHorsePage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);\n  const [showValidation, setShowValidation] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showValidation, setShowValidation] = useState(false);
 
-  const missingFields = useMemo(() => {\n    const missing: string[] = [];\n    if (!name.trim()) missing.push("Horse name");\n    if (!breed.trim()) missing.push("Breed");\n    if (!age.trim()) missing.push("Age");\n    if (!heightHh.trim()) missing.push("Height");\n    if (!temperament.trim()) missing.push("Temperament");\n    if (!description.trim()) missing.push("Description");\n    if (!location.trim() || lat == null || lng == null) missing.push("Location");\n    if (!imageFile) missing.push("Photo");\n    return missing;\n  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFile]);\n\n  const canSubmit = useMemo(() => {
+  const missingFields = useMemo(() => {
+    const missing: string[] = [];
+    if (!name.trim()) missing.push("Horse name");
+    if (!breed.trim()) missing.push("Breed");
+    if (!age.trim()) missing.push("Age");
+    if (!heightHh.trim()) missing.push("Height");
+    if (!temperament.trim()) missing.push("Temperament");
+    if (!description.trim()) missing.push("Description");
+    if (!location.trim() || lat == null || lng == null) missing.push("Location");
+    if (!imageFile) missing.push("Photo");
+    return missing;
+  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFile]);
+
+  const fieldStyle = (missing: boolean): React.CSSProperties => ({
+    ...input,
+    borderColor: showValidation && missing ? "#b42318" : input.border,
+    background: showValidation && missing ? "rgba(180,35,24,0.05)" : input.background,
+  });
+
+  const canSubmit = useMemo(() => {
     return Boolean(
       name.trim() &&
       breed.trim() &&
@@ -164,6 +184,7 @@ export default function AddHorsePage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setShowValidation(true);
 
     if (!name.trim() || !breed.trim() || !age.trim() || !heightHh.trim() || !temperament.trim() || !description.trim() || !location.trim() || lat == null || lng == null || !imageFile) {
       setError("Please complete all required fields, including a photo and map location.");
@@ -342,7 +363,8 @@ export default function AddHorsePage() {
                   setLng(lng);
                 }}
               />
-              {showValidation && (!location.trim() || lat == null || lng == null) ? <div style={{ fontSize: 12, color: "#b42318", fontWeight: 800 }}>Please select a location suggestion so the map coordinates are set.</div> : null}\n              <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>
+              {showValidation && (!location.trim() || lat == null || lng == null) ? <div style={{ fontSize: 12, color: "#b42318", fontWeight: 800 }}>Please select a location suggestion so the map coordinates are set.</div> : null}
+              <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>
                 {lat && lng ? `Coordinates set: ${lat.toFixed(5)}, ${lng.toFixed(5)}` : "Pick a suggestion to set coordinates automatically."}
               </div>
             </label>
@@ -376,9 +398,16 @@ export default function AddHorsePage() {
               Set listing as active
             </label>
 
+            {showValidation && missingFields.length > 0 ? (
+              <div className="pmp-errorBanner">
+                <div style={{ fontWeight: 950 }}>Please complete the required fields before creating your listing:</div>
+                <div style={{ marginTop: 6 }}>{missingFields.join(", ")}</div>
+                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>Price per day is optional.</div>
+              </div>
+            ) : null}
             {error ? <div className="pmp-errorBanner">{error}</div> : null}
 
-            <button type="submit" disabled={!canSubmit} style={{ ...btn("primary"), opacity: submitting ? 0.6 : 1 }}>
+            <button type="submit" disabled={submitting} style={{ ...btn("primary"), opacity: submitting ? 0.6 : 1 }}>
               {submitting ? "Saving…" : "Create Listing"}
             </button>
           </div>
