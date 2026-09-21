@@ -20,6 +20,8 @@ type HorseRow = {
   breed?: string | null;
   temperament?: string | null;
   age?: number | null;
+  height_hh?: string | number | null;
+  description?: string | null;
   active?: boolean | null;
   is_active?: boolean | null;
   lat: number | null;
@@ -197,14 +199,26 @@ export default function BrowsePage() {
 
         const { data: horsesData, error: horsesErr } = await supabase
           .from("horses")
-          .select("id,owner_id,name,location,image_url,breed,temperament,age,active,is_active,lat,lng,created_at")
+          .select("id,owner_id,name,location,image_url,breed,temperament,age,height_hh,description,active,is_active,lat,lng,created_at")
           .or("active.eq.true,is_active.eq.true")
           .order("created_at", { ascending: false });
 
         if (cancelled) return;
         if (horsesErr) throw horsesErr;
 
-        const horseRows = ((horsesData ?? []) as HorseRow[]).filter(isHorseActive);
+        const horseRows = ((horsesData ?? []) as HorseRow[]).filter((h) =>
+          isHorseActive(h) &&
+          safeText(h.name) &&
+          safeText(h.breed) &&
+          h.age != null &&
+          h.height_hh != null &&
+          safeText(h.temperament) &&
+          safeText(h.description) &&
+          safeText(h.location) &&
+          h.lat != null &&
+          h.lng != null &&
+          safeText(h.image_url)
+        );
         setHorses(horseRows);
 
         const ownerIds = Array.from(new Set(horseRows.map((h) => h.owner_id).filter(Boolean)));
