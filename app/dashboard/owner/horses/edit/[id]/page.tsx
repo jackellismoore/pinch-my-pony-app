@@ -232,7 +232,7 @@ export default function EditHorsePage() {
     };
   }, [id]);
 
-  const canSave = useMemo(() => !saving && !uploadingImage && name.trim().length > 0, [saving, uploadingImage, name]);
+  const canSave = useMemo(() => !saving && !uploadingImage && Boolean(name.trim() && location.trim() && lat.trim() && lng.trim() && breed.trim() && age.trim() && height.trim() && temperament.trim() && description.trim() && imageUrl.trim()), [saving, uploadingImage, name, location, lat, lng, breed, age, height, temperament, description, imageUrl]);
 
   async function uploadImage(file: File) {
     if (!id) return;
@@ -283,7 +283,14 @@ export default function EditHorsePage() {
 
       if (latNum != null && !Number.isFinite(latNum)) throw new Error("Latitude must be a number");
       if (lngNum != null && !Number.isFinite(lngNum)) throw new Error("Longitude must be a number");
+      if (!name.trim() || !location.trim() || !lat.trim() || !lng.trim() || !breed.trim() || !age.trim() || !height.trim() || !temperament.trim() || !description.trim() || !imageUrl.trim()) {
+        throw new Error("Please complete all required fields, including a photo and map location.");
+      }
+
+      const ageNum = Number(age);
+      if (!Number.isInteger(ageNum) || ageNum < 0 || ageNum > 100) throw new Error("Age must be a whole number between 0 and 100");
       const heightNum = parseHorseHeight(height);
+      if (heightNum == null) throw new Error("Please enter a valid horse height");
 
       const payload: any = {
         name: name.trim() || null,
@@ -386,11 +393,11 @@ export default function EditHorsePage() {
             gap: 12,
           }}
         >
-          <Field label="Horse name">
+          <Field label="Horse name *">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={input()} />
           </Field>
 
-          <Field label="Location">
+          <Field label="Location *">
             <LocationAutocomplete
               value={location}
               onChange={(value) => {
@@ -418,7 +425,7 @@ export default function EditHorsePage() {
           </div>
 
           <div className="pmp-editHorse-grid2">
-            <Field label="Breed">
+            <Field label="Breed *">
               <select value={breed} onChange={(e) => setBreed(e.target.value)} style={input()}>
                 <option value="">Select breed</option>
                 {BREED_OPTIONS.map((option) => (
@@ -428,16 +435,16 @@ export default function EditHorsePage() {
                 ))}
               </select>
             </Field>
-            <Field label="Age">
+            <Field label="Age *">
               <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} />
             </Field>
           </div>
 
           <div className="pmp-editHorse-grid2">
-            <Field label="Height (hh)">
+            <Field label="Height (hh) *">
               <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="e.g. 15.2" style={input()} />
             </Field>
-            <Field label="Temperament">
+            <Field label="Temperament *">
               <select value={temperament} onChange={(e) => setTemperament(e.target.value)} style={input()}>
                 <option value="">Select temperament</option>
                 {TEMPERAMENT_OPTIONS.map((option) => (
@@ -449,7 +456,7 @@ export default function EditHorsePage() {
             </Field>
           </div>
 
-          <Field label="Description">
+          <Field label="Description *">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -460,7 +467,7 @@ export default function EditHorsePage() {
           </Field>
 
           <div style={{ display: "grid", gap: 8 }}>
-            <div style={labelStyle()}>Image upload</div>
+            <div style={labelStyle()}>Image upload *</div>
 
             <input
               type="file"
