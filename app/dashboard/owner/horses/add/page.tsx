@@ -134,7 +134,7 @@ export default function AddHorsePage() {
 
   const fieldStyle = (missing: boolean): React.CSSProperties => ({
     ...input,
-    borderColor: showValidation && missing ? "#b42318" : input.border,
+    borderColor: showValidation && missing ? "#b42318" : undefined,
     background: showValidation && missing ? "rgba(180,35,24,0.05)" : input.background,
   });
 
