@@ -611,7 +611,7 @@ export default function BrowsePage() {
                         </Link>
                       </div>
 
-                      <div className="pmp-inlineMeta" style={{ marginTop: 10 }}>
+                      <div className="pmp-inlineMeta" style={{ marginTop: 10, marginBottom: 16 }}>
                         {next ? (
                           <>
                             <AvailabilityBadge
