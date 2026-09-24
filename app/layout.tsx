@@ -11,6 +11,7 @@ import { LaunchFeaturesProvider } from "@/components/LaunchFeaturesProvider";
 import SiteFooter from "@/components/SiteFooter";
 import PhotoUploadNormalizer from "@/components/PhotoUploadNormalizer";
 import ConnectionStatus from "@/components/ConnectionStatus";
+import OfflineGuard from "@/components/OfflineGuard";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://pinchmypony.com"),
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body>
         <LaunchFeaturesProvider features={{ identityEnabled, membershipCheckoutEnabled }}>
+          <OfflineGuard>
           <PhotoUploadNormalizer />
           <ConnectionStatus />
           <PushBootstrap />
@@ -82,6 +84,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <main className="pmp-appMain">{children}</main>
             <SiteFooter />
           </VerificationGate>
+          </OfflineGuard>
         </LaunchFeaturesProvider>
       </body>
     </html>
