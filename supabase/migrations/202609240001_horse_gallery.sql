@@ -1,6 +1,8 @@
 alter table public.horses
   add column if not exists image_urls text[] not null default '{}'::text[];
 
+alter table public.horses disable trigger validate_complete_horse_listing;
+
 update public.horses
 set image_urls = case
   when nullif(trim(coalesce(image_url, '')), '') is not null
@@ -8,6 +10,8 @@ set image_urls = case
   else '{}'::text[]
 end
 where coalesce(array_length(image_urls, 1), 0) = 0;
+
+alter table public.horses enable trigger validate_complete_horse_listing;
 
 create or replace function public.validate_complete_horse_listing()
 returns trigger
