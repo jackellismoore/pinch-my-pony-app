@@ -64,11 +64,15 @@ async function normalizeImage(file: File): Promise<File> {
   return new File([blob], `${baseName}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
 }
 
+export async function normalizePhotoFile(file: File): Promise<File> {
+  return normalizeImage(file);
+}
+
 export default function PhotoUploadNormalizer() {
   useEffect(() => {
     const onChange = async (event: Event) => {
       const input = event.target instanceof HTMLInputElement ? event.target : null;
-      if (!input || input.type !== "file" || input.dataset.pmpNormalizing === "1") return;
+      if (!input || input.type !== "file" || input.dataset.pmpNormalizing === "1" || input.dataset.pmpSkipNormalizer === "1") return;
       const files = Array.from(input.files ?? []);
       if (!files.length || !files.some((file) => file.type.startsWith("image/") || /\.(heic|heif|jpg|jpeg|png|webp)$/i.test(file.name))) return;
 
