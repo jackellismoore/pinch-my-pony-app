@@ -10,6 +10,7 @@ import { launchFeatureEnabled } from "@/lib/launchFeatures";
 import { LaunchFeaturesProvider } from "@/components/LaunchFeaturesProvider";
 import SiteFooter from "@/components/SiteFooter";
 import PhotoUploadNormalizer from "@/components/PhotoUploadNormalizer";
+import ConnectionStatus from "@/components/ConnectionStatus";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://pinchmypony.com"),
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <LaunchFeaturesProvider features={{ identityEnabled, membershipCheckoutEnabled }}>
           <PhotoUploadNormalizer />
+          <ConnectionStatus />
           <PushBootstrap />
           <AppResumeHandler />
           <AppUrlListener />
