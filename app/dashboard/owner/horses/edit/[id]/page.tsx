@@ -474,6 +474,7 @@ export default function EditHorsePage() {
                   return;
                 }
                 if (files.length) {
+                  setError(null);
                   void uploadImages(files);
                 }
                 e.currentTarget.value = "";
@@ -483,21 +484,64 @@ export default function EditHorsePage() {
             />
 
             {imageUrls.length ? (
-              <div
-                style={{
-                  width: 140,
-                  height: 140,
-                  borderRadius: 16,
-                  overflow: "hidden",
-                  border: "1px solid rgba(0,0,0,0.10)",
-                  background: "rgba(15,23,42,0.04)",
-                }}
-              >
-                <img
-                  src={imageUrls[0]}
-                  alt="Horse"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {imageUrls.map((url, index) => (
+                  <div
+                    key={url}
+                    style={{
+                      position: "relative",
+                      width: 140,
+                      aspectRatio: "4 / 3",
+                      borderRadius: 16,
+                      overflow: "hidden",
+                      border: index === 0 ? "2px solid #1F3D2B" : "1px solid rgba(0,0,0,0.10)",
+                      background: "rgba(15,23,42,0.04)",
+                    }}
+                  >
+                    <img
+                      src={url}
+                      alt={"Horse photo " + (index + 1)}
+                      style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: 7,
+                        top: 7,
+                        padding: "4px 7px",
+                        borderRadius: 999,
+                        background: index === 0 ? "#1F3D2B" : "rgba(15,23,42,0.72)",
+                        color: "white",
+                        fontSize: 10,
+                        fontWeight: 900,
+                      }}
+                    >
+                      {index === 0 ? "Cover" : index + 1}
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={"Remove photo " + (index + 1)}
+                      onClick={() => setImageUrls((current) => current.filter((_, i) => i !== index))}
+                      disabled={uploadingImage}
+                      style={{
+                        position: "absolute",
+                        right: 6,
+                        top: 6,
+                        width: 28,
+                        height: 28,
+                        minHeight: 28,
+                        padding: 0,
+                        border: "1px solid rgba(255,255,255,0.85)",
+                        borderRadius: 999,
+                        background: "rgba(15,23,42,0.78)",
+                        color: "white",
+                        fontWeight: 950,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
               </div>
             ) : null}
 
@@ -518,7 +562,7 @@ export default function EditHorsePage() {
                   opacity: !imageUrls.length || uploadingImage ? 0.6 : 1,
                 }}
               >
-                Remove image
+                Remove all photos
               </button>
 
               {uploadingImage ? (
