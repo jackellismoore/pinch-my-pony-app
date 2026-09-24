@@ -13,6 +13,7 @@ type HorseRow = {
   owner_id: string;
   name: string | null;
   image_url: string | null;
+  image_urls?: string[] | null;
   location: string | null;
   breed: any;
   age: any;
@@ -110,7 +111,7 @@ export default function HorsePublicClient() {
       try {
         const { data: h, error: hErr } = await supabase
           .from("horses")
-          .select("id,owner_id,name,image_url,location,breed,age,height,height_hh,temperament,description,is_active")
+          .select("id,owner_id,name,image_url,image_urls,location,breed,age,height,height_hh,temperament,description,is_active")
           .eq("id", horseId)
           .maybeSingle();
 
@@ -278,33 +279,116 @@ export default function HorsePublicClient() {
               padding: 0,
             }}
           >
-            {horse.image_url ? (
-              <img
-                src={safeText(horse.image_url)}
-                alt={fmt(horse.name)}
-                className="pmp-horsePublic-image"
-                style={{
-                  width: "100%",
-                  height: 360,
-                  objectFit: "cover",
-                  display: "block",
-                }}
-              />
-            ) : (
-              <div
-                className="pmp-horsePublic-image"
-                style={{
-                  height: 280,
-                  background:
-                    "radial-gradient(900px 300px at 18% 0%, rgba(200,162,77,0.18), transparent 60%), radial-gradient(700px 260px at 92% 12%, rgba(31,61,43,0.12), transparent 60%), rgba(15,23,42,0.03)",
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: 56,
-                }}
-              >
-                <Icon name="horse" size={56} />
-              </div>
-            )}
+            {(() => {
+              const gallery = Array.from(
+                new Set([...(horse.image_urls ?? []), ...(horse.image_url ? [horse.image_url] : [])].filter(Boolean)),
+              ).slice(0, 5) as string[];
+
+              return gallery.length ? (
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      overflowX: "auto",
+                      scrollSnapType: "x mandatory",
+                      WebkitOverflowScrolling: "touch",
+                      scrollbarWidth: "none",
+                    }}
+                  >
+                    {gallery.map((url, index) => (
+                      <div
+                        key={url}
+                        style={{
+                          minWidth: "100%",
+                          position: "relative",
+                          scrollSnapAlign: "start",
+                        }}
+                      >
+                        <img
+                          src={url}
+                          alt={fmt(horse.name) + " photo " + (index + 1)}
+                          className="pmp-horsePublic-image"
+                          style={{
+                            width: "100%",
+                            height: 360,
+                            objectFit: "cover",
+                            display: "block",
+                          }}
+                        />
+                        {gallery.length > 1 ? (
+                          <div
+                            style={{
+                              position: "absolute",
+                              right: 12,
+                              bottom: 12,
+                              padding: "6px 9px",
+                              borderRadius: 999,
+                              background: "rgba(15,23,42,0.68)",
+                              color: "white",
+                              fontSize: 11,
+                              fontWeight: 900,
+                            }}
+                          >
+                            {index + 1} / {gallery.length}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+
+                  {gallery.length > 1 ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 7,
+                        overflowX: "auto",
+                        padding: 10,
+                        background: "rgba(15,23,42,0.025)",
+                      }}
+                    >
+                      {gallery.map((url, index) => (
+                        <a
+                          key={"thumb-" + url}
+                          href={"#horse-photo-" + index}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            document.getElementById("horse-photo-" + index)?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "nearest",
+                              inline: "start",
+                            });
+                          }}
+                          style={{
+                            flex: "0 0 64px",
+                            width: 64,
+                            height: 54,
+                            borderRadius: 10,
+                            overflow: "hidden",
+                            border: index === 0 ? "2px solid #1F3D2B" : "1px solid rgba(15,23,42,0.10)",
+                          }}
+                        >
+                          <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div
+                  className="pmp-horsePublic-image"
+                  style={{
+                    height: 280,
+                    background:
+                      "radial-gradient(900px 300px at 18% 0%, rgba(200,162,77,0.18), transparent 60%), radial-gradient(700px 260px at 92% 12%, rgba(31,61,43,0.12), transparent 60%), rgba(15,23,42,0.03)",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 56,
+                  }}
+                >
+                  <Icon name="horse" size={56} />
+                </div>
+              );
+            })()}
 
             <div style={{ padding: 16 }}>
               <div
