@@ -236,35 +236,27 @@ export default function EditHorsePage() {
   const canSave = useMemo(() => !saving && !uploadingImage && Boolean(name.trim() && location.trim() && lat.trim() && lng.trim() && breed.trim() && age.trim() && height.trim() && temperament.trim() && description.trim() && imageUrl.trim()), [saving, uploadingImage, name, location, lat, lng, breed, age, height, temperament, description, imageUrl]);
 
   async function uploadImages(files: File[]) {
-    if (!id) return;
+    if (!id || !files.length) return;
     setError(null);
-
     try {
       setUploadingImage(true);
-
-      const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser();
-
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
       if (userErr) throw userErr;
       if (!user) throw new Error("Not authenticated");
-
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-
-      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-      if (upErr) throw upErr;
-
-      const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-      const publicUrl = data?.publicUrl;
-      if (!publicUrl) throw new Error("Failed to get public image URL");
-
-      setImageUrl(publicUrl);
+      const next: string[] = [];
+      for (const file of files.slice(0, 5)) {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = user.id + "/" + crypto.randomUUID() + "." + ext;
+        const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+        if (upErr) throw upErr;
+        const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        if (!data?.publicUrl) throw new Error("Failed to get public image URL");
+        next.push(data.publicUrl);
+      }
+      setImageUrls((current) => [...current, ...next].slice(0, 5));
     } catch (e: any) {
       setError(e?.message ?? "Failed to upload image");
     } finally {
@@ -284,7 +276,7 @@ export default function EditHorsePage() {
 
       if (latNum != null && !Number.isFinite(latNum)) throw new Error("Latitude must be a number");
       if (lngNum != null && !Number.isFinite(lngNum)) throw new Error("Longitude must be a number");
-      if (!name.trim() || !location.trim() || !lat.trim() || !lng.trim() || !breed.trim() || !age.trim() || !height.trim() || !temperament.trim() || !description.trim() || !imageUrl.trim()) {
+      if (!name.trim() || !location.trim() || !lat.trim() || !lng.trim() || !breed.trim() || !age.trim() || !height.trim() || !temperament.trim() || !description.trim() || !imageUrls.length) {
         throw new Error("Please complete all required fields, including a photo and map location.");
       }
 
