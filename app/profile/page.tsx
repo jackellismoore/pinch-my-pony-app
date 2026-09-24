@@ -10,6 +10,7 @@ import LocationAutocomplete from "@/components/LocationAutocomplete";
 import { Icon } from "@/components/Icon";
 import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { normalizePhotoFile } from "@/components/PhotoUploadNormalizer";
 
 type ProfileAny = Record<string, any>;
 
@@ -141,7 +142,7 @@ export default function ProfilePage() {
         setUserId(user.id);
 
         const [profileRes, prefsRes, reviewsRes] = await Promise.all([
-          supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+          supabase.from("profiles").select("id,full_name,display_name,avatar_url,stable_name,location,bio,age,verification_status,verified_at,verification_provider").eq("id", user.id).maybeSingle(),
           supabase
             .from("notification_preferences")
             .select(
@@ -358,7 +359,7 @@ export default function ProfilePage() {
       if (profileSave.warn) setNotice(profileSave.warn);
       else setNotice("Profile saved.");
 
-      const res = await supabase.from("profiles").select("*").eq("id", userId).single();
+      const res = await supabase.from("profiles").select("id,full_name,display_name,avatar_url,stable_name,location,bio,age,verification_status,verified_at,verification_provider").eq("id", userId).single();
       if (!res.error) setProfile(res.data as any);
     } catch (e: any) {
       setError(e?.message ?? "Failed to save profile.");
@@ -388,25 +389,23 @@ export default function ProfilePage() {
 
     if (!userId) return;
 
-    if (!isAllowedAvatarType(file)) {
-      setError("Please choose a JPG, PNG, or WebP image.");
-      return;
-    }
-
-    if (file.size > MAX_AVATAR_BYTES) {
-      setError("That image is too large. Maximum size is 5MB.");
-      return;
-    }
-
     try {
       setUploadingAvatar(true);
 
+      const normalized = await normalizePhotoFile(file);
+      if (!isAllowedAvatarType(normalized)) {
+        throw new Error("Please choose a JPG, PNG, or WebP image.");
+      }
+      if (normalized.size > MAX_AVATAR_BYTES) {
+        throw new Error("That image is too large. Maximum size is 5MB.");
+      }
+
       const bucket = "avatars";
-      const contentType = avatarContentType(file);
+      const contentType = avatarContentType(normalized);
       const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
       const path = `${userId}/avatar-${Date.now()}.${ext}`;
 
-      const up = await supabase.storage.from(bucket).upload(path, file, {
+      const up = await supabase.storage.from(bucket).upload(path, normalized, {
         cacheControl: "3600",
         upsert: false,
         contentType,
@@ -417,8 +416,11 @@ export default function ProfilePage() {
       const pub = supabase.storage.from(bucket).getPublicUrl(path);
       const url = pub.data.publicUrl;
 
+      const saveResult = await tryUpdate({ avatar_url: url });
+      if (!saveResult.ok) throw saveResult.error;
       setAvatarUrl(url);
-      setNotice("Photo uploaded. Press “Save profile changes” to save it to your profile.");
+      setProfile((current) => (current ? { ...current, avatar_url: url } : current));
+      setNotice("Profile photo saved.");
     } catch (e: any) {
       setError(e?.message ?? "Avatar upload failed. Please try another JPG, PNG, or WebP image.");
     } finally {
@@ -859,7 +861,8 @@ export default function ProfilePage() {
                     Choose photo
                     <input
                       type="file"
-                      accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                      accept="image/*,.jpg,.jpeg,.png,.webp"
+                      data-pmp-skip-normalizer="1"
                       style={{ display: "none" }}
                       disabled={uploadingAvatar}
                       onChange={(e) => {
@@ -871,7 +874,7 @@ export default function ProfilePage() {
                   </label>
 
                   <div style={{ fontSize: 12, color: "rgba(0,0,0,0.6)" }}>
-                    {uploadingAvatar ? "Uploading photo…" : "After upload, press Save profile changes to keep it."}
+                    {uploadingAvatar ? "Uploading photo…" : "Profile photo saves automatically."}
                   </div>
                 </div>
               </div>
