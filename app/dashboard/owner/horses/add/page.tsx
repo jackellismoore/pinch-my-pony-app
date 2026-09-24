@@ -251,7 +251,11 @@ export default function AddHorsePage() {
         photo_url: null,
       });
 
-      if (insErr) {\n        const paths = imageUrls.map(storagePathFromPublicUrl).filter((v): v is string => Boolean(v));\n        if (paths.length) await supabase.storage.from(STORAGE_BUCKET).remove(paths).catch(() => {});\n        throw insErr;\n      }
+      if (insErr) {
+        const paths = imageUrls.map(storagePathFromPublicUrl).filter((v): v is string => Boolean(v));
+        if (paths.length) await supabase.storage.from(STORAGE_BUCKET).remove(paths).catch(() => {});
+        throw insErr;
+      }
 
       router.push("/dashboard/owner/horses");
       router.refresh();
