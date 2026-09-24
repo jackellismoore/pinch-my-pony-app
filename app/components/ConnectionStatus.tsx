@@ -213,7 +213,6 @@ export default function ConnectionStatus() {
           position: "fixed",
           top: "calc(env(safe-area-inset-top, 0px) + 10px)",
           left: "50%",
-          transform: "translateX(-50%)",
           zIndex: 10000,
           maxWidth: "calc(100vw - 24px)",
           padding: "9px 14px",
