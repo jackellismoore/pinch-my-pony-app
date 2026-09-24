@@ -199,7 +199,7 @@ export default function AddHorsePage() {
       if (!user) throw new Error("Not authenticated");
 
       const ageNum = Number(age);
-      if (!Number.isInteger(ageNum) || ageNum < 0 || ageNum > 100) throw new Error("Age must be a whole number between 0 and 100.");
+      if (!Number.isInteger(ageNum) || ageNum < 0 || ageNum > 99) throw new Error("Age must be a whole number between 0 and 99.");
 
       const heightNum = parseHorseHeight(heightHh);
       if (heightNum == null) throw new Error("Please enter a valid horse height.");
@@ -315,7 +315,7 @@ export default function AddHorsePage() {
             <div className="pmp-addHorse-grid3">
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
                 Age *
-                <input value={age} onChange={(e) => setAge(e.target.value)} style={fieldStyle(!age.trim())} placeholder="9" inputMode="numeric" />
+                <input value={age} onChange={(e) => setAge(e.target.value)} style={fieldStyle(!age.trim())} placeholder="9" inputMode="numeric" min={0} max={99} type="number" />
               </label>
 
               <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
