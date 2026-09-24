@@ -249,7 +249,14 @@ export default function RequestForm({
         p_exclude_request_id: null,
       });
 
-      if (!rpcErr && ok === false) {
+      if (rpcErr) {
+        console.error("Availability check failed:", rpcErr);
+        setSubmitError("We couldn't confirm availability. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      if (ok === false) {
         setSubmitError("Selected dates overlap an unavailable range.");
         setSubmitting(false);
         return;
