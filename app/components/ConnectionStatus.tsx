@@ -8,6 +8,7 @@ type ConnectionState = "reconnecting" | "connected" | "lost" | "restored";
 
 const VISIBLE_MS = 2200;
 const LOSS_VISIBLE_MS = 4000;
+const FADE_OUT_MS = 450;
 const CHECK_TIMEOUT_MS = 6000;
 const RETRY_DELAY_MS = 2500;
 
@@ -73,6 +74,7 @@ export function ConnectionIndicator() {
 export default function ConnectionStatus() {
   const [state, setState] = useState<ConnectionState | null>(null);
   const [visible, setVisible] = useState(false);
+  const [fadingOut, setFadingOut] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checking = useRef(false);
   const hadConnection = useRef<boolean | null>(null);
@@ -87,6 +89,7 @@ export default function ConnectionStatus() {
   const showTransient = useCallback(
     (next: ConnectionState) => {
       clearHideTimer();
+      setFadingOut(false);
       currentConnectionState = next;
       window.dispatchEvent(
         new CustomEvent("pmp:connection-state", { detail: next })
@@ -103,9 +106,14 @@ export default function ConnectionStatus() {
 
       if (duration) {
         hideTimer.current = setTimeout(() => {
-          setVisible(false);
-          setState(null);
-        }, duration);
+          setFadingOut(true);
+          hideTimer.current = setTimeout(() => {
+            setVisible(false);
+            setState(null);
+            setFadingOut(false);
+            hideTimer.current = null;
+          }, FADE_OUT_MS);
+        }, Math.max(0, duration - FADE_OUT_MS));
       }
     },
     [clearHideTimer]
@@ -231,6 +239,9 @@ export default function ConnectionStatus() {
           whiteSpace: "nowrap",
           pointerEvents: "none",
           backdropFilter: "blur(12px)",
+          opacity: fadingOut ? 0 : 1,
+          transform: `translateX(-50%) translateY(${fadingOut ? -4 : 0}px)`,
+          transition: `opacity ${FADE_OUT_MS}ms ease, transform ${FADE_OUT_MS}ms ease`,
         }}
       >
         {copy}
