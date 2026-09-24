@@ -66,6 +66,17 @@ export default function NotificationBell() {
         return;
       }
 
+      const { data: threadRows, error: threadErr } = await supabase
+        .from("message_threads")
+        .select("request_id, unread_count");
+
+      if (threadErr) throw threadErr;
+
+      const unreadMessages = (threadRows ?? []).reduce(
+        (sum: number, row: any) => sum + Math.max(0, Number(row.unread_count ?? 0)),
+        0
+      );
+
       const { data: myHorses, error: horsesErr } = await supabase
         .from("horses")
         .select("id")
@@ -74,37 +85,6 @@ export default function NotificationBell() {
       if (horsesErr) throw horsesErr;
 
       const myHorseIds = (myHorses ?? []).map((r: any) => r.id).filter(Boolean);
-
-      const [borrowerReqs, ownerReqs] = await Promise.all([
-        supabase.from("borrow_requests").select("id").eq("borrower_id", uid),
-        myHorseIds.length
-          ? supabase.from("borrow_requests").select("id").in("horse_id", myHorseIds)
-          : Promise.resolve({ data: [], error: null } as any),
-      ]);
-
-      if (borrowerReqs.error) throw borrowerReqs.error;
-      if (ownerReqs.error) throw ownerReqs.error;
-
-      const requestIds = Array.from(
-        new Set(
-          [...(borrowerReqs.data ?? []), ...(ownerReqs.data ?? [])]
-            .map((r: any) => r.id)
-            .filter(Boolean)
-        )
-      );
-
-      let unreadMessages = 0;
-      if (requestIds.length) {
-        const { count, error } = await supabase
-          .from("messages")
-          .select("id", { count: "exact", head: true })
-          .in("request_id", requestIds)
-          .neq("sender_id", uid)
-          .is("read_at", null);
-
-        if (error) throw error;
-        unreadMessages = count ?? 0;
-      }
 
       let pendingRequests = 0;
       if (myHorseIds.length) {

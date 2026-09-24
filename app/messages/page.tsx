@@ -247,6 +247,16 @@ export default function MessagesPage() {
     }
 
     const base = (data ?? []) as ThreadRow[];
+    base.sort((a, b) => {
+      const unreadA = Number(a.unread_count ?? 0) > 0 ? 1 : 0;
+      const unreadB = Number(b.unread_count ?? 0) > 0 ? 1 : 0;
+      if (unreadA !== unreadB) return unreadB - unreadA;
+
+      const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      return timeB - timeA;
+    });
+
     if (!uid || base.length === 0) {
       setThreads(
         base.map((t) => ({

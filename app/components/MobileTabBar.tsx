@@ -42,29 +42,18 @@ export default function MobileTabBar() {
           return;
         }
 
-        const { data: myHorses } = await supabase.from("horses").select("id").eq("owner_id", uid);
-        const horseIds = (myHorses ?? []).map((h: any) => h.id).filter(Boolean);
-        const [borrowerReqs, ownerReqs] = await Promise.all([
-          supabase.from("borrow_requests").select("id").eq("borrower_id", uid),
-          horseIds.length
-            ? supabase.from("borrow_requests").select("id").in("horse_id", horseIds)
-            : Promise.resolve({ data: [], error: null } as any),
-        ]);
+        const { data: threadRows, error: threadErr } = await supabase
+          .from("message_threads")
+          .select("request_id, unread_count");
 
-        const requestIds = Array.from(new Set([...(borrowerReqs.data ?? []), ...(ownerReqs.data ?? [])].map((r: any) => r.id).filter(Boolean)));
-        if (!requestIds.length) {
-          if (mounted) setUnreadMessages(0);
-          return;
-        }
+        if (threadErr) throw threadErr;
 
-        const { count } = await supabase
-          .from("messages")
-          .select("id", { count: "exact", head: true })
-          .in("request_id", requestIds)
-          .neq("sender_id", uid)
-          .is("read_at", null);
+        const unread = (threadRows ?? []).reduce(
+          (sum: number, row: any) => sum + Math.max(0, Number(row.unread_count ?? 0)),
+          0
+        );
 
-        if (mounted) setUnreadMessages(count ?? 0);
+        if (mounted) setUnreadMessages(unread);
       } catch {
         if (mounted) setUnreadMessages(0);
       }
