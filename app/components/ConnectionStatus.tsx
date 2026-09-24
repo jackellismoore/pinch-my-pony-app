@@ -8,6 +8,7 @@ type ConnectionState = "reconnecting" | "connected" | "lost" | "restored";
 const VISIBLE_MS = 1600;
 const CHECK_TIMEOUT_MS = 6000;
 const RETRY_DELAY_MS = 2500;
+let currentConnectionState: ConnectionState = "reconnecting";
 
 export default function ConnectionStatus() {
   const [state, setState] = useState<ConnectionState | null>(null);
@@ -29,11 +30,11 @@ export default function ConnectionStatus() {
       setState(next);
       setVisible(true);
 
-      if (next === "connected" || next === "restored") {
+      if (next === "connected" || next === "restored" || next === "lost") {
         hideTimer.current = setTimeout(() => {
           setVisible(false);
           setState(null);
-        }, VISIBLE_MS);
+        }, next === "lost" ? LOSS_VISIBLE_MS : VISIBLE_MS);
       }
     },
     [clearHideTimer]
