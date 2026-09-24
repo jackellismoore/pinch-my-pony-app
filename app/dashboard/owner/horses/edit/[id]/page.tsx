@@ -233,7 +233,7 @@ export default function EditHorsePage() {
     };
   }, [id]);
 
-  const canSave = useMemo(() => !saving && !uploadingImage && Boolean(name.trim() && location.trim() && lat.trim() && lng.trim() && breed.trim() && age.trim() && height.trim() && temperament.trim() && description.trim() && imageUrl.trim()), [saving, uploadingImage, name, location, lat, lng, breed, age, height, temperament, description, imageUrls]);
+  const canSave = useMemo(() => !saving && !uploadingImage && Boolean(name.trim() && location.trim() && lat.trim() && lng.trim() && breed.trim() && age.trim() && height.trim() && temperament.trim() && description.trim() && imageUrls.length > 0), [saving, uploadingImage, name, location, lat, lng, breed, age, height, temperament, description, imageUrls]);
 
   async function uploadImages(files: File[]) {
     if (!id || !files.length) return;
