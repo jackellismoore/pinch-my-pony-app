@@ -16,6 +16,7 @@ type HorseRow = {
   lat: any;
   lng: any;
   image_url: any;
+  image_urls?: string[] | null;
   breed: any;
   age: any;
   height: any;
@@ -180,7 +181,7 @@ export default function EditHorsePage() {
   const [height, setHeight] = useState("");
   const [temperament, setTemperament] = useState("");
   const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -234,7 +235,7 @@ export default function EditHorsePage() {
 
   const canSave = useMemo(() => !saving && !uploadingImage && Boolean(name.trim() && location.trim() && lat.trim() && lng.trim() && breed.trim() && age.trim() && height.trim() && temperament.trim() && description.trim() && imageUrl.trim()), [saving, uploadingImage, name, location, lat, lng, breed, age, height, temperament, description, imageUrl]);
 
-  async function uploadImage(file: File) {
+  async function uploadImages(files: File[]) {
     if (!id) return;
     setError(null);
 
@@ -471,11 +472,16 @@ export default function EditHorsePage() {
 
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
               onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                if (file) {
-                  void uploadImage(file);
+                const files = Array.from(e.target.files ?? []);
+                if (imageUrls.length + files.length > 5) {
+                  setError("You can have a maximum of 5 photos.");
+                  return;
+                }
+                if (files.length) {
+                  void uploadImages(files);
                 }
                 e.currentTarget.value = "";
               }}
@@ -483,7 +489,7 @@ export default function EditHorsePage() {
               disabled={uploadingImage}
             />
 
-            {imageUrl ? (
+            {imageUrls.length ? (
               <div
                 style={{
                   width: 140,
@@ -495,7 +501,7 @@ export default function EditHorsePage() {
                 }}
               >
                 <img
-                  src={imageUrl}
+                  src={imageUrls[0]}
                   alt="Horse"
                   style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
@@ -505,8 +511,8 @@ export default function EditHorsePage() {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
                 type="button"
-                onClick={() => setImageUrl("")}
-                disabled={!imageUrl || uploadingImage}
+                onClick={() => setImageUrls([])}
+                disabled={!imageUrls.length || uploadingImage}
                 style={{
                   border: "1px solid rgba(0,0,0,0.14)",
                   background: "white",
