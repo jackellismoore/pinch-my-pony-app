@@ -200,7 +200,7 @@ export default function EditHorsePage() {
       try {
         const { data, error } = await supabase
           .from("horses")
-          .select("id,owner_id,name,location,lat,lng,image_url,breed,age,height,height_hh,temperament,description,is_active")
+          .select("id,owner_id,name,location,lat,lng,image_url,image_urls,breed,age,height,height_hh,temperament,description,is_active")
           .eq("id", id)
           .single();
 
@@ -213,7 +213,7 @@ export default function EditHorsePage() {
         setLocation(asString(h.location));
         setLat(h.lat == null ? "" : String(h.lat));
         setLng(h.lng == null ? "" : String(h.lng));
-        setImageUrl(asString(h.image_url));
+        setImageUrls(Array.from(new Set([...(h.image_urls ?? []), ...(h.image_url ? [h.image_url] : [])])).filter(Boolean).slice(0, 5));
         setBreed(normalizeBreed(asString(h.breed)));
         setAge(asString(h.age));
         setHeight(asString(h.height_hh ?? h.height));
@@ -233,7 +233,7 @@ export default function EditHorsePage() {
     };
   }, [id]);
 
-  const canSave = useMemo(() => !saving && !uploadingImage && Boolean(name.trim() && location.trim() && lat.trim() && lng.trim() && breed.trim() && age.trim() && height.trim() && temperament.trim() && description.trim() && imageUrl.trim()), [saving, uploadingImage, name, location, lat, lng, breed, age, height, temperament, description, imageUrl]);
+  const canSave = useMemo(() => !saving && !uploadingImage && Boolean(name.trim() && location.trim() && lat.trim() && lng.trim() && breed.trim() && age.trim() && height.trim() && temperament.trim() && description.trim() && imageUrl.trim()), [saving, uploadingImage, name, location, lat, lng, breed, age, height, temperament, description, imageUrls]);
 
   async function uploadImages(files: File[]) {
     if (!id || !files.length) return;
@@ -290,12 +290,13 @@ export default function EditHorsePage() {
         location: location.trim() || null,
         lat: latNum,
         lng: lngNum,
-        image_url: imageUrl.trim() || null,
         breed: breed.trim() || null,
         age: age.trim() || null,
         height_hh: heightNum,
         temperament: temperament.trim() || null,
         description: description.trim() || null,
+        image_url: imageUrls[0] ?? null,
+        image_urls: imageUrls,
         is_active: isActive,
       };
 
@@ -513,8 +514,8 @@ export default function EditHorsePage() {
                   borderRadius: 12,
                   fontSize: 13,
                   fontWeight: 900,
-                  cursor: !imageUrl || uploadingImage ? "not-allowed" : "pointer",
-                  opacity: !imageUrl || uploadingImage ? 0.6 : 1,
+                  cursor: !imageUrls.length || uploadingImage ? "not-allowed" : "pointer",
+                  opacity: !imageUrls.length || uploadingImage ? 0.6 : 1,
                 }}
               >
                 Remove image
