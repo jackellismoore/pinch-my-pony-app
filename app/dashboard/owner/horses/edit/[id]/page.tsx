@@ -281,7 +281,7 @@ export default function EditHorsePage() {
       }
 
       const ageNum = Number(age);
-      if (!Number.isInteger(ageNum) || ageNum < 0 || ageNum > 100) throw new Error("Age must be a whole number between 0 and 100");
+      if (!Number.isInteger(ageNum) || ageNum < 0 || ageNum > 99) throw new Error("Age must be a whole number between 0 and 99");
       const heightNum = parseHorseHeight(height);
       if (heightNum == null) throw new Error("Please enter a valid horse height");
 
@@ -430,7 +430,7 @@ export default function EditHorsePage() {
               </select>
             </Field>
             <Field label="Age *">
-              <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} />
+              <input value={age} onChange={(e) => setAge(e.target.value)} placeholder="Age" style={input()} type="number" min={0} max={99} inputMode="numeric" />
             </Field>
           </div>
 
