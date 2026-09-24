@@ -12,7 +12,15 @@ const FADE_OUT_MS = 450;
 const CHECK_TIMEOUT_MS = 6000;
 const RETRY_DELAY_MS = 2500;
 
-let currentConnectionState: ConnectionState = "reconnecting";
+let currentConnectionState: ConnectionState = "connected";
+
+function isNativeApp() {
+  if (typeof window === "undefined") return false;
+  const capacitor = (window as Window & {
+    Capacitor?: { isNativePlatform?: () => boolean };
+  }).Capacitor;
+  return capacitor?.isNativePlatform?.() === true;
+}
 
 export function ConnectionIndicator() {
   const [state, setState] = useState<ConnectionState>(currentConnectionState);
@@ -91,9 +99,7 @@ export default function ConnectionStatus() {
       clearHideTimer();
       setFadingOut(false);
       currentConnectionState = next;
-      window.dispatchEvent(
-        new CustomEvent("pmp:connection-state", { detail: next })
-      );
+      window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: next }));
       setState(next);
       setVisible(true);
 
@@ -139,7 +145,11 @@ export default function ConnectionStatus() {
       const timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
 
       try {
-        const { error } = await supabase.from("horses").select("id").limit(1).abortSignal(controller.signal);
+        const { error } = await supabase
+          .from("horses")
+          .select("id")
+          .limit(1)
+          .abortSignal(controller.signal);
         if (error) throw error;
 
         const wasConnected = hadConnection.current;
@@ -163,16 +173,39 @@ export default function ConnectionStatus() {
   );
 
   useEffect(() => {
-    void checkConnection(true);
+    const native = isNativeApp();
 
-    const onOnline = () => void checkConnection(false);
+    // The web app already makes its own Supabase requests. A global database
+    // health probe can contend with browser auth/storage startup and make the
+    // whole web shell appear stuck on "Connecting". Keep the probe for the
+    // native shell, but let the web app rely on browser online/offline state.
+    if (native) {
+      void checkConnection(true);
+    } else {
+      hadConnection.current = navigator.onLine;
+      if (!navigator.onLine) showTransient("lost");
+    }
+
+    const onOnline = () => {
+      if (native) {
+        void checkConnection(false);
+      } else {
+        hadConnection.current = true;
+        showTransient("restored");
+      }
+    };
+
     const onOffline = () => {
       hadConnection.current = false;
       showTransient("lost");
     };
-    const onResume = () => void checkConnection(false);
+
+    const onResume = () => {
+      if (native) void checkConnection(false);
+    };
+
     const onVisibility = () => {
-      if (document.visibilityState === "visible") onResume();
+      if (document.visibilityState === "visible" && native) onResume();
     };
 
     window.addEventListener("online", onOnline);
