@@ -5,7 +5,7 @@ export type IconName =
   | "compass" | "shield" | "lock" | "mail" | "document" | "receipt"
   | "search" | "check" | "warning" | "credit-card" | "camera" | "pin"
   | "id-card" | "sparkles" | "arrow-left" | "arrow-right" | "close"
-  | "heart" | "settings" | "bell" | "plus" | "horseshoe" | "star";
+  | "heart" | "settings" | "bell" | "plus" | "horseshoe" | "star" | "wifi";
 
 type Props = Omit<SVGProps<SVGSVGElement>, "name"> & {
   name: IconName;
@@ -43,6 +43,7 @@ const paths: Record<IconName, ReactNode> = {
   settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></>,
   plus: <path d="M12 5v14M5 12h14"/>,
+  wifi: <><path d="M5 9.5a11 11 0 0 1 14 0"/><path d="M8 13a6.5 6.5 0 0 1 8 0"/><path d="M11 16.5a2 2 0 0 1 2 0"/><path d="M12 20h.01"/></>,
 };
 
 export function Icon({ name, size = 22, decorative = true, style, ...props }: Props) {
