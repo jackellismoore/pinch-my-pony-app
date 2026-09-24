@@ -298,6 +298,7 @@ export default function HorsePublicClient() {
                     {gallery.map((url, index) => (
                       <div
                         key={url}
+                        id={"horse-photo-" + index}
                         style={{
                           minWidth: "100%",
                           position: "relative",
