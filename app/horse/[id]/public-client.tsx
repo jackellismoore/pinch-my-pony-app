@@ -238,7 +238,7 @@ export default function HorsePublicClient() {
           }
 
           .pmp-horsePublic-image {
-            height: 240px !important;
+            height: auto !important;
           }
         }
       `}</style>
@@ -303,6 +303,8 @@ export default function HorsePublicClient() {
                           minWidth: "100%",
                           position: "relative",
                           scrollSnapAlign: "start",
+                          aspectRatio: "4 / 3",
+                          background: "rgba(15,23,42,0.04)",
                         }}
                       >
                         <img
@@ -311,8 +313,8 @@ export default function HorsePublicClient() {
                           className="pmp-horsePublic-image"
                           style={{
                             width: "100%",
-                            height: 360,
-                            objectFit: "cover",
+                            height: "100%",
+                            objectFit: "contain",
                             display: "block",
                           }}
                         />
