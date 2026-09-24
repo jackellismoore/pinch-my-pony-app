@@ -1,29 +1,92 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
-function getInitialOfflineState() {
+type GuardState = "checking" | "offline" | "online";
+
+function isNativeApp() {
   if (typeof window === "undefined") return false;
-  return navigator.onLine === false;
+  const capacitor = (window as Window & {
+    Capacitor?: { isNativePlatform?: () => boolean };
+  }).Capacitor;
+  return capacitor?.isNativePlatform?.() === true;
 }
 
 export default function OfflineGuard({ children }: { children: ReactNode }) {
-  const [offline, setOffline] = useState(getInitialOfflineState);
+  const native = isNativeApp();
+  const [state, setState] = useState<GuardState>(() => {
+    if (typeof window === "undefined") return "checking";
+    // Native WebViews can report navigator.onLine as true even when there is
+    // no usable internet connection, so verify connectivity before rendering
+    // the app on launch. Web keeps the normal fast path when the browser knows
+    // it is online.
+    if (native) return "checking";
+    return navigator.onLine ? "online" : "offline";
+  });
+
+  const checkConnection = useCallback(async () => {
+    if (typeof window === "undefined") return false;
+
+    setState("checking");
+
+    if (!navigator.onLine && !native) {
+      setState("offline");
+      return false;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const { error } = await supabase
+        .from("horses")
+        .select("id")
+        .limit(1)
+        .abortSignal(controller.signal);
+
+      if (error) throw error;
+
+      setState("online");
+      return true;
+    } catch {
+      setState("offline");
+      return false;
+    } finally {
+      window.clearTimeout(timeout);
+      controller.abort();
+    }
+  }, [native]);
 
   useEffect(() => {
-    const onOffline = () => setOffline(true);
-    const onOnline = () => setOffline(false);
+    let cancelled = false;
 
-    window.addEventListener("offline", onOffline);
-    window.addEventListener("online", onOnline);
+    const handleOffline = () => setState("offline");
+    const handleOnline = () => {
+      if (!cancelled) void checkConnection();
+    };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+
+    // Native launch is verified against the actual Supabase connection.
+    // Web only probes at startup when navigator reports offline.
+    if (native) {
+      void checkConnection();
+    } else if (!navigator.onLine) {
+      void checkConnection();
+    }
 
     return () => {
-      window.removeEventListener("offline", onOffline);
-      window.removeEventListener("online", onOnline);
+      cancelled = true;
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
     };
-  }, []);
+  }, [checkConnection, native]);
 
-  if (!offline) return <>{children}</>;
+  if (state === "online") return <>{children}</>;
+
+  const checking = state === "checking";
 
   return (
     <main
@@ -81,52 +144,53 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
             borderRadius: 16,
             display: "grid",
             placeItems: "center",
-            background: "rgba(217,119,6,0.10)",
-            border: "1px solid rgba(217,119,6,0.18)",
-            color: "#B45309",
+            background: checking ? "rgba(217,119,6,0.10)" : "rgba(185,28,28,0.08)",
+            border: checking ? "1px solid rgba(217,119,6,0.18)" : "1px solid rgba(185,28,28,0.15)",
+            color: checking ? "#B45309" : "#991B1B",
             fontSize: 22,
             fontWeight: 900,
           }}
           aria-hidden="true"
         >
-          ⌁
+          {checking ? "…" : "⌁"}
         </div>
 
         <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.15, letterSpacing: -0.4 }}>
-          You&apos;re offline
+          {checking ? "Checking your connection" : "You’re offline"}
         </h1>
 
         <p style={{ margin: "12px auto 0", maxWidth: 340, fontSize: 15, lineHeight: 1.65, opacity: 0.76 }}>
-          It looks like your internet connection has dropped. Pinch My Pony needs a connection to load your account and listings.
+          {checking
+            ? "Just a moment — we’re checking that Pinch My Pony can reach the service."
+            : "It looks like your internet connection has dropped. Pinch My Pony needs a connection to load your account and listings."}
         </p>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (navigator.onLine) {
-              setOffline(false);
-              window.location.reload();
-            }
-          }}
-          style={{
-            width: "100%",
-            minHeight: 48,
-            marginTop: 24,
-            border: 0,
-            borderRadius: 15,
-            background: "linear-gradient(180deg, #1F3D2B, #173223)",
-            color: "white",
-            fontWeight: 900,
-            fontSize: 15,
-            cursor: "pointer",
-            boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
-          }}
-        >
-          Try again
-        </button>
+        {!checking && (
+          <button
+            type="button"
+            onClick={() => void checkConnection()}
+            style={{
+              width: "100%",
+              minHeight: 48,
+              marginTop: 24,
+              border: 0,
+              borderRadius: 15,
+              background: "linear-gradient(180deg, #1F3D2B, #173223)",
+              color: "white",
+              fontWeight: 900,
+              fontSize: 15,
+              cursor: "pointer",
+              boxShadow: "0 14px 34px rgba(31,61,43,0.18)",
+            }}
+          >
+            Try again
+          </button>
+        )}
 
         <p style={{ margin: "14px 0 0", fontSize: 12, lineHeight: 1.5, opacity: 0.58 }}>
-          We&apos;ll automatically reconnect when your connection returns.
+          {checking
+            ? "If the connection is unavailable, you’ll stay on this screen."
+            : "We’ll automatically reconnect when your connection returns."}
         </p>
       </section>
     </main>
