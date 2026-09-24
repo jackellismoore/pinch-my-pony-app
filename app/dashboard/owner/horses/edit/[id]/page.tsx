@@ -26,6 +26,20 @@ type HorseRow = {
   is_active: any;
 };
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg","image/jpg","image/png","image/webp"]);
+function validateHorseImage(file: File) {
+  const mime = (file.type || "").toLowerCase();
+  const extOk = /\.(jpe?g|png|webp)$/i.test(file.name);
+  if (!ALLOWED_IMAGE_TYPES.has(mime) && !extOk) throw new Error("Please choose JPG, PNG, or WebP images.");
+  if (file.size > MAX_IMAGE_BYTES) throw new Error("Each horse photo must be 5MB or smaller.");
+}
+function storagePathFromPublicUrl(url: string) {
+  const marker = "/storage/v1/object/public/horses/";
+  const i = url.indexOf(marker);
+  return i >= 0 ? decodeURIComponent(url.slice(i + marker.length)) : null;
+}
+
 const BREED_OPTIONS = [
   "Arabian",
   "Cob",
@@ -182,6 +196,7 @@ export default function EditHorsePage() {
   const [temperament, setTemperament] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [originalImageUrls, setOriginalImageUrls] = useState<string[]>([]);
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -213,7 +228,9 @@ export default function EditHorsePage() {
         setLocation(asString(h.location));
         setLat(h.lat == null ? "" : String(h.lat));
         setLng(h.lng == null ? "" : String(h.lng));
-        setImageUrls(Array.from(new Set([...(h.image_urls ?? []), ...(h.image_url ? [h.image_url] : [])])).filter(Boolean).slice(0, 5));
+        const loadedImages = Array.from(new Set([...(h.image_urls ?? []), ...(h.image_url ? [h.image_url] : [])])).filter(Boolean).slice(0, 5);
+        setImageUrls(loadedImages);
+        setOriginalImageUrls(loadedImages);
         setBreed(normalizeBreed(asString(h.breed)));
         setAge(asString(h.age));
         setHeight(asString(h.height_hh ?? h.height));
@@ -245,7 +262,8 @@ export default function EditHorsePage() {
       if (!user) throw new Error("Not authenticated");
       const next: string[] = [];
       for (const file of files.slice(0, 5)) {
-        const ext = file.name.split(".").pop() || "jpg";
+        validateHorseImage(file);
+        const ext = file.name.toLowerCase().match(/\.(jpe?g|png|webp)$/)?.[1] || "jpg";
         const path = user.id + "/" + crypto.randomUUID() + "." + ext;
         const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
           cacheControl: "3600",
@@ -303,6 +321,11 @@ export default function EditHorsePage() {
       const { error } = await supabase.from("horses").update(payload).eq("id", id);
       if (error) throw error;
 
+      const removed = originalImageUrls.filter((url) => !imageUrls.includes(url));
+      const removedPaths = removed.map(storagePathFromPublicUrl).filter((v): v is string => Boolean(v));
+      if (removedPaths.length) await supabase.storage.from(STORAGE_BUCKET).remove(removedPaths).catch(() => {});
+      setOriginalImageUrls(imageUrls);
+
       router.push("/dashboard/owner/horses");
       router.refresh();
     } catch (e: any) {
@@ -320,6 +343,9 @@ export default function EditHorsePage() {
       setDeleting(true);
       const { error } = await supabase.from("horses").delete().eq("id", id);
       if (error) throw error;
+
+      const paths = imageUrls.map(storagePathFromPublicUrl).filter((v): v is string => Boolean(v));
+      if (paths.length) await supabase.storage.from(STORAGE_BUCKET).remove(paths).catch(() => {});
 
       router.push("/dashboard/owner/horses");
       router.refresh();
