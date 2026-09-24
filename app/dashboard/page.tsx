@@ -15,7 +15,7 @@ type ProfileSetup={display_name:string|null;avatar_url:string|null;location:stri
 type BlockRow={id:string;horse_id:string;start_date:string;end_date:string;reason:string|null};
 type BookingRow={id:string;horse_id:string;start_date:string;end_date:string};
 type UnifiedRange={kind:'blocked'|'booking';horseId:string;startDate:string;endDate:string;label:string;sourceId:string};
-function todayISODate(){return new Date().toISOString().slice(0,10)}
+function todayISODate(){const now=new Date();const y=now.getFullYear();const m=String(now.getMonth()+1).padStart(2,'0');const d=String(now.getDate()).padStart(2,'0');return `${y}-${m}-${d}`}
 
 export default function DashboardOverview(){
  const[loading,setLoading]=useState(true);const[error,setError]=useState<string|null>(null);const[horses,setHorses]=useState<HorseRow[]>([]);const[ranges,setRanges]=useState<UnifiedRange[]>([]);const[profileSetup,setProfileSetup]=useState<ProfileSetup|null>(null);const[pendingRequests,setPendingRequests]=useState(0);
