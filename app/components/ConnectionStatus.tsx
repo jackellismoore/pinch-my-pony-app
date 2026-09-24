@@ -2,13 +2,70 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { Icon } from "@/components/Icon";
 
 type ConnectionState = "reconnecting" | "connected" | "lost" | "restored";
 
-const VISIBLE_MS = 1600;
+const VISIBLE_MS = 2200;
+const LOSS_VISIBLE_MS = 4000;
 const CHECK_TIMEOUT_MS = 6000;
 const RETRY_DELAY_MS = 2500;
+
 let currentConnectionState: ConnectionState = "reconnecting";
+
+export function ConnectionIndicator() {
+  const [state, setState] = useState<ConnectionState>(currentConnectionState);
+
+  useEffect(() => {
+    const onState = (event: Event) => {
+      const next = (event as CustomEvent<ConnectionState>).detail;
+      if (next) setState(next);
+    };
+    window.addEventListener("pmp:connection-state", onState);
+    return () => window.removeEventListener("pmp:connection-state", onState);
+  }, []);
+
+  const tone =
+    state === "lost" ? "#B91C1C" : state === "reconnecting" ? "#D97706" : "#15803D";
+  const label =
+    state === "lost"
+      ? "Connection lost"
+      : state === "reconnecting"
+        ? "Connecting to Pinch My Pony"
+        : "Connected to Pinch My Pony";
+
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      role="status"
+      style={{
+        width: 26,
+        height: 26,
+        borderRadius: 999,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: tone,
+        background: "rgba(15,23,42,0.05)",
+        flexShrink: 0,
+      }}
+    >
+      <Icon
+        name="wifi"
+        size={16}
+        decorative={false}
+        style={{
+          color: tone,
+          animation:
+            state === "reconnecting"
+              ? "pmp-connection-pulse 1.2s ease-in-out infinite"
+              : undefined,
+        }}
+      />
+    </span>
+  );
+}
 
 export default function ConnectionStatus() {
   const [state, setState] = useState<ConnectionState | null>(null);
@@ -27,14 +84,25 @@ export default function ConnectionStatus() {
   const showTransient = useCallback(
     (next: ConnectionState) => {
       clearHideTimer();
+      currentConnectionState = next;
+      window.dispatchEvent(
+        new CustomEvent("pmp:connection-state", { detail: next })
+      );
       setState(next);
       setVisible(true);
 
-      if (next === "connected" || next === "restored" || next === "lost") {
+      const duration =
+        next === "lost"
+          ? LOSS_VISIBLE_MS
+          : next === "reconnecting"
+            ? undefined
+            : VISIBLE_MS;
+
+      if (duration) {
         hideTimer.current = setTimeout(() => {
           setVisible(false);
           setState(null);
-        }, next === "lost" ? LOSS_VISIBLE_MS : VISIBLE_MS);
+        }, duration);
       }
     },
     [clearHideTimer]
@@ -75,6 +143,7 @@ export default function ConnectionStatus() {
           setTimeout(() => void checkConnection(false), RETRY_DELAY_MS);
         }
       } finally {
+        controller.abort();
         clearTimeout(timeout);
         checking.current = false;
       }
@@ -121,34 +190,48 @@ export default function ConnectionStatus() {
           : "Connection to Pinch My Pony lost";
 
   const isPositive = state === "connected" || state === "restored";
+  const isConnecting = state === "reconnecting";
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      style={{
-        position: "fixed",
-        top: "calc(env(safe-area-inset-top, 0px) + 10px)",
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 10000,
-        maxWidth: "calc(100vw - 24px)",
-        padding: "9px 14px",
-        borderRadius: 999,
-        border: isPositive
-          ? "1px solid rgba(31,61,43,0.22)"
-          : "1px solid rgba(185,28,28,0.20)",
-        background: isPositive ? "rgba(238,248,242,0.96)" : "rgba(255,247,247,0.97)",
-        color: isPositive ? "#1F3D2B" : "#991B1B",
-        boxShadow: "0 10px 28px rgba(15,23,42,0.14)",
-        fontSize: 12,
-        fontWeight: 900,
-        whiteSpace: "nowrap",
-        pointerEvents: "none",
-        backdropFilter: "blur(12px)",
-      }}
-    >
-      {copy}
-    </div>
+    <>
+      <style>{`@keyframes pmp-connection-pulse{0%,100%{opacity:.55}50%{opacity:1}}`}</style>
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          position: "fixed",
+          top: "calc(env(safe-area-inset-top, 0px) + 10px)",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 10000,
+          maxWidth: "calc(100vw - 24px)",
+          padding: "9px 14px",
+          borderRadius: 999,
+          border: isPositive
+            ? "1px solid rgba(31,61,43,0.22)"
+            : isConnecting
+              ? "1px solid rgba(217,119,6,0.24)"
+              : "1px solid rgba(185,28,28,0.20)",
+          background: isPositive
+            ? "rgba(238,248,242,0.96)"
+            : isConnecting
+              ? "rgba(255,249,235,0.97)"
+              : "rgba(255,247,247,0.97)",
+          color: isPositive
+            ? "#1F3D2B"
+            : isConnecting
+              ? "#B45309"
+              : "#991B1B",
+          boxShadow: "0 10px 28px rgba(15,23,42,0.14)",
+          fontSize: 12,
+          fontWeight: 900,
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        {copy}
+      </div>
+    </>
   );
 }
