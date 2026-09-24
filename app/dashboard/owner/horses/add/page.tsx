@@ -226,7 +226,7 @@ export default function AddHorsePage() {
       if (heightNum == null) throw new Error("Please enter a valid horse height.");
 
       const priceNum = pricePerDay.trim() ? Number(pricePerDay) : null;
-      if (pricePerDay.trim() && (!Number.isFinite(priceNum) || priceNum < 0)) throw new Error("Price per day must be a valid non-negative number.");
+      if (pricePerDay.trim() && (priceNum === null || !Number.isFinite(priceNum) || priceNum < 0)) throw new Error("Price per day must be a valid non-negative number.");
 
       const imageUrls = await uploadImages(user.id, imageFiles);
 
