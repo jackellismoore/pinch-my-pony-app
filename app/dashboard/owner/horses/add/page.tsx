@@ -15,6 +15,19 @@ const palette = {
 };
 
 const STORAGE_BUCKET = "horses";
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg","image/jpg","image/png","image/webp"]);
+function validateHorseImage(file: File) {
+  const mime = (file.type || "").toLowerCase();
+  const extOk = /\.(jpe?g|png|webp)$/i.test(file.name);
+  if (!ALLOWED_IMAGE_TYPES.has(mime) && !extOk) throw new Error("Please choose JPG, PNG, or WebP images.");
+  if (file.size > MAX_IMAGE_BYTES) throw new Error("Each horse photo must be 5MB or smaller.");
+}
+function storagePathFromPublicUrl(url: string) {
+  const marker = "/storage/v1/object/public/" + STORAGE_BUCKET + "/";
+  const i = url.indexOf(marker);
+  return i >= 0 ? decodeURIComponent(url.slice(i + marker.length)) : null;
+}
 
 const BREED_OPTIONS = [
   "Arabian",
@@ -162,19 +175,27 @@ export default function AddHorsePage() {
 
   async function uploadImages(userId: string, files: File[]) {
     const urls: string[] = [];
-    for (const file of files.slice(0, 5)) {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${userId}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-      if (upErr) throw upErr;
-      const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-      if (!data?.publicUrl) throw new Error("Failed to get public image URL");
-      urls.push(data.publicUrl);
+    const uploadedPaths: string[] = [];
+    try {
+      for (const file of files.slice(0, 5)) {
+        validateHorseImage(file);
+        const ext = file.name.toLowerCase().match(/\.(jpe?g|png|webp)$/)?.[1] || "jpg";
+        const path = userId + "/" + crypto.randomUUID() + "." + ext;
+        const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+        if (upErr) throw upErr;
+        uploadedPaths.push(path);
+        const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        if (!data?.publicUrl) throw new Error("Failed to get public image URL");
+        urls.push(data.publicUrl);
+      }
+      return urls;
+    } catch (error) {
+      if (uploadedPaths.length) await supabase.storage.from(STORAGE_BUCKET).remove(uploadedPaths).catch(() => {});
+      throw error;
     }
-    return urls;
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -205,7 +226,7 @@ export default function AddHorsePage() {
       if (heightNum == null) throw new Error("Please enter a valid horse height.");
 
       const priceNum = pricePerDay.trim() ? Number(pricePerDay) : null;
-      if (pricePerDay.trim() && Number.isNaN(priceNum)) throw new Error("Price per day must be a number.");
+      if (pricePerDay.trim() && (!Number.isFinite(priceNum) || priceNum < 0)) throw new Error("Price per day must be a valid non-negative number.");
 
       const imageUrls = await uploadImages(user.id, imageFiles);
 
@@ -230,7 +251,7 @@ export default function AddHorsePage() {
         photo_url: null,
       });
 
-      if (insErr) throw insErr;
+      if (insErr) {\n        const paths = imageUrls.map(storagePathFromPublicUrl).filter((v): v is string => Boolean(v));\n        if (paths.length) await supabase.storage.from(STORAGE_BUCKET).remove(paths).catch(() => {});\n        throw insErr;\n      }
 
       router.push("/dashboard/owner/horses");
       router.refresh();
