@@ -229,39 +229,68 @@ export default function ProfilePage() {
   const missingItems = useMemo(() => checklist.filter((item) => !item.done), [checklist]);
 
   async function tryUpdate(payload: Record<string, any>) {
+    // Profiles are created during account creation, so profile editing must
+    // update the existing row rather than using upsert. Upsert can fall back
+    // to INSERT when the row is not visible to PostgREST, which would omit
+    // the server-managed, non-null legacy role column.
     const attempt1 = await supabase
       .from("profiles")
-      .upsert({ id: userId as string, ...payload }, { onConflict: "id" });
+      .update(payload)
+      .eq("id", userId as string)
+      .select("id")
+      .maybeSingle();
 
-    if (!attempt1.error) return { ok: true as const, warn: null as string | null };
-
-    const msg = attempt1.error.message || "";
-    const looksLikeMissingColumn =
-      msg.toLowerCase().includes("column") && msg.toLowerCase().includes("does not exist");
-
-    if (!looksLikeMissingColumn) {
-      return { ok: false as const, warn: null as string | null, error: attempt1.error };
+    if (!attempt1.error && attempt1.data) {
+      return { ok: true as const, warn: null as string | null };
     }
 
-    const coreOnly: Record<string, any> = {
-      full_name: payload.full_name,
-      display_name: payload.display_name,
-      avatar_url: payload.avatar_url,
-      location: payload.location,
-      age: payload.age,
-      bio: payload.bio,
-    };
+    if (attempt1.error) {
+      const msg = attempt1.error.message || "";
+      const looksLikeMissingColumn =
+        msg.toLowerCase().includes("column") && msg.toLowerCase().includes("does not exist");
 
-    const attempt2 = await supabase
-      .from("profiles")
-      .upsert({ id: userId as string, ...coreOnly }, { onConflict: "id" });
-    if (attempt2.error) {
-      return { ok: false as const, warn: null as string | null, error: attempt2.error };
+      if (!looksLikeMissingColumn) {
+        return { ok: false as const, warn: null as string | null, error: attempt1.error };
+      }
+
+      const coreOnly: Record<string, any> = {
+        full_name: payload.full_name,
+        display_name: payload.display_name,
+        avatar_url: payload.avatar_url,
+        location: payload.location,
+        age: payload.age,
+        bio: payload.bio,
+      };
+
+      const attempt2 = await supabase
+        .from("profiles")
+        .update(coreOnly)
+        .eq("id", userId as string)
+        .select("id")
+        .maybeSingle();
+
+      if (attempt2.error) {
+        return { ok: false as const, warn: null as string | null, error: attempt2.error };
+      }
+
+      if (!attempt2.data) {
+        return {
+          ok: false as const,
+          warn: null as string | null,
+          error: new Error("Your profile could not be found. Please sign out and sign in again."),
+        };
+      }
+
+      return {
+        ok: true as const,
+        warn: "Saved core fields. Optional fields may not all exist in your profiles table yet.",
+      };
     }
 
     return {
-      ok: true as const,
-      warn: "Saved core fields. Optional fields may not all exist in your profiles table yet.",
+      ok: false as const,
+      warn: null as string | null,
+      error: new Error("Your profile could not be found. Please sign out and sign in again."),
     };
   }
 
