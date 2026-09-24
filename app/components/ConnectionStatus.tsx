@@ -40,20 +40,23 @@ export function ConnectionIndicator() {
       aria-label={label}
       role="status"
       style={{
-        width: 26,
-        height: 26,
-        borderRadius: 999,
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        border: "1px solid rgba(15,23,42,0.12)",
+        background: "white",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
         color: tone,
-        background: "rgba(15,23,42,0.05)",
         flexShrink: 0,
+        padding: 0,
+        boxSizing: "border-box",
       }}
     >
       <Icon
         name="wifi"
-        size={16}
+        size={18}
         decorative={false}
         style={{
           color: tone,
