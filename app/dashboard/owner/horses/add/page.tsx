@@ -112,8 +112,8 @@ export default function AddHorsePage() {
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,9 +128,9 @@ export default function AddHorsePage() {
     if (!temperament.trim()) missing.push("Temperament");
     if (!description.trim()) missing.push("Description");
     if (!location.trim() || lat == null || lng == null) missing.push("Location");
-    if (!imageFile) missing.push("Photo");
+    if (!imageFiles.length) missing.push("Photo");
     return missing;
-  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFile]);
+  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFiles]);
 
   const fieldStyle = (missing: boolean): React.CSSProperties => ({
     ...input,
@@ -149,36 +149,32 @@ export default function AddHorsePage() {
       location.trim() &&
       lat != null &&
       lng != null &&
-      imageFile &&
+      imageFiles.length > 0 &&
       !submitting
     );
-  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFile, submitting]);
+  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFiles, submitting]);
 
   useEffect(() => {
-    if (!imageFile) {
-      setImagePreviewUrl(null);
-      return;
+    const urls = imageFiles.map((file) => URL.createObjectURL(file));
+    setImagePreviewUrls(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [imageFiles]);
+
+  async function uploadImages(userId: string, files: File[]) {
+    const urls: string[] = [];
+    for (const file of files.slice(0, 5)) {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      if (!data?.publicUrl) throw new Error("Failed to get public image URL");
+      urls.push(data.publicUrl);
     }
-    const url = URL.createObjectURL(imageFile);
-    setImagePreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [imageFile]);
-
-  async function uploadImage(userId: string, file: File) {
-    const ext = file.name.split(".").pop() || "jpg";
-    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
-
-    const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
-      cacheControl: "3600",
-      upsert: false,
-    });
-
-    if (upErr) throw upErr;
-
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-    const publicUrl = data?.publicUrl;
-    if (!publicUrl) throw new Error("Failed to get public image URL");
-    return publicUrl;
+    return urls;
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -186,7 +182,7 @@ export default function AddHorsePage() {
     setError(null);
     setShowValidation(true);
 
-    if (!name.trim() || !breed.trim() || !age.trim() || !heightHh.trim() || !temperament.trim() || !description.trim() || !location.trim() || lat == null || lng == null || !imageFile) {
+    if (!name.trim() || !breed.trim() || !age.trim() || !heightHh.trim() || !temperament.trim() || !description.trim() || !location.trim() || lat == null || lng == null || !imageFiles.length) {
       setError("Please complete all required fields, including a photo and map location.");
       return;
     }
@@ -211,10 +207,7 @@ export default function AddHorsePage() {
       const priceNum = pricePerDay.trim() ? Number(pricePerDay) : null;
       if (pricePerDay.trim() && Number.isNaN(priceNum)) throw new Error("Price per day must be a number.");
 
-      let imageUrl: string | null = null;
-      if (imageFile) {
-        imageUrl = await uploadImage(user.id, imageFile);
-      }
+      const imageUrls = await uploadImages(user.id, imageFiles);
 
       const { error: insErr } = await supabase.from("horses").insert({
         owner_id: user.id,
@@ -232,7 +225,8 @@ export default function AddHorsePage() {
         lng,
         latitude: null,
         longitude: null,
-        image_url: imageUrl,
+        image_url: imageUrls[0] ?? null,
+        image_urls: imageUrls,
         photo_url: null,
       });
 
@@ -373,23 +367,25 @@ export default function AddHorsePage() {
               Image upload *
               <input
                 type="file"
-                accept="image/*"
-                onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 5) {
+                    setError("You can upload a maximum of 5 photos.");
+                    return;
+                  }
+                  setImageFiles(files);
+                }}
                 style={{ fontSize: 13 }}
               />
-              {imagePreviewUrl ? (
-                <img
-                  src={imagePreviewUrl}
-                  alt=""
-                  style={{
-                    marginTop: 10,
-                    width: 140,
-                    height: 140,
-                    objectFit: "cover",
-                    borderRadius: 16,
-                    border: "1px solid rgba(0,0,0,0.10)",
-                  }}
-                />
+              <div style={{ fontSize: 12, opacity: 0.65 }}>Upload 1–5 photos. The first photo is the main listing image.</div>
+              {imagePreviewUrls.length ? (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                  {imagePreviewUrls.map((url, index) => (
+                    <img key={url} src={url} alt={"Horse photo " + (index + 1)} style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 14, border: index === 0 ? "2px solid #1F3D2B" : "1px solid rgba(0,0,0,0.10)" }} />
+                  ))}
+                </div>
               ) : null}
             </label>
 
