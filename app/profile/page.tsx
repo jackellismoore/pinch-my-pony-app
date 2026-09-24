@@ -60,7 +60,21 @@ function isNumberLike(v: any) {
 }
 
 function isAllowedAvatarType(file: File) {
-  return ALLOWED_AVATAR_TYPES.has((file.type || "").toLowerCase());
+  const mime = (file.type || "").toLowerCase();
+  if (ALLOWED_AVATAR_TYPES.has(mime)) return true;
+
+  const name = file.name.toLowerCase();
+  return /\.(jpe?g|png|webp)$/.test(name);
+}
+
+function avatarContentType(file: File) {
+  const mime = (file.type || "").toLowerCase();
+  if (ALLOWED_AVATAR_TYPES.has(mime)) return mime === "image/jpg" ? "image/jpeg" : mime;
+
+  const name = file.name.toLowerCase();
+  if (/\.png$/.test(name)) return "image/png";
+  if (/\.webp$/.test(name)) return "image/webp";
+  return "image/jpeg";
 }
 
 export default function ProfilePage() {
@@ -68,7 +82,7 @@ export default function ProfilePage() {
   const { identityEnabled } = useLaunchFeatures();
 
   const [loading, setLoading] = useState(true);
-  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);\n  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -126,7 +140,7 @@ export default function ProfilePage() {
         setUserId(user.id);
 
         const [profileRes, prefsRes, reviewsRes] = await Promise.all([
-          supabase.from("profiles").select("*").eq("id", user.id).single(),
+          supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
           supabase
             .from("notification_preferences")
             .select(
@@ -214,7 +228,9 @@ export default function ProfilePage() {
   const missingItems = useMemo(() => checklist.filter((item) => !item.done), [checklist]);
 
   async function tryUpdate(payload: Record<string, any>) {
-    const attempt1 = await supabase.from("profiles").update(payload).eq("id", userId as string);
+    const attempt1 = await supabase
+      .from("profiles")
+      .upsert({ id: userId as string, ...payload }, { onConflict: "id" });
 
     if (!attempt1.error) return { ok: true as const, warn: null as string | null };
 
@@ -235,7 +251,9 @@ export default function ProfilePage() {
       bio: payload.bio,
     };
 
-    const attempt2 = await supabase.from("profiles").update(coreOnly).eq("id", userId as string);
+    const attempt2 = await supabase
+      .from("profiles")
+      .upsert({ id: userId as string, ...coreOnly }, { onConflict: "id" });
     if (attempt2.error) {
       return { ok: false as const, warn: null as string | null, error: attempt2.error };
     }
@@ -281,6 +299,12 @@ export default function ProfilePage() {
       return;
     }
 
+    const ageNum = Number(age);
+    if (!Number.isInteger(ageNum) || ageNum < 18 || ageNum > 99) {
+      setError("Age must be a whole number between 18 and 99.");
+      return;
+    }
+
     const payload: Record<string, any> = {
       full_name: safeTrim(fullName),
       display_name: safeTrim(displayName),
@@ -288,7 +312,7 @@ export default function ProfilePage() {
       stable_name: safeTrim(stableName),
       location: safeTrim(location),
       bio: safeTrim(bio),
-      age: Number(age),
+      age: ageNum,
     };
 
     try {
@@ -345,16 +369,17 @@ export default function ProfilePage() {
     }
 
     try {
-      setSavingProfile(true);
+      setUploadingAvatar(true);
 
       const bucket = "avatars";
-      const ext = file.name.includes(".") ? file.name.split(".").pop() : "jpg";
-      const path = `${userId}/${Date.now()}.${ext}`;
+      const contentType = avatarContentType(file);
+      const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+      const path = `${userId}/avatar-${Date.now()}.${ext}`;
 
       const up = await supabase.storage.from(bucket).upload(path, file, {
         cacheControl: "3600",
-        upsert: true,
-        contentType: file.type || "image/jpeg",
+        upsert: false,
+        contentType,
       });
 
       if (up.error) throw up.error;
@@ -363,11 +388,11 @@ export default function ProfilePage() {
       const url = pub.data.publicUrl;
 
       setAvatarUrl(url);
-      setNotice("Avatar uploaded. Click Save changes in Profile details to persist.");
+      setNotice("Photo uploaded. Press “Save profile changes” to save it to your profile.");
     } catch (e: any) {
-      setError(e?.message ?? "Avatar upload failed.");
+      setError(e?.message ?? "Avatar upload failed. Please try another JPG, PNG, or WebP image.");
     } finally {
-      setSavingProfile(false);
+      setUploadingAvatar(false);
     }
   }
 
@@ -806,16 +831,17 @@ export default function ProfilePage() {
                       type="file"
                       accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                       style={{ display: "none" }}
+                      disabled={uploadingAvatar}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
-                        if (f) onUploadAvatar(f);
+                        if (f) void onUploadAvatar(f);
                         e.currentTarget.value = "";
                       }}
                     />
                   </label>
 
                   <div style={{ fontSize: 12, color: "rgba(0,0,0,0.6)" }}>
-                    Placeholder stays until you upload your own image.
+                    {uploadingAvatar ? "Uploading photo…" : "After upload, press Save profile changes to keep it."}
                   </div>
                 </div>
               </div>
@@ -950,7 +976,7 @@ export default function ProfilePage() {
 
             <button
               onClick={onSaveProfile}
-              disabled={savingProfile || deleting || savingPrefs}
+              disabled={savingProfile || uploadingAvatar || deleting || savingPrefs}
               className="pmp-ctaPrimary"
               style={{
                 border: "1px solid rgba(0,0,0,0.14)",
