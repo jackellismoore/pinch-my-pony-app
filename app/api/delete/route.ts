@@ -67,9 +67,28 @@ export async function POST(req: NextRequest) {
       ownedHorseRequests = data ?? [];
     }
 
+    async function removeStorageFolder(bucket: string, folder: string) {
+      const { data: objects, error: listError } = await admin.storage.from(bucket).list(folder, { limit: 1000 });
+      if (listError) throw listError;
+      const paths = (objects ?? []).filter((item) => item.name).map((item) => folder + "/" + item.name);
+      if (paths.length) {
+        const { error: removeError } = await admin.storage.from(bucket).remove(paths);
+        if (removeError) throw removeError;
+      }
+    }
+
     const affectedRequestIds = Array.from(
       new Set([...(borrowedRequests ?? []), ...ownedHorseRequests].map((request) => request.id))
     );
+
+    const storageCleanup = [
+      removeStorageFolder("avatars", userId),
+      removeStorageFolder("horses", userId),
+      removeStorageFolder("horse-photos", userId),
+      removeStorageFolder("horse-images", userId),
+      ...affectedRequestIds.map((requestId) => removeStorageFolder("message-attachments", requestId)),
+    ];
+    for (const operation of storageCleanup) await operation;
 
     const deletions = [
       admin.from("messages").delete().eq("sender_id", userId),
