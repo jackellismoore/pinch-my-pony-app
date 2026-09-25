@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     const user = await requireApiUser(req);
-    const rl = apiRateLimit(`stripe-portal:${user.id}`, 10, 900000);
+    const rl = await apiRateLimit(`stripe-portal:${user.id}`, 10, 900000);
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSeconds);
     const admin = getSupabaseAdmin();
     const { data: profile, error } = await admin
