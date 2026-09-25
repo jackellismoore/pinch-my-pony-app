@@ -11,13 +11,9 @@ export function ConnectionIndicator() {
   const [state, setState] = useState<ConnectionState>(currentConnectionState);
 
   useEffect(() => {
-    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
-    let lastOnline = navigator.onLine;
-
-    const sync = (online: boolean, showRestored = false) => {
-      const next: ConnectionState = online ? "connected" : "lost";
+    const sync = (next: ConnectionState) => {
       currentConnectionState = next;
-      setState(showRestored && online ? "restored" : next);
+      setState(next);
     };
 
     const onState = (event: Event) => {
@@ -28,62 +24,13 @@ export function ConnectionIndicator() {
       }
     };
 
-    const onOnline = () => {
-      lastOnline = true;
-      sync(true, true);
-    };
-
-    const onOffline = () => {
-      lastOnline = false;
-      sync(false);
-    };
-
-    const onResume = () => {
-      if (resumeTimer) clearTimeout(resumeTimer);
-      // Do an immediate sync and repeat shortly afterwards because iOS/WKWebView
-      // can update navigator.onLine a little after the native app resumes.
-      sync(navigator.onLine);
-      resumeTimer = setTimeout(() => {
-        sync(navigator.onLine, navigator.onLine);
-        resumeTimer = null;
-      }, 750);
-    };
-
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") onResume();
-    };
-
-    const poll = () => {
-      const online = navigator.onLine;
-      if (online !== lastOnline) {
-        lastOnline = online;
-        sync(online, online);
-      }
+    const onState = (event: Event) => {
+      const next = (event as CustomEvent<ConnectionState>).detail;
+      if (next) sync(next);
     };
 
     window.addEventListener("pmp:connection-state", onState);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    window.addEventListener("pmp:app-resume", onResume);
-    window.addEventListener("pageshow", onResume);
-    document.addEventListener("visibilitychange", onVisibility);
-
-    // WKWebView/iOS can miss online/offline events, so keep the small indicator
-    // synchronised while the app is in the foreground.
-    const pollTimer = window.setInterval(poll, 1000);
-
-    sync(navigator.onLine);
-
-    return () => {
-      if (resumeTimer) clearTimeout(resumeTimer);
-      window.clearInterval(pollTimer);
-      window.removeEventListener("pmp:connection-state", onState);
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-      window.removeEventListener("pmp:app-resume", onResume);
-      window.removeEventListener("pageshow", onResume);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
+    return () => window.removeEventListener("pmp:connection-state", onState);
   }, []);
 
   const tone = state === "lost" ? "#B91C1C" : state === "connecting" ? "#B45309" : "#15803D";
@@ -129,6 +76,21 @@ export default function ConnectionStatus() {
       }
     };
 
+    let recoveryRun = 0;
+
+    const confirmConnectivity = async () => {
+      // navigator.onLine only tells us that iOS has a network path. Confirm that
+      // the app can actually reach Supabase before declaring the connection restored.
+      try {
+        const { error } = await supabase.auth.getSession();
+        if (error) return false;
+        const { error: probeError } = await supabase.from("profiles").select("id").limit(1);
+        return !probeError;
+      } catch {
+        return false;
+      }
+    };
+
     const showTransient = (next: ConnectionState) => {
       clearHide();
       currentConnectionState = next;
@@ -153,7 +115,30 @@ export default function ConnectionStatus() {
     let resumeTimer: ReturnType<typeof setTimeout> | null = null;
     let suppressOfflineUntil = 0;
 
-    const onOnline = () => showTransient("restored");
+    const recover = async () => {
+      const run = ++recoveryRun;
+      if (!navigator.onLine) {
+        showTransient("lost");
+        return;
+      }
+      suppressOfflineUntil = Date.now() + 3000;
+      currentConnectionState = "connecting";
+      window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connecting" }));
+      setState("connecting");
+      setVisible(true);
+      setFadingOut(false);
+
+      const connected = await confirmConnectivity();
+      if (run !== recoveryRun) return;
+      if (!navigator.onLine || !connected) {
+        showTransient("lost");
+        return;
+      }
+      showTransient("restored");
+      currentConnectionState = "connected";
+    };
+
+    const onOnline = () => { void recover(); };
     const onOffline = () => {
       // iOS WebView can briefly report offline while the app is resuming.
       // If the device is already back online, don't leave the indicator red.
@@ -162,28 +147,10 @@ export default function ConnectionStatus() {
     };
     const onResume = () => {
       if (resumeTimer) clearTimeout(resumeTimer);
-      if (navigator.onLine) {
-        suppressOfflineUntil = Date.now() + 3000;
-        // Restore the banner behaviour used previously: show a short
-        // "Connecting…" state, then a visible "Connection restored" message.
-        currentConnectionState = "connecting";
-        window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connecting" }));
-        setState("connecting");
-        setVisible(true);
-        setFadingOut(false);
-
-        resumeTimer = setTimeout(() => {
-          if (!navigator.onLine) {
-            showTransient("lost");
-            return;
-          }
-          showTransient("restored");
-          currentConnectionState = "connected";
-          resumeTimer = null;
-        }, 700);
-      } else {
-        showTransient("lost");
-      }
+      resumeTimer = setTimeout(() => {
+        void recover();
+        resumeTimer = null;
+      }, 150);
     };
 
     if (!navigator.onLine) showTransient("lost");
