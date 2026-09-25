@@ -36,6 +36,8 @@ test("sensitive API routes have explicit abuse-rate limits", () => {
   const portal = readFileSync(resolve("app/api/stripe/portal/route.ts"), "utf8");
   assert.match(limiter, /status: 429/);
   assert.match(limiter, /retry-after/);
+  assert.match(limiter, /consume_api_rate_limit/);
+  assert.doesNotMatch(limiter, /new Map<string, Bucket>/);
   assert.match(contact, /apiRateLimit/);
   assert.match(identity, /apiRateLimit/);
   assert.match(deletion, /apiRateLimit/);
