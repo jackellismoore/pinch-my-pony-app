@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as Body;
 
     const user = await requireApiUser(req);
-    const rl = apiRateLimit(`stripe-checkout:${user.id}`, 10, 900000);
+    const rl = await apiRateLimit(`stripe-checkout:${user.id}`, 10, 900000);
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSeconds);
     const checkoutEnabled = launchFeatureEnabled(process.env.STRIPE_MEMBERSHIP_CHECKOUT_ENABLED);
     const priceId = process.env.STRIPE_MEMBER_MONTHLY_PRICE_ID?.trim();
