@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { requireApiUser, trustedAppOrigin } from "@/lib/serverAuth";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { apiRateLimit, rateLimitResponse } from "@/lib/apiRateLimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -9,6 +10,8 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     const user = await requireApiUser(req);
+    const rl = apiRateLimit(`stripe-portal:${user.id}`, 10, 900000);
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSeconds);
     const admin = getSupabaseAdmin();
     const { data: profile, error } = await admin
       .from("profiles")
