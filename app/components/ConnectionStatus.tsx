@@ -127,24 +127,21 @@ export default function ConnectionStatus() {
       if (resumeTimer) clearTimeout(resumeTimer);
       if (navigator.onLine) {
         suppressOfflineUntil = Date.now() + 3000;
+        // Restore the banner behaviour used previously: show a short
+        // "Connecting…" state, then a visible "Connection restored" message.
         currentConnectionState = "connecting";
         window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connecting" }));
         setState("connecting");
         setVisible(true);
         setFadingOut(false);
 
-        // Give Supabase/WebView a moment to re-establish its connection,
-        // then synchronise the indicator without requiring a swipe/background cycle.
         resumeTimer = setTimeout(() => {
           if (!navigator.onLine) {
             showTransient("lost");
             return;
           }
+          showTransient("restored");
           currentConnectionState = "connected";
-          window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connected" }));
-          setVisible(false);
-          setState(null);
-          setFadingOut(false);
           resumeTimer = null;
         }, 700);
       } else {
