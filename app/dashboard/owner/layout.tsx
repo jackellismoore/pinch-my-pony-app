@@ -127,12 +127,35 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
             </div>
           </div>
 
-          <div style={{ display: "grid", gap: 10 }}>
+          <div className="pmp-ownerNavLinks" style={{ display: "grid", gap: 10 }}>
             <NavLink href="/dashboard/owner" label="Horse overview" />
             <NavLink href="/dashboard/owner/horses" label="My horses" />
             <NavLink href="/dashboard/owner/requests" label="Listing requests" />
             <NavLink href="/dashboard/owner/reviews" label="Reviews" />
-            <NavLink href="/dashboard/membership" label="Membership" />
+          </div>
+
+          <div className="pmp-ownerMobileManage" style={{ display: "none" }}>
+            <Link
+              href="/dashboard/owner/manage"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                padding: "12px 12px",
+                borderRadius: 14,
+                textDecoration: "none",
+                fontWeight: 950,
+                fontSize: 14,
+                color: palette.forest,
+                background: "rgba(31,61,43,0.08)",
+                border: "1px solid rgba(31,61,43,0.22)",
+                boxShadow: "0 12px 30px rgba(31,61,43,0.10)",
+              }}
+            >
+              <span>Manage horses</span>
+              <span aria-hidden="true">→</span>
+            </Link>
           </div>
 
           <div style={{ height: 1, background: "rgba(31,42,68,0.10)", margin: "4px 0" }} />
@@ -214,6 +237,8 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
         @media (max-width: 980px) {
           .pmp-owner-grid { grid-template-columns: 1fr !important; }
           .pmp-owner-grid aside { position: relative !important; top: auto !important; }
+          .pmp-ownerNavLinks { display: none !important; }
+          .pmp-ownerMobileManage { display: block !important; }
         }
       `}</style>
     </div>
