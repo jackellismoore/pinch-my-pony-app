@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { brandedEmail, escapeEmailHtml } from "@/lib/emailTemplate";
+import { apiRateLimit, rateLimitResponse, requestIp } from "@/lib/apiRateLimit";
 
 export const runtime = "nodejs";
 
@@ -23,33 +24,6 @@ function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-/**
- * Basic in-memory rate limit (best-effort on serverless).
- * Keyed by IP. Sliding window.
- */
-const RL_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-const RL_MAX = 5;
-const rl = new Map<string, number[]>();
-
-function getIp(req: Request) {
-  const xf = req.headers.get("x-forwarded-for");
-  if (xf) return xf.split(",")[0]?.trim() || "unknown";
-  return req.headers.get("x-real-ip") || "unknown";
-}
-
-function rateLimitOk(key: string) {
-  const now = Date.now();
-  const arr = rl.get(key) ?? [];
-  const fresh = arr.filter((t) => now - t < RL_WINDOW_MS);
-  if (fresh.length >= RL_MAX) {
-    rl.set(key, fresh);
-    return { ok: false, retryAfterMs: RL_WINDOW_MS - (now - fresh[0]) };
-  }
-  fresh.push(now);
-  rl.set(key, fresh);
-  return { ok: true, retryAfterMs: 0 };
-}
-
 export async function POST(req: Request) {
   try {
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -60,15 +34,10 @@ export async function POST(req: Request) {
       return new Response("Missing env vars", { status: 500 });
     }
 
-    const ip = getIp(req);
-    const rlRes = rateLimitOk(ip);
+    const ip = requestIp(req);
+    const rlRes = apiRateLimit(`contact:${ip}`, 5, 15 * 60 * 1000);
     if (!rlRes.ok) {
-      return new Response("Too many requests. Please try again shortly.", {
-        status: 429,
-        headers: {
-          "retry-after": String(Math.ceil(rlRes.retryAfterMs / 1000)),
-        },
-      });
+      return rateLimitResponse(rlRes.retryAfterSeconds);
     }
 
     const body = (await req.json()) as Payload;
