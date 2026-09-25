@@ -111,7 +111,7 @@ export default function HorsePublicClient() {
 
       try {
         const { data: h, error: hErr } = await supabase
-          .from("horses")
+          .from("public_horses")
           .select("id,owner_id,name,image_url,image_urls,location,breed,age,height,height_hh,temperament,description,is_active")
           .eq("id", horseId)
           .maybeSingle();
