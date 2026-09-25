@@ -12,7 +12,13 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    const syncConnection = () => setState(navigator.onLine ? "online" : "offline");
+    const syncConnection = () => {
+      const online = navigator.onLine;
+      setState(online ? "online" : "offline");
+      window.dispatchEvent(
+        new CustomEvent("pmp:connection-state", { detail: online ? "restored" : "lost" }),
+      );
+    };
 
     window.addEventListener("offline", syncConnection);
     window.addEventListener("online", syncConnection);
@@ -58,23 +64,29 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
         <div
           aria-hidden="true"
           style={{
-            width: 190,
-            height: 92,
+            width: 210,
+            height: 104,
             margin: "0 auto 20px",
-            borderRadius: 24,
-            border: "1px solid rgba(31,61,43,0.16)",
-            display: "grid",
-            placeItems: "center",
-            background: "rgba(31,61,43,0.08)",
-            overflow: "hidden",
+            borderRadius: 22,
+            border: "1px solid rgba(31,61,43,0.18)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#ffffff",
+            boxSizing: "border-box",
+            padding: 14,
           }}
         >
           <img
             src="/pmp-logo-web.png"
             alt=""
-            width={164}
-            height={67}
-            style={{ objectFit: "contain", display: "block" }}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              objectPosition: "center",
+              display: "block",
+            }}
           />
         </div>
 
