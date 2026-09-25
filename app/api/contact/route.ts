@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     }
 
     const ip = requestIp(req);
-    const rlRes = apiRateLimit(`contact:${ip}`, 5, 15 * 60 * 1000);
+    const rlRes = await apiRateLimit(`contact:${ip}`, 5, 15 * 60 * 1000);
     if (!rlRes.ok) {
       return rateLimitResponse(rlRes.retryAfterSeconds);
     }
