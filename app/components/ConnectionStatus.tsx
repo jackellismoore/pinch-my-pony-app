@@ -15,8 +15,16 @@ export function ConnectionIndicator() {
       const next = (event as CustomEvent<ConnectionState>).detail;
       if (next) setState(next);
     };
+    const onOnline = () => setState("restored");
+    const onOffline = () => setState("lost");
     window.addEventListener("pmp:connection-state", onState);
-    return () => window.removeEventListener("pmp:connection-state", onState);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("pmp:connection-state", onState);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
   }, []);
 
   const tone = state === "lost" ? "#B91C1C" : "#15803D";
