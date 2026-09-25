@@ -193,7 +193,7 @@ export default function OwnerPublicProfilePage() {
             .single(),
 
           supabase
-            .from("horses")
+            .from("public_horses")
             .select("id,owner_id,name,is_active")
             .eq("owner_id", ownerId)
             .eq("is_active", true)
