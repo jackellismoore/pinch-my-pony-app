@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getStripe } from "@/lib/stripe";
+import { apiRateLimit, rateLimitResponse } from "@/lib/apiRateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,9 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = user.id;
+
+    const rl = apiRateLimit(`delete:${userId}`, 3, 3600000);
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSeconds);
 
     const { data: billingProfile, error: billingLookupError } = await admin
       .from("profiles")
