@@ -34,7 +34,6 @@ function canvasBlob(canvas: HTMLCanvasElement, quality: number) {
 }
 
 async function normalizeImage(file: File): Promise<File> {
-  const type = (file.type || "").toLowerCase();
   // Always redraw through a canvas before upload. This removes EXIF metadata
   // (including GPS coordinates) even when the original image is small and
   // otherwise valid. It also keeps the existing size/dimension safeguards.
