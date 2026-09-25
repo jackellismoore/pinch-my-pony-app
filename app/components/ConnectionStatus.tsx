@@ -2,20 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { supabase } from "@/lib/supabaseClient";
 
 type ConnectionState = "connected" | "connecting" | "lost" | "restored";
 
 let currentConnectionState: ConnectionState = "connected";
 
+function emitConnectionState(next: ConnectionState) {
+  currentConnectionState = next;
+  window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: next }));
+}
+
 export function ConnectionIndicator() {
   const [state, setState] = useState<ConnectionState>(currentConnectionState);
 
   useEffect(() => {
-    const sync = (next: ConnectionState) => {
-      currentConnectionState = next;
-      setState(next);
-    };
-
     const onState = (event: Event) => {
       const next = (event as CustomEvent<ConnectionState>).detail;
       if (next) {
@@ -23,12 +24,6 @@ export function ConnectionIndicator() {
         setState(next);
       }
     };
-
-    const onState = (event: Event) => {
-      const next = (event as CustomEvent<ConnectionState>).detail;
-      if (next) sync(next);
-    };
-
     window.addEventListener("pmp:connection-state", onState);
     return () => window.removeEventListener("pmp:connection-state", onState);
   }, []);
@@ -37,25 +32,7 @@ export function ConnectionIndicator() {
   const label = state === "lost" ? "Connection lost" : state === "connecting" ? "Connecting to Pinch My Pony" : "Connected to Pinch My Pony";
 
   return (
-    <span
-      title={label}
-      aria-label={label}
-      role="status"
-      style={{
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        border: "1px solid rgba(15,23,42,0.12)",
-        background: "white",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: tone,
-        flexShrink: 0,
-        padding: 0,
-        boxSizing: "border-box",
-      }}
-    >
+    <span title={label} aria-label={label} role="status" style={{ width: 44, height: 44, borderRadius: 14, border: "1px solid rgba(15,23,42,0.12)", background: "white", display: "inline-flex", alignItems: "center", justifyContent: "center", color: tone, flexShrink: 0, padding: 0, boxSizing: "border-box" }}>
       <Icon name="wifi" size={18} decorative={false} style={{ color: tone }} />
     </span>
   );
@@ -68,6 +45,9 @@ export default function ConnectionStatus() {
 
   useEffect(() => {
     let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    let recoveryRun = 0;
+    let suppressOfflineUntil = 0;
 
     const clearHide = () => {
       if (hideTimer) {
@@ -76,25 +56,9 @@ export default function ConnectionStatus() {
       }
     };
 
-    let recoveryRun = 0;
-
-    const confirmConnectivity = async () => {
-      // navigator.onLine only tells us that iOS has a network path. Confirm that
-      // the app can actually reach Supabase before declaring the connection restored.
-      try {
-        const { error } = await supabase.auth.getSession();
-        if (error) return false;
-        const { error: probeError } = await supabase.from("profiles").select("id").limit(1);
-        return !probeError;
-      } catch {
-        return false;
-      }
-    };
-
     const showTransient = (next: ConnectionState) => {
       clearHide();
-      currentConnectionState = next;
-      window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: next }));
+      emitConnectionState(next);
       setState(next);
       setFadingOut(false);
       setVisible(true);
@@ -112,39 +76,53 @@ export default function ConnectionStatus() {
       }, 1850);
     };
 
-    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
-    let suppressOfflineUntil = 0;
+    const confirmConnectivity = async () => {
+      // navigator.onLine only confirms that iOS has a network path. The Supabase
+      // query below proves that the app can actually reach its backend.
+      try {
+        const { error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) return false;
+        const { error } = await supabase.from("profiles").select("id").limit(1);
+        return !error;
+      } catch {
+        return false;
+      }
+    };
 
     const recover = async () => {
       const run = ++recoveryRun;
+
       if (!navigator.onLine) {
         showTransient("lost");
         return;
       }
+
       suppressOfflineUntil = Date.now() + 3000;
-      currentConnectionState = "connecting";
-      window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connecting" }));
+      emitConnectionState("connecting");
       setState("connecting");
       setVisible(true);
       setFadingOut(false);
 
       const connected = await confirmConnectivity();
+
       if (run !== recoveryRun) return;
+
       if (!navigator.onLine || !connected) {
         showTransient("lost");
         return;
       }
+
       showTransient("restored");
-      currentConnectionState = "connected";
     };
 
     const onOnline = () => { void recover(); };
+
     const onOffline = () => {
-      // iOS WebView can briefly report offline while the app is resuming.
-      // If the device is already back online, don't leave the indicator red.
       if (Date.now() < suppressOfflineUntil && navigator.onLine) return;
+      recoveryRun++;
       showTransient("lost");
     };
+
     const onResume = () => {
       if (resumeTimer) clearTimeout(resumeTimer);
       resumeTimer = setTimeout(() => {
@@ -153,11 +131,11 @@ export default function ConnectionStatus() {
       }, 150);
     };
 
-    if (!navigator.onLine) showTransient("lost");
-
     const onVisibility = () => {
       if (document.visibilityState === "visible") onResume();
     };
+
+    if (!navigator.onLine) showTransient("lost");
 
     let lastOnline = navigator.onLine;
     const poll = () => {
@@ -169,8 +147,6 @@ export default function ConnectionStatus() {
       }
     };
 
-    // iOS/WKWebView can miss online/offline events. Poll while foregrounded so
-    // reconnect feedback appears without requiring the user to switch apps.
     const pollTimer = window.setInterval(poll, 1000);
 
     window.addEventListener("online", onOnline);
@@ -182,12 +158,12 @@ export default function ConnectionStatus() {
     return () => {
       clearHide();
       if (resumeTimer) clearTimeout(resumeTimer);
+      window.clearInterval(pollTimer);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("pmp:app-resume", onResume);
       window.removeEventListener("pageshow", onResume);
       document.removeEventListener("visibilitychange", onVisibility);
-      window.clearInterval(pollTimer);
     };
   }, []);
 
@@ -198,53 +174,19 @@ export default function ConnectionStatus() {
   const copy = lost ? "You’re offline" : connecting ? "Connecting…" : "Connection restored";
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      style={{
-        position: "fixed",
-        top: "calc(env(safe-area-inset-top, 0px) + 14px)",
-        left: "50%",
-        zIndex: 10000,
-        width: "min(calc(100vw - 28px), 360px)",
-        boxSizing: "border-box",
-        padding: "13px 16px",
-        borderRadius: 18,
-        border: lost
-          ? "1px solid rgba(185,28,28,0.32)"
-          : connecting
-            ? "1px solid rgba(180,83,9,0.32)"
-            : "1px solid rgba(21,128,61,0.30)",
-        background: lost
-          ? "rgba(254,242,242,0.98)"
-          : connecting
-            ? "rgba(255,247,237,0.98)"
-            : "rgba(240,253,244,0.98)",
-        color: lost ? "#B91C1C" : connecting ? "#B45309" : "#15803D",
-        boxShadow: "0 14px 36px rgba(15,23,42,0.16)",
-        backdropFilter: "blur(14px)",
-        opacity: fadingOut ? 0 : 1,
-        transform: `translateX(-50%) translateY(${fadingOut ? -6 : 0}px)`,
-        transition: "opacity 350ms ease, transform 350ms ease",
-        pointerEvents: "none",
-      }}
-    >
+    <div role="status" aria-live="polite" style={{
+      position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 14px)", left: "50%",
+      zIndex: 10000, width: "min(calc(100vw - 28px), 360px)", boxSizing: "border-box",
+      padding: "13px 16px", borderRadius: 18,
+      border: lost ? "1px solid rgba(185,28,28,0.32)" : connecting ? "1px solid rgba(180,83,9,0.32)" : "1px solid rgba(21,128,61,0.30)",
+      background: lost ? "rgba(254,242,242,0.98)" : connecting ? "rgba(255,247,237,0.98)" : "rgba(240,253,244,0.98)",
+      color: lost ? "#B91C1C" : connecting ? "#B45309" : "#15803D",
+      boxShadow: "0 14px 36px rgba(15,23,42,0.16)", backdropFilter: "blur(14px)",
+      opacity: fadingOut ? 0 : 1, transform: `translateX(-50%) translateY(${fadingOut ? -6 : 0}px)`,
+      transition: "opacity 350ms ease, transform 350ms ease", pointerEvents: "none"
+    }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 12,
-            display: "grid",
-            placeItems: "center",
-            background: lost
-              ? "rgba(185,28,28,0.14)"
-              : connecting
-                ? "rgba(180,83,9,0.14)"
-                : "rgba(21,128,61,0.13)",
-            flexShrink: 0,
-          }}
-        >
+        <div style={{ width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center", background: lost ? "rgba(185,28,28,0.14)" : connecting ? "rgba(180,83,9,0.14)" : "rgba(21,128,61,0.13)", flexShrink: 0 }}>
           <Icon name={lost ? "wifi" : connecting ? "wifi" : "check"} size={20} decorative={true} />
         </div>
         <div>
