@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 
-type ConnectionState = "connected" | "lost" | "restored";
+type ConnectionState = "connected" | "connecting" | "lost" | "restored";
 
 let currentConnectionState: ConnectionState = "connected";
 
@@ -17,18 +17,24 @@ export function ConnectionIndicator() {
     };
     const onOnline = () => setState("restored");
     const onOffline = () => setState("lost");
+    const onManualReconnect = () => {
+      setState("connecting");
+      window.dispatchEvent(new Event("pmp:app-resume"));
+    };
     window.addEventListener("pmp:connection-state", onState);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
+    window.addEventListener("pmp:manual-reconnect", onManualReconnect);
     return () => {
       window.removeEventListener("pmp:connection-state", onState);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
+      window.removeEventListener("pmp:manual-reconnect", onManualReconnect);
     };
   }, []);
 
-  const tone = state === "lost" ? "#B91C1C" : "#15803D";
-  const label = state === "lost" ? "Connection lost" : "Connected to Pinch My Pony";
+  const tone = state === "lost" ? "#B91C1C" : state === "connecting" ? "#B45309" : "#15803D";
+  const label = state === "lost" ? "Connection lost" : state === "connecting" ? "Connecting to Pinch My Pony" : "Connected to Pinch My Pony";
 
   return (
     <span
@@ -122,7 +128,8 @@ export default function ConnectionStatus() {
   if (!visible || !state) return null;
 
   const lost = state === "lost";
-  const copy = lost ? "You’re offline" : "Connection restored";
+  const connecting = state === "connecting";
+  const copy = lost ? "You’re offline" : connecting ? "Connecting…" : "Connection restored";
 
   return (
     <div
@@ -158,16 +165,16 @@ export default function ConnectionStatus() {
             borderRadius: 12,
             display: "grid",
             placeItems: "center",
-            background: lost ? "rgba(185,28,28,0.09)" : "rgba(31,61,43,0.09)",
+            background: lost ? "rgba(185,28,28,0.09)" : connecting ? "rgba(180,83,9,0.10)" : "rgba(31,61,43,0.09)",
             flexShrink: 0,
           }}
         >
-          <Icon name={lost ? "wifi" : "check"} size={20} decorative={true} />
+          <Icon name={lost ? "wifi" : connecting ? "wifi" : "check"} size={20} decorative={true} />
         </div>
         <div>
           <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.2 }}>{copy}</div>
           <div style={{ marginTop: 3, fontSize: 12, lineHeight: 1.35, opacity: 0.72 }}>
-            {lost ? "Check your internet connection." : "You’re back online."}
+            {lost ? "Check your internet connection." : connecting ? "Reconnecting to Pinch My Pony…" : "You’re back online."}
           </div>
         </div>
       </div>
