@@ -108,7 +108,7 @@ export default function ConnectionStatus() {
     const timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
 
     try {
-      const { error } = await supabase.from("horses").select("id").limit(1).abortSignal(controller.signal);
+      const { error } = await supabase.from("public_horses").select("id").limit(1).abortSignal(controller.signal);
       if (error) throw error;
 
       const wasConnected = hadConnection.current;
