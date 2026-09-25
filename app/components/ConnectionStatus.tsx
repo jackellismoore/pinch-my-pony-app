@@ -18,18 +18,34 @@ export function ConnectionIndicator() {
     const onOnline = () => setState("restored");
     const onOffline = () => setState("lost");
     const onManualReconnect = () => {
-      setState("connecting");
+      if (navigator.onLine) {
+        currentConnectionState = "connected";
+        setState("connected");
+        window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connected" }));
+      } else {
+        setState("connecting");
+      }
       window.dispatchEvent(new Event("pmp:app-resume"));
     };
     window.addEventListener("pmp:connection-state", onState);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     window.addEventListener("pmp:manual-reconnect", onManualReconnect);
+    const onResume = () => setState(navigator.onLine ? "connected" : "lost");
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") onResume();
+    };
+    window.addEventListener("pmp:app-resume", onResume);
+    window.addEventListener("pageshow", onResume);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("pmp:connection-state", onState);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("pmp:manual-reconnect", onManualReconnect);
+      window.removeEventListener("pmp:app-resume", onResume);
+      window.removeEventListener("pageshow", onResume);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
