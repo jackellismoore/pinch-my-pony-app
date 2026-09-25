@@ -120,7 +120,7 @@ export default function ReviewPage() {
         }
 
         const { data: horseData, error: horseErr } = await supabase
-          .from("horses")
+          .from("public_horses")
           .select("id,name,owner_id")
           .eq("id", r.horse_id)
           .single();
