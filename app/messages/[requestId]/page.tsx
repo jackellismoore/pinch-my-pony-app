@@ -215,7 +215,7 @@ export default function MessageThreadPage() {
       }
 
       const { data: horse, error: horseErr } = await supabase
-        .from("horses")
+        .from("public_horses")
         .select("id, name, owner_id, image_url, photo_url")
         .eq("id", req.horse_id)
         .single();
