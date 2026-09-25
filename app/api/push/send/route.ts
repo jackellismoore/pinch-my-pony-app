@@ -3,6 +3,7 @@ import webpush from "web-push";
 import { createPrivateKey, sign as cryptoSign, timingSafeEqual } from "crypto";
 import { connect } from "http2";
 import { readBearerToken, requireApiUser } from "@/lib/serverAuth";
+import { apiRateLimit, rateLimitResponse } from "@/lib/apiRateLimit";
 
 export const runtime = "nodejs";
 
@@ -656,6 +657,9 @@ export async function POST(req: Request) {
       } catch {
         return new Response("Not authenticated", { status: 401 });
       }
+
+      const rl = apiRateLimit(`push:${actorId}`, 30, 5 * 60 * 1000);
+      if (!rl.ok) return rateLimitResponse(rl.retryAfterSeconds);
 
       if (!(await authorizeUserNotification(admin, actorId, payload))) {
         return new Response("Not authorized to notify this user", { status: 403 });
