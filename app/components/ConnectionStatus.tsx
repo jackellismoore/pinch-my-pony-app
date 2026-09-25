@@ -144,6 +144,16 @@ export default function ConnectionStatus() {
         lastOnline = online;
         if (online) onOnline();
         else onOffline();
+        return;
+      }
+
+      // iOS WKWebView can keep navigator.onLine=true while a network
+      // interruption is recovering and may not emit the browser "online"
+      // event when the route comes back. If we are still marked lost, keep
+      // probing the real Supabase backend so recovery is detected in-place
+      // without requiring the user to leave and reopen the app.
+      if (online && currentConnectionState === "lost") {
+        onOnline();
       }
     };
 
