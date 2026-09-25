@@ -199,7 +199,7 @@ export default function BrowsePage() {
         if (!cancelled) setViewerId(viewer?.id ?? null);
 
         const { data: horsesData, error: horsesErr } = await supabase
-          .from("horses")
+          .from("public_horses")
           .select("id,owner_id,name,location,image_url,breed,temperament,age,height_hh,description,active,is_active,lat,lng,created_at")
           .or("active.eq.true,is_active.eq.true")
           .order("created_at", { ascending: false });
