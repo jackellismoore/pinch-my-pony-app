@@ -315,7 +315,7 @@ export default function MessagesPage() {
       let horses: HorseMini[] = [];
       if (horseIds.length) {
         const { data: hs, error: horseErr } = await supabase
-          .from("horses")
+          .from("public_horses")
           .select("id, name, owner_id, image_url, photo_url")
           .in("id", horseIds);
 
