@@ -99,7 +99,7 @@ export default function HomePage() {
           .eq("borrower_id", user.id);
 
         const activePromise = supabase
-          .from("horses")
+          .from("public_horses")
           .select("*", { count: "exact", head: true })
           .or("active.eq.true,is_active.eq.true");
 
