@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripeServer";
 import { requireApiUser, trustedAppOrigin } from "@/lib/serverAuth";
 import { launchFeatureEnabled } from "@/lib/launchFeatures";
+import { apiRateLimit, rateLimitResponse } from "@/lib/apiRateLimit";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
     const user = await requireApiUser(req);
+    const rl = apiRateLimit(`identity:${user.id}`, 10, 600000);
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSeconds);
 
     if (!launchFeatureEnabled(process.env.STRIPE_IDENTITY_ENABLED)) {
       return NextResponse.json(
