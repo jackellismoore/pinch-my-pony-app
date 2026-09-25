@@ -113,15 +113,40 @@ export default function ConnectionStatus() {
       }, 1850);
     };
 
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    let suppressOfflineUntil = 0;
+
     const onOnline = () => showTransient("restored");
-    const onOffline = () => showTransient("lost");
+    const onOffline = () => {
+      // iOS WebView can briefly report offline while the app is resuming.
+      // If the device is already back online, don't leave the indicator red.
+      if (Date.now() < suppressOfflineUntil && navigator.onLine) return;
+      showTransient("lost");
+    };
     const onResume = () => {
+      if (resumeTimer) clearTimeout(resumeTimer);
       if (navigator.onLine) {
-        currentConnectionState = "connected";
-        window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connected" }));
-        setVisible(false);
-        setState(null);
+        suppressOfflineUntil = Date.now() + 3000;
+        currentConnectionState = "connecting";
+        window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connecting" }));
+        setState("connecting");
+        setVisible(true);
         setFadingOut(false);
+
+        // Give Supabase/WebView a moment to re-establish its connection,
+        // then synchronise the indicator without requiring a swipe/background cycle.
+        resumeTimer = setTimeout(() => {
+          if (!navigator.onLine) {
+            showTransient("lost");
+            return;
+          }
+          currentConnectionState = "connected";
+          window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connected" }));
+          setVisible(false);
+          setState(null);
+          setFadingOut(false);
+          resumeTimer = null;
+        }, 700);
       } else {
         showTransient("lost");
       }
@@ -135,6 +160,7 @@ export default function ConnectionStatus() {
 
     return () => {
       clearHide();
+      if (resumeTimer) clearTimeout(resumeTimer);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("pmp:app-resume", onResume);
