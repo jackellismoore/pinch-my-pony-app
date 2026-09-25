@@ -35,9 +35,9 @@ function canvasBlob(canvas: HTMLCanvasElement, quality: number) {
 
 async function normalizeImage(file: File): Promise<File> {
   const type = (file.type || "").toLowerCase();
-  const alreadySafe = file.size <= TARGET_BYTES && ["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(type);
-  if (alreadySafe) return file;
-
+  // Always redraw through a canvas before upload. This removes EXIF metadata
+  // (including GPS coordinates) even when the original image is small and
+  // otherwise valid. It also keeps the existing size/dimension safeguards.
   const decoded = await decodeImage(file);
   const sourceWidth = "naturalWidth" in decoded ? decoded.naturalWidth : decoded.width;
   const sourceHeight = "naturalHeight" in decoded ? decoded.naturalHeight : decoded.height;
@@ -76,9 +76,9 @@ export default function PhotoUploadNormalizer() {
       const files = Array.from(input.files ?? []);
       if (!files.length || !files.some((file) => file.type.startsWith("image/") || /\.(heic|heif|jpg|jpeg|png|webp)$/i.test(file.name))) return;
 
-      const needsWork = files.some((file) => file.size > TARGET_BYTES || !["image/jpeg", "image/jpg", "image/png", "image/webp"].includes((file.type || "").toLowerCase()));
-      if (!needsWork) return;
-
+      // Every image is normalized so EXIF/GPS metadata is removed consistently.
+      // Do not bypass the normalizer just because the file is already a supported
+      // type or below the size threshold.
       event.preventDefault();
       event.stopImmediatePropagation();
       input.dataset.pmpNormalizing = "1";
