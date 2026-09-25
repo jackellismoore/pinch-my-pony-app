@@ -108,7 +108,7 @@ export default function RequestForm({
       try {
         const [{ data: userData, error: userErr }, horseRes] = await Promise.all([
           supabase.auth.getUser(),
-          supabase.from("horses").select("owner_id").eq("id", horseId).maybeSingle(),
+          supabase.from("public_horses").select("owner_id").eq("id", horseId).maybeSingle(),
         ]);
 
         if (cancelled) return;
@@ -228,7 +228,7 @@ export default function RequestForm({
       }
 
       const { data: horseMini, error: horseErr } = await supabase
-        .from("horses")
+        .from("public_horses")
         .select("owner_id")
         .eq("id", horseId)
         .maybeSingle();
