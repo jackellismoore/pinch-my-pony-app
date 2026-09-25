@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { GoogleMap, InfoWindow, OverlayView, useLoadScript } from "@react-google-maps/api";
 import { Icon } from "@/components/Icon";
+import { publicHorseLocation } from "@/lib/publicHorseLocation";
 
 export type MapHorse = {
   id: string;
@@ -233,7 +234,7 @@ export default function HorseMap({ horses, userLocation = null, highlightedId = 
               <div style={{ marginTop: 8, fontWeight: 950, fontSize: 14 }}>{selected.name ?? "Horse"}</div>
 
               {selected.location ? (
-                <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75 }}>{selected.location}</div>
+                <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75 }}>{publicHorseLocation(selected.location)}</div>
               ) : null}
 
               <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
