@@ -1,26 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useEffect, useState } from "react";
 import { Icon } from "@/components/Icon";
 
-type ConnectionState = "reconnecting" | "connected" | "lost" | "restored";
+type ConnectionState = "connected" | "lost" | "restored";
 
-const VISIBLE_MS = 2200;
-const LOSS_VISIBLE_MS = 4000;
-const FADE_OUT_MS = 450;
-const CHECK_TIMEOUT_MS = 6000;
-const RETRY_DELAY_MS = 2500;
-
-let currentConnectionState: ConnectionState = "reconnecting";
-
-function isNativeApp() {
-  if (typeof window === "undefined") return false;
-  const capacitor = (window as Window & {
-    Capacitor?: { isNativePlatform?: () => boolean };
-  }).Capacitor;
-  return capacitor?.isNativePlatform?.() === true;
-}
+let currentConnectionState: ConnectionState = "connected";
 
 export function ConnectionIndicator() {
   const [state, setState] = useState<ConnectionState>(currentConnectionState);
@@ -34,18 +19,30 @@ export function ConnectionIndicator() {
     return () => window.removeEventListener("pmp:connection-state", onState);
   }, []);
 
-  const tone =
-    state === "lost" ? "#B91C1C" : state === "reconnecting" ? "#D97706" : "#15803D";
-  const label =
-    state === "lost"
-      ? "Connection lost"
-      : state === "reconnecting"
-        ? "Connecting to Pinch My Pony"
-        : "Connected to Pinch My Pony";
+  const tone = state === "lost" ? "#B91C1C" : "#15803D";
+  const label = state === "lost" ? "Connection lost" : "Connected to Pinch My Pony";
 
   return (
-    <span title={label} aria-label={label} role="status" style={{ width: 44, height: 44, borderRadius: 14, border: "1px solid rgba(15,23,42,0.12)", background: "white", display: "inline-flex", alignItems: "center", justifyContent: "center", color: tone, flexShrink: 0, padding: 0, boxSizing: "border-box" }}>
-      <Icon name="wifi" size={18} decorative={false} style={{ color: tone, animation: state === "reconnecting" ? "pmp-connection-pulse 1.2s ease-in-out infinite" : undefined }} />
+    <span
+      title={label}
+      aria-label={label}
+      role="status"
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        border: "1px solid rgba(15,23,42,0.12)",
+        background: "white",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: tone,
+        flexShrink: 0,
+        padding: 0,
+        boxSizing: "border-box",
+      }}
+    >
+      <Icon name="wifi" size={18} decorative={false} style={{ color: tone }} />
     </span>
   );
 }
@@ -54,159 +51,118 @@ export default function ConnectionStatus() {
   const [state, setState] = useState<ConnectionState | null>(null);
   const [visible, setVisible] = useState(false);
   const [fadingOut, setFadingOut] = useState(false);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const startTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const checking = useRef(false);
-  const hadConnection = useRef<boolean | null>(null);
 
-  const clearHideTimer = useCallback(() => {
-    if (hideTimer.current) {
-      clearTimeout(hideTimer.current);
-      hideTimer.current = null;
-    }
-  }, []);
+  useEffect(() => {
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const showTransient = useCallback((next: ConnectionState) => {
-    clearHideTimer();
-    setFadingOut(false);
-    currentConnectionState = next;
-    window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: next }));
-    setState(next);
-    setVisible(true);
+    const clearHide = () => {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+    };
 
-    const duration =
-      next === "lost" ? LOSS_VISIBLE_MS : next === "reconnecting" ? undefined : VISIBLE_MS;
+    const showTransient = (next: ConnectionState) => {
+      clearHide();
+      currentConnectionState = next;
+      window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: next }));
+      setState(next);
+      setFadingOut(false);
+      setVisible(true);
 
-    if (duration) {
-      hideTimer.current = setTimeout(() => {
+      if (next === "lost") return;
+
+      hideTimer = setTimeout(() => {
         setFadingOut(true);
-        hideTimer.current = setTimeout(() => {
+        hideTimer = setTimeout(() => {
           setVisible(false);
           setState(null);
           setFadingOut(false);
-          hideTimer.current = null;
-        }, FADE_OUT_MS);
-      }, Math.max(0, duration - FADE_OUT_MS));
-    }
-  }, [clearHideTimer]);
+          hideTimer = null;
+        }, 350);
+      }, 1850);
+    };
 
-  const checkConnection = useCallback(async (initial = false) => {
-    if (checking.current || typeof window === "undefined") return;
-    checking.current = true;
-
-    if (!navigator.onLine) {
-      hadConnection.current = false;
-      showTransient("lost");
-      checking.current = false;
-      return;
-    }
-
-    if (initial || hadConnection.current !== true) showTransient("reconnecting");
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
-
-    try {
-      const { error } = await supabase.from("public_horses").select("id").limit(1).abortSignal(controller.signal);
-      if (error) throw error;
-
-      const wasConnected = hadConnection.current;
-      hadConnection.current = true;
-      showTransient(wasConnected === false ? "restored" : "connected");
-    } catch {
-      const wasConnected = hadConnection.current;
-      hadConnection.current = false;
-      showTransient("lost");
-      if (wasConnected !== false) setTimeout(() => void checkConnection(false), RETRY_DELAY_MS);
-    } finally {
-      controller.abort();
-      clearTimeout(timeout);
-      checking.current = false;
-    }
-  }, [showTransient]);
-
-  useEffect(() => {
-    const native = isNativeApp();
-    hadConnection.current = navigator.onLine;
-
-    // Native WebViews need a real Supabase probe because navigator.onLine can
-    // remain true without a usable internet connection. Web browsers already
-    // expose reliable online/offline events, so do not run a Supabase probe on
-    // every web startup/resume; an auth/session or API hiccup must not look like
-    // the whole browser is offline.
-    if (!navigator.onLine) showTransient("lost");
-
-    if (native) {
-      startTimer.current = setTimeout(() => {
-        void checkConnection(true);
-      }, 0);
-    }
-
-    const onOnline = () => {
-      if (native) {
-        void checkConnection(false);
+    const onOnline = () => showTransient("restored");
+    const onOffline = () => showTransient("lost");
+    const onResume = () => {
+      if (navigator.onLine) {
+        currentConnectionState = "connected";
+        window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connected" }));
+        setVisible(false);
+        setState(null);
+        setFadingOut(false);
       } else {
-        hadConnection.current = true;
-        showTransient("restored");
+        showTransient("lost");
       }
     };
-    const onOffline = () => {
-      hadConnection.current = false;
-      showTransient("lost");
-    };
-    const onResume = () => {
-      if (native) void checkConnection(false);
-    };
-    const onVisibility = () => {
-      if (native && document.visibilityState === "visible") onResume();
-    };
+
+    if (!navigator.onLine) showTransient("lost");
 
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     window.addEventListener("pmp:app-resume", onResume);
-    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      clearHideTimer();
-      if (startTimer.current) {
-        clearTimeout(startTimer.current);
-        startTimer.current = null;
-      }
+      clearHide();
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("pmp:app-resume", onResume);
-      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [checkConnection, clearHideTimer, showTransient]);
+  }, []);
 
   if (!visible || !state) return null;
 
-  const copy =
-    state === "reconnecting"
-      ? "Reconnecting to Pinch My Pony…"
-      : state === "connected"
-        ? "Connected"
-        : state === "restored"
-          ? "Connection restored"
-          : "Connection to Pinch My Pony lost";
-
-  const isPositive = state === "connected" || state === "restored";
-  const isConnecting = state === "reconnecting";
+  const lost = state === "lost";
+  const copy = lost ? "You’re offline" : "Connection restored";
 
   return (
-    <>
-      <style>{`@keyframes pmp-connection-pulse{0%,100%{opacity:.55}50%{opacity:1}}`}</style>
-      <div role="status" aria-live="polite" style={{
-        position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 10px)", left: "50%", zIndex: 10000,
-        maxWidth: "calc(100vw - 24px)", padding: "9px 14px", borderRadius: 999,
-        border: isPositive ? "1px solid rgba(31,61,43,0.22)" : isConnecting ? "1px solid rgba(217,119,6,0.24)" : "1px solid rgba(185,28,28,0.20)",
-        background: isPositive ? "rgba(238,248,242,0.96)" : isConnecting ? "rgba(255,249,235,0.97)" : "rgba(255,247,247,0.97)",
-        color: isPositive ? "#1F3D2B" : isConnecting ? "#B45309" : "#991B1B",
-        boxShadow: "0 10px 28px rgba(15,23,42,0.14)", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap",
-        pointerEvents: "none", backdropFilter: "blur(12px)", opacity: fadingOut ? 0 : 1,
-        transform: `translateX(-50%) translateY(${fadingOut ? -4 : 0}px)`,
-        transition: `opacity ${FADE_OUT_MS}ms ease, transform ${FADE_OUT_MS}ms ease`,
-      }}>{copy}</div>
-    </>
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        position: "fixed",
+        top: "calc(env(safe-area-inset-top, 0px) + 14px)",
+        left: "50%",
+        zIndex: 10000,
+        width: "min(calc(100vw - 28px), 360px)",
+        boxSizing: "border-box",
+        padding: "13px 16px",
+        borderRadius: 18,
+        border: lost
+          ? "1px solid rgba(185,28,28,0.18)"
+          : "1px solid rgba(31,61,43,0.18)",
+        background: lost ? "rgba(255,248,248,0.98)" : "rgba(244,250,246,0.98)",
+        color: lost ? "#991B1B" : "#1F3D2B",
+        boxShadow: "0 14px 36px rgba(15,23,42,0.16)",
+        backdropFilter: "blur(14px)",
+        opacity: fadingOut ? 0 : 1,
+        transform: `translateX(-50%) translateY(${fadingOut ? -6 : 0}px)`,
+        transition: "opacity 350ms ease, transform 350ms ease",
+        pointerEvents: "none",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            display: "grid",
+            placeItems: "center",
+            background: lost ? "rgba(185,28,28,0.09)" : "rgba(31,61,43,0.09)",
+            flexShrink: 0,
+          }}
+        >
+          <Icon name={lost ? "wifi" : "check"} size={20} decorative={true} />
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.2 }}>{copy}</div>
+          <div style={{ marginTop: 3, fontSize: 12, lineHeight: 1.35, opacity: 0.72 }}>
+            {lost ? "Check your internet connection." : "You’re back online."}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
