@@ -10,6 +10,7 @@ import { userFacingError } from "@/lib/userFacingError";
 import { AvailabilityBadge } from "@/components/AvailabilityBadge";
 import StarRating from "@/components/StarRating";
 import { Icon } from "@/components/Icon";
+import { publicHorseCoordinate, publicHorseLocation } from "@/lib/publicHorseLocation";
 
 type HorseRow = {
   id: string;
@@ -398,9 +399,9 @@ export default function BrowsePage() {
           id: h.id,
           owner_id: h.owner_id,
           name: h.name,
-          location: h.location,
-          lat: h.lat,
-          lng: h.lng,
+          location: publicHorseLocation(h.location),
+          lat: publicHorseCoordinate(h.lat),
+          lng: publicHorseCoordinate(h.lng),
           image_url: h.image_url,
           rating_avg: rating.avg,
           rating_count: rating.count,
@@ -587,7 +588,7 @@ export default function BrowsePage() {
                       <div className="pmp-marketplaceTop">
                         <div style={{ minWidth: 0 }}>
                           <h4 className="pmp-horseName">{horse.name?.trim() || "Untitled horse"}</h4>
-                          <div className="pmp-mutedText">{horse.location?.trim() || "Location coming soon"}</div>
+                          <div className="pmp-mutedText">{publicHorseLocation(horse.location)}</div>
                         </div>
                       </div>
 
