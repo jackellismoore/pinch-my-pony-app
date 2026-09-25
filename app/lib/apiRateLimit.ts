@@ -1,25 +1,39 @@
-type Bucket = { startedAt: number; count: number };
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
-const buckets = new Map<string, Bucket>();
+type RateLimitResult = {
+  allowed: boolean;
+  retry_after_seconds: number;
+};
 
-export function apiRateLimit(key: string, maxRequests: number, windowMs: number) {
-  const now = Date.now();
-  const current = buckets.get(key);
+export async function apiRateLimit(
+  key: string,
+  maxRequests: number,
+  windowMs: number
+) {
+  const windowSeconds = Math.max(1, Math.ceil(windowMs / 1000));
+  const admin = getSupabaseAdmin();
 
-  if (!current || now - current.startedAt >= windowMs) {
-    buckets.set(key, { startedAt: now, count: 1 });
-    return { ok: true as const, retryAfterSeconds: 0 };
+  const { data, error } = await admin.rpc("consume_api_rate_limit", {
+    p_key: key,
+    p_max_requests: maxRequests,
+    p_window_seconds: windowSeconds,
+  });
+
+  if (error) {
+    console.error("[rate-limit] shared limiter failed:", error);
+    throw new Error("Rate limit service unavailable");
   }
 
-  if (current.count >= maxRequests) {
-    return {
-      ok: false as const,
-      retryAfterSeconds: Math.max(1, Math.ceil((windowMs - (now - current.startedAt)) / 1000)),
-    };
+  const row = (Array.isArray(data) ? data[0] : data) as RateLimitResult | null;
+
+  if (!row) {
+    throw new Error("Rate limit service returned no result");
   }
 
-  current.count += 1;
-  return { ok: true as const, retryAfterSeconds: 0 };
+  return {
+    ok: row.allowed,
+    retryAfterSeconds: Math.max(0, Number(row.retry_after_seconds ?? 0)),
+  } as const;
 }
 
 export function rateLimitResponse(retryAfterSeconds: number) {
