@@ -26,6 +26,23 @@ test("safeInternalRedirect permits local paths only", () => {
 });
 
 
+
+test("sensitive API routes have explicit abuse-rate limits", () => {
+  const limiter = readFileSync(resolve("app/lib/apiRateLimit.ts"), "utf8");
+  const contact = readFileSync(resolve("app/api/contact/route.ts"), "utf8");
+  const identity = readFileSync(resolve("app/api/identity/session/route.ts"), "utf8");
+  const deletion = readFileSync(resolve("app/api/delete/route.ts"), "utf8");
+  const checkout = readFileSync(resolve("app/api/stripe/checkout/route.ts"), "utf8");
+  const portal = readFileSync(resolve("app/api/stripe/portal/route.ts"), "utf8");
+  assert.match(limiter, /status: 429/);
+  assert.match(limiter, /retry-after/);
+  assert.match(contact, /apiRateLimit/);
+  assert.match(identity, /apiRateLimit/);
+  assert.match(deletion, /apiRateLimit/);
+  assert.match(checkout, /apiRateLimit/);
+  assert.match(portal, /apiRateLimit/);
+});
+
 test("production headers include CSP and baseline browser protections", () => {
   const config = readFileSync(resolve("next.config.ts"), "utf8");
   assert.match(config, /Content-Security-Policy/);
