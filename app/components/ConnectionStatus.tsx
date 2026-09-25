@@ -244,10 +244,16 @@ export default function ConnectionStatus() {
         padding: "13px 16px",
         borderRadius: 18,
         border: lost
-          ? "1px solid rgba(185,28,28,0.18)"
-          : "1px solid rgba(31,61,43,0.18)",
-        background: lost ? "rgba(255,248,248,0.98)" : "rgba(244,250,246,0.98)",
-        color: lost ? "#991B1B" : "#1F3D2B",
+          ? "1px solid rgba(185,28,28,0.32)"
+          : connecting
+            ? "1px solid rgba(180,83,9,0.32)"
+            : "1px solid rgba(21,128,61,0.30)",
+        background: lost
+          ? "rgba(254,242,242,0.98)"
+          : connecting
+            ? "rgba(255,247,237,0.98)"
+            : "rgba(240,253,244,0.98)",
+        color: lost ? "#B91C1C" : connecting ? "#B45309" : "#15803D",
         boxShadow: "0 14px 36px rgba(15,23,42,0.16)",
         backdropFilter: "blur(14px)",
         opacity: fadingOut ? 0 : 1,
@@ -264,7 +270,11 @@ export default function ConnectionStatus() {
             borderRadius: 12,
             display: "grid",
             placeItems: "center",
-            background: lost ? "rgba(185,28,28,0.09)" : connecting ? "rgba(180,83,9,0.10)" : "rgba(31,61,43,0.09)",
+            background: lost
+              ? "rgba(185,28,28,0.14)"
+              : connecting
+                ? "rgba(180,83,9,0.14)"
+                : "rgba(21,128,61,0.13)",
             flexShrink: 0,
           }}
         >
