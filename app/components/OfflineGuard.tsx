@@ -58,10 +58,11 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
         <div
           aria-hidden="true"
           style={{
-            width: 150,
-            height: 82,
+            width: 190,
+            height: 92,
             margin: "0 auto 20px",
             borderRadius: 24,
+            border: "1px solid rgba(31,61,43,0.16)",
             display: "grid",
             placeItems: "center",
             background: "rgba(31,61,43,0.08)",
@@ -71,8 +72,8 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
           <img
             src="/pmp-logo-web.png"
             alt=""
-            width={132}
-            height={54}
+            width={164}
+            height={67}
             style={{ objectFit: "contain", display: "block" }}
           />
         </div>
@@ -120,7 +121,20 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
             fontWeight: 800,
           }}
         >
-          Waiting for connection…
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("pmp:manual-reconnect"))}
+            style={{
+              border: 0,
+              background: "transparent",
+              color: "inherit",
+              font: "inherit",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            Tap to reconnect
+          </button>
         </div>
       </section>
     </main>
