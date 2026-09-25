@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useLaunchFeatures } from "@/components/LaunchFeaturesProvider";
 import { Icon } from "@/components/Icon";
 import { formatHorseHeight } from "@/lib/horseHeight";
+import { publicHorseLocation } from "@/lib/publicHorseLocation";
 
 type HorseRow = {
   id: string;
@@ -419,7 +420,7 @@ export default function HorsePublicClient() {
                   <div style={{ marginTop: 8, fontSize: 13, opacity: 0.78, lineHeight: 1.6 }}>
                     Listed by: <span style={{ fontWeight: 950, color: palette.navy }}>{ownerName}</span>
                     {identityEnabled && ownerVerified ? <span> • ID verified</span> : null}
-                    {safeText(horse.location).trim() ? <span> • {fmt(horse.location)}</span> : null}
+                    <span> • {publicHorseLocation(horse.location)}</span>
                   </div>
                 </div>
 
@@ -450,7 +451,7 @@ export default function HorsePublicClient() {
                   <DetailRow label="Age" value={fmt(horse.age)} />
                   <DetailRow label="Height" value={formatHorseHeight(horse.height_hh ?? horse.height)} />
                   <DetailRow label="Temperament" value={fmt(horse.temperament)} />
-                  <DetailRow label="Location" value={fmt(horse.location)} />
+                  <DetailRow label="Location" value={publicHorseLocation(horse.location)} />
                   <DetailRow
                     label="Trust"
                     value={
