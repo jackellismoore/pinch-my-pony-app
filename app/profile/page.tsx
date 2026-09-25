@@ -715,6 +715,27 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        <Link
+          href="/dashboard/membership"
+          className="pmp-sectionCard"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            textDecoration: "none",
+            color: "#1F2A44",
+          }}
+        >
+          <div>
+            <div className="pmp-profileSectionTitle">Membership</div>
+            <div className="pmp-mutedText" style={{ marginTop: 4 }}>
+              Manage your membership and plan.
+            </div>
+          </div>
+          <span aria-hidden="true" style={{ fontSize: 20, opacity: 0.55 }}>→</span>
+        </Link>
+
         <div className="pmp-sectionCard">
           <div style={{ display: "grid", gap: 8 }}>
             <div
