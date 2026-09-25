@@ -58,17 +58,23 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
         <div
           aria-hidden="true"
           style={{
-            width: 82,
+            width: 150,
             height: 82,
             margin: "0 auto 20px",
             borderRadius: 24,
             display: "grid",
             placeItems: "center",
             background: "rgba(31,61,43,0.08)",
-            color: "#1F3D2B",
+            overflow: "hidden",
           }}
         >
-          <Icon name="horseshoe" size={48} decorative={true} />
+          <img
+            src="/pmp-logo-web.png"
+            alt=""
+            width={132}
+            height={54}
+            style={{ objectFit: "contain", display: "block" }}
+          />
         </div>
 
         <div
