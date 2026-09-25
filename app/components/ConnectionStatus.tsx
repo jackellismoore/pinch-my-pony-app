@@ -11,7 +11,6 @@ const LOSS_VISIBLE_MS = 4000;
 const FADE_OUT_MS = 450;
 const CHECK_TIMEOUT_MS = 6000;
 const RETRY_DELAY_MS = 2500;
-const WEB_START_DELAY_MS = 5000;
 
 let currentConnectionState: ConnectionState = "reconnecting";
 
@@ -130,23 +129,36 @@ export default function ConnectionStatus() {
     const native = isNativeApp();
     hadConnection.current = navigator.onLine;
 
-    // Do not touch Supabase auth/database during web startup. The login/auth
-    // flow must be allowed to establish its session first. The monitor remains
-    // active on web, but starts its real probe after the page has settled.
+    // Native WebViews need a real Supabase probe because navigator.onLine can
+    // remain true without a usable internet connection. Web browsers already
+    // expose reliable online/offline events, so do not run a Supabase probe on
+    // every web startup/resume; an auth/session or API hiccup must not look like
+    // the whole browser is offline.
     if (!navigator.onLine) showTransient("lost");
 
-    startTimer.current = setTimeout(() => {
-      void checkConnection(true);
-    }, native ? 0 : WEB_START_DELAY_MS);
+    if (native) {
+      startTimer.current = setTimeout(() => {
+        void checkConnection(true);
+      }, 0);
+    }
 
-    const onOnline = () => void checkConnection(false);
+    const onOnline = () => {
+      if (native) {
+        void checkConnection(false);
+      } else {
+        hadConnection.current = true;
+        showTransient("restored");
+      }
+    };
     const onOffline = () => {
       hadConnection.current = false;
       showTransient("lost");
     };
-    const onResume = () => void checkConnection(false);
+    const onResume = () => {
+      if (native) void checkConnection(false);
+    };
     const onVisibility = () => {
-      if (document.visibilityState === "visible") onResume();
+      if (native && document.visibilityState === "visible") onResume();
     };
 
     window.addEventListener("online", onOnline);
