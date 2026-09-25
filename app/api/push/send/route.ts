@@ -658,7 +658,7 @@ export async function POST(req: Request) {
         return new Response("Not authenticated", { status: 401 });
       }
 
-      const rl = apiRateLimit(`push:${actorId}`, 30, 5 * 60 * 1000);
+      const rl = await apiRateLimit(`push:${actorId}`, 30, 5 * 60 * 1000);
       if (!rl.ok) return rateLimitResponse(rl.retryAfterSeconds);
 
       if (!(await authorizeUserNotification(admin, actorId, payload))) {
