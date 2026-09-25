@@ -1,16 +1,9 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { Icon } from "@/components/Icon";
 
 type GuardState = "online" | "offline";
-
-function isNativeApp() {
-  if (typeof window === "undefined") return false;
-  const capacitor = (window as Window & {
-    Capacitor?: { isNativePlatform?: () => boolean };
-  }).Capacitor;
-  return capacitor?.isNativePlatform?.() === true;
-}
 
 export default function OfflineGuard({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GuardState>(() => {
@@ -19,15 +12,18 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    const handleOffline = () => setState("offline");
-    const handleOnline = () => setState("online");
+    const syncConnection = () => setState(navigator.onLine ? "online" : "offline");
 
-    window.addEventListener("offline", handleOffline);
-    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", syncConnection);
+    window.addEventListener("online", syncConnection);
+    window.addEventListener("pmp:app-resume", syncConnection);
+    document.addEventListener("visibilitychange", syncConnection);
 
     return () => {
-      window.removeEventListener("offline", handleOffline);
-      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", syncConnection);
+      window.removeEventListener("online", syncConnection);
+      window.removeEventListener("pmp:app-resume", syncConnection);
+      document.removeEventListener("visibilitychange", syncConnection);
     };
   }, []);
 
@@ -52,27 +48,46 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
         style={{
           width: "min(100%, 430px)",
           textAlign: "center",
-          padding: "34px 26px 30px",
+          padding: "38px 26px 30px",
           borderRadius: 28,
-          background: "rgba(255,255,255,0.94)",
+          background: "rgba(255,255,255,0.96)",
           border: "1px solid rgba(31,42,68,0.10)",
           boxShadow: "0 24px 70px rgba(31,42,68,0.12)",
         }}
       >
-        <img
-          src="/pmp-logo-web.png"
-          alt="Pinch My Pony"
+        <div
+          aria-hidden="true"
           style={{
-            width: 92,
-            height: 92,
-            objectFit: "contain",
+            width: 82,
+            height: 82,
             margin: "0 auto 20px",
-            display: "block",
+            borderRadius: 24,
+            display: "grid",
+            placeItems: "center",
+            background: "rgba(31,61,43,0.08)",
+            color: "#1F3D2B",
           }}
-        />
+        >
+          <Icon name="horseshoe" size={48} decorative={true} />
+        </div>
+
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 900,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "#8B5E3C",
+            marginBottom: 8,
+          }}
+        >
+          Pinch My Pony
+        </div>
+
         <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.15 }}>
           You’re offline
         </h1>
+
         <p
           style={{
             margin: "12px auto 0",
@@ -82,27 +97,25 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
             opacity: 0.76,
           }}
         >
-          It looks like your internet connection has dropped. Pinch My Pony
-          needs a connection to load your account and listings.
+          It looks like your internet connection has dropped. We’ll reconnect
+          automatically when you’re back online.
         </p>
-        <button
-          type="button"
-          onClick={() => setState(navigator.onLine ? "online" : "offline")}
+
+        <div
           style={{
-            width: "100%",
-            minHeight: 48,
             marginTop: 24,
-            border: 0,
+            minHeight: 48,
+            display: "grid",
+            placeItems: "center",
             borderRadius: 15,
-            background: "linear-gradient(180deg, #1F3D2B, #173223)",
-            color: "white",
-            fontWeight: 900,
-            fontSize: 15,
-            cursor: "pointer",
+            background: "rgba(31,61,43,0.07)",
+            color: "#1F3D2B",
+            fontSize: 14,
+            fontWeight: 800,
           }}
         >
-          Try again
-        </button>
+          Waiting for connection…
+        </div>
       </section>
     </main>
   );
