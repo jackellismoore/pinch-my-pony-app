@@ -25,6 +25,20 @@ test("safeInternalRedirect permits local paths only", () => {
   assert.equal(safeInternalRedirect("//evil.example"), "/");
 });
 
+
+test("production headers include CSP and baseline browser protections", () => {
+  const config = readFileSync(resolve("next.config.ts"), "utf8");
+  assert.match(config, /Content-Security-Policy/);
+  assert.match(config, /default-src 'self'/);
+  assert.match(config, /https:\/\/\*\.supabase\.co/);
+  assert.match(config, /https:\/\/maps\.googleapis\.com/);
+  assert.match(config, /X-Content-Type-Options/);
+  assert.match(config, /X-Frame-Options/);
+  assert.match(config, /Referrer-Policy/);
+  assert.match(config, /Permissions-Policy/);
+  assert.match(config, /object-src 'none'/);
+});
+
 test("launch features remain disabled unless explicitly enabled", () => {
   assert.equal(launchFeatureEnabled(undefined), false);
   assert.equal(launchFeatureEnabled("false"), false);
