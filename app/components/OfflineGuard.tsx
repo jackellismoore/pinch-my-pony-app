@@ -40,7 +40,7 @@ export default function OfflineGuard({ children }: { children: ReactNode }) {
 
     try {
       const { error } = await supabase
-        .from("horses")
+        .from("public_horses")
         .select("id")
         .limit(1)
         .abortSignal(controller.signal);
