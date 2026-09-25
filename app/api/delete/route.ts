@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     const userId = user.id;
 
-    const rl = apiRateLimit(`delete:${userId}`, 3, 3600000);
+    const rl = await apiRateLimit(`delete:${userId}`, 3, 3600000);
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSeconds);
 
     const { data: billingProfile, error: billingLookupError } = await admin
