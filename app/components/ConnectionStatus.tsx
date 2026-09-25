@@ -11,38 +11,75 @@ export function ConnectionIndicator() {
   const [state, setState] = useState<ConnectionState>(currentConnectionState);
 
   useEffect(() => {
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastOnline = navigator.onLine;
+
+    const sync = (online: boolean, showRestored = false) => {
+      const next: ConnectionState = online ? "connected" : "lost";
+      currentConnectionState = next;
+      setState(showRestored && online ? "restored" : next);
+    };
+
     const onState = (event: Event) => {
       const next = (event as CustomEvent<ConnectionState>).detail;
-      if (next) setState(next);
-    };
-    const onOnline = () => setState("restored");
-    const onOffline = () => setState("lost");
-    const onManualReconnect = () => {
-      if (navigator.onLine) {
-        currentConnectionState = "connected";
-        setState("connected");
-        window.dispatchEvent(new CustomEvent("pmp:connection-state", { detail: "connected" }));
-      } else {
-        setState("connecting");
+      if (next) {
+        currentConnectionState = next;
+        setState(next);
       }
-      window.dispatchEvent(new Event("pmp:app-resume"));
     };
-    window.addEventListener("pmp:connection-state", onState);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    window.addEventListener("pmp:manual-reconnect", onManualReconnect);
-    const onResume = () => setState(navigator.onLine ? "connected" : "lost");
+
+    const onOnline = () => {
+      lastOnline = true;
+      sync(true, true);
+    };
+
+    const onOffline = () => {
+      lastOnline = false;
+      sync(false);
+    };
+
+    const onResume = () => {
+      if (resumeTimer) clearTimeout(resumeTimer);
+      // Do an immediate sync and repeat shortly afterwards because iOS/WKWebView
+      // can update navigator.onLine a little after the native app resumes.
+      sync(navigator.onLine);
+      resumeTimer = setTimeout(() => {
+        sync(navigator.onLine, navigator.onLine);
+        resumeTimer = null;
+      }, 750);
+    };
+
     const onVisibility = () => {
       if (document.visibilityState === "visible") onResume();
     };
+
+    const poll = () => {
+      const online = navigator.onLine;
+      if (online !== lastOnline) {
+        lastOnline = online;
+        sync(online, online);
+      }
+    };
+
+    window.addEventListener("pmp:connection-state", onState);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
     window.addEventListener("pmp:app-resume", onResume);
     window.addEventListener("pageshow", onResume);
     document.addEventListener("visibilitychange", onVisibility);
+
+    // WKWebView/iOS can miss online/offline events, so keep the small indicator
+    // synchronised while the app is in the foreground.
+    const pollTimer = window.setInterval(poll, 1000);
+
+    sync(navigator.onLine);
+
     return () => {
+      if (resumeTimer) clearTimeout(resumeTimer);
+      window.clearInterval(pollTimer);
       window.removeEventListener("pmp:connection-state", onState);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
-      window.removeEventListener("pmp:manual-reconnect", onManualReconnect);
       window.removeEventListener("pmp:app-resume", onResume);
       window.removeEventListener("pageshow", onResume);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -151,9 +188,29 @@ export default function ConnectionStatus() {
 
     if (!navigator.onLine) showTransient("lost");
 
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") onResume();
+    };
+
+    let lastOnline = navigator.onLine;
+    const poll = () => {
+      const online = navigator.onLine;
+      if (online !== lastOnline) {
+        lastOnline = online;
+        if (online) onOnline();
+        else onOffline();
+      }
+    };
+
+    // iOS/WKWebView can miss online/offline events. Poll while foregrounded so
+    // reconnect feedback appears without requiring the user to switch apps.
+    const pollTimer = window.setInterval(poll, 1000);
+
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     window.addEventListener("pmp:app-resume", onResume);
+    window.addEventListener("pageshow", onResume);
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       clearHide();
@@ -161,6 +218,9 @@ export default function ConnectionStatus() {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("pmp:app-resume", onResume);
+      window.removeEventListener("pageshow", onResume);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(pollTimer);
     };
   }, []);
 
