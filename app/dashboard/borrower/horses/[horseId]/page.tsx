@@ -47,7 +47,7 @@ export default function BorrowerRequestHorsePage() {
       setHorseError(null);
 
       const { data, error } = await supabase
-        .from("horses")
+        .from("public_horses")
         .select("id,name,is_active,owner_id,location,breed,temperament,image_url")
         .eq("id", horseId)
         .single();
