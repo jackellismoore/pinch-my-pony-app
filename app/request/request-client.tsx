@@ -215,7 +215,7 @@ export default function RequestClient() {
         }
 
         const hRes = await supabase
-          .from("horses")
+          .from("public_horses")
           .select("id,owner_id,name,active,is_active,lat,lng")
           .eq("id", horseId)
           .single();
