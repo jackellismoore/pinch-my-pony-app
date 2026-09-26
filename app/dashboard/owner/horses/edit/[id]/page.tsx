@@ -22,6 +22,9 @@ type HorseRow = {
   height: any;
   height_hh: any;
   temperament: any;
+  gender?: any;
+  disciplines?: string[] | null;
+  rider_experience?: any;
   description: any;
   is_active: any;
 };
@@ -63,6 +66,23 @@ const BREED_OPTIONS = [
   "Welsh Section D",
   "Other",
 ] as const;
+
+const GENDER_OPTIONS = ["Mare", "Gelding", "Stallion"] as const;
+
+const DISCIPLINE_OPTIONS = [
+  "Hacking / pleasure",
+  "Dressage",
+  "Show jumping",
+  "Eventing",
+  "Hunting",
+  "Endurance",
+  "Pony Club",
+  "Riding Club",
+  "Schooling",
+  "Other",
+] as const;
+
+const RIDER_EXPERIENCE_OPTIONS = ["Beginner", "Novice", "Intermediate", "Experienced"] as const;
 
 const TEMPERAMENT_OPTIONS = [
   "Calm",
@@ -194,6 +214,9 @@ export default function EditHorsePage() {
   const [age, setAge] = useState("");
   const [height, setHeight] = useState("");
   const [temperament, setTemperament] = useState("");
+  const [gender, setGender] = useState("");
+  const [disciplines, setDisciplines] = useState<string[]>([]);
+  const [riderExperience, setRiderExperience] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [originalImageUrls, setOriginalImageUrls] = useState<string[]>([]);
@@ -215,7 +238,7 @@ export default function EditHorsePage() {
       try {
         const { data, error } = await supabase
           .from("horses")
-          .select("id,owner_id,name,location,lat,lng,image_url,image_urls,breed,age,height,height_hh,temperament,description,is_active")
+          .select("id,owner_id,name,location,lat,lng,image_url,image_urls,breed,age,height,height_hh,temperament,gender,disciplines,rider_experience,description,is_active")
           .eq("id", id)
           .single();
 
@@ -235,6 +258,9 @@ export default function EditHorsePage() {
         setAge(asString(h.age));
         setHeight(asString(h.height_hh ?? h.height));
         setTemperament(normalizeTemperament(asString(h.temperament)));
+        setGender(asString(h.gender));
+        setDisciplines(Array.isArray(h.disciplines) ? h.disciplines.filter((v): v is string => typeof v === "string") : []);
+        setRiderExperience(asString(h.rider_experience));
         setDescription(asString(h.description));
         setIsActive(asBool(h.is_active, true));
       } catch (e: any) {
@@ -250,7 +276,7 @@ export default function EditHorsePage() {
     };
   }, [id]);
 
-  const canSave = useMemo(() => !saving && !uploadingImage && Boolean(name.trim() && location.trim() && lat.trim() && lng.trim() && breed.trim() && age.trim() && height.trim() && temperament.trim() && description.trim() && imageUrls.length > 0), [saving, uploadingImage, name, location, lat, lng, breed, age, height, temperament, description, imageUrls]);
+  const canSave = useMemo(() => !saving && !uploadingImage && Boolean(name.trim() && location.trim() && lat.trim() && lng.trim() && breed.trim() && age.trim() && height.trim() && temperament.trim() && gender.trim() && disciplines.length > 0 && riderExperience.trim() && description.trim() && imageUrls.length > 0), [saving, uploadingImage, name, location, lat, lng, breed, age, height, temperament, gender, disciplines, riderExperience, description, imageUrls]);
 
   async function uploadImages(files: File[]) {
     if (!id || !files.length) return;
@@ -294,7 +320,7 @@ export default function EditHorsePage() {
 
       if (latNum != null && !Number.isFinite(latNum)) throw new Error("Latitude must be a number");
       if (lngNum != null && !Number.isFinite(lngNum)) throw new Error("Longitude must be a number");
-      if (!name.trim() || !location.trim() || !lat.trim() || !lng.trim() || !breed.trim() || !age.trim() || !height.trim() || !temperament.trim() || !description.trim() || !imageUrls.length) {
+      if (!name.trim() || !location.trim() || !lat.trim() || !lng.trim() || !breed.trim() || !age.trim() || !height.trim() || !temperament.trim() || !gender.trim() || !disciplines.length || !riderExperience.trim() || !description.trim() || !imageUrls.length) {
         throw new Error("Please complete all required fields, including a photo and map location.");
       }
 
@@ -312,6 +338,9 @@ export default function EditHorsePage() {
         age: age.trim() || null,
         height_hh: heightNum,
         temperament: temperament.trim() || null,
+        gender: gender.trim(),
+        disciplines,
+        rider_experience: riderExperience.trim(),
         description: description.trim() || null,
         image_url: imageUrls[0] ?? null,
         image_urls: imageUrls,
@@ -475,6 +504,33 @@ export default function EditHorsePage() {
               </select>
             </Field>
           </div>
+
+          <div className="pmp-editHorse-grid2">
+            <Field label="Gender *">
+              <select value={gender} onChange={(e) => setGender(e.target.value)} style={input()}>
+                <option value="">Select gender</option>
+                {GENDER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </Field>
+
+            <Field label="Suitable rider experience *">
+              <select value={riderExperience} onChange={(e) => setRiderExperience(e.target.value)} style={input()}>
+                <option value="">Select experience</option>
+                {RIDER_EXPERIENCE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Riding disciplines *">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 7 }}>
+              {DISCIPLINE_OPTIONS.map((option) => (
+                <label key={option} style={{ display: "flex", gap: 7, alignItems: "center", padding: "9px 10px", borderRadius: 11, border: "1px solid rgba(31,42,68,.12)", background: disciplines.includes(option) ? "rgba(200,162,77,.13)" : "white", fontSize: 12, fontWeight: 750 }}>
+                  <input type="checkbox" checked={disciplines.includes(option)} onChange={(e) => setDisciplines(current => e.target.checked ? [...current, option] : current.filter(item => item !== option))} />
+                  {option}
+                </label>
+              ))}
+            </div>
+          </Field>
 
           <Field label="Description *">
             <textarea
