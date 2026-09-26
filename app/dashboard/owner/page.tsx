@@ -250,7 +250,7 @@ export default function OwnerDashboardOverview() {
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <Link href="/dashboard/owner/horses" style={btn("secondary")}>
-            Horses
+            My horses
           </Link>
           <Link href="/dashboard/owner/requests" style={btn("secondary")}>
             Requests
@@ -260,6 +260,9 @@ export default function OwnerDashboardOverview() {
           </Link>
           <Link href="/dashboard/owner/horses/add" style={btn("primary")}>
             Add a horse →
+          </Link>
+          <Link href="/browse" style={btn("secondary")}>
+            Marketplace
           </Link>
         </div>
       </div>
