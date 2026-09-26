@@ -204,6 +204,26 @@ export default function OwnerHorsesPage() {
           min-width: 0;
         }
 
+        .pmp-addHorseCta {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          min-height: 52px;
+          padding: 9px 14px;
+          border-radius: 16px;
+          border: 1px solid rgba(200,162,77,0.55);
+          background: linear-gradient(135deg, #173d2c 0%, #24543d 100%);
+          color: #fff;
+          box-shadow: 0 14px 32px rgba(31,61,43,0.22), inset 0 1px 0 rgba(255,255,255,0.12);
+          font-size: 13px;
+          font-weight: 950;
+          flex: 0 0 auto;
+        }
+        .pmp-addHorseCta strong { display:block; font-size:14px; }
+        .pmp-addHorseCta small { display:block; margin-top:2px; font-size:11px; font-weight:700; opacity:.78; }
+        .pmp-addHorsePlus { width:28px; height:28px; border-radius:10px; display:grid; place-items:center; background:rgba(200,162,77,.22); color:#fff; font-size:20px; line-height:1; }
+        .pmp-addHorseArrow { margin-left:auto; font-size:18px; }
+
         .pmp-ownerHorseActions > a {
           flex: 1 1 140px;
           min-width: 0;
@@ -266,8 +286,10 @@ export default function OwnerHorsesPage() {
             <Link href="/dashboard" style={btn('secondary')}>
               ← Dashboard
             </Link>
-            <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
-              Add / list a horse →
+            <Link href="/dashboard/owner/horses/add" className="pmp-addHorseCta" style={{textDecoration:'none'}}>
+              <span className="pmp-addHorsePlus">＋</span>
+              <span><strong>Add / list a horse</strong><small>Add a new horse to Pinch My Pony</small></span>
+              <span className="pmp-addHorseArrow">→</span>
             </Link>
           </div>
         </div>
