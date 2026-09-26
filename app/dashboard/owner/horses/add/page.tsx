@@ -293,9 +293,9 @@ export default function AddHorsePage() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div>
             <div className="pmp-kicker">Owner tools</div>
-            <h1 className="pmp-pageTitle">Add a horse</h1>
+            <h1 className="pmp-pageTitle">Add / list your horse</h1>
             <div className="pmp-mutedText" style={{ marginTop: 6 }}>
-              Create a listing with details, location search, and image upload.
+              Create a horse profile that helps the right riders discover your horse and understand the arrangement you are looking for.
             </div>
           </div>
 
