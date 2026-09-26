@@ -199,9 +199,9 @@ export default function HomePage() {
         style={{
           position: "relative",
           overflow: "hidden",
-          padding: "18px 0 20px",
+          padding: "30px 0 34px",
           background: palette.cream,
-          borderRadius: 24,
+          borderRadius: 28,
         }}
       >
         <div
@@ -219,12 +219,12 @@ export default function HomePage() {
             className="pmp-home-hero-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "1.05fr 0.95fr",
-              gap: 18,
+              gridTemplateColumns: "1.08fr 0.92fr",
+              gap: 24,
               alignItems: "stretch",
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
               <div
                 style={{
                   display: "inline-flex",
@@ -232,13 +232,13 @@ export default function HomePage() {
                   gap: 10,
                   width: "fit-content",
                   maxWidth: "100%",
-                  padding: "8px 12px",
+                  padding: "9px 13px",
                   borderRadius: 999,
                   background: "rgba(31,61,43,0.08)",
                   border: "1px solid rgba(31,61,43,0.12)",
                   color: palette.forest,
                   fontWeight: 900,
-                  fontSize: 13,
+                  fontSize: 12,
                 }}
               >
                 <Icon name={isAuthed ? "check" : "horseshoe"} size={18} />
@@ -251,7 +251,7 @@ export default function HomePage() {
                 className="pmp-home-title"
                 style={{
                   margin: 0,
-                  fontSize: 44,
+                  fontSize: 52,
                   lineHeight: 1.06,
                   letterSpacing: -0.6,
                   color: palette.navy,
@@ -318,9 +318,9 @@ export default function HomePage() {
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          minHeight: 46,
-                          padding: "12px 16px",
-                          borderRadius: 14,
+                          minHeight: 50,
+                          padding: "13px 18px",
+                          borderRadius: 16,
                           background: `linear-gradient(180deg, ${palette.forest}, #173223)`,
                           color: "white",
                           fontWeight: 950,
@@ -470,21 +470,21 @@ export default function HomePage() {
 
             <div
               style={{
-                borderRadius: 22,
+                borderRadius: 26,
                 border: "1px solid rgba(31,42,68,0.12)",
                 background: "linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(245,241,232,0.65) 100%)",
                 boxShadow: "0 22px 60px rgba(31,42,68,0.12)",
                 overflow: "hidden",
-                minHeight: 360,
+                minHeight: 430,
               }}
             >
-              <div style={{ padding: 18, display: "grid", gap: 12 }}>
+              <div style={{ padding: 22, display: "grid", gap: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                   <div
                     style={{
-                      width: 96,
-                      height: 96,
-                      borderRadius: 24,
+                      width: 112,
+                      height: 112,
+                      borderRadius: 28,
                       background: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(250,247,240,0.96))",
                       border: "1px solid rgba(15,23,42,0.10)",
                       boxShadow: "0 16px 40px rgba(15,23,42,0.10)",
@@ -502,7 +502,7 @@ export default function HomePage() {
                   </div>
 
                   <div style={{ lineHeight: 1.15, minWidth: 0 }}>
-                    <div style={{ fontWeight: 950, fontSize: 20, color: palette.navy }}>Pinch My Pony</div>
+                    <div style={{ fontWeight: 950, fontSize: 22, color: palette.navy }}>Pinch My Pony</div>
                     <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.7 }}>
                       Horse borrowing marketplace
                     </div>
@@ -521,8 +521,8 @@ export default function HomePage() {
                   <div
                     style={{
                       marginTop: 4,
-                      padding: 12,
-                      borderRadius: 18,
+                      padding: 15,
+                      borderRadius: 20,
                       border: "1px solid rgba(31,42,68,0.10)",
                       background: "rgba(31,61,43,0.06)",
                     }}
@@ -560,16 +560,16 @@ export default function HomePage() {
 
       {!isAuthed ? (
         <>
-          <section style={{ padding: "24px 0", background: "#fafafa" }}>
+          <section style={{ padding: "44px 0", background: "#fafafa" }}>
             <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 12px" }}>
               <header style={{ display: "grid", gap: 8, margin: "0 0 16px" }}>
-                <h2 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy }}>How it works</h2>
+                <h2 style={{ margin: 0, fontSize: 34, letterSpacing: -0.3, color: palette.navy }}>How it works</h2>
                 <p style={{ margin: 0, opacity: 0.78, lineHeight: 1.65, maxWidth: 780 }}>
                   One account, whether you want to ride, share a horse, or do both.
                 </p>
               </header>
 
-              <div className="pmp-home-two-col" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
+              <div className="pmp-home-two-col" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16 }}>
                 <RoleCard
                   pill="Looking to ride"
                   steps={[
@@ -591,7 +591,7 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section style={{ padding: "24px 0", background: `linear-gradient(180deg, #fafafa 0%, rgba(245,241,232,0.7) 100%)` }}>
+          <section style={{ padding: "44px 0", background: `linear-gradient(180deg, #fafafa 0%, rgba(245,241,232,0.7) 100%)` }}>
             <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 12px" }}>
               <header style={{ display: "grid", gap: 8, margin: "0 0 16px" }}>
                 <h2 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy }}>Trust & safety, baked in</h2>
@@ -600,7 +600,7 @@ export default function HomePage() {
                 </p>
               </header>
 
-              <div className="pmp-home-feature-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 10 }}>
+              <div className="pmp-home-feature-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, marginTop: 14 }}>
                 <FeatureCard icon="heart" title="Reviews & ratings" copy="Transparent feedback builds confidence over time." />
                 <FeatureCard icon="calendar" title="Date conflict enforcement" copy="Overlaps are blocked to keep schedules reliable." />
                 <FeatureCard icon="messages" title="Messaging built-in" copy="Coordinate details without switching apps." />
@@ -648,7 +648,7 @@ function MiniCard({ icon, title, copy }: { icon: IconName; title: string; copy: 
 
 function FeatureCard({ icon, title, copy }: { icon: IconName; title: string; copy: string }) {
   return (
-    <div style={{ borderRadius: 22, border: "1px solid rgba(31,42,68,0.12)", background: "rgba(255,255,255,0.82)", boxShadow: "0 18px 50px rgba(31,42,68,0.08)", padding: 16 }}>
+    <div style={{ borderRadius: 22, border: "1px solid rgba(31,42,68,0.12)", background: "rgba(255,255,255,0.82)", boxShadow: "0 18px 50px rgba(31,42,68,0.08)", padding: 20 }}>
       <div style={{ width: 44, height: 44, borderRadius: 16, background: "rgba(31,61,43,0.10)", border: "1px solid rgba(31,61,43,0.14)", display: "grid", placeItems: "center", fontSize: 18, marginBottom: 10 }}>
         <Icon name={icon} size={22} />
       </div>
