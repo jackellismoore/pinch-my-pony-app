@@ -53,6 +53,23 @@ const BREED_OPTIONS = [
   "Other",
 ] as const;
 
+const GENDER_OPTIONS = ["Mare", "Gelding", "Stallion"] as const;
+
+const DISCIPLINE_OPTIONS = [
+  "Hacking / pleasure",
+  "Dressage",
+  "Show jumping",
+  "Eventing",
+  "Hunting",
+  "Endurance",
+  "Pony Club",
+  "Riding Club",
+  "Schooling",
+  "Other",
+] as const;
+
+const RIDER_EXPERIENCE_OPTIONS = ["Beginner", "Novice", "Intermediate", "Experienced"] as const;
+
 const TEMPERAMENT_OPTIONS = [
   "Calm",
   "Friendly",
@@ -116,6 +133,9 @@ export default function AddHorsePage() {
   const [age, setAge] = useState("");
   const [heightHh, setHeightHh] = useState("");
   const [temperament, setTemperament] = useState("");
+  const [gender, setGender] = useState("");
+  const [disciplines, setDisciplines] = useState<string[]>([]);
+  const [riderExperience, setRiderExperience] = useState("");
   const [description, setDescription] = useState("");
   const [arrangementType, setArrangementType] = useState("");
   const [helpNeeded, setHelpNeeded] = useState<string[]>([]);
@@ -149,13 +169,16 @@ export default function AddHorsePage() {
     if (!age.trim()) missing.push("Age");
     if (!heightHh.trim()) missing.push("Height");
     if (!temperament.trim()) missing.push("Temperament");
+    if (!gender.trim()) missing.push("Gender");
+    if (!disciplines.length) missing.push("Riding disciplines");
+    if (!riderExperience.trim()) missing.push("Suitable rider experience");
     if (!description.trim()) missing.push("Description");
     if (!arrangementType.trim()) missing.push("Arrangement");
     if (!helpNeeded.length) missing.push("What help is needed");
     if (!location.trim() || lat == null || lng == null) missing.push("Location");
     if (!imageFiles.length) missing.push("Photo");
     return missing;
-  }, [name, breed, age, heightHh, temperament, description, arrangementType, helpNeeded, location, lat, lng, imageFiles]);
+  }, [name, breed, age, heightHh, temperament, gender, disciplines, riderExperience, description, arrangementType, helpNeeded, location, lat, lng, imageFiles]);
 
   const fieldStyle = (missing: boolean): React.CSSProperties => ({
     ...input,
@@ -170,6 +193,9 @@ export default function AddHorsePage() {
       age.trim() &&
       heightHh.trim() &&
       temperament.trim() &&
+      gender.trim() &&
+      disciplines.length > 0 &&
+      riderExperience.trim() &&
       description.trim() &&
       arrangementType.trim() &&
       helpNeeded.length > 0 &&
@@ -179,7 +205,7 @@ export default function AddHorsePage() {
       imageFiles.length > 0 &&
       !submitting
     );
-  }, [name, breed, age, heightHh, temperament, description, arrangementType, helpNeeded, location, lat, lng, imageFiles, submitting]);
+  }, [name, breed, age, heightHh, temperament, gender, disciplines, riderExperience, description, arrangementType, helpNeeded, location, lat, lng, imageFiles, submitting]);
 
   useEffect(() => {
     const urls = imageFiles.map((file) => URL.createObjectURL(file));
@@ -217,7 +243,7 @@ export default function AddHorsePage() {
     setError(null);
     setShowValidation(true);
 
-    if (!name.trim() || !breed.trim() || !age.trim() || !heightHh.trim() || !temperament.trim() || !description.trim() || !arrangementType.trim() || !helpNeeded.length || !location.trim() || lat == null || lng == null || !imageFiles.length) {
+    if (!name.trim() || !breed.trim() || !age.trim() || !heightHh.trim() || !temperament.trim() || !gender.trim() || !disciplines.length || !riderExperience.trim() || !description.trim() || !arrangementType.trim() || !helpNeeded.length || !location.trim() || lat == null || lng == null || !imageFiles.length) {
       setError("Please complete all required fields, including the arrangement and help required.");
       return;
     }
@@ -249,6 +275,9 @@ export default function AddHorsePage() {
         name: name.trim(),
         breed: breed.trim() ? breed.trim() : null,
         temperament: temperament.trim() ? temperament.trim() : null,
+        gender: gender.trim(),
+        disciplines,
+        rider_experience: riderExperience.trim(),
         description: description.trim() ? description.trim() : null,
         arrangement_type: arrangementType,
         help_needed: helpNeeded,
@@ -369,6 +398,36 @@ export default function AddHorsePage() {
                 Price per day (optional)
                 <input value={pricePerDay} onChange={(e) => setPricePerDay(e.target.value)} style={input} placeholder="40" inputMode="numeric" />
               </label>
+            </div>
+
+            <div className="pmp-addHorse-grid3">
+              <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+                Gender *
+                <select value={gender} onChange={(e) => setGender(e.target.value)} style={fieldStyle(!gender.trim())}>
+                  <option value="">Select gender</option>
+                  {GENDER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+                Suitable rider experience *
+                <select value={riderExperience} onChange={(e) => setRiderExperience(e.target.value)} style={fieldStyle(!riderExperience.trim())}>
+                  <option value="">Select experience</option>
+                  {RIDER_EXPERIENCE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
+
+              <div style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+                Riding disciplines *
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 7 }}>
+                  {DISCIPLINE_OPTIONS.map((option) => (
+                    <label key={option} style={{ display: "flex", gap: 7, alignItems: "center", padding: "9px 10px", borderRadius: 11, border: "1px solid rgba(31,42,68,.12)", background: disciplines.includes(option) ? "rgba(200,162,77,.13)" : "rgba(255,255,255,.72)", fontSize: 12, fontWeight: 750 }}>
+                      <input type="checkbox" checked={disciplines.includes(option)} onChange={(e) => setDisciplines(current => e.target.checked ? [...current, option] : current.filter(item => item !== option))} />
+                      {option}
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
