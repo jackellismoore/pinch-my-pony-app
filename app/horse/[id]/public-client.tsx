@@ -21,6 +21,12 @@ type HorseRow = {
   height: any;
   height_hh?: any;
   temperament: any;
+  gender?: any;
+  disciplines?: string[] | null;
+  rider_experience?: any;
+  arrangement_type?: any;
+  help_needed?: string[] | null;
+  rider_expectations?: any;
   description: any;
   is_active: boolean | null;
 };
@@ -112,7 +118,7 @@ export default function HorsePublicClient() {
       try {
         const { data: h, error: hErr } = await supabase
           .from("public_horses")
-          .select("id,owner_id,name,image_url,image_urls,location,breed,age,height,height_hh,temperament,description,is_active")
+          .select("id,owner_id,name,image_url,image_urls,location,breed,age,height,height_hh,temperament,gender,disciplines,rider_experience,arrangement_type,help_needed,rider_expectations,description,is_active")
           .eq("id", horseId)
           .maybeSingle();
 
@@ -451,6 +457,9 @@ export default function HorsePublicClient() {
                   <DetailRow label="Age" value={fmt(horse.age)} />
                   <DetailRow label="Height" value={formatHorseHeight(horse.height_hh ?? horse.height)} />
                   <DetailRow label="Temperament" value={fmt(horse.temperament)} />
+                  <DetailRow label="Gender" value={fmt(horse.gender)} />
+                  <DetailRow label="Rider experience" value={fmt(horse.rider_experience)} />
+                  <DetailRow label="Disciplines" value={Array.isArray(horse.disciplines) && horse.disciplines.length ? horse.disciplines.join(" • ") : "—"} />
                   <DetailRow label="Location" value={publicHorseLocation(horse.location)} />
                   <DetailRow
                     label="Trust"
@@ -466,6 +475,17 @@ export default function HorsePublicClient() {
               </div>
 
               <div style={{ height: 12 }} />
+
+              <div style={{ padding: 14, borderRadius: 18, border: "1px solid rgba(31,61,43,0.16)", background: "linear-gradient(135deg, rgba(31,61,43,0.08), rgba(200,162,77,0.10))" }}>
+                <div className="pmp-kicker">The arrangement</div>
+                <div style={{ marginTop: 4, fontSize: 18, fontWeight: 950, color: palette.navy }}>{fmt(horse.arrangement_type)}</div>
+                {Array.isArray(horse.help_needed) && horse.help_needed.length ? (
+                  <div style={{ marginTop: 9, fontSize: 13, lineHeight: 1.6, color: palette.navy }}><strong>Looking for:</strong> {horse.help_needed.join(" • ")}</div>
+                ) : null}
+                {safeText(horse.rider_expectations).trim() ? (
+                  <div style={{ marginTop: 9, fontSize: 13, lineHeight: 1.65, color: palette.navy, opacity: 0.86 }}>{safeText(horse.rider_expectations)}</div>
+                ) : null}
+              </div>
 
               <div className="pmp-sectionHeader">
                 <div>
