@@ -271,7 +271,7 @@ export default function OwnerRequestDetailPage() {
           <Link href="/dashboard/owner/requests" style={btn("secondary")}>
             ← Back to requests
           </Link>
-          <Link href="/dashboard/owner" style={btn("secondary")}>
+          <Link href="/dashboard" style={btn("secondary")}>
             Overview
           </Link>
         </div>
