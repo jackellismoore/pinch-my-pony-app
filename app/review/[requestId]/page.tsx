@@ -218,215 +218,79 @@ export default function ReviewPage() {
     }
   };
 
+const reviewStyles = `
+.pmp-reviewPage{max-width:760px}.pmp-reviewHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}.pmp-reviewHero{margin-top:18px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:20px;border:1px solid rgba(200,162,77,.28);border-radius:24px;background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(245,241,232,.78));box-shadow:0 16px 38px rgba(31,42,68,.06)}.pmp-reviewHorseMark{width:58px;height:58px;border-radius:18px;background:rgba(31,61,43,.09);display:grid;place-items:center;color:#1F3D2B;font-size:28px}.pmp-reviewHorseInfo h2{margin:2px 0 0;font-size:23px;line-height:1.15;color:#1F2A44;letter-spacing:-.02em}.pmp-reviewOwner,.pmp-reviewDate{margin-top:5px;font-size:13px;color:rgba(31,42,68,.66)}.pmp-reviewStatus{padding:7px 10px;border-radius:999px;background:rgba(31,61,43,.09);color:#1F3D2B;font-size:12px;font-weight:800}.pmp-reviewFormCard{margin-top:16px;padding:22px;border:1px solid rgba(200,162,77,.24);border-radius:24px;background:#fff;box-shadow:0 16px 38px rgba(31,42,68,.06)}.pmp-reviewSectionHeading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.pmp-reviewSectionHeading h2{margin:2px 0 0;font-size:22px;line-height:1.2;color:#1F2A44;letter-spacing:-.02em}.pmp-reviewRatingNumber{font-size:16px;font-weight:850;color:#1F3D2B}.pmp-reviewStars{margin-top:18px;padding:16px;border-radius:18px;background:rgba(31,61,43,.055);border:1px solid rgba(31,61,43,.08);display:flex;align-items:center;gap:14px;flex-wrap:wrap}.pmp-reviewRatingHint{font-size:13px;font-weight:750;color:rgba(31,42,68,.65)}.pmp-reviewLabel{display:flex;justify-content:space-between;align-items:center;margin-top:20px;font-size:13px;font-weight:850;color:#1F2A44}.pmp-reviewLabel span{font-weight:700;color:rgba(31,42,68,.48)}.pmp-reviewFormCard textarea{display:block;width:100%;box-sizing:border-box;margin-top:8px;border:1px solid rgba(31,42,68,.13);border-radius:16px;padding:13px 14px;font:inherit;font-size:14px;line-height:1.5;color:#1F2A44;background:#fbfaf7;outline:none;resize:vertical}.pmp-reviewFormCard textarea:focus{border-color:rgba(31,61,43,.45);box-shadow:0 0 0 3px rgba(31,61,43,.08)}.pmp-reviewCount{margin-top:5px;text-align:right;font-size:11px;color:rgba(31,42,68,.48)}.pmp-reviewSubmitRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.pmp-reviewSubmit{min-height:44px;border:1px solid #173d2c;border-radius:12px;padding:9px 15px;background:linear-gradient(145deg,#173d2c,#214d38);color:#fff;font:inherit;font-size:13px;font-weight:850;cursor:pointer;box-shadow:0 8px 18px rgba(23,61,44,.14)}.pmp-reviewSubmit:disabled{opacity:.55;cursor:not-allowed}.pmp-reviewNote{margin-top:14px;font-size:11px;line-height:1.5;color:rgba(31,42,68,.52)}.pmp-reviewLoading{margin-top:18px;padding:18px;border-radius:18px;background:rgba(245,241,232,.75);color:rgba(31,42,68,.62)}.pmp-reviewSuccessIcon{width:52px;height:52px;border-radius:17px;display:grid;place-items:center;background:rgba(31,61,43,.1);color:#1F3D2B;font-size:24px;font-weight:900;flex:0 0 auto}.pmp-reviewTitle{margin:0;font-size:21px;color:#1F2A44}.pmp-reviewCard{margin-top:18px;padding:22px;border:1px solid rgba(200,162,77,.24);border-radius:24px;background:linear-gradient(145deg,#fff,#f5f1e8);box-shadow:0 16px 38px rgba(31,42,68,.06);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px}.pmp-reviewCard .pmp-mutedText{margin-top:4px}@media(max-width:560px){.pmp-reviewHero{grid-template-columns:auto 1fr}.pmp-reviewStatus{grid-column:2;justify-self:start}.pmp-reviewFormCard{padding:18px}.pmp-reviewSubmitRow{display:grid;grid-template-columns:1fr}.pmp-reviewSubmitRow a,.pmp-reviewSubmit{width:100%;box-sizing:border-box;justify-content:center;text-align:center}.pmp-reviewCard{grid-template-columns:auto 1fr}.pmp-reviewCard .pmp-ctaPrimary{grid-column:1/-1;width:100%;box-sizing:border-box;justify-content:center}}
+`;
   if (loading) {
     return (
-      <div style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
-        <div style={{ fontSize: 18, fontWeight: 950 }}>Leave a review</div>
-        <div style={{ marginTop: 12, opacity: 0.7, fontSize: 13 }}>Loading…</div>
+      <div className="pmp-pageShell pmp-reviewPage">
+        <style>{reviewStyles}</style>
+        <div className="pmp-kicker">Your riding</div>
+        <h1 className="pmp-pageTitle">Leave a review</h1>
+        <div className="pmp-reviewLoading">Loading your review…</div>
       </div>
     );
   }
 
   if (existingReviewId) {
     return (
-      <div style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 950 }}>Review already submitted</div>
-          <Link href="/messages" style={{ textDecoration: "none", color: "#2563eb", fontWeight: 900, fontSize: 13 }}>
-            Back to messages
-          </Link>
+      <div className="pmp-pageShell pmp-reviewPage">
+        <style>{reviewStyles}</style>
+        <div className="pmp-reviewHeader">
+          <div><div className="pmp-kicker">Your riding</div><h1 className="pmp-pageTitle">Review already submitted</h1><div className="pmp-mutedText">Thanks for sharing your experience.</div></div>
+          <Link href="/dashboard/borrower/horses" className="pmp-ctaSecondary">← My rides</Link>
         </div>
-
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid rgba(15,23,42,0.10)",
-            borderRadius: 14,
-            padding: 14,
-            background: "white",
-            fontSize: 13,
-            color: "rgba(0,0,0,0.70)",
-          }}
-        >
-          You’ve already left a review for this request.
-        </div>
-
-        {req?.id ? (
-          <div style={{ marginTop: 12 }}>
-            <Link
-              href={`/messages/${req.id}`}
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                background: "black",
-                color: "white",
-                padding: "10px 12px",
-                borderRadius: 12,
-                textDecoration: "none",
-                fontSize: 13,
-                fontWeight: 950,
-                display: "inline-block",
-              }}
-            >
-              Go to thread →
-            </Link>
-          </div>
-        ) : null}
+        <section className="pmp-reviewCard">
+          <div className="pmp-reviewSuccessIcon">✓</div>
+          <div><h2 className="pmp-reviewTitle">You're all set</h2><p className="pmp-mutedText">You’ve already left a review for this booking.</p></div>
+          {req?.id?<Link href={`/messages/${req.id}`} className="pmp-ctaPrimary">View conversation →</Link>:null}
+        </section>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: 760, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-        <div style={{ fontSize: 18, fontWeight: 950 }}>Leave a review</div>
-        <Link href="/messages" style={{ textDecoration: "none", color: "#2563eb", fontWeight: 900, fontSize: 13 }}>
-          Back
-        </Link>
+    <div className="pmp-pageShell pmp-reviewPage">
+      <style>{reviewStyles}</style>
+      <div className="pmp-reviewHeader">
+        <div><div className="pmp-kicker">Your riding</div><h1 className="pmp-pageTitle">Leave a review</h1><div className="pmp-mutedText">Tell the owner how your booking went.</div></div>
+        <Link href="/dashboard/borrower/horses" className="pmp-ctaSecondary">← My rides</Link>
       </div>
 
-      {error ? (
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid rgba(255,0,0,0.25)",
-            background: "rgba(255,0,0,0.06)",
-            padding: 12,
-            borderRadius: 12,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
+      {error?<div className="pmp-errorBanner" style={{marginTop:16}}>{error}</div>:null}
 
-      <div
-        style={{
-          marginTop: 14,
-          border: "1px solid rgba(15,23,42,0.10)",
-          borderRadius: 14,
-          padding: 14,
-          background: "white",
-          boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
-        }}
-      >
-        <div style={{ fontWeight: 950, fontSize: 15 }}>{horse?.name ?? "Horse"}</div>
-        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(15,23,42,0.70)" }}>
-          Horse listed by: <span style={{ fontWeight: 950 }}>{ownerLabel}</span>
+      <section className="pmp-reviewHero">
+        <div className="pmp-reviewHorseMark"><span>♞</span></div>
+        <div className="pmp-reviewHorseInfo">
+          <div className="pmp-kicker">Your booking</div>
+          <h2>{horse?.name ?? "Horse"}</h2>
+          <div className="pmp-reviewOwner">Listed by <strong>{ownerLabel}</strong></div>
+          <div className="pmp-reviewDate">{fmtDate(req?.start_date ?? null)} → {fmtDate(req?.end_date ?? null)}</div>
         </div>
-        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(15,23,42,0.70)" }}>
-          Dates:{" "}
-          <span style={{ fontWeight: 950 }}>
-            {fmtDate(req?.start_date ?? null)} → {fmtDate(req?.end_date ?? null)}
-          </span>
-        </div>
-        <div style={{ marginTop: 6, fontSize: 13, color: "rgba(15,23,42,0.70)" }}>
-          Status: <span style={{ fontWeight: 950 }}>{req?.status ?? "—"}</span>
-        </div>
-      </div>
+        <span className="pmp-reviewStatus">Completed</span>
+      </section>
 
-      <div
-        style={{
-          marginTop: 14,
-          border: "1px solid rgba(15,23,42,0.10)",
-          borderRadius: 14,
-          padding: 14,
-          background: "white",
-          boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
-        }}
-      >
-        <div style={{ fontWeight: 950, fontSize: 13, color: "rgba(15,23,42,0.85)" }}>Rating</div>
-        <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <StarRating value={rating} onChange={setRating} size={22} />
-          <div style={{ fontSize: 13, color: "rgba(15,23,42,0.70)", fontWeight: 900 }}>{rating}/5</div>
+      <section className="pmp-reviewFormCard">
+        <div className="pmp-reviewSectionHeading">
+          <div><div className="pmp-kicker">Your experience</div><h2>How was your ride?</h2></div>
+          <span className="pmp-reviewRatingNumber">{rating}/5</span>
         </div>
 
-        <div style={{ marginTop: 14, fontWeight: 950, fontSize: 13, color: "rgba(15,23,42,0.85)" }}>
-          Comment (optional)
-        </div>
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder="How was the experience?"
-          rows={5}
-          style={{
-            width: "100%",
-            marginTop: 8,
-            border: "1px solid rgba(15,23,42,0.12)",
-            borderRadius: 12,
-            padding: 12,
-            fontSize: 13,
-            outline: "none",
-            background: "rgba(15,23,42,0.02)",
-            resize: "vertical",
-          }}
-        />
-
-        <div style={{ marginTop: 10, fontSize: 12, color: "rgba(15,23,42,0.55)" }}>
-          {comment.trim().length}/1200
+        <div className="pmp-reviewStars">
+          <StarRating value={rating} onChange={setRating} size={30} />
+          <div className="pmp-reviewRatingHint">{rating===5?'Excellent':rating===4?'Great':rating===3?'Good':rating===2?'Could be better':'Needs improvement'}</div>
         </div>
 
-        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            onClick={submit}
-            disabled={saving}
-            style={{
-              border: "1px solid rgba(0,0,0,0.14)",
-              background: saving ? "rgba(0,0,0,0.35)" : "black",
-              color: "white",
-              padding: "10px 12px",
-              borderRadius: 12,
-              fontSize: 13,
-              fontWeight: 950,
-              cursor: saving ? "not-allowed" : "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {saving ? "Submitting…" : "Submit review →"}
-          </button>
+        <label className="pmp-reviewLabel" htmlFor="review-comment">Share a few words <span>Optional</span></label>
+        <textarea id="review-comment" value={comment} onChange={(e)=>setComment(e.target.value)} placeholder="What did you enjoy? Anything the owner should know?" rows={6} maxLength={1200}/>
+        <div className="pmp-reviewCount">{comment.trim().length}/1200</div>
 
-          {horse?.owner_id ? (
-            <Link
-              href={`/owner/${horse.owner_id}`}
-              style={{
-                border: "1px solid rgba(0,0,0,0.14)",
-                background: "white",
-                color: "black",
-                padding: "10px 12px",
-                borderRadius: 12,
-                textDecoration: "none",
-                fontSize: 13,
-                fontWeight: 950,
-                whiteSpace: "nowrap",
-              }}
-            >
-              View profile
-            </Link>
-          ) : null}
-
-          {req?.id ? (
-            <Link
-              href={`/messages/${req.id}`}
-              style={{
-                border: "1px solid rgba(15,23,42,0.14)",
-                background: "rgba(15,23,42,0.03)",
-                color: "black",
-                padding: "10px 12px",
-                borderRadius: 12,
-                textDecoration: "none",
-                fontSize: 13,
-                fontWeight: 950,
-                whiteSpace: "nowrap",
-              }}
-            >
-              View thread
-            </Link>
-          ) : null}
+        <div className="pmp-reviewSubmitRow">
+          <button onClick={submit} disabled={saving} className="pmp-reviewSubmit">{saving?"Submitting…":"Submit review →"}</button>
+          {horse?.owner_id?<Link href={`/owner/${horse.owner_id}`} className="pmp-ctaSecondary">View profile</Link>:null}
         </div>
-
-        <div style={{ marginTop: 10, fontSize: 12, color: "rgba(15,23,42,0.55)" }}>
-          Reviews can only be submitted for <span style={{ fontWeight: 950 }}>accepted/approved</span> requests.
-        </div>
-      </div>
+        <div className="pmp-reviewNote">Your review will be shared with the horse owner and may help other members understand the experience.</div>
+      </section>
     </div>
   );
 }
