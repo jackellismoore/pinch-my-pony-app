@@ -107,7 +107,24 @@ export default function MembershipPage() {
 
   return (
     <div className="pmp-membershipPage">
-      <section className="pmp-membershipHero">
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 16px" }}>
+        <Link
+          href="/dashboard/owner"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            minHeight: 44,
+            color: "#1F3D2B",
+            textDecoration: "none",
+            fontSize: 13,
+            fontWeight: 950,
+          }}
+        >
+          ← Dashboard
+        </Link>
+      </div>
+      <section className="pmp-membershipHero" style={{ marginTop: 4 }}>
         <div className="pmp-eyebrow"><Icon name="credit-card" size={17} /> Membership</div>
         <h1>Simple access. No surprise charges.</h1>
         <p>Your Pinch My Pony account is always free for listing horses. Borrowing remains free while the community proves itself, then becomes available through one straightforward membership only when we deliberately release it.</p>
