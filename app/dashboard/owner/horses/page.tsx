@@ -263,8 +263,8 @@ export default function OwnerHorsesPage() {
           </div>
 
           <div className="pmp-ownerHorsesHeaderActions">
-            <Link href="/dashboard/owner/manage" style={btn('secondary')}>
-              ← My Horses
+            <Link href="/dashboard" style={btn('secondary')}>
+              ← Dashboard
             </Link>
             <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
               Add a horse →
