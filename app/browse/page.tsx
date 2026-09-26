@@ -20,6 +20,12 @@ type HorseRow = {
   image_url: string | null;
   breed?: string | null;
   temperament?: string | null;
+  gender?: string | null;
+  disciplines?: string[] | null;
+  rider_experience?: string | null;
+  arrangement_type?: string | null;
+  help_needed?: string[] | null;
+  rider_expectations?: string | null;
   age?: number | null;
   height_hh?: string | number | null;
   description?: string | null;
@@ -200,7 +206,7 @@ export default function BrowsePage() {
 
         const { data: horsesData, error: horsesErr } = await supabase
           .from("public_horses")
-          .select("id,owner_id,name,location,image_url,breed,temperament,age,height_hh,description,active,is_active,lat,lng,created_at")
+          .select("id,owner_id,name,location,image_url,breed,temperament,gender,disciplines,rider_experience,arrangement_type,help_needed,rider_expectations,age,height_hh,description,active,is_active,lat,lng,created_at")
           .or("active.eq.true,is_active.eq.true")
           .order("created_at", { ascending: false });
 
