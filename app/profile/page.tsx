@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { VerificationBadge } from "../components/VerificationBadge";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
