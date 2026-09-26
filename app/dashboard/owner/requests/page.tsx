@@ -217,8 +217,8 @@ export default function OwnerRequestsPage() {
         </div>
 
         <div style={topActions}>
-          <Link href="/dashboard/owner/manage" style={btn("secondary")}>
-            ← My Horses
+          <Link href="/dashboard" style={btn("secondary")}>
+            ← Dashboard
           </Link>
           <Link href="/dashboard/owner/horses" style={btn("primary")}>
             Manage Horses →
