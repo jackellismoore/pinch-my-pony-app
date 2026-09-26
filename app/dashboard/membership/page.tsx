@@ -109,7 +109,7 @@ export default function MembershipPage() {
     <div className="pmp-membershipPage">
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 16px" }}>
         <Link
-          href="/dashboard/owner"
+          href="/dashboard"
           style={{
             display: "inline-flex",
             alignItems: "center",
