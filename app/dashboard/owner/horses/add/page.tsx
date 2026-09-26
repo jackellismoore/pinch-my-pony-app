@@ -117,8 +117,18 @@ export default function AddHorsePage() {
   const [heightHh, setHeightHh] = useState("");
   const [temperament, setTemperament] = useState("");
   const [description, setDescription] = useState("");
+  const [arrangementType, setArrangementType] = useState("");
+  const [helpNeeded, setHelpNeeded] = useState<string[]>([]);
+  const [riderExpectations, setRiderExpectations] = useState("");
   const [pricePerDay, setPricePerDay] = useState("");
   const [active, setActive] = useState(true);
+
+  const ARRANGEMENT_OPTIONS = [
+    ["Riding in return for help", "Help with horse care or yard jobs in return for riding time."],
+    ["Paid arrangement", "A paid riding arrangement."],
+    ["Flexible arrangement", "Open to discussing the right arrangement with a rider."],
+  ] as const;
+  const HELP_OPTIONS = ["Mucking out", "Stable chores", "General yard jobs", "Grooming & horse care", "Exercise / schooling", "Bringing in / turning out", "Regular weekly help", "Occasional help"] as const;
 
   const [location, setLocation] = useState("");
   const [locationName, setLocationName] = useState("");
@@ -140,10 +150,12 @@ export default function AddHorsePage() {
     if (!heightHh.trim()) missing.push("Height");
     if (!temperament.trim()) missing.push("Temperament");
     if (!description.trim()) missing.push("Description");
+    if (!arrangementType.trim()) missing.push("Arrangement");
+    if (!helpNeeded.length) missing.push("What help is needed");
     if (!location.trim() || lat == null || lng == null) missing.push("Location");
     if (!imageFiles.length) missing.push("Photo");
     return missing;
-  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFiles]);
+  }, [name, breed, age, heightHh, temperament, description, arrangementType, helpNeeded, location, lat, lng, imageFiles]);
 
   const fieldStyle = (missing: boolean): React.CSSProperties => ({
     ...input,
@@ -159,13 +171,15 @@ export default function AddHorsePage() {
       heightHh.trim() &&
       temperament.trim() &&
       description.trim() &&
+      arrangementType.trim() &&
+      helpNeeded.length > 0 &&
       location.trim() &&
       lat != null &&
       lng != null &&
       imageFiles.length > 0 &&
       !submitting
     );
-  }, [name, breed, age, heightHh, temperament, description, location, lat, lng, imageFiles, submitting]);
+  }, [name, breed, age, heightHh, temperament, description, arrangementType, helpNeeded, location, lat, lng, imageFiles, submitting]);
 
   useEffect(() => {
     const urls = imageFiles.map((file) => URL.createObjectURL(file));
@@ -203,8 +217,8 @@ export default function AddHorsePage() {
     setError(null);
     setShowValidation(true);
 
-    if (!name.trim() || !breed.trim() || !age.trim() || !heightHh.trim() || !temperament.trim() || !description.trim() || !location.trim() || lat == null || lng == null || !imageFiles.length) {
-      setError("Please complete all required fields, including a photo and map location.");
+    if (!name.trim() || !breed.trim() || !age.trim() || !heightHh.trim() || !temperament.trim() || !description.trim() || !arrangementType.trim() || !helpNeeded.length || !location.trim() || lat == null || lng == null || !imageFiles.length) {
+      setError("Please complete all required fields, including the arrangement and help required.");
       return;
     }
 
@@ -236,6 +250,9 @@ export default function AddHorsePage() {
         breed: breed.trim() ? breed.trim() : null,
         temperament: temperament.trim() ? temperament.trim() : null,
         description: description.trim() ? description.trim() : null,
+        arrangement_type: arrangementType,
+        help_needed: helpNeeded,
+        rider_expectations: riderExpectations.trim() ? riderExpectations.trim() : null,
         active,
         age: ageNum,
         height_hh: heightNum,
@@ -364,6 +381,33 @@ export default function AddHorsePage() {
                 placeholder="Tell borrowers about schooling, rider suitability, rules, etc."
               />
             </label>
+
+            <section style={{ borderRadius: 18, border: "1px solid rgba(31,42,68,0.12)", padding: 16, background: "rgba(245,241,232,0.58)" }}>
+              <div className="pmp-kicker">The arrangement</div>
+              <h2 style={{ margin: "4px 0 6px", color: palette.navy, fontSize: 19 }}>What are you looking for? *</h2>
+              <div style={{ fontSize: 12, opacity: .65, marginBottom: 12 }}>Tell riders what you'd like help with in return for riding.</div>
+              <div style={{ display: "grid", gap: 9 }}>
+                {ARRANGEMENT_OPTIONS.map(([value, help]) => (
+                  <label key={value} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: 12, borderRadius: 14, border: arrangementType === value ? "2px solid #1F3D2B" : "1px solid rgba(31,42,68,.12)", background: arrangementType === value ? "rgba(31,61,43,.07)" : "rgba(255,255,255,.72)", cursor: "pointer" }}>
+                    <input type="radio" name="arrangement" checked={arrangementType === value} onChange={() => setArrangementType(value)} style={{ marginTop: 3 }} />
+                    <span><strong style={{ color: palette.navy }}>{value}</strong><span style={{ display: "block", marginTop: 2, fontSize: 12, opacity: .65, fontWeight: 600 }}>{help}</span></span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ marginTop: 14, fontSize: 13, fontWeight: 800 }}>What help are you looking for? *</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 8, marginTop: 8 }}>
+                {HELP_OPTIONS.map((option) => (
+                  <label key={option} style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 11px", borderRadius: 12, border: "1px solid rgba(31,42,68,.12)", background: helpNeeded.includes(option) ? "rgba(200,162,77,.13)" : "rgba(255,255,255,.72)", fontSize: 12, fontWeight: 750 }}>
+                    <input type="checkbox" checked={helpNeeded.includes(option)} onChange={(e) => setHelpNeeded(current => e.target.checked ? [...current, option] : current.filter(item => item !== option))} />
+                    {option}
+                  </label>
+                ))}
+              </div>
+              <label style={{ display: "grid", gap: 6, marginTop: 14, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
+                What can riders expect? <span style={{ fontSize: 11, opacity: .55, fontWeight: 600 }}>(optional)</span>
+                <textarea value={riderExpectations} onChange={(e) => setRiderExpectations(e.target.value)} rows={4} style={{ ...input, resize: "vertical" }} placeholder="Optional: explain what a typical visit or ride looks like." />
+              </label>
+            </section>
 
             <label style={{ display: "grid", gap: 6, fontSize: 13, color: "rgba(0,0,0,0.75)", fontWeight: 800 }}>
               Location (search) *
