@@ -255,7 +255,7 @@ export default function OwnerHorsesPage() {
         <div className="pmp-ownerHorsesHeader">
           <div style={{ minWidth: 0 }}>
             <h1 style={{ margin: 0, fontSize: 34, letterSpacing: -0.3, color: palette.navy, fontWeight: 950 }}>
-              My Horses
+              My Horses & Listings
             </h1>
             <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
               {activeCount} active • {horses.length} total listings.
@@ -267,7 +267,7 @@ export default function OwnerHorsesPage() {
               ← Dashboard
             </Link>
             <Link href="/dashboard/owner/horses/add" style={btn('primary')}>
-              Add a horse →
+              Add / list a horse →
             </Link>
           </div>
         </div>
@@ -302,7 +302,7 @@ export default function OwnerHorsesPage() {
           <div style={{ marginTop: 16, ...card, padding: 16 }}>
             <div style={{ fontWeight: 950, color: palette.navy }}>No matches.</div>
             <div style={{ marginTop: 6, fontSize: 13, color: 'rgba(0,0,0,0.62)', lineHeight: 1.6 }}>
-              Try a different search, or add a new horse.
+              Try a different search, or add / list a new horse.
             </div>
           </div>
         ) : null}
