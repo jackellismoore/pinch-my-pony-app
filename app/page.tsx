@@ -167,6 +167,16 @@ export default function HomePage() {
   return (
     <div style={{ width: "100%" }}>
       <style>{`
+        .pmp-home-hero-shell{border:1px solid rgba(31,42,68,.08);box-shadow:0 28px 80px rgba(31,42,68,.10);}
+        .pmp-home-hero-copy{padding:22px 6px 18px;}
+        .pmp-home-hero-panel{transform:translateY(2px);}
+        .pmp-home-section-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:950;color:#8B5E3C;}
+        .pmp-home-divider{height:1px;background:linear-gradient(90deg,rgba(200,162,77,.45),rgba(31,42,68,.06),transparent);}
+        .pmp-home-role-section{background:linear-gradient(180deg,#fff 0%,#faf8f3 100%);border-top:1px solid rgba(31,42,68,.06);border-bottom:1px solid rgba(31,42,68,.06);}
+        .pmp-home-feature-card{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;}
+        .pmp-home-feature-card:hover{transform:translateY(-3px);box-shadow:0 24px 60px rgba(31,42,68,.12)!important;border-color:rgba(200,162,77,.34)!important;}
+        @media (max-width: 767px) {.pmp-home-hero-copy{padding:8px 0}.pmp-home-hero-panel{transform:none}}
+
         @media (max-width: 980px) {
           .pmp-home-hero-grid { grid-template-columns: 1fr !important; }
           .pmp-home-two-col { grid-template-columns: 1fr !important; }
@@ -224,7 +234,7 @@ export default function HomePage() {
               alignItems: "stretch",
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }} className="pmp-home-hero-copy">
               <div
                 style={{
                   display: "inline-flex",
@@ -560,10 +570,10 @@ export default function HomePage() {
 
       {!isAuthed ? (
         <>
-          <section style={{ padding: "44px 0", background: "#fafafa" }}>
+          <section className="pmp-home-role-section" style={{ padding: "58px 0" }}>
             <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 12px" }}>
               <header style={{ display: "grid", gap: 8, margin: "0 0 16px" }}>
-                <h2 style={{ margin: 0, fontSize: 34, letterSpacing: -0.3, color: palette.navy }}>How it works</h2>
+                <div className="pmp-home-section-label">The marketplace</div>\n                <h2 style={{ margin: 0, fontSize: 34, letterSpacing: -0.3, color: palette.navy }}>How it works</h2>
                 <p style={{ margin: 0, opacity: 0.78, lineHeight: 1.65, maxWidth: 780 }}>
                   One account, whether you want to ride, share a horse, or do both.
                 </p>
@@ -591,10 +601,10 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section style={{ padding: "44px 0", background: `linear-gradient(180deg, #fafafa 0%, rgba(245,241,232,0.7) 100%)` }}>
+          <section style={{ padding: "58px 0", background: `linear-gradient(180deg, #faf8f3 0%, #f1f5f1 100%)` }}>
             <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 12px" }}>
               <header style={{ display: "grid", gap: 8, margin: "0 0 16px" }}>
-                <h2 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy }}>Trust & safety, baked in</h2>
+                <div className="pmp-home-section-label">Built around trust</div>\n                <h2 style={{ margin: 0, fontSize: 28, letterSpacing: -0.3, color: palette.navy }}>Trust & safety, baked in</h2>
                 <p style={{ margin: 0, opacity: 0.78, lineHeight: 1.65, maxWidth: 780 }}>
                   Profiles, messaging, and guardrails help keep things clear and comfortable.
                 </p>
@@ -648,7 +658,7 @@ function MiniCard({ icon, title, copy }: { icon: IconName; title: string; copy: 
 
 function FeatureCard({ icon, title, copy }: { icon: IconName; title: string; copy: string }) {
   return (
-    <div style={{ borderRadius: 22, border: "1px solid rgba(31,42,68,0.12)", background: "rgba(255,255,255,0.82)", boxShadow: "0 18px 50px rgba(31,42,68,0.08)", padding: 20 }}>
+    <div className="pmp-home-feature-card" style={{ borderRadius: 22, border: "1px solid rgba(31,42,68,0.12)", background: "rgba(255,255,255,0.82)", boxShadow: "0 18px 50px rgba(31,42,68,0.08)", padding: 20 }}>
       <div style={{ width: 44, height: 44, borderRadius: 16, background: "rgba(31,61,43,0.10)", border: "1px solid rgba(31,61,43,0.14)", display: "grid", placeItems: "center", fontSize: 18, marginBottom: 10 }}>
         <Icon name={icon} size={22} />
       </div>
