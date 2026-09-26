@@ -211,7 +211,7 @@ export default function ReviewPage() {
           requestId: req.id,
       }).catch(() => {});
 
-      router.push(`/messages/${req.id}`);
+      router.push("/dashboard/borrower/horses");
       router.refresh();
     } catch (e: any) {
       setError(e?.message ?? "Failed to submit review.");
